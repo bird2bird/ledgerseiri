@@ -1,64 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LedgerSeiri（レジャーセイリ）</title>
-  <meta name="description" content="LedgerSeiri はクロスボーダーEC事業者向けの会計データ整理SaaSです。" />
+  <title>LedgerSeiri（レジャーセイリ）｜帳簿データを、正しく整理する</title>
+
+  <meta name="description" content="LedgerSeiri は、クロスボーダーEC事業者向けの会計データ整理に特化したクラウド型ソフトウェア（SaaS）です。" />
+
+  <style>
+    :root {
+      --fg:#111;
+      --muted:#555;
+      --line:#e6e6e6;
+      --bg:#fff;
+      --link:#0b57d0;
+    }
+
+    body {
+      margin:0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif;
+      color:var(--fg);
+      background:var(--bg);
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 56px 20px;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin: 0 0 12px;
+    }
+
+    h2 {
+      font-size: 22px;
+      margin: 36px 0 12px;
+    }
+
+    p {
+      line-height: 1.8;
+      margin: 0 0 14px;
+    }
+
+    ul {
+      margin: 0 0 16px 18px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    a {
+      color: var(--link);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .tag {
+      display:inline-block;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:14px;
+    }
+
+    .box {
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:18px;
+      margin-top:18px;
+    }
+
+    .note {
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.7;
+    }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .footer-links a {
+      margin-right: 16px;
+    }
+  </style>
 </head>
-<body style="font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.7; max-width:820px; margin:48px auto; padding:0 18px; color:#111;">
-  <header style="margin-bottom:28px;">
-    <h1 style="margin:0 0 8px 0;">LedgerSeiri <small style="font-size:16px; font-weight:600;">（レジャーセイリ）</small></h1>
-    <p style="margin:0; font-size:18px;"><strong>帳簿データを、正しく整理する。</strong></p>
-  </header>
 
-  <section style="margin-bottom:18px;">
-    <p>
-      LedgerSeiri は、クロスボーダーEC事業者向けの
-      <strong>会計データ整理に特化したクラウド型ソフトウェア（SaaS）</strong>です。
-    </p>
-    <p>
-      本サービスは、売上・手数料・費用データの整理・管理・分析を目的としたソフトウェアであり、
-      <strong>資金の保管、決済代行、税務代理業務は行いません。</strong>
-    </p>
-  </section>
+<body>
+  <main class="wrap">
+    <span class="tag">Cloud Software / SaaS</span>
 
-  <section style="margin-bottom:18px;">
-    <h2 style="font-size:18px; margin:18px 0 8px;">主な機能</h2>
-    <ul style="margin:0; padding-left:20px;">
-      <li>EC 売上・手数料データの整理</li>
-      <li>会計・記帳用データの集計と一覧化</li>
+    <h1>LedgerSeiri（レジャーセイリ）</h1>
+
+    <p><strong>帳簿データを、正しく整理する。</strong></p>
+
+    <p>
+      LedgerSeiri は、クロスボーダー EC 事業者向けに、<br />
+      売上・手数料・費用などの会計データを整理・可視化することに特化した
+      <strong>クラウド型ソフトウェア（SaaS）</strong>です。
+    </p>
+
+    <p>
+      複数の EC プラットフォームや決済サービスから取得したデータを統合し、
+      会計・記帳・分析に利用しやすい形で提供します。
+    </p>
+
+    <h2>主な機能</h2>
+    <ul>
+      <li>EC 売上・手数料・費用データの整理</li>
+      <li>会計・記帳用データの集計および一覧化</li>
       <li>CSV / Excel 形式でのデータ出力</li>
     </ul>
-  </section>
 
-  <section style="margin-bottom:18px;">
-    <h2 style="font-size:18px; margin:18px 0 8px;">料金</h2>
-    <p style="margin:0;">
-      LedgerSeiri はサブスクリプション型のソフトウェアサービスです。料金プランの詳細は現在準備中です。<br>
-      ※ 表示価格には、必要に応じて税金が加算される場合があります。
+    <div class="box">
+      <h2>料金</h2>
+      <p>
+        LedgerSeiri はサブスクリプション型のソフトウェアサービスです。
+      </p>
+      <p>
+        現在は <strong>β版（月額 0 円・税込）</strong> を提供しています。
+        正式な有料プラン開始時には、申込・決済画面にて料金を明示します。
+      </p>
+
+      <!-- Stripe 审核重点：支付区域可访问商业披露 -->
+      <p class="note">
+        <a href="/commerce">特定商取引法に基づく表記</a>
+      </p>
+    </div>
+
+    <div class="box">
+      <h2>重要なご案内</h2>
+      <p class="note">
+        LedgerSeiri は会計データの整理・可視化・出力を目的としたソフトウェアです。<br />
+        資金の保管、決済代行、送金業務、税務申告や税務代理業務は行っておりません。
+      </p>
+    </div>
+
+    <h2>運営会社</h2>
+    <p>
+      Kimoca Co., Ltd.<br />
+      事業内容：ソフトウェアの開発・提供
     </p>
-  </section>
 
-  <section style="margin-bottom:18px;">
-    <h2 style="font-size:18px; margin:18px 0 8px;">運営会社</h2>
-    <p style="margin:0;">
-      Kimoca Co., Ltd.<br>
-      事業内容：ソフトウェア開発・提供
-    </p>
-  </section>
-
-  <section style="margin-bottom:28px;">
-    <h2 style="font-size:18px; margin:18px 0 8px;">お問い合わせ</h2>
-    <p style="margin:0;">
+    <h2>お問い合わせ</h2>
+    <p>
       <a href="mailto:support@kimoca.com">support@kimoca.com</a>
     </p>
-  </section>
 
-  <footer style="border-top:1px solid #eee; padding-top:12px; font-size:13px; color:#666;">
-    © <span id="y"></span> LedgerSeiri
-  </footer>
-
-  <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+    <footer>
+      <div class="footer-links">
+        <a href="/commerce">特定商取引法に基づく表記</a>
+      </div>
+      <div style="margin-top:8px;">© 2025–2026 LedgerSeiri</div>
+    </footer>
+  </main>
 </body>
 </html>
