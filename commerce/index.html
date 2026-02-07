@@ -3,140 +3,202 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>特定商取引法に基づく表記 | LedgerSeiri</title>
-  <meta name="description" content="LedgerSeiri（SaaS）の特定商取引法に基づく表記ページです。" />
+  <title>特定商取引法に基づく表記｜LedgerSeiri（レジャーセイリ）</title>
+  <meta name="description" content="LedgerSeiri（レジャーセイリ）の特定商取引法に基づく表記（通信販売に関する表示事項）です。" />
   <style>
-    :root { --fg:#111; --muted:#555; --line:#e6e6e6; --bg:#fff; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", sans-serif; color:var(--fg); background:var(--bg); }
-    .wrap { max-width: 860px; margin: 0 auto; padding: 56px 20px; }
-    h1 { font-size: 28px; margin: 0 0 10px; }
-    .sub { color: var(--muted); margin: 0 0 22px; line-height: 1.7; }
-    .card { border:1px solid var(--line); border-radius: 12px; padding: 18px; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { text-align:left; vertical-align: top; padding: 12px 10px; border-top:1px solid var(--line); }
-    th { width: 28%; color: var(--muted); font-weight: 600; }
-    a { color:#0b57d0; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .toplinks { margin-top: 8px; }
-    .note { color: var(--muted); font-size: 13px; line-height: 1.7; margin-top: 10px; }
-    footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-    .pill { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:6px 10px; font-size:12px; color:var(--muted); margin-bottom:10px; }
+    :root{
+      --bg:#0b0f19; --card:#0f172a; --muted:#94a3b8; --text:#e5e7eb;
+      --line:rgba(148,163,184,.22); --radius:16px;
+      --brand:#7c3aed;
+      --max: 980px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, Arial;
+      background: radial-gradient(1100px 500px at 20% -10%, rgba(124,58,237,.28), transparent 60%), var(--bg);
+      color:var(--text);
+      line-height:1.75;
+    }
+    a{color:inherit}
+    .wrap{max-width:var(--max); margin:0 auto; padding:30px 18px 44px}
+    header{
+      border:1px solid var(--line);
+      background: rgba(15,23,42,.45);
+      border-radius: var(--radius);
+      padding:16px 16px;
+      display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+    .brand{font-weight:900}
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:9px 12px; border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      text-decoration:none;
+      font-weight:800; font-size:13px;
+    }
+    h1{margin:14px 0 8px; font-size:26px}
+    p.lead{margin:0 0 18px; color: rgba(229,231,235,.86); font-size:14px}
+    .card{
+      border:1px solid var(--line);
+      background: rgba(15,23,42,.35);
+      border-radius: var(--radius);
+      padding:16px;
+      margin-top:12px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 220px 1fr;
+      gap:12px;
+      padding:12px 0;
+      border-top:1px dashed rgba(148,163,184,.20);
+    }
+    .row:first-child{border-top:none; padding-top:0}
+    .k{color:var(--muted); font-weight:800}
+    .v{color: rgba(229,231,235,.92)}
+    @media(max-width:720px){
+      .row{grid-template-columns: 1fr; gap:6px}
+    }
+    .note{color:var(--muted); font-size:12px; margin-top:10px}
+    footer{margin-top:14px; color:var(--muted); font-size:12px}
+    code{background: rgba(255,255,255,.06); padding:2px 6px; border-radius:8px}
   </style>
 </head>
 
 <body>
-  <main class="wrap">
-    <div class="pill">Commerce Disclosure</div>
-    <h1>特定商取引法に基づく表記</h1>
-    <p class="sub">
-      本ページは、LedgerSeiri（クラウド型ソフトウェア / SaaS）の提供に関する「通信販売に関する表示事項」です。
+  <div class="wrap">
+    <header>
+      <div class="brand">LedgerSeiri（レジャーセイリ）</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a class="btn" href="/">ホームへ戻る</a>
+        <a class="btn" href="mailto:support@kimoca.com?subject=LedgerSeiri%20%E7%89%B9%E5%95%86%E6%B3%95%E8%A1%A8%E8%A8%98%20%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B">お問い合わせ</a>
+      </div>
+    </header>
+
+    <h1>特定商取引法に基づく表記（通信販売に関する表示事項）</h1>
+    <p class="lead">
+      本ページは、特定商取引法に基づき、LedgerSeiri（レジャーセイリ）に関する販売条件・事業者情報を表示するものです。
     </p>
-    <div class="toplinks">
-      <a href="/">← ホームへ戻る</a>
-    </div>
 
-    <div class="card" style="margin-top:18px;">
-      <table>
-        <tr>
-          <th>販売事業者（法定名称）</th>
-          <td>Kimoca Co., Ltd.（株式会社キモカ）</td>
-        </tr>
+    <div class="card" role="table" aria-label="Commerce Disclosure">
+      <div class="row" role="row">
+        <div class="k" role="cell">販売事業者（法定名称）</div>
+        <div class="v" role="cell">株式会社キモカ（Kimoca Co., Ltd.）</div>
+      </div>
 
-        <tr>
-          <th>所在地（住所）</th>
-          <td>
-            〒220-0004<br/>
-            神奈川県横浜市西区北幸2丁目10番48号<br/>
-            むつみビル3F
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">運営責任者</div>
+        <div class="v" role="cell">SUN WEIWEI</div>
+      </div>
 
-        <tr>
-          <th>電話番号</th>
-          <td>
-            +81 70 8332 2320<br/>
-            <span class="note">受付時間：平日 10:00〜18:00（日本時間）※土日祝を除く</span>
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">所在地</div>
+        <div class="v" role="cell">〒220-0004 神奈川県横浜市西区北幸2丁目10番48号 むつみビル3F</div>
+      </div>
 
-        <tr>
-          <th>メールアドレス</th>
-          <td><a href="mailto:support@kimoca.com">support@kimoca.com</a></td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">電話番号</div>
+        <div class="v" role="cell">+81 70 8332 2320（受付時間：平日 10:00〜18:00 / 土日祝を除く）</div>
+      </div>
 
-        <tr>
-          <th>運営統括責任者</th>
-          <td>SUN WEIWEI</td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">メールアドレス</div>
+        <div class="v" role="cell">support@kimoca.com</div>
+      </div>
 
-        <tr>
-          <th>販売価格（消費税込）</th>
-          <td>
-            β版：月額 0円（税込）<br/>
-            <span class="note">
-              正式な有料プラン開始後は、申込画面（決済画面）にてプラン料金（消費税込）を明示します。
-            </span>
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">販売価格</div>
+        <div class="v" role="cell">
+          各プランの価格は申込画面・料金ページに表示します（表示価格は税込、または別途消費税が加算される場合があります）。
+          <br/>
+          ※ 現在：料金プランは準備中（提供開始時に更新します）
+        </div>
+      </div>
 
-        <tr>
-          <th>商品代金以外の必要料金（追加費用）</th>
-          <td>
-            本サービスはデジタルサービス（SaaS）のため、通常は送料等は発生しません。<br/>
-            ただし、銀行振込をご利用の場合、振込手数料はお客様のご負担となります。<br/>
-            <span class="note">※インターネット接続料金等の通信費はお客様のご負担です。</span>
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">商品代金以外の必要料金</div>
+        <div class="v" role="cell">
+          インターネット接続料金・通信料等はお客様のご負担となります。<br/>
+          （振込の場合）振込手数料はお客様負担となります。
+        </div>
+      </div>
 
-        <tr>
-          <th>お支払い方法</th>
-          <td>
-            クレジットカード決済（Stripe）<br/>
-            銀行振込（対応する場合）
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">提供時期（引き渡し時期）</div>
+        <div class="v" role="cell">
+          SaaS（デジタルサービス）のため、決済完了後、原則として即時に利用可能となります。<br/>
+          ※ アカウント審査・本人確認等が必要な場合は、確認完了後に提供します。
+        </div>
+      </div>
 
-        <tr>
-          <th>お支払い時期（期限）</th>
-          <td>
-            クレジットカード：申込時に即時決済されます。<br/>
-            銀行振込：請求発行後 3日以内にお支払いください（対応する場合）。
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">お支払い方法</div>
+        <div class="v" role="cell">
+          クレジットカード決済（Stripe）<br/>
+          ※ 今後追加する場合は本ページを更新します
+        </div>
+      </div>
 
-        <tr>
-          <th>提供時期（引渡時期）</th>
-          <td>
-            決済完了後、原則として即時にアカウントが有効化され、サービスをご利用いただけます。<br/>
-            <span class="note">※システムメンテナンス等により遅延する場合があります。</span>
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">お支払い時期（支払期限）</div>
+        <div class="v" role="cell">
+          クレジットカード決済：申込時に即時決済されます。<br/>
+          サブスクリプションの場合：契約更新日に自動課金されます。
+        </div>
+      </div>
 
-        <tr>
-          <th>返品・交換（キャンセル）について</th>
-          <td>
-            ＜お客様都合の解約・キャンセル＞<br/>
-            本サービスはデジタルサービス（SaaS）のため、提供開始後の返金は原則として承っておりません。<br/>
-            サブスクリプションはいつでも解約可能で、解約後は次回更新日以降の課金は行われません。<br/><br/>
+      <div class="row" role="row">
+        <div class="k" role="cell">キャンセル・解約</div>
+        <div class="v" role="cell">
+          サブスクリプションは、次回更新日の前日までに解約手続きを完了することで、次回以降の請求を停止します。<br/>
+          解約後も、契約期間満了までは利用可能です（プランにより異なる場合があります）。
+        </div>
+      </div>
 
-            ＜不具合がある場合（瑕疵対応）＞<br/>
-            サービスの重大な不具合により継続利用が困難であると当社が判断した場合、状況に応じて返金または利用期間の調整等を行います。<br/>
-            まずはサポート窓口（上記メール/電話）までご連絡ください。
-          </td>
-        </tr>
+      <div class="row" role="row">
+        <div class="k" role="cell">返品・返金（不具合がない場合）</div>
+        <div class="v" role="cell">
+          デジタルサービス（SaaS）の性質上、提供開始後の返金は原則としてお受けしておりません。<br/>
+          ただし、法令に基づく場合、または当社が別途認める場合を除きます。
+        </div>
+      </div>
 
-      </table>
+      <div class="row" role="row">
+        <div class="k" role="cell">返品・返金（不具合がある場合）</div>
+        <div class="v" role="cell">
+          サービスの重大な不具合により継続利用が困難であると当社が合理的に判断した場合、状況に応じて返金または代替措置を行います。<br/>
+          まずは <a href="mailto:support@kimoca.com">support@kimoca.com</a> までご連絡ください。
+        </div>
+      </div>
 
-      <div class="note">
-        <strong>免責：</strong>
-        LedgerSeiri は会計データの整理・可視化・出力を目的としたソフトウェアであり、決済代行、資金の保管・送金、税務申告代行等は行いません。
+      <div class="row" role="row">
+        <div class="k" role="cell">動作環境</div>
+        <div class="v" role="cell">
+          最新版の Google Chrome / Microsoft Edge / Safari を推奨します。<br/>
+          ※ 推奨環境外での動作保証はいたしかねます。
+        </div>
+      </div>
+
+      <div class="row" role="row">
+        <div class="k" role="cell">免責事項</div>
+        <div class="v" role="cell">
+          LedgerSeiri は会計データの整理・可視化を目的としたソフトウェアであり、資金の保管、決済代行、税務代理業務は行いません。<br/>
+          本サービスの利用により生じた損害について、当社の故意または重過失による場合を除き、責任を負いません（詳細は別途規約に定めます）。
+        </div>
       </div>
     </div>
 
+    <div class="note">
+      更新日：2026-02-07<br/>
+      ※ 本ページは Stripe 等の決済事業者・法令要件に合わせて随時更新します。
+    </div>
+
     <footer>
-      <div>© 2025–2026 LedgerSeiri</div>
-      <div class="note">最終更新日：2026-02-07</div>
+      <div>© 2026 LedgerSeiri / Kimoca Co., Ltd.</div>
+      <div>URL：<code>https://www.ledgerseiri.com/commerce</code></div>
     </footer>
-  </main>
+  </div>
 </body>
 </html>
