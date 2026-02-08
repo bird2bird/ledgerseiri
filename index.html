@@ -2,1223 +2,775 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="LedgerSeiri（レジャーセイリ）— クロスボーダーEC事業者向けの会計・売上・手数料・費用データ整理に特化したクラウド型ソフトウェア。" />
-  <title>LedgerSeiri（レジャーセイリ）｜クロスボーダーECの帳簿整理</title>
-
-  <style>
-    :root{
-      /* freee-ish: bright background + strong primary blue + crisp text */
-      --bg: #f6f8fc;
-      --panel: #ffffff;
-      --fg: #0b1220;
-      --muted: rgba(11,18,32,.66);
-      --line: rgba(11,18,32,.10);
-
-      --primary: #1a73ff;
-      --primary2: #0b57ff;
-      --success: #0bb07b;
-      --warning: #ffb020;
-
-      --shadow-sm: 0 10px 24px rgba(11,18,32,.08);
-      --shadow-md: 0 18px 42px rgba(11,18,32,.12);
-      --radius: 20px;
-      --radius-sm: 14px;
-
-      --maxw: 1100px;
-      --topbar-h: 76px;
-    }
-
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic", sans-serif;
-      color: var(--fg);
-      background:
-        radial-gradient(900px 420px at 15% -10%, rgba(26,115,255,.18), transparent 65%),
-        radial-gradient(800px 380px at 85% -10%, rgba(11,87,255,.14), transparent 70%),
-        linear-gradient(180deg, #ffffff 0%, var(--bg) 22%, var(--bg) 100%);
-      overflow-x:hidden;
-    }
-    a{ color: inherit; }
-    .container{ width:min(var(--maxw), 92vw); margin:0 auto; }
-
-    /* ===== Topbar (freee-ish) ===== */
-    .topbar{
-      position: sticky;
-      top:0;
-      z-index:50;
-      height: var(--topbar-h);
-      display:flex;
-      align-items:center;
-      background: rgba(255,255,255,.84);
-      backdrop-filter: blur(14px);
-      border-bottom: 1px solid rgba(11,18,32,.08);
-      box-shadow: 0 10px 24px rgba(11,18,32,.06);
-    }
-    .nav{
-      display:grid;
-      grid-template-columns: auto 1fr auto;
-      align-items:center;
-      gap: 18px;
-      width: 100%;
-    }
-    .brand{
-      display:inline-flex;
-      align-items:center;
-      gap: 12px;
-      text-decoration:none;
-      white-space:nowrap;
-    }
-    .logo{
-      width:42px;
-      height:42px;
-      border-radius: 14px;
-      background: radial-gradient(14px 14px at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,0) 60%),
-                  linear-gradient(135deg, var(--primary), var(--primary2));
-      box-shadow: 0 14px 28px rgba(26,115,255,.28);
-    }
-    .brandText{
-      display:flex;
-      flex-direction:column;
-      line-height: 1.08;
-    }
-    .brandText b{ font-size: 16.5px; letter-spacing:.2px; }
-    .brandText small{ font-size: 12.5px; color: var(--muted); font-weight: 800; }
-
-    .navlinks{
-      display:flex;
-      justify-content:center;
-      align-items:center;
-      gap: 22px;
-      min-width:0;
-      flex-wrap:nowrap;
-    }
-    .navlinks a{
-      text-decoration:none;
-      font-weight: 900;
-      color: rgba(11,18,32,.88);
-      white-space: nowrap;
-      line-height: 1;
-      padding: 12px 6px;
-      border-radius: 12px;
-    }
-    .navlinks a:hover{
-      background: rgba(26,115,255,.08);
-      color: rgba(11,18,32,.96);
-    }
-
-    .actions{
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      white-space:nowrap;
-    }
-    .langSelect{
-      height: 44px;
-      padding: 0 38px 0 14px;
-      border-radius: 999px;
-      border: 1px solid rgba(11,18,32,.12);
-      background: rgba(255,255,255,.92);
-      font-weight: 900;
-      color: rgba(11,18,32,.88);
-      outline: none;
-      box-shadow: 0 8px 18px rgba(11,18,32,.06);
-    }
-    .langSelect:focus{
-      border-color: rgba(26,115,255,.5);
-      box-shadow: 0 0 0 4px rgba(26,115,255,.18), 0 12px 24px rgba(11,18,32,.08);
-    }
-
-    /* ===== Buttons ===== */
-    .btn{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      height: 44px;
-      padding: 0 18px;
-      border-radius: 999px;
-      border: 1px solid rgba(11,18,32,.10);
-      text-decoration:none;
-      font-weight: 950;
-      letter-spacing:.2px;
-      color: rgba(11,18,32,.92);
-      background: rgba(255,255,255,.95);
-      box-shadow: 0 10px 22px rgba(11,18,32,.08);
-      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
-      cursor:pointer;
-      user-select:none;
-    }
-    .btn:hover{ transform: translateY(-1px); box-shadow: 0 14px 30px rgba(11,18,32,.12); }
-    .btn:active{ transform: translateY(0); box-shadow: 0 10px 22px rgba(11,18,32,.08); }
-
-    .btn.primary{
-      color: #fff;
-      border: 1px solid rgba(26,115,255,.25);
-      background: linear-gradient(135deg, var(--primary), var(--primary2));
-      box-shadow: 0 18px 40px rgba(26,115,255,.28);
-    }
-    .btn.primary:hover{ box-shadow: 0 22px 48px rgba(26,115,255,.34); }
-
-    .btn.ghost{
-      background: rgba(255,255,255,.75);
-    }
-
-    /* ===== Hero ===== */
-    main{ padding: 44px 0 68px; }
-    .hero{
-      padding: 44px 0 18px;
-    }
-    .heroGrid{
-      display:grid;
-      grid-template-columns: 1.15fr .85fr;
-      gap: 28px;
-      align-items: stretch;
-    }
-    .kicker{
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-radius: 999px;
-      background: rgba(26,115,255,.10);
-      border: 1px solid rgba(26,115,255,.16);
-      color: rgba(11,18,32,.88);
-      font-weight: 950;
-      width: fit-content;
-    }
-    .kdot{
-      width:10px;height:10px;border-radius:999px;
-      background: var(--success);
-      box-shadow: 0 0 0 6px rgba(11,176,123,.14);
-    }
-    h1{
-      margin: 14px 0 10px;
-      font-size: clamp(32px, 4.2vw, 46px);
-      line-height: 1.08;
-      letter-spacing: -.4px;
-    }
-    .lead{
-      margin: 0 0 18px;
-      font-size: 16.5px;
-      line-height: 1.75;
-      color: var(--muted);
-      font-weight: 700;
-    }
-    .heroCtas{ display:flex; gap: 12px; flex-wrap:wrap; margin-top: 14px; }
-
-    .badges{
-      margin-top: 22px;
-      display:flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items:center;
-    }
-    .badge{
-      display:inline-flex;
-      align-items:center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.90);
-      border: 1px solid rgba(11,18,32,.08);
-      box-shadow: 0 10px 24px rgba(11,18,32,.06);
-      font-weight: 900;
-      color: rgba(11,18,32,.84);
-      white-space: nowrap;
-    }
-    .badge i{
-      width: 28px; height: 28px;
-      border-radius: 10px;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      font-style: normal;
-      font-weight: 950;
-      color:#fff;
-      background: linear-gradient(135deg, rgba(11,176,123,.92), rgba(11,176,123,.70));
-      box-shadow: 0 14px 28px rgba(11,176,123,.22);
-    }
-    .badge b{ color: rgba(11,18,32,.92); }
-
-    /* Right panel (stat card) */
-    .heroPanel{
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(11,18,32,.10);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-md);
-      padding: 18px;
-      position: relative;
-      overflow:hidden;
-    }
-    .heroPanel:before{
-      content:"";
-      position:absolute;
-      inset:-40% -30% auto -30%;
-      height: 220px;
-      background: radial-gradient(closest-side, rgba(26,115,255,.22), transparent 70%);
-      filter: blur(2px);
-    }
-    .panelInner{ position:relative; }
-    .panelTitle{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .panelTitle h3{
-      margin:0;
-      font-size: 14px;
-      color: rgba(11,18,32,.78);
-      letter-spacing:.2px;
-      font-weight: 950;
-      text-transform: uppercase;
-    }
-    .pill{
-      font-weight: 950;
-      font-size: 12px;
-      padding: 8px 10px;
-      border-radius: 999px;
-      background: rgba(255,176,32,.16);
-      border: 1px solid rgba(255,176,32,.22);
-      color: rgba(11,18,32,.84);
-      white-space: nowrap;
-    }
-    .statGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 10px;
-    }
-    .stat{
-      background: rgba(255,255,255,.88);
-      border: 1px solid rgba(11,18,32,.08);
-      border-radius: 16px;
-      padding: 14px;
-      box-shadow: 0 12px 26px rgba(11,18,32,.06);
-      min-height: 92px;
-    }
-    .stat .num{
-      font-size: 26px;
-      font-weight: 980;
-      letter-spacing: -.3px;
-      margin-bottom: 4px;
-    }
-    .stat .lbl{
-      color: var(--muted);
-      font-weight: 800;
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    .miniList{
-      margin-top: 14px;
-      background: rgba(255,255,255,.88);
-      border: 1px solid rgba(11,18,32,.08);
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 12px 26px rgba(11,18,32,.06);
-    }
-    .miniRow{
-      display:flex;
-      align-items:flex-start;
-      gap: 10px;
-      padding: 10px 0;
-      border-top: 1px dashed rgba(11,18,32,.14);
-    }
-    .miniRow:first-child{ border-top:none; }
-    .dot{
-      width: 10px; height: 10px; border-radius: 999px;
-      margin-top: 5px;
-      background: var(--primary);
-      box-shadow: 0 0 0 6px rgba(26,115,255,.14);
-      flex: 0 0 auto;
-    }
-    .miniRow b{ font-weight: 950; }
-    .miniRow span{ color: var(--muted); font-weight: 700; }
-
-    /* ===== Sections ===== */
-    section{ padding: 54px 0; }
-    .sectionHead{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-end;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-    h2{
-      margin:0;
-      font-size: clamp(22px, 3.2vw, 30px);
-      letter-spacing: -.3px;
-    }
-    .sub{
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-weight: 700;
-      line-height: 1.7;
-      max-width: 64ch;
-    }
-
-    .cards{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .card{
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(11,18,32,.10);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-sm);
-      padding: 18px;
-      overflow:hidden;
-      position: relative;
-    }
-    .card:before{
-      content:"";
-      position:absolute;
-      inset:-60px -60px auto auto;
-      width: 160px; height: 160px;
-      background: radial-gradient(closest-side, rgba(26,115,255,.16), transparent 70%);
-    }
-    .card h3{
-      margin: 10px 0 6px;
-      font-size: 16.5px;
-      letter-spacing: -.2px;
-    }
-    .card p{
-      margin: 0;
-      color: var(--muted);
-      font-weight: 700;
-      line-height: 1.7;
-      font-size: 14.5px;
-    }
-    .iconBox{
-      width: 44px; height: 44px;
-      border-radius: 16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-weight: 980;
-      color: #fff;
-      background: linear-gradient(135deg, var(--primary), var(--primary2));
-      box-shadow: 0 18px 38px rgba(26,115,255,.24);
-    }
-
-    .split{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-top: 14px;
-    }
-    .box{
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(11,18,32,.10);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-sm);
-      padding: 18px;
-    }
-    .box h3{ margin: 0 0 10px; }
-    ul.clean{ margin: 0; padding-left: 18px; color: rgba(11,18,32,.86); }
-    ul.clean li{ margin: 10px 0; line-height: 1.6; font-weight: 800; }
-    ul.clean li span{ color: var(--muted); font-weight: 700; }
-
-    /* Pricing */
-    .pricing{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .priceCard{
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(11,18,32,.10);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-sm);
-      padding: 18px;
-      position: relative;
-      overflow:hidden;
-    }
-    .priceCard.reco{
-      border: 1px solid rgba(26,115,255,.30);
-      box-shadow: 0 22px 52px rgba(26,115,255,.16);
-    }
-    .priceTop{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap: 10px;
-    }
-    .tag{
-      font-size: 12px;
-      font-weight: 980;
-      padding: 8px 10px;
-      border-radius: 999px;
-      background: rgba(26,115,255,.12);
-      border: 1px solid rgba(26,115,255,.18);
-      color: rgba(11,18,32,.84);
-      white-space: nowrap;
-    }
-    .plan{ font-weight: 980; font-size: 16px; }
-    .yen{
-      margin: 12px 0 10px;
-      font-weight: 990;
-      font-size: 34px;
-      letter-spacing:-.6px;
-    }
-    .yen small{ font-size: 13px; color: var(--muted); font-weight: 800; }
-    .priceCard ul{ margin: 0; padding-left: 18px; }
-    .priceCard li{ margin: 10px 0; color: rgba(11,18,32,.86); font-weight: 800; }
-    .priceCard .cta{ margin-top: 12px; width:100%; }
-
-    /* FAQ */
-    .faq{ margin-top: 12px; display:grid; gap: 10px; }
-    details{
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(11,18,32,.10);
-      border-radius: 18px;
-      box-shadow: 0 12px 26px rgba(11,18,32,.06);
-      padding: 14px 16px;
-    }
-    summary{
-      cursor:pointer;
-      list-style:none;
-      font-weight: 950;
-      color: rgba(11,18,32,.90);
-    }
-    summary::-webkit-details-marker{ display:none; }
-    details p{
-      margin: 10px 0 0;
-      color: var(--muted);
-      line-height: 1.7;
-      font-weight: 700;
-    }
-
-    /* Footer */
-    footer{
-      padding: 40px 0 54px;
-      border-top: 1px solid rgba(11,18,32,.08);
-      background: rgba(255,255,255,.6);
-    }
-    .footGrid{
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap: 18px;
-      align-items:start;
-    }
-    .footLinks{
-      display:flex;
-      gap: 14px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    .footLinks a{
-      color: rgba(11,18,32,.76);
-      text-decoration:none;
-      font-weight: 850;
-      padding: 8px 10px;
-      border-radius: 12px;
-    }
-    .footLinks a:hover{ background: rgba(26,115,255,.08); color: rgba(11,18,32,.92); }
-    .small{ color: rgba(11,18,32,.62); font-weight: 700; line-height: 1.7; }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 980px){
-      .heroGrid{ grid-template-columns: 1fr; }
-      .cards{ grid-template-columns: 1fr; }
-      .split{ grid-template-columns: 1fr; }
-      .pricing{ grid-template-columns: 1fr; }
-      .navlinks{ gap: 14px; justify-content:flex-start; overflow-x:auto; padding-bottom: 6px; }
-    }
-    @media (max-width: 820px){
-      .nav{
-        grid-template-columns: 1fr auto;
-        grid-template-rows: auto auto;
-      }
-      .brand{ grid-column:1; grid-row:1; }
-      .actions{ grid-column:2; grid-row:1; justify-self:end; }
-      .navlinks{
-        grid-column:1 / -1;
-        grid-row:2;
-      }
-    }
-
-    /* Utility */
-    .hr{ height:1px; background: rgba(11,18,32,.08); margin: 18px 0; }
-    .muted{ color: var(--muted); }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LedgerSeiri（レジャーセイリ）｜帳簿データを、正しく整理する。</title>
+  <meta name="description" content="LedgerSeiriは、クロスボーダーEC事業者向けの会計データ整理に特化したクラウド型ソフトウェア（SaaS）です。売上・手数料・費用データの整理・管理・分析を支援します。" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 
 <body>
+  <a class="skiplink" href="#main">Skip to content</a>
 
-  <!-- ===== Topbar ===== -->
+  <!-- Topbar -->
   <header class="topbar">
-    <div class="container">
-      <div class="nav">
-        <a class="brand" href="/">
-          <div class="logo" aria-hidden="true"></div>
-          <div class="brandText">
-            <b>LedgerSeiri</b>
-            <small data-i18n="brand.kana">（レジャーセイリ）</small>
-          </div>
-        </a>
-
-        <nav class="navlinks" aria-label="Primary">
-          <a href="#features" data-i18n="nav.features">機能</a>
-          <a href="#pricing" data-i18n="nav.pricing">料金</a>
-          <a href="#cases" data-i18n="nav.cases">導入イメージ</a>
-          <a href="#faq" data-i18n="nav.faq">FAQ</a>
-          <a href="/commerce" data-i18n="nav.commerce">特定商取引法に基づく表記</a>
-        </nav>
-
-        <div class="actions">
-          <select id="langSelect" class="langSelect" aria-label="Language">
-            <option value="ja">日本語</option>
-            <option value="zh-Hant">繁體中文</option>
-            <option value="en">English</option>
-          </select>
-
-          <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Inquiry" data-i18n="top.contactBtn">
-            お問い合わせ
-          </a>
+    <div class="topbarInner">
+      <a class="brand" href="/" aria-label="LedgerSeiri Home">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="brandText">
+          <div class="brandName">LedgerSeiri</div>
+          <div class="brandKana" data-i18n="brand_kana">（レジャーセイリ）</div>
         </div>
-      </div>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <div class="navLinks" id="navLinks">
+          <a href="#features" data-i18n="nav_features">機能</a>
+          <a href="#pricing" data-i18n="nav_pricing">料金</a>
+          <a href="#how" data-i18n="nav_how">導入イメージ</a>
+          <a href="#faq" data-i18n="nav_faq">FAQ</a>
+          <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+        </div>
+
+        <div class="navRight">
+          <div class="langWrap">
+            <select class="langSelect" id="langSelect" aria-label="Language">
+              <option value="ja">日本語</option>
+              <option value="zh-Hant">繁體中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
+          <a class="btn btnSmall" href="/commerce" data-i18n="nav_commerce_short">商業披露</a>
+          <a class="btn btnPrimary" href="#contact" data-i18n="cta_contact_top">お問い合わせ</a>
+
+          <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </nav>
     </div>
   </header>
 
-  <!-- ===== Main ===== -->
-  <main>
-    <div class="container hero" id="top">
-
-      <div class="heroGrid">
-        <div>
-          <div class="kicker">
-            <span class="kdot" aria-hidden="true"></span>
-            <span data-i18n="hero.kicker">クロスボーダーECの「帳簿整理」を最短化</span>
-          </div>
-
-          <h1 data-i18n="hero.h1">
-            Amazon等の売上・手数料・費用を<br>一つにまとめて、利益が見える。
-          </h1>
-
-          <p class="lead" data-i18n="hero.lead">
-            LedgerSeiriは、越境EC事業者向けに、売上CSV/Excelの取り込み、費用・仕入・在庫の管理、
-            利益の自動集計を“最小の手間”で行うためのクラウド型ソフトウェアです。
-            資金の保管・決済代行・税務代理は行いません。
-          </p>
-
-          <div class="heroCtas">
-            <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Demo%20Request" data-i18n="hero.ctaPrimary">
-              デモ相談（メール）
-            </a>
-            <a class="btn ghost" href="#features" data-i18n="hero.ctaSecondary">
-              主要機能を見る
-            </a>
-          </div>
-
-          <div class="badges" aria-label="Highlights">
-            <div class="badge"><i>✓</i><span><b data-i18n="badge1.b">CSV/Excel</b> <span data-i18n="badge1.s">取込</span></span></div>
-            <div class="badge"><i>✓</i><span><b data-i18n="badge2.b">費用/仕入</b> <span data-i18n="badge2.s">一元管理</span></span></div>
-            <div class="badge"><i>✓</i><span><b data-i18n="badge3.b">利益</b> <span data-i18n="badge3.s">可視化</span></span></div>
-          </div>
-
-          <div class="hr"></div>
-          <div class="small" data-i18n="hero.note">
-            ※ 本LPはStripe審査用の最小構成として、サービス概要・運営者情報・お問い合わせ先・必須リンクを明示しています。
-          </div>
-        </div>
-
-        <aside class="heroPanel" aria-label="Preview panel">
-          <div class="panelInner">
-            <div class="panelTitle">
-              <h3 data-i18n="panel.title">レポートのイメージ</h3>
-              <div class="pill" data-i18n="panel.pill">静的LP / 安定運用</div>
-            </div>
-
-            <div class="statGrid">
-              <div class="stat">
-                <div class="num">-</div>
-                <div class="lbl" data-i18n="stat1">売上データ取込（Amazon CSV）</div>
-              </div>
-              <div class="stat">
-                <div class="num">-</div>
-                <div class="lbl" data-i18n="stat2">手数料・広告費・送料の集計</div>
-              </div>
-              <div class="stat">
-                <div class="num">-</div>
-                <div class="lbl" data-i18n="stat3">仕入・在庫の記録</div>
-              </div>
-              <div class="stat">
-                <div class="num">-</div>
-                <div class="lbl" data-i18n="stat4">月次の利益 / 粗利</div>
-              </div>
-            </div>
-
-            <div class="miniList">
-              <div class="miniRow">
-                <div class="dot" aria-hidden="true"></div>
-                <div>
-                  <b data-i18n="mini1.b">税理士向け出力</b><br>
-                  <span data-i18n="mini1.s">必要項目をCSVでまとめて共有</span>
-                </div>
-              </div>
-              <div class="miniRow">
-                <div class="dot" aria-hidden="true"></div>
-                <div>
-                  <b data-i18n="mini2.b">権限管理</b><br>
-                  <span data-i18n="mini2.s">管理者 / 一般ユーザー</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
-      </div>
+  <!-- Mobile nav -->
+  <div class="mobileNav" id="mobileNav" aria-label="Mobile menu">
+    <div class="mobileNavInner">
+      <a href="#features" data-i18n="nav_features">機能</a>
+      <a href="#pricing" data-i18n="nav_pricing">料金</a>
+      <a href="#how" data-i18n="nav_how">導入イメージ</a>
+      <a href="#faq" data-i18n="nav_faq">FAQ</a>
+      <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+      <a href="#contact" data-i18n="cta_contact_top">お問い合わせ</a>
     </div>
+  </div>
 
-    <!-- ===== Features ===== -->
-    <section id="features">
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <div class="heroGrid">
+          <div class="heroLeft">
+            <div class="badges">
+              <span class="badge"><i></i><span data-i18n="badge_1">クロスボーダーEC向け</span></span>
+              <span class="badge"><i></i><span data-i18n="badge_2">CSV/Excel対応</span></span>
+              <span class="badge"><i></i><span data-i18n="badge_3">整理・集計・分類</span></span>
+            </div>
+
+            <h1 class="h1" data-i18n="hero_h1">帳簿データを、<br/>正しく整理する。</h1>
+            <p class="sub" data-i18n="hero_sub">
+              LedgerSeiriは、クロスボーダーEC事業者向けの会計データ整理に特化したクラウド型ソフトウェア（SaaS）です。<br/>
+              売上・手数料・費用データの整理・管理・分析を支援します。<br/>
+              <b>資金の保管、決済代行、税務代理業務は行いません。</b>
+            </p>
+
+            <div class="heroCtas" aria-label="Call to actions">
+              <a class="btn btnPrimary" href="#pricing" data-i18n="cta_primary">料金を見る</a>
+              <a class="btn" href="/commerce" data-i18n="cta_commerce">特定商取引法に基づく表記</a>
+              <a class="btn" href="#contact" data-i18n="cta_contact">お問い合わせ</a>
+            </div>
+
+            <div class="trustRow">
+              <div class="trustItem"><div class="trustIcon" aria-hidden="true"></div><span data-i18n="trust_1">データ入力は最小化</span></div>
+              <div class="trustItem"><div class="trustIcon" aria-hidden="true"></div><span data-i18n="trust_2">出力はCSV/Excel</span></div>
+              <div class="trustItem"><div class="trustIcon" aria-hidden="true"></div><span data-i18n="trust_3">払い戻し方針を明記</span></div>
+            </div>
+          </div>
+
+          <!-- Right Dashboard (screenshot style) -->
+          <aside class="heroPanel dashCard" aria-label="Dashboard preview">
+            <div class="dashHeader">
+              <div class="dashTitle">
+                <span class="dashDot" aria-hidden="true"></span>
+                <span class="dashTitleText" data-i18n="dash_title">ダッシュボード（例）</span>
+              </div>
+
+              <div class="dashTabs" role="tablist" aria-label="Dashboard tabs">
+                <span class="dashTab isActive" data-i18n="dash_tab_1">月次</span>
+                <span class="dashTab" data-i18n="dash_tab_2">チャネル別</span>
+                <span class="dashTab" data-i18n="dash_tab_3">商品別</span>
+              </div>
+            </div>
+
+            <div class="dashStats">
+              <div class="dashStat">
+                <div class="dashStatLabel" data-i18n="dash_stat_1_label">売上（例）</div>
+                <div class="dashStatValue">¥2,790,080</div>
+              </div>
+              <div class="dashStat">
+                <div class="dashStatLabel" data-i18n="dash_stat_2_label">手数料（例）</div>
+                <div class="dashStatValue">¥-412,300</div>
+              </div>
+              <div class="dashStat">
+                <div class="dashStatLabel" data-i18n="dash_stat_3_label">粗利（例）</div>
+                <div class="dashStatValue">¥1,103,500</div>
+              </div>
+            </div>
+
+            <div class="dashList">
+              <div class="dashRow">
+                <div class="dashRowLeft" data-i18n="dash_row_1">Amazon 手数料</div>
+                <div class="dashPill" data-i18n="dash_pill_1">整理済み</div>
+              </div>
+              <div class="dashRow">
+                <div class="dashRowLeft" data-i18n="dash_row_2">広告費（SP/SD）</div>
+                <div class="dashPill" data-i18n="dash_pill_2">集計</div>
+              </div>
+              <div class="dashRow">
+                <div class="dashRowLeft" data-i18n="dash_row_3">返金/返品</div>
+                <div class="dashPill" data-i18n="dash_pill_3">分類</div>
+              </div>
+              <div class="dashRow">
+                <div class="dashRowLeft" data-i18n="dash_row_4">税理士向け出力</div>
+                <div class="dashPill isStrong">CSV/Excel</div>
+              </div>
+            </div>
+
+            <div class="dashNote" data-i18n="dash_note">※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。</div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
       <div class="container">
         <div class="sectionHead">
           <div>
-            <h2 data-i18n="features.h2">主要機能</h2>
-            <p class="sub" data-i18n="features.sub">
-              “まず自分で使える”ことを優先し、データ取り込み→費用/仕入→利益の流れを最短で回します。
-            </p>
+            <h2 class="h2" data-i18n="features_h2">主な機能</h2>
+            <p class="lead" data-i18n="features_lead">売上・手数料・広告費・返金など、EC会計で散らかりがちなデータを「整理→集計→分類」して、監査しやすい形で出力します。</p>
           </div>
         </div>
 
-        <div class="cards">
+        <div class="grid3">
           <div class="card">
-            <div class="iconBox">CSV</div>
-            <h3 data-i18n="f1.h">Amazon売上データの取込</h3>
-            <p data-i18n="f1.p">
-              Amazonが出力するCSV/Excel（注文・手数料・FBA等）を読み込み、月次集計に変換します。
-            </p>
+            <div class="iconTile" aria-hidden="true"></div>
+            <h3 class="cardTitle" data-i18n="f1_title">整形（整理）</h3>
+            <p class="cardText" data-i18n="f1_text">チャネル別の入出金データを整形し、科目・用途に応じて並び替えられる状態にします。</p>
           </div>
           <div class="card">
-            <div class="iconBox">¥</div>
-            <h3 data-i18n="f2.h">費用・領収書の管理</h3>
-            <p data-i18n="f2.p">
-              広告費、外注費、送料、SaaS利用料などを記録し、証憑（画像/PDF）を添付できます。
-            </p>
+            <div class="iconTile" aria-hidden="true"></div>
+            <h3 class="cardTitle" data-i18n="f2_title">集計</h3>
+            <p class="cardText" data-i18n="f2_text">月次・チャネル別・商品別に、売上/手数料/粗利を素早く把握。数字のズレを検知しやすくします。</p>
           </div>
           <div class="card">
-            <div class="iconBox">INV</div>
-            <h3 data-i18n="f3.h">仕入・在庫の管理</h3>
-            <p data-i18n="f3.p">
-              仕入れ原価と数量、在庫の増減を記録し、商品別の粗利・回転を追跡します。
-            </p>
+            <div class="iconTile" aria-hidden="true"></div>
+            <h3 class="cardTitle" data-i18n="f3_title">分類</h3>
+            <p class="cardText" data-i18n="f3_text">広告費、返金/返品、配送費などを分類して、税理士や会計入力に渡しやすい出力に整えます。</p>
           </div>
         </div>
 
-        <div class="split" id="cases">
-          <div class="box">
-            <h3 data-i18n="cases.h">導入イメージ（最小運用）</h3>
-            <ul class="clean">
-              <li><span data-i18n="cases.li1">AmazonのCSVをアップロード → 月次売上/手数料を自動集計</span></li>
-              <li><span data-i18n="cases.li2">広告費・送料・外注費を登録（証憑添付）</span></li>
-              <li><span data-i18n="cases.li3">仕入と在庫を更新 → 粗利/利益を自動算出</span></li>
-              <li><span data-i18n="cases.li4">税理士向けに必要項目をCSV出力</span></li>
-            </ul>
+        <div class="kpiRow" aria-label="Key points">
+          <div class="kpi">
+            <div class="kpiLabel" data-i18n="kpi1_label">対応データ</div>
+            <div class="kpiValue" data-i18n="kpi1_value">CSV / Excel</div>
+            <div class="kpiHint" data-i18n="kpi1_hint">フォーマットは順次拡張</div>
           </div>
-
-          <div class="box">
-            <h3 data-i18n="notes.h">ご注意（重要）</h3>
-            <ul class="clean">
-              <li><span data-i18n="notes.li1">LedgerSeiriは会計データの整理・集計支援ツールです。</span></li>
-              <li><span data-i18n="notes.li2">資金の保管、決済代行、税務代理業務は行いません。</span></li>
-              <li><span data-i18n="notes.li3">表示価格には必要に応じて税が加算される場合があります。</span></li>
-            </ul>
+          <div class="kpi">
+            <div class="kpiLabel" data-i18n="kpi2_label">対象</div>
+            <div class="kpiValue" data-i18n="kpi2_value">越境EC</div>
+            <div class="kpiHint" data-i18n="kpi2_hint">手数料・為替差を整理</div>
+          </div>
+          <div class="kpi">
+            <div class="kpiLabel" data-i18n="kpi3_label">提供形態</div>
+            <div class="kpiValue" data-i18n="kpi3_value">SaaS</div>
+            <div class="kpiHint" data-i18n="kpi3_hint">ブラウザで利用</div>
+          </div>
+          <div class="kpi">
+            <div class="kpiLabel" data-i18n="kpi4_label">重要</div>
+            <div class="kpiValue" data-i18n="kpi4_value">決済代行なし</div>
+            <div class="kpiHint" data-i18n="kpi4_hint">資金保管を行いません</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ===== Pricing ===== -->
-    <section id="pricing">
+    <!-- How -->
+    <section class="section" id="how">
       <div class="container">
         <div class="sectionHead">
           <div>
-            <h2 data-i18n="pricing.h2">料金（予定）</h2>
-            <p class="sub" data-i18n="pricing.sub">
-              現在、β運用中です。正式な価格は準備中ですが、想定プラン例を掲載します。
-            </p>
+            <h2 class="h2" data-i18n="how_h2">導入イメージ</h2>
+            <p class="lead" data-i18n="how_lead">最小ステップで「監査しやすい帳簿データ」に整えます。</p>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="card">
+            <h3 class="cardTitle" data-i18n="how1_title">1. 取り込み</h3>
+            <p class="cardText" data-i18n="how1_text">売上・手数料・費用データ（CSV/Excel）をアップロード。</p>
+          </div>
+          <div class="card">
+            <h3 class="cardTitle" data-i18n="how2_title">2. 整理/分類</h3>
+            <p class="cardText" data-i18n="how2_text">ルールに基づき、項目を整形し、費目を分類します。</p>
+          </div>
+          <div class="card">
+            <h3 class="cardTitle" data-i18n="how3_title">3. 出力</h3>
+            <p class="cardText" data-i18n="how3_text">税理士・会計入力に渡しやすいCSV/Excelで出力。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section" id="pricing">
+      <div class="container">
+        <div class="sectionHead">
+          <div>
+            <h2 class="h2" data-i18n="pricing_h2">料金</h2>
+            <p class="lead" data-i18n="pricing_lead">LedgerSeiriはサブスクリプション型です。初期は審査用に表示し、実運用に合わせて更新します。</p>
           </div>
         </div>
 
         <div class="pricing">
-          <div class="priceCard">
-            <div class="priceTop">
-              <div class="plan" data-i18n="p1.plan">Starter</div>
-              <div class="tag" data-i18n="p1.tag">個人・小規模</div>
-            </div>
-            <div class="yen" data-i18n="p1.price">¥1,980 <small>/ 月（税別）</small></div>
-            <ul>
-              <li data-i18n="p1.li1">CSV/Excel取込（基本）</li>
-              <li data-i18n="p1.li2">費用記録 + 証憑添付</li>
-              <li data-i18n="p1.li3">簡易レポート</li>
+          <div class="card priceCard">
+            <div class="ribbon" data-i18n="plan1_ribbon">個人向け</div>
+            <h3 class="cardTitle" data-i18n="plan1_title">Starter</h3>
+            <div class="price">¥1,980<span style="font-size:13px;font-weight:900;color:rgba(11,18,32,.62)"> / 月（税込）</span></div>
+            <ul class="ul">
+              <li data-i18n="plan1_li1">CSV/Excel 取り込み</li>
+              <li data-i18n="plan1_li2">月次集計（基本）</li>
+              <li data-i18n="plan1_li3">CSV出力</li>
             </ul>
-            <a class="btn ghost cta" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Starter" data-i18n="p.btn">
-              相談する
-            </a>
           </div>
 
-          <div class="priceCard reco">
-            <div class="priceTop">
-              <div class="plan" data-i18n="p2.plan">Standard</div>
-              <div class="tag" data-i18n="p2.tag">おすすめ</div>
-            </div>
-            <div class="yen" data-i18n="p2.price">¥4,980 <small>/ 月（税別）</small></div>
-            <ul>
-              <li data-i18n="p2.li1">複数CSV/複数アカウント対応</li>
-              <li data-i18n="p2.li2">仕入・在庫の管理</li>
-              <li data-i18n="p2.li3">税理士向けCSV出力</li>
+          <div class="card priceCard">
+            <div class="ribbon" data-i18n="plan2_ribbon">おすすめ</div>
+            <h3 class="cardTitle" data-i18n="plan2_title">Standard</h3>
+            <div class="price">¥4,980<span style="font-size:13px;font-weight:900;color:rgba(11,18,32,.62)"> / 月（税込）</span></div>
+            <ul class="ul">
+              <li data-i18n="plan2_li1">チャネル別/商品別 集計</li>
+              <li data-i18n="plan2_li2">分類ルール（拡張）</li>
+              <li data-i18n="plan2_li3">CSV/Excel 出力</li>
             </ul>
-            <a class="btn primary cta" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Standard" data-i18n="p.btn2">
-              デモ相談
-            </a>
           </div>
 
-          <div class="priceCard">
-            <div class="priceTop">
-              <div class="plan" data-i18n="p3.plan">Business</div>
-              <div class="tag" data-i18n="p3.tag">法人向け</div>
-            </div>
-            <div class="yen" data-i18n="p3.price">¥9,800 <small>/ 月（税別）</small></div>
-            <ul>
-              <li data-i18n="p3.li1">権限管理（管理者/一般）</li>
-              <li data-i18n="p3.li2">監査ログ（予定）</li>
-              <li data-i18n="p3.li3">優先サポート</li>
+          <div class="card priceCard">
+            <div class="ribbon" data-i18n="plan3_ribbon">法人向け</div>
+            <h3 class="cardTitle" data-i18n="plan3_title">Business</h3>
+            <div class="price">¥9,980<span style="font-size:13px;font-weight:900;color:rgba(11,18,32,.62)"> / 月（税込）</span></div>
+            <ul class="ul">
+              <li data-i18n="plan3_li1">複数メンバー</li>
+              <li data-i18n="plan3_li2">監査向け出力テンプレ</li>
+              <li data-i18n="plan3_li3">優先サポート</li>
             </ul>
-            <a class="btn ghost cta" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Business" data-i18n="p.btn">
-              相談する
-            </a>
           </div>
         </div>
 
-        <p class="small" style="margin-top:14px" data-i18n="pricing.note">
-          ※ 上記はイメージです。正式な価格・提供範囲は変更される場合があります。
-        </p>
+        <div class="noteBox" style="margin-top:14px">
+          <div data-i18n="pricing_note_1">※ 表示価格には消費税が含まれます。</div>
+          <div data-i18n="pricing_note_2">※ 実際の提供範囲は今後のプロダクト進捗により変更される場合があります。</div>
+          <div data-i18n="pricing_note_3">※ 決済代行・資金保管・税務代理は行いません。</div>
+        </div>
       </div>
     </section>
 
-    <!-- ===== FAQ ===== -->
-    <section id="faq">
+    <!-- FAQ -->
+    <section class="section" id="faq">
       <div class="container">
         <div class="sectionHead">
           <div>
-            <h2 data-i18n="faq.h2">FAQ</h2>
-            <p class="sub" data-i18n="faq.sub">
-              Stripe審査でよく見られるポイント（事業内容・問い合わせ先・返金方針など）も明確にします。
-            </p>
+            <h2 class="h2" data-i18n="faq_h2">FAQ</h2>
+            <p class="lead" data-i18n="faq_lead">よくある質問をまとめました。</p>
           </div>
         </div>
 
-        <div class="faq">
-          <details>
-            <summary data-i18n="faq.q1">LedgerSeiriは会計ソフトですか？</summary>
-            <p data-i18n="faq.a1">
-              会計データの整理・集計支援ツールです。資金の保管、決済代行、税務代理は行いません。
-              会計処理・申告は税理士等の専門家にご相談ください。
-            </p>
-          </details>
+        <div class="faq" id="faqList">
+          <div class="faqItem">
+            <div class="faqQ"><b data-i18n="faq1_q">LedgerSeiriは会計ソフトですか？</b><span class="faqCaret">＋</span></div>
+            <div class="faqA" data-i18n="faq1_a">会計データの整理・集計・分類に特化した補助ツール（SaaS）です。決済代行、資金保管、税務代理業務は行いません。</div>
+          </div>
 
-          <details>
-            <summary data-i18n="faq.q2">支払い方法は何を想定していますか？</summary>
-            <p data-i18n="faq.a2">
-              クレジットカード決済（サブスクリプション）を想定しています。提供開始時点の手段は変更される場合があります。
-            </p>
-          </details>
+          <div class="faqItem">
+            <div class="faqQ"><b data-i18n="faq2_q">どの支払い方法に対応しますか？</b><span class="faqCaret">＋</span></div>
+            <div class="faqA" data-i18n="faq2_a">クレジットカード決済に対応予定です（提供開始時に表示します）。</div>
+          </div>
 
-          <details>
-            <summary data-i18n="faq.q3">返金/キャンセルはできますか？</summary>
-            <p data-i18n="faq.a3">
-              公平な返金ポリシーに基づき対応します。詳細は「特定商取引法に基づく表記」ページをご確認ください。
-            </p>
-          </details>
-
-          <details>
-            <summary data-i18n="faq.q4">問い合わせ先はどこですか？</summary>
-            <p>
-              <span data-i18n="faq.a4p1">メール：</span>
-              <a href="mailto:support@kimoca.com">support@kimoca.com</a>
-            </p>
-          </details>
+          <div class="faqItem">
+            <div class="faqQ"><b data-i18n="faq3_q">返金はできますか？</b><span class="faqCaret">＋</span></div>
+            <div class="faqA" data-i18n="faq3_a">返金条件は特定商取引法に基づく表記（/commerce）に記載します。公平な返金ポリシーに基づき対応します。</div>
+          </div>
         </div>
       </div>
     </section>
 
-  </main>
-
-  <!-- ===== Footer ===== -->
-  <footer>
-    <div class="container">
-      <div class="footGrid">
-        <div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="logo" aria-hidden="true" style="width:34px;height:34px;border-radius:12px"></div>
-            <div>
-              <div style="font-weight:980">LedgerSeiri</div>
-              <div class="small" data-i18n="foot.operator">運営：Kimoca Co., Ltd.</div>
-            </div>
-          </div>
-
-          <div class="small" style="margin-top:10px">
-            <span data-i18n="foot.business">事業内容：ソフトウェア開発・提供</span><br>
-            <span data-i18n="foot.contact">お問い合わせ：</span>
-            <a href="mailto:support@kimoca.com">support@kimoca.com</a>
-          </div>
-
-          <div class="small" style="margin-top:10px">
-            © <span id="year"></span> LedgerSeiri
+    <!-- Contact -->
+    <section class="section" id="contact">
+      <div class="container">
+        <div class="sectionHead">
+          <div>
+            <h2 class="h2" data-i18n="contact_h2">お問い合わせ</h2>
+            <p class="lead" data-i18n="contact_lead">導入相談・デモ希望など、お気軽にご連絡ください。</p>
           </div>
         </div>
 
-        <div class="footLinks">
-          <a href="/commerce" data-i18n="foot.commerce">特定商取引法に基づく表記</a>
-          <a href="#top" data-i18n="foot.top">トップへ</a>
+        <div class="card">
+          <p class="cardText">
+            <b data-i18n="contact_email_label">メール：</b>
+            <a href="mailto:support@kimoca.com">support@kimoca.com</a><br/>
+            <span data-i18n="contact_note">※ 返信目安：1〜2営業日</span>
+          </p>
+          <div class="heroCtas" style="margin-top:12px">
+            <a class="btn btnPrimary" href="/commerce" data-i18n="contact_cta_commerce">特定商取引法に基づく表記を見る</a>
+            <a class="btn" href="mailto:support@kimoca.com" data-i18n="contact_cta_mail">メールで問い合わせる</a>
+          </div>
+        </div>
+
+        <div class="noteBox" style="margin-top:14px" data-i18n="disclaimer">
+          免責：LedgerSeiriは会計データの整理・集計・分類を支援するソフトウェアです。資金の保管、決済代行、税務代理業務は行いません。
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footerGrid">
+        <div class="footerSmall">
+          <div><b>LedgerSeiri</b> <span data-i18n="brand_kana">（レジャーセイリ）</span></div>
+          <div style="margin-top:8px" data-i18n="footer_company">運営会社：Kimoca Co., Ltd.（株式会社キモカ）</div>
+          <div data-i18n="footer_business">事業内容：ソフトウェア開発・提供</div>
+          <div style="margin-top:8px">© <span id="year"></span> LedgerSeiri</div>
+        </div>
+
+        <div class="footerLinks">
+          <a href="/commerce" data-i18n="footer_commerce">特定商取引法に基づく表記</a>
+          <a href="#contact" data-i18n="footer_contact">お問い合わせ</a>
         </div>
       </div>
     </div>
   </footer>
 
-  <!-- ===== i18n (no framework) ===== -->
   <script>
+    // ====== simple i18n (pure static) ======
     const dict = {
       "ja": {
-        "brand.kana":"（レジャーセイリ）",
-        "nav.features":"機能",
-        "nav.pricing":"料金",
-        "nav.cases":"導入イメージ",
-        "nav.faq":"FAQ",
-        "nav.commerce":"特定商取引法に基づく表記",
-        "top.contactBtn":"お問い合わせ",
+        brand_kana: "（レジャーセイリ）",
+        nav_features: "機能",
+        nav_pricing: "料金",
+        nav_how: "導入イメージ",
+        nav_faq: "FAQ",
+        nav_commerce: "特定商取引法に基づく表記",
+        nav_commerce_short: "商業披露",
+        cta_contact_top: "お問い合わせ",
 
-        "hero.kicker":"クロスボーダーECの「帳簿整理」を最短化",
-        "hero.h1":"Amazon等の売上・手数料・費用を<br>一つにまとめて、利益が見える。",
-        "hero.lead":"LedgerSeiriは、越境EC事業者向けに、売上CSV/Excelの取り込み、費用・仕入・在庫の管理、利益の自動集計を“最小の手間”で行うためのクラウド型ソフトウェアです。資金の保管・決済代行・税務代理は行いません。",
-        "hero.ctaPrimary":"デモ相談（メール）",
-        "hero.ctaSecondary":"主要機能を見る",
-        "hero.note":"※ 本LPはStripe審査用の最小構成として、サービス概要・運営者情報・お問い合わせ先・必須リンクを明示しています。",
+        badge_1: "クロスボーダーEC向け",
+        badge_2: "CSV/Excel対応",
+        badge_3: "整理・集計・分類",
 
-        "badge1.b":"CSV/Excel",
-        "badge1.s":"取込",
-        "badge2.b":"費用/仕入",
-        "badge2.s":"一元管理",
-        "badge3.b":"利益",
-        "badge3.s":"可視化",
+        hero_h1: "帳簿データを、<br/>正しく整理する。",
+        hero_sub:
+          "LedgerSeiriは、クロスボーダーEC事業者向けの会計データ整理に特化したクラウド型ソフトウェア（SaaS）です。<br/>" +
+          "売上・手数料・費用データの整理・管理・分析を支援します。<br/>" +
+          "<b>資金の保管、決済代行、税務代理業務は行いません。</b>",
 
-        "panel.title":"レポートのイメージ",
-        "panel.pill":"静的LP / 安定運用",
-        "stat1":"売上データ取込（Amazon CSV）",
-        "stat2":"手数料・広告費・送料の集計",
-        "stat3":"仕入・在庫の記録",
-        "stat4":"月次の利益 / 粗利",
-        "mini1.b":"税理士向け出力",
-        "mini1.s":"必要項目をCSVでまとめて共有",
-        "mini2.b":"権限管理",
-        "mini2.s":"管理者 / 一般ユーザー",
+        cta_primary: "料金を見る",
+        cta_commerce: "特定商取引法に基づく表記",
+        cta_contact: "お問い合わせ",
 
-        "features.h2":"主要機能",
-        "features.sub":"“まず自分で使える”ことを優先し、データ取り込み→費用/仕入→利益の流れを最短で回します。",
-        "f1.h":"Amazon売上データの取込",
-        "f1.p":"Amazonが出力するCSV/Excel（注文・手数料・FBA等）を読み込み、月次集計に変換します。",
-        "f2.h":"費用・領収書の管理",
-        "f2.p":"広告費、外注費、送料、SaaS利用料などを記録し、証憑（画像/PDF）を添付できます。",
-        "f3.h":"仕入・在庫の管理",
-        "f3.p":"仕入れ原価と数量、在庫の増減を記録し、商品別の粗利・回転を追跡します。",
+        trust_1: "データ入力は最小化",
+        trust_2: "出力はCSV/Excel",
+        trust_3: "払い戻し方針を明記",
 
-        "cases.h":"導入イメージ（最小運用）",
-        "cases.li1":"AmazonのCSVをアップロード → 月次売上/手数料を自動集計",
-        "cases.li2":"広告費・送料・外注費を登録（証憑添付）",
-        "cases.li3":"仕入と在庫を更新 → 粗利/利益を自動算出",
-        "cases.li4":"税理士向けに必要項目をCSV出力",
+        dash_title: "ダッシュボード（例）",
+        dash_tab_1: "月次",
+        dash_tab_2: "チャネル別",
+        dash_tab_3: "商品別",
+        dash_stat_1_label: "売上（例）",
+        dash_stat_2_label: "手数料（例）",
+        dash_stat_3_label: "粗利（例）",
+        dash_row_1: "Amazon 手数料",
+        dash_row_2: "広告費（SP/SD）",
+        dash_row_3: "返金/返品",
+        dash_row_4: "税理士向け出力",
+        dash_pill_1: "整理済み",
+        dash_pill_2: "集計",
+        dash_pill_3: "分類",
+        dash_note: "※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。",
 
-        "notes.h":"ご注意（重要）",
-        "notes.li1":"LedgerSeiriは会計データの整理・集計支援ツールです。",
-        "notes.li2":"資金の保管、決済代行、税務代理業務は行いません。",
-        "notes.li3":"表示価格には必要に応じて税が加算される場合があります。",
+        features_h2: "主な機能",
+        features_lead: "売上・手数料・広告費・返金など、EC会計で散らかりがちなデータを「整理→集計→分類」して、監査しやすい形で出力します。",
+        f1_title: "整形（整理）",
+        f1_text: "チャネル別の入出金データを整形し、科目・用途に応じて並び替えられる状態にします。",
+        f2_title: "集計",
+        f2_text: "月次・チャネル別・商品別に、売上/手数料/粗利を素早く把握。数字のズレを検知しやすくします。",
+        f3_title: "分類",
+        f3_text: "広告費、返金/返品、配送費などを分類して、税理士や会計入力に渡しやすい出力に整えます。",
 
-        "pricing.h2":"料金（予定）",
-        "pricing.sub":"現在、β運用中です。正式な価格は準備中ですが、想定プラン例を掲載します。",
-        "pricing.note":"※ 上記はイメージです。正式な価格・提供範囲は変更される場合があります。",
+        kpi1_label: "対応データ",
+        kpi1_value: "CSV / Excel",
+        kpi1_hint: "フォーマットは順次拡張",
+        kpi2_label: "対象",
+        kpi2_value: "越境EC",
+        kpi2_hint: "手数料・為替差を整理",
+        kpi3_label: "提供形態",
+        kpi3_value: "SaaS",
+        kpi3_hint: "ブラウザで利用",
+        kpi4_label: "重要",
+        kpi4_value: "決済代行なし",
+        kpi4_hint: "資金保管を行いません",
 
-        "p1.plan":"Starter",
-        "p1.tag":"個人・小規模",
-        "p1.price":"¥1,980 <small>/ 月（税別）</small>",
-        "p1.li1":"CSV/Excel取込（基本）",
-        "p1.li2":"費用記録 + 証憑添付",
-        "p1.li3":"簡易レポート",
+        how_h2: "導入イメージ",
+        how_lead: "最小ステップで「監査しやすい帳簿データ」に整えます。",
+        how1_title: "1. 取り込み",
+        how1_text: "売上・手数料・費用データ（CSV/Excel）をアップロード。",
+        how2_title: "2. 整理/分類",
+        how2_text: "ルールに基づき、項目を整形し、費目を分類します。",
+        how3_title: "3. 出力",
+        how3_text: "税理士・会計入力に渡しやすいCSV/Excelで出力。",
 
-        "p2.plan":"Standard",
-        "p2.tag":"おすすめ",
-        "p2.price":"¥4,980 <small>/ 月（税別）</small>",
-        "p2.li1":"複数CSV/複数アカウント対応",
-        "p2.li2":"仕入・在庫の管理",
-        "p2.li3":"税理士向けCSV出力",
+        pricing_h2: "料金",
+        pricing_lead: "LedgerSeiriはサブスクリプション型です。初期は審査用に表示し、実運用に合わせて更新します。",
+        plan1_ribbon: "個人向け",
+        plan1_title: "Starter",
+        plan1_li1: "CSV/Excel 取り込み",
+        plan1_li2: "月次集計（基本）",
+        plan1_li3: "CSV出力",
+        plan2_ribbon: "おすすめ",
+        plan2_title: "Standard",
+        plan2_li1: "チャネル別/商品別 集計",
+        plan2_li2: "分類ルール（拡張）",
+        plan2_li3: "CSV/Excel 出力",
+        plan3_ribbon: "法人向け",
+        plan3_title: "Business",
+        plan3_li1: "複数メンバー",
+        plan3_li2: "監査向け出力テンプレ",
+        plan3_li3: "優先サポート",
 
-        "p3.plan":"Business",
-        "p3.tag":"法人向け",
-        "p3.price":"¥9,800 <small>/ 月（税別）</small>",
-        "p3.li1":"権限管理（管理者/一般）",
-        "p3.li2":"監査ログ（予定）",
-        "p3.li3":"優先サポート",
+        pricing_note_1: "※ 表示価格には消費税が含まれます。",
+        pricing_note_2: "※ 実際の提供範囲は今後のプロダクト進捗により変更される場合があります。",
+        pricing_note_3: "※ 決済代行・資金保管・税務代理は行いません。",
 
-        "p.btn":"相談する",
-        "p.btn2":"デモ相談",
+        faq_h2: "FAQ",
+        faq_lead: "よくある質問をまとめました。",
+        faq1_q: "LedgerSeiriは会計ソフトですか？",
+        faq1_a: "会計データの整理・集計・分類に特化した補助ツール（SaaS）です。決済代行、資金保管、税務代理業務は行いません。",
+        faq2_q: "どの支払い方法に対応しますか？",
+        faq2_a: "クレジットカード決済に対応予定です（提供開始時に表示します）。",
+        faq3_q: "返金はできますか？",
+        faq3_a: "返金条件は特定商取引法に基づく表記（/commerce）に記載します。公平な返金ポリシーに基づき対応します。",
 
-        "faq.h2":"FAQ",
-        "faq.sub":"Stripe審査でよく見られるポイント（事業内容・問い合わせ先・返金方針など）も明確にします。",
-        "faq.q1":"LedgerSeiriは会計ソフトですか？",
-        "faq.a1":"会計データの整理・集計支援ツールです。資金の保管、決済代行、税務代理は行いません。会計処理・申告は税理士等の専門家にご相談ください。",
-        "faq.q2":"支払い方法は何を想定していますか？",
-        "faq.a2":"クレジットカード決済（サブスクリプション）を想定しています。提供開始時点の手段は変更される場合があります。",
-        "faq.q3":"返金/キャンセルはできますか？",
-        "faq.a3":"公平な返金ポリシーに基づき対応します。詳細は「特定商取引法に基づく表記」ページをご確認ください。",
-        "faq.q4":"問い合わせ先はどこですか？",
-        "faq.a4p1":"メール：",
+        contact_h2: "お問い合わせ",
+        contact_lead: "導入相談・デモ希望など、お気軽にご連絡ください。",
+        contact_email_label: "メール：",
+        contact_note: "※ 返信目安：1〜2営業日",
+        contact_cta_commerce: "特定商取引法に基づく表記を見る",
+        contact_cta_mail: "メールで問い合わせる",
+        disclaimer: "免責：LedgerSeiriは会計データの整理・集計・分類を支援するソフトウェアです。資金の保管、決済代行、税務代理業務は行いません。",
 
-        "foot.operator":"運営：Kimoca Co., Ltd.",
-        "foot.business":"事業内容：ソフトウェア開発・提供",
-        "foot.contact":"お問い合わせ：",
-        "foot.commerce":"特定商取引法に基づく表記",
-        "foot.top":"トップへ"
+        footer_company: "運営会社：Kimoca Co., Ltd.（株式会社キモカ）",
+        footer_business: "事業内容：ソフトウェア開発・提供",
+        footer_commerce: "特定商取引法に基づく表記",
+        footer_contact: "お問い合わせ"
       },
 
       "zh-Hant": {
-        "brand.kana":"（LedgerSeiri）",
-        "nav.features":"功能",
-        "nav.pricing":"方案與價格",
-        "nav.cases":"導入示例",
-        "nav.faq":"FAQ",
-        "nav.commerce":"依特定商取引法之表記",
-        "top.contactBtn":"聯絡我們",
+        brand_kana: "（レジャーセイリ）",
+        nav_features: "功能",
+        nav_pricing: "方案與價格",
+        nav_how: "導入流程",
+        nav_faq: "FAQ",
+        nav_commerce: "特定商取引法（商業披露）",
+        nav_commerce_short: "商業披露",
+        cta_contact_top: "聯絡我們",
 
-        "hero.kicker":"把跨境電商的「帳簿整理」做得更快",
-        "hero.h1":"把 Amazon 等平台的銷售、手續費、費用<br>集中管理，利潤一眼看懂。",
-        "hero.lead":"LedgerSeiri 是面向跨境電商賣家的雲端軟體（SaaS），用於匯入銷售 CSV/Excel、管理費用/進貨/庫存，並自動彙總利潤。本站不提供資金保管、代收代付或稅務代理服務。",
-        "hero.ctaPrimary":"預約諮詢（Email）",
-        "hero.ctaSecondary":"查看主要功能",
-        "hero.note":"※ 本頁為 Stripe 審核的最小合規版：清楚列出服務內容、營運者資訊、聯絡方式與必備連結。",
+        badge_1: "跨境電商適用",
+        badge_2: "支援 CSV/Excel",
+        badge_3: "整理・彙總・分類",
 
-        "badge1.b":"CSV/Excel",
-        "badge1.s":"匯入",
-        "badge2.b":"費用/進貨",
-        "badge2.s":"集中管理",
-        "badge3.b":"利潤",
-        "badge3.s":"可視化",
+        hero_h1: "把帳務資料<br/>整理得更正確。",
+        hero_sub:
+          "LedgerSeiri 是面向跨境電商賣家的雲端帳務整理 SaaS。<br/>" +
+          "協助整理、管理與分析：銷售、手續費與費用資料。<br/>" +
+          "<b>我們不提供資金保管、支付代收或稅務代理服務。</b>",
 
-        "panel.title":"報表示意",
-        "panel.pill":"純靜態 / 穩定",
-        "stat1":"匯入銷售資料（Amazon CSV）",
-        "stat2":"彙總手續費/廣告費/運費",
-        "stat3":"記錄進貨與庫存",
-        "stat4":"月度利潤 / 毛利",
-        "mini1.b":"提供給稅理士的輸出",
-        "mini1.s":"以 CSV 整理必要欄位",
-        "mini2.b":"權限管理",
-        "mini2.s":"管理者 / 一般使用者",
+        cta_primary: "查看價格",
+        cta_commerce: "查看商業披露（特商法）",
+        cta_contact: "聯絡我們",
 
-        "features.h2":"主要功能",
-        "features.sub":"優先確保「自己先用得起來」：匯入 → 費用/進貨 → 利潤，一條龍跑通。",
-        "f1.h":"匯入 Amazon 銷售資料",
-        "f1.p":"讀取 Amazon 匯出的 CSV/Excel（訂單、手續費、FBA 等），轉成月度彙總。",
-        "f2.h":"費用與發票/憑證管理",
-        "f2.p":"記錄廣告費、外包、運費、SaaS 訂閱等，並可附上圖片/PDF 憑證。",
-        "f3.h":"進貨與庫存管理",
-        "f3.p":"記錄進貨成本與數量、庫存增減，追蹤商品毛利與周轉。",
+        trust_1: "最小化資料輸入",
+        trust_2: "CSV/Excel 輸出",
+        trust_3: "清楚退款政策",
 
-        "cases.h":"導入示例（最小運行）",
-        "cases.li1":"上傳 Amazon CSV → 自動彙總月度銷售/手續費",
-        "cases.li2":"登錄廣告費/運費/外包（附憑證）",
-        "cases.li3":"更新進貨與庫存 → 自動計算毛利/利潤",
-        "cases.li4":"匯出稅理士所需 CSV",
+        dash_title: "儀表板（示例）",
+        dash_tab_1: "月度",
+        dash_tab_2: "按渠道",
+        dash_tab_3: "按商品",
+        dash_stat_1_label: "銷售額（示例）",
+        dash_stat_2_label: "手續費（示例）",
+        dash_stat_3_label: "毛利（示例）",
+        dash_row_1: "Amazon 手續費",
+        dash_row_2: "廣告費（SP/SD）",
+        dash_row_3: "退款/退貨",
+        dash_row_4: "給會計師輸出",
+        dash_pill_1: "已整理",
+        dash_pill_2: "已彙總",
+        dash_pill_3: "已分類",
+        dash_note: "※ 以上為示意，實際數值/項目依使用內容而異。",
 
-        "notes.h":"注意事項（重要）",
-        "notes.li1":"LedgerSeiri 為會計資料整理與彙總工具。",
-        "notes.li2":"不提供資金保管、代收代付、稅務代理服務。",
-        "notes.li3":"標示價格可能依情況加算稅額。",
+        features_h2: "主要功能",
+        features_lead: "把跨境電商常見的銷售、手續費、廣告與退款資料整理成可審核、可交付的格式。",
+        f1_title: "整形（整理）",
+        f1_text: "把各渠道的入出金資料整形，讓科目與用途可快速對齊。",
+        f2_title: "彙總",
+        f2_text: "快速看月度/渠道/商品的銷售、手續費與毛利，容易發現差異。",
+        f3_title: "分類",
+        f3_text: "將廣告、退款/退貨、物流等分類，輸出給會計/稅理士更順手。",
 
-        "pricing.h2":"價格（預定）",
-        "pricing.sub":"目前 β 運行中。正式價格尚在準備，以下為示例。",
-        "pricing.note":"※ 以上僅示意，正式方案/價格可能調整。",
+        kpi1_label: "支援格式",
+        kpi1_value: "CSV / Excel",
+        kpi1_hint: "格式會逐步擴充",
+        kpi2_label: "目標用戶",
+        kpi2_value: "跨境電商",
+        kpi2_hint: "整理手續費/匯率差",
+        kpi3_label: "提供型態",
+        kpi3_value: "SaaS",
+        kpi3_hint: "瀏覽器使用",
+        kpi4_label: "重要",
+        kpi4_value: "不代收款",
+        kpi4_hint: "不提供資金保管",
 
-        "p1.plan":"Starter",
-        "p1.tag":"個人/小規模",
-        "p1.price":"¥1,980 <small>/ 月（未稅）</small>",
-        "p1.li1":"CSV/Excel 基本匯入",
-        "p1.li2":"費用記錄 + 憑證附件",
-        "p1.li3":"簡易報表",
+        how_h2: "導入流程",
+        how_lead: "用最少步驟，把資料整理成「可審核的帳務」",
+        how1_title: "1. 匯入",
+        how1_text: "上傳銷售/手續費/費用資料（CSV/Excel）。",
+        how2_title: "2. 整理/分類",
+        how2_text: "依規則整形欄位並分類費用。",
+        how3_title: "3. 輸出",
+        how3_text: "輸出 CSV/Excel 交付會計/稅理士。",
 
-        "p2.plan":"Standard",
-        "p2.tag":"推薦",
-        "p2.price":"¥4,980 <small>/ 月（未稅）</small>",
-        "p2.li1":"多份 CSV / 多帳號",
-        "p2.li2":"進貨與庫存管理",
-        "p2.li3":"稅理士用 CSV 匯出",
+        pricing_h2: "方案與價格",
+        pricing_lead: "LedgerSeiri 為訂閱制（審查用展示，後續可調整）。",
+        plan1_ribbon: "個人",
+        plan1_title: "Starter",
+        plan1_li1: "CSV/Excel 匯入",
+        plan1_li2: "月度彙總（基本）",
+        plan1_li3: "CSV 輸出",
+        plan2_ribbon: "推薦",
+        plan2_title: "Standard",
+        plan2_li1: "渠道/商品彙總",
+        plan2_li2: "分類規則（擴充）",
+        plan2_li3: "CSV/Excel 輸出",
+        plan3_ribbon: "企業",
+        plan3_title: "Business",
+        plan3_li1: "多成員",
+        plan3_li2: "審核/交付模板",
+        plan3_li3: "優先支援",
 
-        "p3.plan":"Business",
-        "p3.tag":"企業用",
-        "p3.price":"¥9,800 <small>/ 月（未稅）</small>",
-        "p3.li1":"權限管理（管理者/一般）",
-        "p3.li2":"審計紀錄（預定）",
-        "p3.li3":"優先支援",
+        pricing_note_1: "※ 顯示價格含稅。",
+        pricing_note_2: "※ 實際提供範圍可能依產品進度調整。",
+        pricing_note_3: "※ 不提供代收款/資金保管/稅務代理。",
 
-        "p.btn":"我要諮詢",
-        "p.btn2":"預約 Demo",
+        faq_h2: "FAQ",
+        faq_lead: "常見問題",
+        faq1_q: "LedgerSeiri 是會計軟體嗎？",
+        faq1_a: "它是帳務資料整理/彙總/分類的輔助 SaaS。不提供代收款、資金保管或稅務代理。",
+        faq2_q: "支援哪些付款方式？",
+        faq2_a: "預計支援信用卡（上線時會更新）。",
+        faq3_q: "可以退款嗎？",
+        faq3_a: "退款條件會在 /commerce（特商法披露）中清楚載明，並遵循公平退款政策。",
 
-        "faq.h2":"FAQ",
-        "faq.sub":"同時覆蓋 Stripe 審核常見關注點（服務內容、聯絡方式、退款政策）。",
-        "faq.q1":"LedgerSeiri 是會計軟體嗎？",
-        "faq.a1":"它是會計資料整理與彙總工具，不提供資金保管、代收代付或稅務代理。申報與會計處理請諮詢專業人士。",
-        "faq.q2":"預計支援哪些付款方式？",
-        "faq.a2":"預計支援信用卡訂閱。實際提供方式可能依上線情況調整。",
-        "faq.q3":"可以退款/取消嗎？",
-        "faq.a3":"會依公平退款政策處理。詳情請見「依特定商取引法之表記」頁面。",
-        "faq.q4":"如何聯絡？",
-        "faq.a4p1":"Email：",
+        contact_h2: "聯絡我們",
+        contact_lead: "導入諮詢/示範需求歡迎來信",
+        contact_email_label: "Email：",
+        contact_note: "※ 回覆時間：1〜2 個工作日",
+        contact_cta_commerce: "查看商業披露（特商法）",
+        contact_cta_mail: "寄信聯絡",
+        disclaimer: "免責：LedgerSeiri 為帳務資料整理/彙總/分類軟體，不提供資金保管、代收款、稅務代理。",
 
-        "foot.operator":"營運：Kimoca Co., Ltd.",
-        "foot.business":"業務：軟體開發/提供",
-        "foot.contact":"聯絡：",
-        "foot.commerce":"依特定商取引法之表記",
-        "foot.top":"回到頂部"
+        footer_company: "營運公司：Kimoca Co., Ltd.（株式会社キモカ）",
+        footer_business: "業務內容：軟體開發與提供",
+        footer_commerce: "特定商取引法（商業披露）",
+        footer_contact: "聯絡我們"
       },
 
       "en": {
-        "brand.kana":"(LedgerSeiri)",
-        "nav.features":"Features",
-        "nav.pricing":"Pricing",
-        "nav.cases":"How it works",
-        "nav.faq":"FAQ",
-        "nav.commerce":"Commerce Disclosure",
-        "top.contactBtn":"Contact",
+        brand_kana: "(Rejā-Seiri)",
+        nav_features: "Features",
+        nav_pricing: "Pricing",
+        nav_how: "How it works",
+        nav_faq: "FAQ",
+        nav_commerce: "Commerce Disclosure (Specified Commercial Transactions Act)",
+        nav_commerce_short: "Disclosure",
+        cta_contact_top: "Contact",
 
-        "hero.kicker":"Faster bookkeeping for cross-border e-commerce",
-        "hero.h1":"Bring sales, fees, and expenses into one place<br>and see your profit clearly.",
-        "hero.lead":"LedgerSeiri is a cloud software (SaaS) for cross-border sellers. Import sales CSV/Excel, manage expenses, procurement, and inventory, and summarize profit with minimal effort. We do not provide fund custody, payment processing as a merchant of record, or tax agency services.",
-        "hero.ctaPrimary":"Request a demo (Email)",
-        "hero.ctaSecondary":"See features",
-        "hero.note":"*This page is a minimal, stable static LP for Stripe review: clear service description, operator info, contact, and required links.",
+        badge_1: "For cross-border e-commerce",
+        badge_2: "CSV/Excel ready",
+        badge_3: "Clean • Summarize • Categorize",
 
-        "badge1.b":"CSV/Excel",
-        "badge1.s":"Import",
-        "badge2.b":"Expenses/COGS",
-        "badge2.s":"Manage",
-        "badge3.b":"Profit",
-        "badge3.s":"Analytics",
+        hero_h1: "Organize ledger data,<br/>properly.",
+        hero_sub:
+          "LedgerSeiri is a cloud-based SaaS focused on organizing accounting data for cross-border e-commerce sellers.<br/>" +
+          "It helps you clean, manage, and analyze sales, fees, and expense data.<br/>" +
+          "<b>We do not provide fund holding, payment processing, or tax agency services.</b>",
 
-        "panel.title":"Report preview",
-        "panel.pill":"Static LP / Stable",
-        "stat1":"Import sales data (Amazon CSV)",
-        "stat2":"Summarize fees/ads/shipping",
-        "stat3":"Track procurement & inventory",
-        "stat4":"Monthly profit / gross margin",
-        "mini1.b":"Export for accountants",
-        "mini1.s":"Organize required fields in CSV",
-        "mini2.b":"Role-based access",
-        "mini2.s":"Admin / Member",
+        cta_primary: "See pricing",
+        cta_commerce: "Commerce disclosure",
+        cta_contact: "Contact",
 
-        "features.h2":"Key features",
-        "features.sub":"Start from what matters: import → expenses/procurement → profit. Designed for a minimal, practical workflow.",
-        "f1.h":"Import Amazon sales data",
-        "f1.p":"Read Amazon-exported CSV/Excel (orders, fees, FBA, etc.) and convert into monthly summaries.",
-        "f2.h":"Expense + receipt storage",
-        "f2.p":"Record ads, outsourcing, shipping, subscriptions, and attach receipts (images/PDF).",
-        "f3.h":"Procurement & inventory",
-        "f3.p":"Record unit costs and quantities, track stock changes, and analyze margin/turnover per SKU.",
+        trust_1: "Minimal manual input",
+        trust_2: "CSV/Excel export",
+        trust_3: "Clear refund policy",
 
-        "cases.h":"How it works (minimal setup)",
-        "cases.li1":"Upload Amazon CSV → auto monthly sales/fee summary",
-        "cases.li2":"Add expenses (with receipt attachments)",
-        "cases.li3":"Update procurement & stock → profit auto-calculated",
-        "cases.li4":"Export CSV for your accountant",
+        dash_title: "Dashboard (Sample)",
+        dash_tab_1: "Monthly",
+        dash_tab_2: "By channel",
+        dash_tab_3: "By product",
+        dash_stat_1_label: "Sales (sample)",
+        dash_stat_2_label: "Fees (sample)",
+        dash_stat_3_label: "Gross profit (sample)",
+        dash_row_1: "Amazon fees",
+        dash_row_2: "Ads (SP/SD)",
+        dash_row_3: "Refunds/Returns",
+        dash_row_4: "Export for accountants",
+        dash_pill_1: "Cleaned",
+        dash_pill_2: "Summarized",
+        dash_pill_3: "Categorized",
+        dash_note: "* Sample only. Actual numbers/items vary by usage.",
 
-        "notes.h":"Important notes",
-        "notes.li1":"LedgerSeiri is a bookkeeping data organization & summarization tool.",
-        "notes.li2":"No fund custody, payment processing as MoR, or tax agency services.",
-        "notes.li3":"Taxes may be added depending on your situation.",
+        features_h2: "Key features",
+        features_lead: "Turn messy e-commerce data into audit-friendly ledgers: clean → summarize → categorize → export.",
+        f1_title: "Clean",
+        f1_text: "Normalize channel-based transaction data so it’s ready for accounting.",
+        f2_title: "Summarize",
+        f2_text: "Monthly/channel/product breakdown to spot discrepancies faster.",
+        f3_title: "Categorize",
+        f3_text: "Categorize ads, refunds, shipping, etc. for easy handoff to accountants.",
 
-        "pricing.h2":"Pricing (planned)",
-        "pricing.sub":"We are in beta. Below are example plans and may change.",
-        "pricing.note":"*Plans/prices are illustrative and subject to change.",
+        kpi1_label: "Formats",
+        kpi1_value: "CSV / Excel",
+        kpi1_hint: "More formats coming",
+        kpi2_label: "Target",
+        kpi2_value: "Cross-border EC",
+        kpi2_hint: "Fees & FX differences",
+        kpi3_label: "Delivery",
+        kpi3_value: "SaaS",
+        kpi3_hint: "Browser-based",
+        kpi4_label: "Important",
+        kpi4_value: "No payment processing",
+        kpi4_hint: "No fund holding",
 
-        "p1.plan":"Starter",
-        "p1.tag":"Solo / Small",
-        "p1.price":"¥1,980 <small>/ mo (excl. tax)</small>",
-        "p1.li1":"Basic CSV/Excel import",
-        "p1.li2":"Expense log + receipts",
-        "p1.li3":"Basic reports",
+        how_h2: "How it works",
+        how_lead: "Minimal steps to get audit-friendly ledger outputs.",
+        how1_title: "1. Import",
+        how1_text: "Upload sales/fees/expense data (CSV/Excel).",
+        how2_title: "2. Clean & categorize",
+        how2_text: "Normalize fields and categorize expenses based on rules.",
+        how3_title: "3. Export",
+        how3_text: "Export CSV/Excel for accountants and bookkeeping.",
 
-        "p2.plan":"Standard",
-        "p2.tag":"Recommended",
-        "p2.price":"¥4,980 <small>/ mo (excl. tax)</small>",
-        "p2.li1":"Multiple CSVs / accounts",
-        "p2.li2":"Procurement & inventory",
-        "p2.li3":"CSV export for accountants",
+        pricing_h2: "Pricing",
+        pricing_lead: "Subscription plans (displayed for review; subject to change on launch).",
+        plan1_ribbon: "Individual",
+        plan1_title: "Starter",
+        plan1_li1: "CSV/Excel import",
+        plan1_li2: "Basic monthly summary",
+        plan1_li3: "CSV export",
+        plan2_ribbon: "Recommended",
+        plan2_title: "Standard",
+        plan2_li1: "Channel/product summaries",
+        plan2_li2: "Advanced categorization rules",
+        plan2_li3: "CSV/Excel export",
+        plan3_ribbon: "Business",
+        plan3_title: "Business",
+        plan3_li1: "Multiple members",
+        plan3_li2: "Audit-ready templates",
+        plan3_li3: "Priority support",
 
-        "p3.plan":"Business",
-        "p3.tag":"Company",
-        "p3.price":"¥9,800 <small>/ mo (excl. tax)</small>",
-        "p3.li1":"Role-based access",
-        "p3.li2":"Audit log (planned)",
-        "p3.li3":"Priority support",
+        pricing_note_1: "* Prices include tax.",
+        pricing_note_2: "* Scope may change based on product progress.",
+        pricing_note_3: "* No payment processing / fund holding / tax agency.",
 
-        "p.btn":"Contact us",
-        "p.btn2":"Request a demo",
+        faq_h2: "FAQ",
+        faq_lead: "Common questions",
+        faq1_q: "Is LedgerSeiri a full accounting system?",
+        faq1_a: "No. It’s a helper SaaS for cleaning/summarizing/categorizing accounting data. We do not provide payment processing, fund holding, or tax agency services.",
+        faq2_q: "Which payment methods are supported?",
+        faq2_a: "Credit card payments are planned (to be updated at launch).",
+        faq3_q: "Do you offer refunds?",
+        faq3_a: "Refund terms are clearly stated on /commerce and follow a fair refund policy.",
 
-        "faq.h2":"FAQ",
-        "faq.sub":"Covers common Stripe review points: service details, contact, and refund policy link.",
-        "faq.q1":"Is LedgerSeiri an accounting system?",
-        "faq.a1":"It is a bookkeeping data organization and summarization tool. We do not provide fund custody, merchant-of-record processing, or tax agency services.",
-        "faq.q2":"What payment methods will you support?",
-        "faq.a2":"We plan to support credit card subscriptions. The exact methods may change at launch.",
-        "faq.q3":"Can I cancel or request a refund?",
-        "faq.a3":"We follow a fair refund policy. See the Commerce Disclosure page for details.",
-        "faq.q4":"How can I reach you?",
-        "faq.a4p1":"Email:",
+        contact_h2: "Contact",
+        contact_lead: "For demo requests or questions, reach us anytime.",
+        contact_email_label: "Email:",
+        contact_note: "* Typical response: 1–2 business days",
+        contact_cta_commerce: "View commerce disclosure",
+        contact_cta_mail: "Email us",
+        disclaimer: "Disclaimer: LedgerSeiri is software for organizing accounting data. We do not provide fund holding, payment processing, or tax agency services.",
 
-        "foot.operator":"Operator: Kimoca Co., Ltd.",
-        "foot.business":"Business: Software development & service",
-        "foot.contact":"Contact:",
-        "foot.commerce":"Commerce Disclosure",
-        "foot.top":"Back to top"
+        footer_company: "Operator: Kimoca Co., Ltd.",
+        footer_business: "Business: Software development and delivery",
+        footer_commerce: "Commerce disclosure",
+        footer_contact: "Contact"
       }
     };
 
-    const LANG_KEY = "ledgerseiri_lang";
-
-    function setLang(lang){
+    function applyLang(lang){
+      const d = dict[lang] || dict["ja"];
       document.documentElement.lang = (lang === "zh-Hant") ? "zh-Hant" : (lang === "en" ? "en" : "ja");
-      const map = dict[lang] || dict["ja"];
-
       document.querySelectorAll("[data-i18n]").forEach(el=>{
         const key = el.getAttribute("data-i18n");
-        const val = map[key];
-        if(!val) return;
-        // allow <br> in headings
-        if(el.tagName === "H1" || el.tagName === "DIV" || el.tagName === "SPAN" || el.tagName === "A" || el.tagName === "P" || el.tagName === "SUMMARY" || el.tagName === "H2" || el.tagName === "H3"){
-          el.innerHTML = val;
-        } else {
-          el.textContent = val;
-        }
+        if(!d[key]) return;
+        el.innerHTML = d[key];
       });
-
-      localStorage.setItem(LANG_KEY, lang);
+      localStorage.setItem("ls_lang", lang);
     }
 
-    // init year + lang
+    // default language
+    const saved = localStorage.getItem("ls_lang") || "ja";
+    const sel = document.getElementById("langSelect");
+    sel.value = saved;
+    applyLang(saved);
+
+    sel.addEventListener("change", e=>{
+      applyLang(e.target.value);
+    });
+
+    // FAQ toggle
+    document.getElementById("faqList").addEventListener("click", (e)=>{
+      const q = e.target.closest(".faqQ");
+      if(!q) return;
+      const item = q.closest(".faqItem");
+      item.classList.toggle("open");
+      const caret = item.querySelector(".faqCaret");
+      if(caret) caret.textContent = item.classList.contains("open") ? "−" : "＋";
+    });
+
+    // Mobile nav
+    const ham = document.getElementById("hamburger");
+    const mnav = document.getElementById("mobileNav");
+    ham.addEventListener("click", ()=>{
+      const open = mnav.classList.toggle("isOpen");
+      ham.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    mnav.addEventListener("click", (e)=>{
+      if(e.target.tagName.toLowerCase() === "a"){
+        mnav.classList.remove("isOpen");
+        ham.setAttribute("aria-expanded","false");
+      }
+    });
+
+    // Year
     document.getElementById("year").textContent = new Date().getFullYear();
-
-    const select = document.getElementById("langSelect");
-    const saved = localStorage.getItem(LANG_KEY);
-    const initial = saved || "ja";
-    select.value = initial;
-    setLang(initial);
-
-    select.addEventListener("change", (e)=> setLang(e.target.value));
   </script>
 </body>
 </html>
