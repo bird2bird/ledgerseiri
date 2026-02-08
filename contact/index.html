@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LedgerSeiri | お問い合わせ</title>
+  <meta name="description" content="Contact LedgerSeiri" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="/">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="brand-title">
+          <strong>LedgerSeiri</strong>
+          <span>（レジャーセイリ）</span>
+        </div>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-legal" href="/commerce">特定商取引法に基づく表記</a>
+      </nav>
+
+      <div class="topbar-right">
+        <select class="lang-select" data-lang-select aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-ghost" href="/login" target="_blank" rel="noopener">ログイン</a>
+        <a class="btn btn-primary" href="/contact">お問い合わせ</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="form-page">
+    <div class="container">
+      <h1 style="margin:0 0 10px;">お問い合わせ</h1>
+      <p style="margin:0 0 14px;color:var(--muted);">
+        送信ボタンを押すと、メールアプリが開き、内容が自動入力されます（静的ページのため自動送信はできません）。
+      </p>
+
+      <div class="card form-card">
+        <form class="form-grid" data-contact-form>
+          <input class="input" name="name" placeholder="お名前" required />
+          <input class="input" type="email" name="email" placeholder="メールアドレス" required />
+          <input class="input" name="subject" placeholder="件名" />
+          <textarea class="textarea" name="message" placeholder="お問い合わせ内容" required></textarea>
+
+          <button class="btn btn-primary" type="submit">送信（メール作成）</button>
+
+          <div class="notice">
+            ※ 送信先：bird2bird2024@gmail.com<br>
+            ※ 自動送信が必要な場合は、Vercel API（Serverless）を追加する必要があります。
+          </div>
+        </form>
+      </div>
+
+      <div style="margin-top:14px;">
+        <a class="btn btn-ghost" href="/">← Home</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
