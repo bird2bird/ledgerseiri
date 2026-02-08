@@ -937,3 +937,96 @@ hr{ border:0; border-top:1px solid var(--line); margin: 18px 0; }
   font-size: 12px;
   color: var(--muted2);
 }
+/* =========================================================
+   NAV: long label visible + keep freee-like density
+   ========================================================= */
+.topbar-inner{ gap: 12px; }
+
+.nav{ gap: 6px; }
+
+.nav a{
+  padding: 10px 10px;
+  font-size: 13px;
+}
+
+/* Only for the legal link: allow wrapping instead of truncation */
+.nav a.nav-legal{
+  white-space: normal;
+  line-height: 1.1;
+  max-width: 210px;
+}
+
+/* Reduce right area width slightly to avoid squeezing */
+.topbar-right .btn{ height: 40px; padding: 0 14px; font-size: 13px; }
+.lang-select{ height: 40px; }
+
+/* On narrower screens, allow nav to wrap before breaking layout */
+@media (max-width: 1180px){
+  .nav{ flex-wrap: wrap; row-gap: 6px; }
+  .nav a{ padding: 8px 10px; }
+  .nav a.nav-legal{ max-width: 100%; }
+}
+
+/* =========================================================
+   Dashboard: subtle fade-up animation (freee-ish, restrained)
+   ========================================================= */
+@media (prefers-reduced-motion: reduce){
+  .dash-anim, .dash-num-anim{ animation: none !important; }
+}
+
+.dash-anim{
+  animation: dashFadeUp 180ms ease-out both;
+}
+@keyframes dashFadeUp{
+  from{ opacity: 0.55; transform: translateY(6px); }
+  to  { opacity: 1; transform: translateY(0); }
+}
+
+.dash-kpi-value.dash-num-anim{
+  animation: numPop 160ms ease-out both;
+}
+@keyframes numPop{
+  from{ opacity: 0.6; transform: translateY(4px); }
+  to  { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================================
+   Contact / Login pages basic form styling (matches existing inputs)
+   ========================================================= */
+.form-page{ padding: 26px 0 54px; }
+.form-card{ padding: 18px; }
+.form-grid{ display:grid; gap: 10px; margin-top: 12px; }
+
+.textarea{
+  min-height: 120px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.92);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+}
+.textarea:focus{
+  border-color: rgba(26,115,255,0.45);
+  box-shadow: 0 0 0 4px rgba(26,115,255,0.14);
+}
+
+.auth-tabs{ display:flex; gap: 8px; margin-top: 12px; }
+.auth-tab{
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.92);
+  font-weight: 950;
+  font-size: 13px;
+  cursor: pointer;
+}
+.auth-tab.is-active{
+  border-color: rgba(26,115,255,0.22);
+  background: rgba(26,115,255,0.10);
+  color: var(--primary2);
+}
+
+.notice{ margin-top: 10px; font-size: 12px; color: var(--muted2); }
