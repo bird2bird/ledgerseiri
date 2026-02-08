@@ -25,8 +25,9 @@
 
       <nav class="nav" aria-label="Primary">
         <a href="#features" data-i18n="nav_features">機能</a>
+        <a href="#solution" data-i18n="nav_solution">解決できること</a>
         <a href="#pricing" data-i18n="nav_pricing">料金</a>
-        <a href="#how" data-i18n="nav_how">導入イメージ</a>
+        <a href="#flow" data-i18n="nav_flow">導入の流れ</a>
         <a href="#faq" data-i18n="nav_faq">FAQ</a>
         <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
         <a href="/commerce#disclosure" data-i18n="nav_disclosure">商業披露</a>
@@ -41,9 +42,49 @@
 
         <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
         <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+
+        <button class="icon-btn" type="button" aria-label="Open menu" data-drawer-open>
+          <div class="burger" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+        </button>
       </div>
     </div>
   </header>
+
+  <!-- Mobile drawer -->
+  <div class="drawer-overlay" data-drawer-overlay></div>
+  <aside class="drawer" data-drawer aria-label="Mobile menu">
+    <div class="drawer-head">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="logo" aria-hidden="true" style="width:34px;height:34px;border-radius:12px;"></div>
+        <strong>LedgerSeiri</strong>
+      </div>
+      <button class="icon-btn" type="button" aria-label="Close menu" data-drawer-close style="display:inline-flex;">
+        ✕
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select class="lang-select" data-lang-select aria-label="Language (drawer)" style="flex:1;min-width:160px;">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+      </div>
+
+      <nav class="drawer-nav" aria-label="Drawer navigation">
+        <a href="#features" data-i18n="nav_features">機能</a>
+        <a href="#solution" data-i18n="nav_solution">解決できること</a>
+        <a href="#pricing" data-i18n="nav_pricing">料金</a>
+        <a href="#flow" data-i18n="nav_flow">導入の流れ</a>
+        <a href="#faq" data-i18n="nav_faq">FAQ</a>
+        <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+        <a href="/commerce#disclosure" data-i18n="nav_disclosure">商業披露</a>
+      </nav>
+    </div>
+  </aside>
 
   <!-- Hero -->
   <main id="content" class="hero">
@@ -52,10 +93,10 @@
       <section>
         <div class="kicker">
           <span class="kicker-dot" aria-hidden="true"></span>
-          <span data-i18n="hero_kicker">クロスボーダーEC向け / データ整理に特化</span>
+          <span data-i18n="hero_kicker">クロスボーダーEC向け / 売上・手数料・費用の整理に特化</span>
         </div>
 
-        <h1 data-i18n="hero_h1">帳簿データを、<br>正しく整理する。</h1>
+        <h1 data-i18n="hero_h1">帳簿データを、<br>迷わず整理する。</h1>
 
         <p data-i18n="hero_p">
           LedgerSeiriは、売上・手数料・費用データの整理・集計・分類を支援するクラウド型ソフトウェア（SaaS）です。<br>
@@ -63,14 +104,15 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn btn-primary" href="#pricing" data-i18n="hero_btn_price">料金を見る</a>
-          <a class="btn btn-ghost" href="/commerce" data-i18n="hero_btn_commerce">特定商取引法に基づく表記</a>
+          <a class="btn btn-primary" href="#pricing" data-i18n="hero_btn_primary">資料をダウンロード</a>
+          <a class="btn btn-ghost" href="/commerce" data-i18n="hero_btn_secondary">特定商取引法に基づく表記</a>
+          <a class="btn btn-soft" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
         </div>
 
         <div class="badges" aria-label="Key points">
           <div class="badge">
             <i aria-hidden="true">✓</i>
-            <span><strong data-i18n="badge_1_a">データ入力は</strong> <span data-i18n="badge_1_b">最小化</span></span>
+            <span><strong data-i18n="badge_1_a">入力工数を</strong> <span data-i18n="badge_1_b">最小化</span></span>
           </div>
           <div class="badge">
             <i aria-hidden="true">⇩</i>
@@ -78,60 +120,49 @@
           </div>
           <div class="badge">
             <i aria-hidden="true">§</i>
-            <span><strong data-i18n="badge_3_a">払い戻し方針を</strong> <span data-i18n="badge_3_b">明記</span></span>
+            <span><strong data-i18n="badge_3_a">Stripe審査用</strong> <span data-i18n="badge_3_b">表記を整備</span></span>
           </div>
         </div>
       </section>
 
-      <!-- Right: Dashboard card -->
-      <aside class="card dashboard" aria-label="Dashboard preview">
-        <div class="dashboard-header">
-          <div class="dashboard-title">
-            <span class="mini-dot" aria-hidden="true"></span>
-            <span data-i18n="dash_title">ダッシュボード（例）</span>
-          </div>
+      <!-- Right: panel -->
+      <aside class="card hero-panel" aria-label="Panel">
+        <div class="panel-title">
+          <strong data-i18n="panel_title">検討中の方へ（静的デモ）</strong>
           <div class="pills" aria-hidden="true">
-            <div class="pill" data-i18n="dash_pill_1">月次</div>
-            <div class="pill" data-i18n="dash_pill_2">チャネル別</div>
-            <div class="pill" data-i18n="dash_pill_3">商品別</div>
+            <div class="pill" data-i18n="pill_1">最短</div>
+            <div class="pill" data-i18n="pill_2">明確</div>
+            <div class="pill" data-i18n="pill_3">安全</div>
           </div>
         </div>
 
-        <div class="stats">
-          <div class="stat">
-            <label data-i18n="dash_stat_1">売上（例）</label>
-            <div class="value">¥2,790,080</div>
+        <form class="form" data-mailto-form>
+          <input class="input" type="email" autocomplete="email" inputmode="email" data-i18n="panel_input_ph" placeholder="メールアドレス（例）" />
+          <button class="btn btn-primary" type="submit" data-i18n="panel_btn">問い合わせる（メール）</button>
+          <div class="form-note" data-i18n="panel_note">
+            ※ 静的LPのため、送信はメールアプリを開きます。課金/決済はStripeで実装予定です。
           </div>
-          <div class="stat">
-            <label data-i18n="dash_stat_2">手数料（例）</label>
-            <div class="value">¥-412,300</div>
+        </form>
+
+        <div class="trust-row" aria-label="Trust">
+          <div class="trust">
+            <span class="dot-ok" aria-hidden="true"></span>
+            <span><b data-i18n="trust_1_b">カード登録不要</b> <span data-i18n="trust_1_s">（デモ）</span></span>
           </div>
-          <div class="stat">
-            <label data-i18n="dash_stat_3">粗利（例）</label>
-            <div class="value">¥1,103,500</div>
+          <div class="trust">
+            <span class="dot-ok" aria-hidden="true" style="background:var(--warn);box-shadow:0 0 0 5px rgba(245,158,11,0.12);"></span>
+            <span><b data-i18n="trust_2_b">返金方針</b> <span data-i18n="trust_2_s">明記</span></span>
+          </div>
+          <div class="trust">
+            <span class="dot-ok" aria-hidden="true" style="background:var(--primary2);box-shadow:0 0 0 5px rgba(11,92,255,0.12);"></span>
+            <span><b data-i18n="trust_3_b">商業披露</b> <span data-i18n="trust_3_s">対応</span></span>
           </div>
         </div>
 
-        <div class="listbox">
-          <div class="row">
-            <div class="left" data-i18n="dash_row_1">Amazon 手数料</div>
-            <div class="tag" data-i18n="dash_tag_1">整理済み</div>
-          </div>
-          <div class="row">
-            <div class="left" data-i18n="dash_row_2">広告費（SP/SD）</div>
-            <div class="tag" data-i18n="dash_tag_2">集計</div>
-          </div>
-          <div class="row">
-            <div class="left" data-i18n="dash_row_3">返金/返品</div>
-            <div class="tag" data-i18n="dash_tag_3">分類</div>
-          </div>
-          <div class="row">
-            <div class="left" data-i18n="dash_row_4">税理士向け出力</div>
-            <div class="tag" data-i18n="dash_tag_4">CSV/Excel</div>
-          </div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+          <a class="btn btn-ghost" href="/commerce" data-i18n="cta_view_commerce">特定商取引法に基づく表記</a>
+          <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
         </div>
-
-        <div class="note" data-i18n="dash_note">※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。</div>
       </aside>
     </div>
   </main>
@@ -140,21 +171,69 @@
   <section id="features" class="section">
     <div class="container">
       <h2 data-i18n="sec_features_h2">主要機能</h2>
+      <p class="sub" data-i18n="sec_features_sub"></p>
+
       <div class="grid3">
         <div class="card feature">
           <div class="icon" aria-hidden="true">1</div>
-          <h3 data-i18n="f1_t">売上・手数料・費用を整理</h3>
-          <p data-i18n="f1_p">ECモールの明細を読みやすい形へ整形。データの迷子をなくします。</p>
+          <h3 data-i18n="f1_t">売上・手数料・費用を自動で整形</h3>
+          <p data-i18n="f1_p"></p>
         </div>
         <div class="card feature">
           <div class="icon" aria-hidden="true">2</div>
-          <h3 data-i18n="f2_t">集計と可視化</h3>
-          <p data-i18n="f2_p">月次/チャネル別/商品別などの集計軸で、数字のズレを早期発見。</p>
+          <h3 data-i18n="f2_t">集計（チャネル/商品/期間）</h3>
+          <p data-i18n="f2_p"></p>
         </div>
         <div class="card feature">
           <div class="icon" aria-hidden="true">3</div>
-          <h3 data-i18n="f3_t">CSV/Excel出力</h3>
-          <p data-i18n="f3_p">税理士・会計ツール向けに、そのまま渡せる形式で出力可能。</p>
+          <h3 data-i18n="f3_t">CSV/Excel 出力（税理士・会計ツール向け）</h3>
+          <p data-i18n="f3_p"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Solution -->
+  <section id="solution" class="section">
+    <div class="container">
+      <h2 data-i18n="sec_solution_h2">よくある課題を、こう解決します</h2>
+      <p class="sub" data-i18n="sec_solution_sub"></p>
+
+      <div class="card steps">
+        <div class="step" style="border-top:none;">
+          <div class="num">!</div>
+          <div class="txt">
+            <b data-i18n="sol_left_h">課題（現場）</b>
+            <span data-i18n="sol_1_b"></span>
+          </div>
+          <div class="txt" style="margin-left:auto;max-width:52%;">
+            <b data-i18n="sol_right_h">LedgerSeiriの対応</b>
+            <span data-i18n="sol_1_s"></span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="num">↺</div>
+          <div class="txt">
+            <b data-i18n="sol_left_h">課題（現場）</b>
+            <span data-i18n="sol_2_b"></span>
+          </div>
+          <div class="txt" style="margin-left:auto;max-width:52%;">
+            <b data-i18n="sol_right_h">LedgerSeiriの対応</b>
+            <span data-i18n="sol_2_s"></span>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="num">⇩</div>
+          <div class="txt">
+            <b data-i18n="sol_left_h">課題（現場）</b>
+            <span data-i18n="sol_3_b"></span>
+          </div>
+          <div class="txt" style="margin-left:auto;max-width:52%;">
+            <b data-i18n="sol_right_h">LedgerSeiriの対応</b>
+            <span data-i18n="sol_3_s"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -165,35 +244,42 @@
     <div class="container">
       <h2 data-i18n="sec_pricing_h2">料金（消費税込）</h2>
 
-      <div class="pricing">
+      <div class="pricing" style="margin-top:14px;">
         <div class="card price-card">
           <div class="tier" data-i18n="p1_t">Starter</div>
           <div class="yen" data-i18n="p1_y">¥1,980/月</div>
           <ul>
-            <li>基本の整理・分類</li>
-            <li>CSV/Excel 出力</li>
-            <li>メールサポート</li>
+            <li data-i18n="p_common_1">基本の整理・分類</li>
+            <li data-i18n="p_common_2">CSV/Excel 出力</li>
+            <li data-i18n="p_common_3">メールサポート</li>
           </ul>
+          <div class="mini">・解約：いつでも可能（次回更新日まで利用可）</div>
+          <div class="mini">・返金：原則不可（誤請求等は調査の上対応）</div>
+          <div class="mini"><a href="/commerce">特定商取引法に基づく表記を見る →</a></div>
         </div>
 
         <div class="card price-card">
+          <div class="ribbon" data-i18n="p_ribbon">人気</div>
           <div class="tier" data-i18n="p2_t">Standard</div>
           <div class="yen" data-i18n="p2_y">¥4,980/月</div>
           <ul>
-            <li>集計（チャネル/商品）</li>
-            <li>出力テンプレート拡張</li>
-            <li>優先サポート</li>
+            <li data-i18n="p_std_1">集計（チャネル/商品）</li>
+            <li data-i18n="p_std_2">出力テンプレート拡張</li>
+            <li data-i18n="p_std_3">優先サポート</li>
           </ul>
+          <div class="mini">・決済：Stripe（予定）</div>
+          <div class="mini">・商業披露：<a href="/commerce#disclosure">こちら</a></div>
         </div>
 
         <div class="card price-card">
           <div class="tier" data-i18n="p3_t">Business</div>
           <div class="yen" data-i18n="p3_y">¥9,980/月</div>
           <ul>
-            <li>チーム利用（複数ユーザー）</li>
-            <li>高度な分類ルール</li>
-            <li>導入相談</li>
+            <li data-i18n="p_bus_1">チーム利用（複数ユーザー）</li>
+            <li data-i18n="p_bus_2">高度な分類ルール</li>
+            <li data-i18n="p_bus_3">導入相談</li>
           </ul>
+          <div class="mini"><a href="mailto:support@kimoca.com">導入相談：support@kimoca.com</a></div>
         </div>
       </div>
 
@@ -201,22 +287,79 @@
     </div>
   </section>
 
-  <!-- How -->
-  <section id="how" class="section">
+  <!-- Flow -->
+  <section id="flow" class="section">
     <div class="container">
-      <h2 data-i18n="sec_how_h2">導入イメージ</h2>
+      <h2 data-i18n="sec_flow_h2">導入の流れ</h2>
+      <p class="sub" data-i18n="sec_flow_sub"></p>
 
       <div class="split">
-        <div class="card feature">
-          <div class="icon" aria-hidden="true">→</div>
-          <h3 data-i18n="how_left_h">最短で始める</h3>
-          <p data-i18n="how_left_p">1) CSV/Excelをアップロード<br>2) 自動で整理・集計<br>3) そのまま出力して共有</p>
+        <div class="card steps">
+          <div class="step" style="border-top:none;">
+            <div class="num">1</div>
+            <div class="txt">
+              <b data-i18n="flow_1_b">1) データを用意</b>
+              <span data-i18n="flow_1_s"></span>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">2</div>
+            <div class="txt">
+              <b data-i18n="flow_2_b">2) 整理・分類</b>
+              <span data-i18n="flow_2_s"></span>
+            </div>
+          </div>
+          <div class="step">
+            <div class="num">3</div>
+            <div class="txt">
+              <b data-i18n="flow_3_b">3) 出力して共有</b>
+              <span data-i18n="flow_3_s"></span>
+            </div>
+          </div>
         </div>
 
-        <div class="card feature">
-          <div class="icon" aria-hidden="true">🔒</div>
-          <h3 data-i18n="how_right_h">データの扱い</h3>
-          <p data-i18n="how_right_p">決済情報（カード番号など）は保存しません。<br>決済はStripe等の決済事業者で処理します。</p>
+        <div class="card cta-band">
+          <h2 data-i18n="band_h2">Stripe審査に必要な表記を、先に整える。</h2>
+          <p data-i18n="band_p"></p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/commerce" data-i18n="band_btn_1">特定商取引法に基づく表記</a>
+            <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="band_btn_2">商業披露へ</a>
+            <a class="btn btn-soft" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+          </div>
+          <hr>
+          <p style="margin:0;color:var(--muted2);font-size:12px;">
+            ※ このLPは静的デモです。実サービスの機能/料金/提供条件は公開時に更新されます。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Voices -->
+  <section class="section">
+    <div class="container">
+      <h2 data-i18n="sec_voice_h2">想定ユーザーの声（例）</h2>
+      <div class="testimonials" style="margin-top:14px;">
+        <div class="card quote">
+          <p data-i18n="q_1"></p>
+          <div class="who">
+            <span data-i18n="q_1_w"></span>
+            <span class="avatar" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div class="card quote">
+          <p data-i18n="q_2"></p>
+          <div class="who">
+            <span data-i18n="q_2_w"></span>
+            <span class="avatar" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div class="card quote">
+          <p data-i18n="q_3"></p>
+          <div class="who">
+            <span data-i18n="q_3_w"></span>
+            <span class="avatar" aria-hidden="true"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -229,18 +372,18 @@
 
       <div class="card faq">
         <details>
-          <summary data-i18n="q1">LedgerSeiriは会計ソフトですか？</summary>
-          <p data-i18n="a1">会計データの整理・集計・分類を支援するツールです。会計帳簿の作成や税務代理は行いません。</p>
+          <summary data-i18n="faq1_q">LedgerSeiriは会計ソフトですか？</summary>
+          <p data-i18n="faq1_a"></p>
         </details>
 
         <details>
-          <summary data-i18n="q2">無料トライアルはありますか？</summary>
-          <p data-i18n="a2">準備中です。公開時にホームページで案内します。</p>
+          <summary data-i18n="faq2_q">カード情報は保存しますか？</summary>
+          <p data-i18n="faq2_a"></p>
         </details>
 
         <details>
-          <summary data-i18n="q3">対応する出力形式は？</summary>
-          <p data-i18n="a3">CSV/Excel形式での出力を想定しています。</p>
+          <summary data-i18n="faq3_q">Stripe審査向けのページはありますか？</summary>
+          <p data-i18n="faq3_a"></p>
         </details>
       </div>
     </div>
