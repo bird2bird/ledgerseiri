@@ -7,6 +7,44 @@
   <meta name="description" content="LedgerSeiriは越境EC事業者向けの会計データ整理SaaS。売上・手数料・費用を一元化し、利益が見える状態へ。CSV/Excel出力で税理士連携もスムーズに。" />
   <meta name="robots" content="index,follow" />
   <link rel="stylesheet" href="/assets/site.css" />
+
+  <style>
+    /* Small additions for language selector (mobile-safe) */
+    .langWrap{display:flex; align-items:center; gap:8px;}
+    .langLabel{font-size:12px; color:var(--muted2); font-weight:900; display:none;}
+    .langSelect{
+      appearance:none;
+      -webkit-appearance:none;
+      -moz-appearance:none;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:10px 36px 10px 12px;
+      font-weight:900;
+      font-size:13px;
+      color:var(--fg);
+      cursor:pointer;
+      box-shadow: 0 1px 0 rgba(15,23,42,.02);
+      background-image:
+        linear-gradient(45deg, transparent 50%, rgba(15,23,42,.55) 50%),
+        linear-gradient(135deg, rgba(15,23,42,.55) 50%, transparent 50%),
+        linear-gradient(to right, transparent, transparent);
+      background-position:
+        calc(100% - 18px) calc(50% - 2px),
+        calc(100% - 13px) calc(50% - 2px),
+        0 0;
+      background-size:5px 5px, 5px 5px, 100% 100%;
+      background-repeat:no-repeat;
+    }
+    .langSelect:focus{outline: none; border-color: rgba(37,99,235,.45); box-shadow: 0 0 0 4px rgba(37,99,235,.12);}
+
+    @media (max-width: 960px){
+      .langLabel{display:none;}
+    }
+    @media (max-width: 520px){
+      .langSelect{padding:9px 34px 9px 12px; font-size:13px;}
+    }
+  </style>
 </head>
 
 <body>
@@ -19,16 +57,26 @@
         </a>
 
         <div class="navlinks" aria-label="Primary">
-          <a href="#features">機能</a>
-          <a href="#pricing">料金</a>
-          <a href="#cases">導入イメージ</a>
-          <a href="#faq">FAQ</a>
-          <a href="/commerce">特定商取引法に基づく表記</a>
+          <a href="#features" data-i18n="nav.features">機能</a>
+          <a href="#pricing" data-i18n="nav.pricing">料金</a>
+          <a href="#cases" data-i18n="nav.cases">導入イメージ</a>
+          <a href="#faq" data-i18n="nav.faq">FAQ</a>
+          <a href="/commerce" data-i18n="nav.commerce">特定商取引法に基づく表記</a>
         </div>
 
         <div class="actions">
-          <a class="btn ghost" href="/commerce">商業披露</a>
-          <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B">お問い合わせ</a>
+          <!-- Language selector -->
+          <div class="langWrap" aria-label="Language selector">
+            <span class="langLabel" data-i18n="lang.label">言語</span>
+            <select id="langSelect" class="langSelect">
+              <option value="ja">日本語</option>
+              <option value="zh-Hant">繁體中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+
+          <a class="btn ghost" href="/commerce" data-i18n="top.commerceBtn">商業披露</a>
+          <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Inquiry" data-i18n="top.contactBtn">お問い合わせ</a>
         </div>
       </div>
     </div>
@@ -40,27 +88,31 @@
       <div class="container">
         <div class="heroGrid">
           <div>
-            <div class="kicker">越境EC向け <b>会計データ整理SaaS</b></div>
-            <h1>売上・手数料・費用を整え、<br/>利益が見える状態へ。</h1>
-            <p class="lead">
+            <div class="kicker" data-i18n="hero.kicker">越境EC向け <b>会計データ整理SaaS</b></div>
+
+            <h1 data-i18n="hero.h1">
+              売上・手数料・費用を整え、<br/>利益が見える状態へ。
+            </h1>
+
+            <p class="lead" data-i18n="hero.lead">
               LedgerSeiri は、クロスボーダーECの明細データを「整理 → 集計 → 可視化 → 出力」まで一気通貫で整えるソフトウェアです。
               月次の“数字合わせ”を減らし、判断のスピードを上げます。
             </p>
 
             <div class="heroCtas">
-              <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20%E7%84%A1%E6%96%99%E7%9B%B8%E8%AB%87">無料で相談する</a>
-              <a class="btn" href="#pricing">料金を見る</a>
-              <a class="btn" href="/commerce">特定商取引法に基づく表記</a>
+              <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Free%20Consultation" data-i18n="hero.cta1">無料で相談する</a>
+              <a class="btn" href="#pricing" data-i18n="hero.cta2">料金を見る</a>
+              <a class="btn" href="/commerce" data-i18n="hero.cta3">特定商取引法に基づく表記</a>
             </div>
 
             <div class="badges">
-              <span class="badge"><span class="dot"></span> CSV/Excel 取込・出力</span>
-              <span class="badge"><span class="dot"></span> 月次集計（売上/手数料/費用）</span>
-              <span class="badge"><span class="dot"></span> 税理士向けデータ出力</span>
-              <span class="badge"><span class="dot"></span> 日本語サポート</span>
+              <span class="badge"><span class="dot"></span> <span data-i18n="hero.badge1">CSV/Excel 取込・出力</span></span>
+              <span class="badge"><span class="dot"></span> <span data-i18n="hero.badge2">月次集計（売上/手数料/費用）</span></span>
+              <span class="badge"><span class="dot"></span> <span data-i18n="hero.badge3">税理士向けデータ出力</span></span>
+              <span class="badge"><span class="dot"></span> <span data-i18n="hero.badge4">日本語サポート</span></span>
             </div>
 
-            <p class="note" style="margin-top:12px;">
+            <p class="note" style="margin-top:12px;" data-i18n="hero.disclaimer">
               ※ LedgerSeiri は会計データの整理・可視化を目的としたソフトウェアです。資金の保管、決済代行、送金業務、税務代理業務は行いません。
             </p>
           </div>
@@ -70,39 +122,39 @@
             <div class="mockTop">
               <div class="mini">
                 <span style="display:inline-block;width:10px;height:10px;border-radius:999px;background:rgba(37,99,235,.8)"></span>
-                ダッシュボード（例）
+                <span data-i18n="mock.title">ダッシュボード（例）</span>
               </div>
               <div class="pills">
-                <span class="pill">月次</span>
-                <span class="pill">チャネル別</span>
-                <span class="pill">商品別</span>
+                <span class="pill" data-i18n="mock.pill1">月次</span>
+                <span class="pill" data-i18n="mock.pill2">チャネル別</span>
+                <span class="pill" data-i18n="mock.pill3">商品別</span>
               </div>
             </div>
 
             <div class="mockBody">
               <div class="statGrid">
                 <div class="statBox">
-                  <div class="t">売上（例）</div>
+                  <div class="t" data-i18n="mock.stat1t">売上（例）</div>
                   <div class="v">¥2,790,080</div>
                 </div>
                 <div class="statBox">
-                  <div class="t">手数料（例）</div>
+                  <div class="t" data-i18n="mock.stat2t">手数料（例）</div>
                   <div class="v">¥-412,300</div>
                 </div>
                 <div class="statBox">
-                  <div class="t">粗利（例）</div>
+                  <div class="t" data-i18n="mock.stat3t">粗利（例）</div>
                   <div class="v">¥1,103,500</div>
                 </div>
               </div>
 
               <div class="bars">
-                <div class="bar"><span>Amazon 手数料</span><b class="chip">整形済み</b></div>
-                <div class="bar"><span>広告費（SP/SD）</span><b class="chip">集計</b></div>
-                <div class="bar"><span>返金/返品</span><b class="chip">分類</b></div>
-                <div class="bar"><span>税理士向け出力</span><b class="chip">CSV/Excel</b></div>
+                <div class="bar"><span data-i18n="mock.row1">Amazon 手数料</span><b class="chip" data-i18n="mock.chip1">整形済み</b></div>
+                <div class="bar"><span data-i18n="mock.row2">広告費（SP/SD）</span><b class="chip" data-i18n="mock.chip2">集計</b></div>
+                <div class="bar"><span data-i18n="mock.row3">返金/返品</span><b class="chip" data-i18n="mock.chip3">分類</b></div>
+                <div class="bar"><span data-i18n="mock.row4">税理士向け出力</span><b class="chip" data-i18n="mock.chip4">CSV/Excel</b></div>
               </div>
 
-              <p class="note" style="margin:10px 2px 0;">
+              <p class="note" style="margin:10px 2px 0;" data-i18n="mock.note">
                 ※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。
               </p>
             </div>
@@ -115,10 +167,10 @@
     <div class="proofBand">
       <div class="container">
         <div class="proof">
-          <div class="item"><span class="check">✓</span> SaaS（デジタルサービス）</div>
-          <div class="item"><span class="check">✓</span> 決済：Stripe（カード）</div>
-          <div class="item"><span class="check">✓</span> 資金保管/送金/決済代行：なし</div>
-          <div class="item"><span class="check">✓</span> 特定商取引法表記：/commerce</div>
+          <div class="item"><span class="check">✓</span> <span data-i18n="proof.i1">SaaS（デジタルサービス）</span></div>
+          <div class="item"><span class="check">✓</span> <span data-i18n="proof.i2">決済：Stripe（カード）</span></div>
+          <div class="item"><span class="check">✓</span> <span data-i18n="proof.i3">資金保管/送金/決済代行：なし</span></div>
+          <div class="item"><span class="check">✓</span> <span data-i18n="proof.i4">特定商取引法表記：/commerce</span></div>
         </div>
       </div>
     </div>
@@ -127,25 +179,25 @@
     <section id="features" class="section">
       <div class="container">
         <div class="sectionHead">
-          <h2>LedgerSeiri の特徴</h2>
-          <p>効率化・一元化・可視化の3点で、越境ECの会計データを「いつでも同じ形」で見られる状態にします。</p>
+          <h2 data-i18n="features.h2">LedgerSeiri の特徴</h2>
+          <p data-i18n="features.p">効率化・一元化・可視化の3点で、越境ECの会計データを「いつでも同じ形」で見られる状態にします。</p>
         </div>
 
         <div class="grid3">
           <div class="card">
             <div class="ico">01</div>
-            <h3>効率化：月次の整形を減らす</h3>
-            <p>CSV整形・例外処理を減らし、締め作業の再現性を上げます。</p>
+            <h3 data-i18n="features.c1t">効率化：月次の整形を減らす</h3>
+            <p data-i18n="features.c1p">CSV整形・例外処理を減らし、締め作業の再現性を上げます。</p>
           </div>
           <div class="card">
             <div class="ico">02</div>
-            <h3>一元化：数字の根拠を一箇所に</h3>
-            <p>売上・手数料・広告費・返金などをまとめ、追跡可能にします。</p>
+            <h3 data-i18n="features.c2t">一元化：数字の根拠を一箇所に</h3>
+            <p data-i18n="features.c2p">売上・手数料・広告費・返金などをまとめ、追跡可能にします。</p>
           </div>
           <div class="card">
             <div class="ico">03</div>
-            <h3>可視化：利益が見える切り口</h3>
-            <p>月次/チャネル/商品など、意思決定に必要な切り口で表示します。</p>
+            <h3 data-i18n="features.c3t">可視化：利益が見える切り口</h3>
+            <p data-i18n="features.c3p">月次/チャネル/商品など、意思決定に必要な切り口で表示します。</p>
           </div>
         </div>
       </div>
@@ -155,89 +207,61 @@
     <section id="pricing" class="section">
       <div class="container">
         <div class="sectionHead">
-          <h2>料金</h2>
-          <p>サブスクリプション型（SaaS）。提供開始前に料金・条件を明示します（詳細は /commerce）。</p>
+          <h2 data-i18n="pricing.h2">料金</h2>
+          <p data-i18n="pricing.p">サブスクリプション型（SaaS）。提供開始前に料金・条件を明示します（詳細は /commerce）。</p>
         </div>
 
         <div class="pricing">
           <div class="price">
             <div class="name">Starter</div>
-            <div class="amt">準備中</div>
-            <div class="desc">個人・小規模向け。まずは整理と出力。</div>
+            <div class="amt" data-i18n="pricing.tbd">準備中</div>
+            <div class="desc" data-i18n="pricing.sdesc">個人・小規模向け。まずは整理と出力。</div>
             <ul>
-              <li>基本テンプレート</li>
-              <li>CSV/Excel 出力</li>
-              <li>メールサポート</li>
+              <li data-i18n="pricing.sli1">基本テンプレート</li>
+              <li data-i18n="pricing.sli2">CSV/Excel 出力</li>
+              <li data-i18n="pricing.sli3">メールサポート</li>
             </ul>
             <div class="actions">
-              <a class="btn" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Starter%20%E7%9B%B8%E8%AB%87">相談</a>
-              <a class="btn ghost" href="/commerce">特商法表記</a>
+              <a class="btn" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Starter%20Consultation" data-i18n="pricing.consult">相談</a>
+              <a class="btn ghost" href="/commerce" data-i18n="pricing.commerce">特商法表記</a>
             </div>
           </div>
 
           <div class="price featured">
-            <div class="ribbon">おすすめ</div>
+            <div class="ribbon" data-i18n="pricing.reco">おすすめ</div>
             <div class="name">Standard</div>
-            <div class="amt">準備中</div>
-            <div class="desc">複数チャネル・複数通貨の整理を効率化。</div>
+            <div class="amt" data-i18n="pricing.tbd">準備中</div>
+            <div class="desc" data-i18n="pricing.mdesc">複数チャネル・複数通貨の整理を効率化。</div>
             <ul>
-              <li>集計ビュー拡張</li>
-              <li>出力フォーマット調整</li>
-              <li>優先サポート</li>
+              <li data-i18n="pricing.mli1">集計ビュー拡張</li>
+              <li data-i18n="pricing.mli2">出力フォーマット調整</li>
+              <li data-i18n="pricing.mli3">優先サポート</li>
             </ul>
             <div class="actions">
-              <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Standard%20%E7%84%A1%E6%96%99%E7%9B%B8%E8%AB%87">無料相談</a>
-              <a class="btn ghost" href="/commerce">特商法表記</a>
+              <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Free%20Consultation" data-i18n="pricing.free">無料相談</a>
+              <a class="btn ghost" href="/commerce" data-i18n="pricing.commerce">特商法表記</a>
             </div>
           </div>
 
           <div class="price">
             <div class="name">Business</div>
-            <div class="amt">お問い合わせ</div>
-            <div class="desc">権限・監査・業務要件に応じて設計。</div>
+            <div class="amt" data-i18n="pricing.inq">お問い合わせ</div>
+            <div class="desc" data-i18n="pricing.bdesc">権限・監査・業務要件に応じて設計。</div>
             <ul>
-              <li>権限（admin/一般）</li>
-              <li>監査ログ（予定）</li>
-              <li>個別契約</li>
+              <li data-i18n="pricing.bli1">権限（admin/一般）</li>
+              <li data-i18n="pricing.bli2">監査ログ（予定）</li>
+              <li data-i18n="pricing.bli3">個別契約</li>
             </ul>
             <div class="actions">
-              <a class="btn" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Business%20%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B">問い合わせ</a>
-              <a class="btn ghost" href="/commerce">特商法表記</a>
+              <a class="btn" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Business%20Inquiry" data-i18n="pricing.inquiryBtn">問い合わせ</a>
+              <a class="btn ghost" href="/commerce" data-i18n="pricing.commerce">特商法表記</a>
             </div>
           </div>
         </div>
 
-        <p class="note" style="margin-top:12px;">
+        <p class="note" style="margin-top:12px;" data-i18n="pricing.note">
           ※ 料金・提供範囲は提供開始前に本ページおよび申込画面で明示します。別途通信料等はお客様負担です。
         </p>
-      </div>
-    </section>
-
-    <!-- CASES -->
-    <section id="cases" class="section">
-      <div class="container">
-        <div class="sectionHead">
-          <h2>導入イメージ</h2>
-          <p>月次締め、利益把握、税理士連携の“手戻り”を減らすことを狙います。</p>
-        </div>
-
-        <div class="grid3">
-          <div class="card">
-            <div class="ico">例1</div>
-            <h3>月末の集計が後ろ倒し</h3>
-            <p>整形手順を固定化し、締め処理の再現性を上げます。</p>
-          </div>
-          <div class="card">
-            <div class="ico">例2</div>
-            <h3>手数料・返金で利益がブレる</h3>
-            <p>費用・返金まで含めた形で粗利・利益を把握しやすくします。</p>
-          </div>
-          <div class="card">
-            <div class="ico">例3</div>
-            <h3>税理士へ渡す資料が毎回違う</h3>
-            <p>出力フォーマットを安定化し、確認コストを減らします。</p>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -245,23 +269,23 @@
     <section id="faq" class="section faq">
       <div class="container">
         <div class="sectionHead">
-          <h2>よくある質問</h2>
-          <p>審査・導入初期に気にされやすい点を明確にしています。</p>
+          <h2 data-i18n="faq.h2">よくある質問</h2>
+          <p data-i18n="faq.p">審査・導入初期に気にされやすい点を明確にしています。</p>
         </div>
 
         <details>
-          <summary>LedgerSeiri は税務代理や決済代行を行いますか？</summary>
-          <p>いいえ。LedgerSeiri は会計データの整理・集計・可視化・出力を行うソフトウェア（SaaS）です。資金の保管、送金、決済代行、税務代理は行いません。</p>
+          <summary data-i18n="faq.q1">LedgerSeiri は税務代理や決済代行を行いますか？</summary>
+          <p data-i18n="faq.a1">いいえ。LedgerSeiri は会計データの整理・集計・可視化・出力を行うソフトウェア（SaaS）です。資金の保管、送金、決済代行、税務代理は行いません。</p>
         </details>
 
         <details>
-          <summary>返金・解約ポリシーはどこにありますか？</summary>
-          <p><a href="/commerce">特定商取引法に基づく表記（/commerce）</a> に記載しています。</p>
+          <summary data-i18n="faq.q2">返金・解約ポリシーはどこにありますか？</summary>
+          <p><a href="/commerce" data-i18n="faq.a2">特定商取引法に基づく表記（/commerce）</a></p>
         </details>
 
         <details>
-          <summary>問い合わせ先は？</summary>
-          <p>日本語で対応します：<a href="mailto:support@kimoca.com">support@kimoca.com</a></p>
+          <summary data-i18n="faq.q3">問い合わせ先は？</summary>
+          <p><span data-i18n="faq.a3">日本語で対応します：</span> <a href="mailto:support@kimoca.com">support@kimoca.com</a></p>
         </details>
       </div>
     </section>
@@ -271,12 +295,12 @@
       <div class="container">
         <div class="ctaBox">
           <div>
-            <h3>まずは、今の集計フローをヒアリングします。</h3>
-            <p>最小構成で「毎月の整理工数」を減らす設計から始めます。</p>
+            <h3 data-i18n="cta.h3">まずは、今の集計フローをヒアリングします。</h3>
+            <p data-i18n="cta.p">最小構成で「毎月の整理工数」を減らす設計から始めます。</p>
           </div>
           <div class="actions">
-            <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20%E7%84%A1%E6%96%99%E7%9B%B8%E8%AB%87">無料で相談する</a>
-            <a class="btn" href="/commerce">特定商取引法に基づく表記</a>
+            <a class="btn primary" href="mailto:support@kimoca.com?subject=LedgerSeiri%20Free%20Consultation" data-i18n="cta.btn1">無料で相談する</a>
+            <a class="btn" href="/commerce" data-i18n="cta.btn2">特定商取引法に基づく表記</a>
           </div>
         </div>
       </div>
@@ -287,26 +311,409 @@
       <div class="container">
         <div class="footerGrid">
           <div>
-            <div style="font-weight:1000;color:var(--fg);">LedgerSeiri</div>
-            <div>運営：Kimoca Co., Ltd.</div>
-            <div>お問い合わせ：support@kimoca.com</div>
+            <div style="font-weight:1000;color:var(--fg);" data-i18n="footer.brand">LedgerSeiri</div>
+            <div data-i18n="footer.op">運営：Kimoca Co., Ltd.</div>
+            <div><span data-i18n="footer.contact">お問い合わせ：</span> support@kimoca.com</div>
           </div>
 
           <div class="footerLinks" aria-label="Footer links">
-            <a href="/commerce">特定商取引法に基づく表記</a>
-            <a href="#pricing">料金</a>
-            <a href="#faq">FAQ</a>
+            <a href="/commerce" data-i18n="footer.commerce">特定商取引法に基づく表記</a>
+            <a href="#pricing" data-i18n="footer.pricing">料金</a>
+            <a href="#faq" data-i18n="footer.faq">FAQ</a>
           </div>
         </div>
 
         <div class="legalBox">
-          <b>免責：</b> LedgerSeiri は会計データ整理を目的としたソフトウェアです。資金の保管、送金、決済代行、税務代理は行いません。<br/>
-          <b>表記：</b> 特定商取引法に基づく表記は <a href="/commerce">/commerce</a> に掲載しています。
+          <b data-i18n="footer.discT">免責：</b>
+          <span data-i18n="footer.disc">LedgerSeiri は会計データ整理を目的としたソフトウェアです。資金の保管、送金、決済代行、税務代理は行いません。</span><br/>
+          <b data-i18n="footer.legalT">表記：</b>
+          <span data-i18n="footer.legal">特定商取引法に基づく表記は /commerce に掲載しています。</span>
         </div>
 
-        <div style="margin-top:12px; color:var(--muted2); font-size:12px;">© 2025–2026 LedgerSeiri</div>
+        <div style="margin-top:12px; color:var(--muted2); font-size:12px;" data-i18n="footer.copyright">
+          © 2025–2026 LedgerSeiri
+        </div>
       </div>
     </footer>
   </main>
+
+  <script>
+    // ---- i18n dictionary (pure static) ----
+    const I18N = {
+      ja: {
+        "lang.label": "言語",
+        "nav.features": "機能",
+        "nav.pricing": "料金",
+        "nav.cases": "導入イメージ",
+        "nav.faq": "FAQ",
+        "nav.commerce": "特定商取引法に基づく表記",
+        "top.commerceBtn": "商業披露",
+        "top.contactBtn": "お問い合わせ",
+
+        "hero.kicker": "越境EC向け <b>会計データ整理SaaS</b>",
+        "hero.h1": "売上・手数料・費用を整え、<br/>利益が見える状態へ。",
+        "hero.lead":
+          "LedgerSeiri は、クロスボーダーECの明細データを「整理 → 集計 → 可視化 → 出力」まで一気通貫で整えるソフトウェアです。月次の“数字合わせ”を減らし、判断のスピードを上げます。",
+        "hero.cta1": "無料で相談する",
+        "hero.cta2": "料金を見る",
+        "hero.cta3": "特定商取引法に基づく表記",
+        "hero.badge1": "CSV/Excel 取込・出力",
+        "hero.badge2": "月次集計（売上/手数料/費用）",
+        "hero.badge3": "税理士向けデータ出力",
+        "hero.badge4": "日本語サポート",
+        "hero.disclaimer":
+          "※ LedgerSeiri は会計データの整理・可視化を目的としたソフトウェアです。資金の保管、決済代行、送金業務、税務代理業務は行いません。",
+
+        "mock.title": "ダッシュボード（例）",
+        "mock.pill1": "月次",
+        "mock.pill2": "チャネル別",
+        "mock.pill3": "商品別",
+        "mock.stat1t": "売上（例）",
+        "mock.stat2t": "手数料（例）",
+        "mock.stat3t": "粗利（例）",
+        "mock.row1": "Amazon 手数料",
+        "mock.row2": "広告費（SP/SD）",
+        "mock.row3": "返金/返品",
+        "mock.row4": "税理士向け出力",
+        "mock.chip1": "整形済み",
+        "mock.chip2": "集計",
+        "mock.chip3": "分類",
+        "mock.chip4": "CSV/Excel",
+        "mock.note": "※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。",
+
+        "proof.i1": "SaaS（デジタルサービス）",
+        "proof.i2": "決済：Stripe（カード）",
+        "proof.i3": "資金保管/送金/決済代行：なし",
+        "proof.i4": "特定商取引法表記：/commerce",
+
+        "features.h2": "LedgerSeiri の特徴",
+        "features.p": "効率化・一元化・可視化の3点で、越境ECの会計データを「いつでも同じ形」で見られる状態にします。",
+        "features.c1t": "効率化：月次の整形を減らす",
+        "features.c1p": "CSV整形・例外処理を減らし、締め作業の再現性を上げます。",
+        "features.c2t": "一元化：数字の根拠を一箇所に",
+        "features.c2p": "売上・手数料・広告費・返金などをまとめ、追跡可能にします。",
+        "features.c3t": "可視化：利益が見える切り口",
+        "features.c3p": "月次/チャネル/商品など、意思決定に必要な切り口で表示します。",
+
+        "pricing.h2": "料金",
+        "pricing.p": "サブスクリプション型（SaaS）。提供開始前に料金・条件を明示します（詳細は /commerce）。",
+        "pricing.tbd": "準備中",
+        "pricing.sdesc": "個人・小規模向け。まずは整理と出力。",
+        "pricing.sli1": "基本テンプレート",
+        "pricing.sli2": "CSV/Excel 出力",
+        "pricing.sli3": "メールサポート",
+        "pricing.reco": "おすすめ",
+        "pricing.mdesc": "複数チャネル・複数通貨の整理を効率化。",
+        "pricing.mli1": "集計ビュー拡張",
+        "pricing.mli2": "出力フォーマット調整",
+        "pricing.mli3": "優先サポート",
+        "pricing.inq": "お問い合わせ",
+        "pricing.bdesc": "権限・監査・業務要件に応じて設計。",
+        "pricing.bli1": "権限（admin/一般）",
+        "pricing.bli2": "監査ログ（予定）",
+        "pricing.bli3": "個別契約",
+        "pricing.consult": "相談",
+        "pricing.free": "無料相談",
+        "pricing.inquiryBtn": "問い合わせ",
+        "pricing.commerce": "特商法表記",
+        "pricing.note": "※ 料金・提供範囲は提供開始前に本ページおよび申込画面で明示します。別途通信料等はお客様負担です。",
+
+        "faq.h2": "よくある質問",
+        "faq.p": "審査・導入初期に気にされやすい点を明確にしています。",
+        "faq.q1": "LedgerSeiri は税務代理や決済代行を行いますか？",
+        "faq.a1": "いいえ。LedgerSeiri は会計データの整理・集計・可視化・出力を行うソフトウェア（SaaS）です。資金の保管、送金、決済代行、税務代理は行いません。",
+        "faq.q2": "返金・解約ポリシーはどこにありますか？",
+        "faq.a2": "特定商取引法に基づく表記（/commerce）",
+        "faq.q3": "問い合わせ先は？",
+        "faq.a3": "日本語で対応します：",
+
+        "cta.h3": "まずは、今の集計フローをヒアリングします。",
+        "cta.p": "最小構成で「毎月の整理工数」を減らす設計から始めます。",
+        "cta.btn1": "無料で相談する",
+        "cta.btn2": "特定商取引法に基づく表記",
+
+        "footer.brand": "LedgerSeiri",
+        "footer.op": "運営：Kimoca Co., Ltd.",
+        "footer.contact": "お問い合わせ：",
+        "footer.commerce": "特定商取引法に基づく表記",
+        "footer.pricing": "料金",
+        "footer.faq": "FAQ",
+        "footer.discT": "免責：",
+        "footer.disc": "LedgerSeiri は会計データ整理を目的としたソフトウェアです。資金の保管、送金、決済代行、税務代理は行いません。",
+        "footer.legalT": "表記：",
+        "footer.legal": "特定商取引法に基づく表記は /commerce に掲載しています。",
+        "footer.copyright": "© 2025–2026 LedgerSeiri"
+      },
+
+      "zh-Hant": {
+        "lang.label": "語言",
+        "nav.features": "功能",
+        "nav.pricing": "價格",
+        "nav.cases": "導入示例",
+        "nav.faq": "常見問題",
+        "nav.commerce": "特定商取引法標示",
+        "top.commerceBtn": "商業揭示",
+        "top.contactBtn": "聯絡我們",
+
+        "hero.kicker": "跨境電商 <b>帳務資料整理 SaaS</b>",
+        "hero.h1": "整理銷售/手續費/費用，<br/>讓利潤一眼看懂。",
+        "hero.lead":
+          "LedgerSeiri 將跨境電商明細資料「整理 → 匯總 → 可視化 → 匯出」一站完成，減少每月對帳與整理成本，加速決策。",
+        "hero.cta1": "免費諮詢",
+        "hero.cta2": "查看價格",
+        "hero.cta3": "特定商取引法標示",
+        "hero.badge1": "CSV/Excel 匯入與匯出",
+        "hero.badge2": "月度匯總（銷售/手續費/費用）",
+        "hero.badge3": "可匯出給稅理士資料",
+        "hero.badge4": "日文支援",
+        "hero.disclaimer":
+          "※ LedgerSeiri 為帳務資料整理與可視化軟體（SaaS）。不提供資金保管、代收代付、匯款或稅務代理服務。",
+
+        "mock.title": "儀表板（示意）",
+        "mock.pill1": "月度",
+        "mock.pill2": "渠道",
+        "mock.pill3": "商品",
+        "mock.stat1t": "銷售額（示意）",
+        "mock.stat2t": "手續費（示意）",
+        "mock.stat3t": "毛利（示意）",
+        "mock.row1": "Amazon 手續費",
+        "mock.row2": "廣告費（SP/SD）",
+        "mock.row3": "退款/退貨",
+        "mock.row4": "匯出給稅理士",
+        "mock.chip1": "已整理",
+        "mock.chip2": "已匯總",
+        "mock.chip3": "已分類",
+        "mock.chip4": "CSV/Excel",
+        "mock.note": "※ 以上為示意，實際項目依使用情況而異。",
+
+        "proof.i1": "SaaS（數位服務）",
+        "proof.i2": "付款：Stripe（信用卡）",
+        "proof.i3": "不保管資金/不代收代付",
+        "proof.i4": "特定商取引法：/commerce",
+
+        "features.h2": "LedgerSeiri 的特色",
+        "features.p": "以「效率化 / 一元化 / 可視化」三大方向，讓跨境電商帳務資料保持一致與可追溯。",
+        "features.c1t": "效率化：減少每月整理成本",
+        "features.c1p": "固定化匯入與整理流程，降低例外處理與手動整形。",
+        "features.c2t": "一元化：把數字根據集中管理",
+        "features.c2p": "整合銷售、手續費、廣告、退款等，方便追溯。",
+        "features.c3t": "可視化：用決策需要的角度呈現",
+        "features.c3p": "依月度/渠道/商品等維度查看，快速判斷利潤。",
+
+        "pricing.h2": "價格",
+        "pricing.p": "訂閱制（SaaS）。正式提供前會在申購畫面清楚揭示費用與條款（詳見 /commerce）。",
+        "pricing.tbd": "籌備中",
+        "pricing.sdesc": "個人/小規模：先做到整理與匯出。",
+        "pricing.sli1": "基本模板",
+        "pricing.sli2": "CSV/Excel 匯出",
+        "pricing.sli3": "Email 支援",
+        "pricing.reco": "推薦",
+        "pricing.mdesc": "多渠道/多幣別整理效率化。",
+        "pricing.mli1": "匯總視圖擴充",
+        "pricing.mli2": "匯出格式調整",
+        "pricing.mli3": "優先支援",
+        "pricing.inq": "洽詢",
+        "pricing.bdesc": "依權限/審計/業務需求客製。",
+        "pricing.bli1": "權限（管理員/一般）",
+        "pricing.bli2": "審計記錄（預定）",
+        "pricing.bli3": "專案合約",
+        "pricing.consult": "諮詢",
+        "pricing.free": "免費諮詢",
+        "pricing.inquiryBtn": "聯絡洽詢",
+        "pricing.commerce": "特商法標示",
+        "pricing.note": "※ 費用與提供範圍將於正式提供前在本頁與申購畫面明確揭示。網路通信費由使用者自行負擔。",
+
+        "faq.h2": "常見問題",
+        "faq.p": "把審查與導入初期常被問到的點先說清楚。",
+        "faq.q1": "LedgerSeiri 會提供稅務代理或代收代付嗎？",
+        "faq.a1": "不會。LedgerSeiri 為帳務資料整理/匯總/可視化/匯出的 SaaS，不提供資金保管、代收代付、匯款或稅務代理。",
+        "faq.q2": "退款/解約政策在哪裡？",
+        "faq.a2": "特定商取引法標示（/commerce）",
+        "faq.q3": "聯絡方式？",
+        "faq.a3": "可使用日文聯絡：",
+
+        "cta.h3": "先把你目前的對帳流程梳理清楚。",
+        "cta.p": "用最小可行方案先降低每月整理工時，再逐步擴展自動化。",
+        "cta.btn1": "免費諮詢",
+        "cta.btn2": "特定商取引法標示",
+
+        "footer.brand": "LedgerSeiri",
+        "footer.op": "營運：Kimoca Co., Ltd.",
+        "footer.contact": "聯絡：",
+        "footer.commerce": "特定商取引法標示",
+        "footer.pricing": "價格",
+        "footer.faq": "常見問題",
+        "footer.discT": "免責：",
+        "footer.disc": "LedgerSeiri 為帳務資料整理 SaaS。不提供資金保管、代收代付、匯款或稅務代理。",
+        "footer.legalT": "法定揭示：",
+        "footer.legal": "特定商取引法標示請見 /commerce。",
+        "footer.copyright": "© 2025–2026 LedgerSeiri"
+      },
+
+      en: {
+        "lang.label": "Language",
+        "nav.features": "Features",
+        "nav.pricing": "Pricing",
+        "nav.cases": "Use cases",
+        "nav.faq": "FAQ",
+        "nav.commerce": "Commerce disclosure",
+        "top.commerceBtn": "Disclosure",
+        "top.contactBtn": "Contact",
+
+        "hero.kicker": "Cross-border eCommerce <b>Accounting Data Organizer</b>",
+        "hero.h1": "Normalize sales, fees, and expenses—<br/>so profit becomes obvious.",
+        "hero.lead":
+          "LedgerSeiri helps you go from raw marketplace statements to clean monthly numbers: normalize → aggregate → visualize → export. Reduce manual reconciliation and make decisions faster.",
+        "hero.cta1": "Free consultation",
+        "hero.cta2": "See pricing",
+        "hero.cta3": "Commerce disclosure",
+        "hero.badge1": "CSV/Excel import & export",
+        "hero.badge2": "Monthly aggregation (sales/fees/expenses)",
+        "hero.badge3": "Export for tax accountant",
+        "hero.badge4": "Japanese support",
+        "hero.disclaimer":
+          "※ LedgerSeiri is a SaaS for organizing and visualizing accounting data. We do not store funds, provide payment facilitation, remittance services, or tax representation.",
+
+        "mock.title": "Dashboard (sample)",
+        "mock.pill1": "Monthly",
+        "mock.pill2": "By channel",
+        "mock.pill3": "By SKU",
+        "mock.stat1t": "Revenue (sample)",
+        "mock.stat2t": "Fees (sample)",
+        "mock.stat3t": "Gross profit (sample)",
+        "mock.row1": "Amazon fees",
+        "mock.row2": "Ads (SP/SD)",
+        "mock.row3": "Refunds/returns",
+        "mock.row4": "Export for accountant",
+        "mock.chip1": "Normalized",
+        "mock.chip2": "Aggregated",
+        "mock.chip3": "Categorized",
+        "mock.chip4": "CSV/Excel",
+        "mock.note": "※ Sample only. Actual fields depend on your data and usage.",
+
+        "proof.i1": "SaaS (digital service)",
+        "proof.i2": "Payments: Stripe (cards)",
+        "proof.i3": "No fund storage / no payment facilitation",
+        "proof.i4": "Disclosure: /commerce",
+
+        "features.h2": "Why LedgerSeiri",
+        "features.p": "Built around three outcomes: efficiency, a single source of truth, and profit visibility.",
+        "features.c1t": "Efficiency: less monthly manual work",
+        "features.c1p": "Standardize imports and reduce one-off edge-case cleanup.",
+        "features.c2t": "One source of truth for numbers",
+        "features.c2p": "Combine revenue, fees, ads, refunds into traceable monthly figures.",
+        "features.c3t": "Profit visibility by decision-making cuts",
+        "features.c3p": "View by month/channel/SKU to quickly understand profitability.",
+
+        "pricing.h2": "Pricing",
+        "pricing.p": "Subscription (SaaS). Final fees and terms will be clearly shown before launch (see /commerce).",
+        "pricing.tbd": "Coming soon",
+        "pricing.sdesc": "Individuals & small teams. Start with clean exports.",
+        "pricing.sli1": "Core templates",
+        "pricing.sli2": "CSV/Excel export",
+        "pricing.sli3": "Email support",
+        "pricing.reco": "Recommended",
+        "pricing.mdesc": "Better workflow for multi-channel & multi-currency.",
+        "pricing.mli1": "Extended views",
+        "pricing.mli2": "Export format tailoring",
+        "pricing.mli3": "Priority support",
+        "pricing.inq": "Contact us",
+        "pricing.bdesc": "Custom plan for roles, audit, and workflow needs.",
+        "pricing.bli1": "Roles (admin/member)",
+        "pricing.bli2": "Audit logs (planned)",
+        "pricing.bli3": "Custom contract",
+        "pricing.consult": "Consult",
+        "pricing.free": "Free consult",
+        "pricing.inquiryBtn": "Contact",
+        "pricing.commerce": "Disclosure",
+        "pricing.note": "※ Pricing and scope will be clearly shown on this page and in the checkout/ordering flow before launch. Network fees are your responsibility.",
+
+        "faq.h2": "FAQ",
+        "faq.p": "Answers to the most common compliance and onboarding questions.",
+        "faq.q1": "Do you provide tax representation or payment facilitation?",
+        "faq.a1": "No. LedgerSeiri is a SaaS for organizing/aggregating/visualizing/exporting accounting data. We do not store funds, facilitate payments, remit money, or provide tax representation.",
+        "faq.q2": "Where are refunds/cancellation policies?",
+        "faq.a2": "Commerce disclosure (/commerce)",
+        "faq.q3": "How can I contact you?",
+        "faq.a3": "Contact (JP):",
+
+        "cta.h3": "Start with your current reconciliation flow.",
+        "cta.p": "We design a minimal setup to reduce monthly manual work, then expand automation over time.",
+        "cta.btn1": "Free consultation",
+        "cta.btn2": "Commerce disclosure",
+
+        "footer.brand": "LedgerSeiri",
+        "footer.op": "Operator: Kimoca Co., Ltd.",
+        "footer.contact": "Contact:",
+        "footer.commerce": "Commerce disclosure",
+        "footer.pricing": "Pricing",
+        "footer.faq": "FAQ",
+        "footer.discT": "Disclaimer:",
+        "footer.disc": "LedgerSeiri is an accounting data organization SaaS. No fund storage, payment facilitation, remittance, or tax representation.",
+        "footer.legalT": "Legal:",
+        "footer.legal": "Commerce disclosure is available at /commerce.",
+        "footer.copyright": "© 2025–2026 LedgerSeiri"
+      }
+    };
+
+    function getLangFromQuery() {
+      const sp = new URLSearchParams(location.search);
+      const q = sp.get("lang");
+      if (!q) return null;
+      if (q === "ja" || q === "en" || q === "zh-Hant") return q;
+      return null;
+    }
+
+    function setQueryLang(lang) {
+      const url = new URL(location.href);
+      url.searchParams.set("lang", lang);
+      history.replaceState(null, "", url.toString());
+    }
+
+    function applyLang(lang) {
+      const dict = I18N[lang] || I18N.ja;
+      document.documentElement.lang = lang === "zh-Hant" ? "zh-Hant" : lang;
+
+      // Update all data-i18n nodes
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        const val = dict[key];
+        if (typeof val === "string") el.innerHTML = val;
+      });
+
+      // Optionally update page title/description for SEO-ish (still static)
+      if (lang === "en") {
+        document.title = "LedgerSeiri | Make profit visible for cross-border eCommerce";
+      } else if (lang === "zh-Hant") {
+        document.title = "LedgerSeiri｜跨境電商帳務資料整理，利潤一眼看懂";
+      } else {
+        document.title = "LedgerSeiri（レジャーセイリ）｜越境ECの帳簿データを、正しく整える";
+      }
+
+      // Persist
+      localStorage.setItem("ledgerseiri_lang", lang);
+    }
+
+    (function initLang(){
+      const select = document.getElementById("langSelect");
+
+      // priority: query > localStorage > default ja
+      const qLang = getLangFromQuery();
+      const stored = localStorage.getItem("ledgerseiri_lang");
+      const lang = qLang || stored || "ja";
+
+      select.value = (lang === "ja" || lang === "en" || lang === "zh-Hant") ? lang : "ja";
+      applyLang(select.value);
+
+      // If query missing, keep URL clean (optional). If you want explicit, uncomment:
+      // setQueryLang(select.value);
+
+      select.addEventListener("change", () => {
+        const newLang = select.value;
+        setQueryLang(newLang);        // so you can share links in specific language
+        applyLang(newLang);
+      });
+    })();
+  </script>
 </body>
 </html>
