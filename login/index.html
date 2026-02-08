@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LedgerSeiri | ログイン</title>
+  <meta name="description" content="Login / Register (demo)" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="/">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="brand-title">
+          <strong>LedgerSeiri</strong>
+          <span>（レジャーセイリ）</span>
+        </div>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-legal" href="/commerce">特定商取引法に基づく表記</a>
+      </nav>
+
+      <div class="topbar-right">
+        <select class="lang-select" data-lang-select aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-ghost" href="/login">ログイン</a>
+        <a class="btn btn-primary" href="/contact" target="_blank" rel="noopener">お問い合わせ</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="form-page">
+    <div class="container">
+      <h1 style="margin:0 0 10px;">ログイン</h1>
+      <p style="margin:0 0 14px;color:var(--muted);">
+        ※ これはデモ実装です（localStorage）。本番では必ずサーバー側認証に置き換えてください。
+      </p>
+
+      <div class="card form-card" data-auth>
+        <div class="auth-tabs">
+          <button class="auth-tab is-active" type="button" data-auth-tab="login">ログイン</button>
+          <button class="auth-tab" type="button" data-auth-tab="register">新規登録</button>
+        </div>
+
+        <div class="notice" data-auth-status> </div>
+
+        <div data-auth-panel="login" style="margin-top:12px;">
+          <form class="form-grid" data-login-form>
+            <input class="input" type="email" name="login_email" placeholder="メールアドレス" required />
+            <input class="input" type="password" name="login_password" placeholder="パスワード" required />
+            <button class="btn btn-primary" type="submit">ログイン（デモ）</button>
+          </form>
+        </div>
+
+        <div data-auth-panel="register" style="margin-top:12px;display:none;">
+          <form class="form-grid" data-register-form>
+            <input class="input" type="email" name="reg_email" placeholder="メールアドレス" required />
+            <input class="input" type="password" name="reg_password" placeholder="パスワード（6文字以上）" required />
+            <input class="input" type="password" name="reg_password2" placeholder="パスワード（確認）" required />
+            <button class="btn btn-primary" type="submit">登録（デモ）</button>
+          </form>
+        </div>
+
+        <div class="notice">
+          セキュリティ注意：このデモはブラウザに平文で保存されます。公開運用には使わないでください。
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <a class="btn btn-ghost" href="/">← Home</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
