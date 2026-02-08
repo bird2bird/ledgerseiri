@@ -279,4 +279,255 @@
     en: {
       nav_features: "Features",
       nav_solution: "Problems we solve",
-      nav
+      nav_pricing: "Pricing",
+      nav_flow: "How it works",
+      nav_faq: "FAQ",
+      nav_commerce: "Commerce Disclosure (Japan)",
+      nav_disclosure: "Commerce Disclosure",
+
+      cta_contact: "Contact",
+      cta_disclosure: "Commerce Disclosure",
+      cta_download: "Download overview",
+      cta_view_commerce: "Commerce disclosure",
+
+      hero_kicker: "For cross-border e-commerce / Sales, fees, expenses data",
+      hero_h1: "Organize your ledger data,\nwith clarity.",
+      hero_p:
+        "LedgerSeiri is a cloud-based software (SaaS) that helps you organize, aggregate, and categorize sales, fees, and expense data.\nWe do not provide fund custody, payment agency, or tax representation services.",
+
+      hero_btn_primary: "Download overview",
+      hero_btn_secondary: "Commerce disclosure",
+
+      badge_1_a: "Minimize",
+      badge_1_b: "manual work",
+      badge_2_a: "Export",
+      badge_2_b: "CSV/Excel",
+      badge_3_a: "Stripe review",
+      badge_3_b: "ready pages",
+
+      panel_title: "For reviewers (static demo)",
+      pill_1: "Fast",
+      pill_2: "Clear",
+      pill_3: "Safe",
+      panel_input_ph: "Email address (example)",
+      panel_btn: "Contact via email",
+      panel_note:
+        "* Static LP: button opens your email app. Billing will be implemented via Stripe.",
+      trust_1_b: "No card",
+      trust_1_s: "(demo)",
+      trust_2_b: "Refund policy",
+      trust_2_s: "clear",
+      trust_3_b: "Disclosure",
+      trust_3_s: "included",
+
+      sec_features_h2: "Core features",
+      sec_features_sub:
+        "Clean your data before accounting. Detect monthly mismatches and missing items early.",
+      f1_t: "Normalize sales / fees / expenses",
+      f1_p: "Turn marketplace statements into clean, readable structures.",
+      f2_t: "Aggregation (channel / product / period)",
+      f2_p: "Slice by month/channel/ASIN and spot anomalies early.",
+      f3_t: "CSV/Excel export",
+      f3_p: "Export formats designed for accountants and accounting tools.",
+
+      sec_solution_h2: "Common problems, solved",
+      sec_solution_sub:
+        "Sales not matching, complex fee lines, refunds mixed in — designed around real operator pain.",
+      sol_left_h: "Problem",
+      sol_right_h: "LedgerSeiri approach",
+      sol_1_b: "Statements are complex; hard to separate sales vs fees",
+      sol_1_s: "Normalize fields and make rule-based categorization easy",
+      sol_2_b: "Refunds mixed in; monthly totals look off",
+      sol_2_s: "Separate refund lines and visualize deltas by dimension",
+      sol_3_b: "Heavy manual cleanup before sending to accountants",
+      sol_3_s: "Standardize handoff via CSV/Excel export",
+
+      sec_pricing_h2: "Pricing (tax included)",
+      pricing_note: "* Pricing is provisional and may change before official launch.",
+      p1_t: "Starter",
+      p1_y: "¥1,980/mo",
+      p2_t: "Standard",
+      p2_y: "¥4,980/mo",
+      p3_t: "Business",
+      p3_y: "¥9,980/mo",
+      p_ribbon: "Popular",
+      p_common_1: "Basic organization & categorization",
+      p_common_2: "CSV/Excel export",
+      p_common_3: "Email support",
+      p_std_1: "Aggregation (channel/product)",
+      p_std_2: "Advanced export templates",
+      p_std_3: "Priority support",
+      p_bus_1: "Team use (multiple users)",
+      p_bus_2: "Advanced categorization rules",
+      p_bus_3: "Onboarding consultation",
+
+      sec_flow_h2: "How it works",
+      sec_flow_sub: "Designed to get you into a monthly routine quickly.",
+      flow_1_b: "1) Prepare data",
+      flow_1_s: "Export CSV/Excel from Amazon and other channels",
+      flow_2_b: "2) Organize & categorize",
+      flow_2_s: "Normalize sales/fees/expenses and apply rules",
+      flow_3_b: "3) Export & share",
+      flow_3_s: "Deliver CSV/Excel to accountants or accounting tools",
+
+      sec_voice_h2: "What users say (sample)",
+      q_1: "\"Monthly numbers didn’t match — we found where it got stuck.\"",
+      q_1_w: "Amazon seller (small scale)",
+      q_2: "\"Separating refunds made everything less stressful.\"",
+      q_2_w: "Cross-border, multi-channel",
+      q_3: "\"Cleanup before sending to accountants was the bottleneck.\"",
+      q_3_w: "Small business (back office)",
+
+      sec_faq_h2: "FAQ",
+      faq1_q: "Is LedgerSeiri an accounting app?",
+      faq1_a:
+        "It supports organizing/aggregating/categorizing data. It is not a tax representation or fund custody service.",
+      faq2_q: "Do you store card numbers?",
+      faq2_a:
+        "No. Payments will be processed by Stripe or other payment providers.",
+      faq3_q: "Do you have a Stripe review page?",
+      faq3_a:
+        "Yes. See “Commerce Disclosure / Disclosure” in the menu.",
+
+      band_h2: "Make Stripe review easier—prepare disclosures first.",
+      band_p:
+        "Commerce disclosure, refund/cancellation policy, and contact details are clearly presented.",
+      band_btn_1: "Commerce disclosure",
+      band_btn_2: "Go to disclosure",
+
+      footer_company: "Operator",
+      footer_contact: "Contact",
+      footer_legal: "Commerce disclosure",
+      footer_disclosure: "Commerce Disclosure",
+      footer_copy: "© 2026 LedgerSeiri",
+
+      commerce_h1: "Commerce Disclosure (Japan)",
+      commerce_lead:
+        "This page provides legally required disclosures for online sales. LedgerSeiri is a SaaS that helps organize/aggregate/categorize sales, fees, and expense data. We do not provide fund custody, payment agency, or tax representation services.",
+      commerce_disclosure_h2: "Disclosure (Commerce Disclosure)",
+      commerce_disclosure_p:
+        "This page includes information commonly required by payment providers/platform reviews and may be updated without notice.",
+      commerce_back: "← Home",
+    },
+  };
+
+  // =======================
+  // i18n helpers
+  // =======================
+  function getLang() {
+    const stored = localStorage.getItem("ls_lang");
+    return stored && dict[stored] ? stored : DEFAULT_LANG;
+  }
+
+  function setLang(lang) {
+    if (!dict[lang]) lang = DEFAULT_LANG;
+    localStorage.setItem("ls_lang", lang);
+    applyLang(lang);
+    document.querySelectorAll("[data-lang-select]").forEach((sel) => {
+      sel.value = lang;
+    });
+  }
+
+  function applyLang(lang) {
+    const d = dict[lang] || dict[DEFAULT_LANG];
+
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (!key) return;
+      const val = d[key];
+      if (val === undefined) return;
+
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        el.placeholder = val;
+      } else {
+        // allow \n in headings
+        el.textContent = val;
+      }
+    });
+
+    // Titles / meta
+    const titleEl = document.querySelector("title[data-i18n]");
+    if (titleEl) {
+      const key = titleEl.getAttribute("data-i18n");
+      if (d[key]) titleEl.textContent = d[key];
+    }
+
+    document.documentElement.setAttribute("lang", lang === "zh-Hant" ? "zh-Hant" : lang);
+  }
+
+  // =======================
+  // Mobile drawer
+  // =======================
+  function setupDrawer() {
+    const btn = document.querySelector("[data-drawer-open]");
+    const overlay = document.querySelector("[data-drawer-overlay]");
+    const drawer = document.querySelector("[data-drawer]");
+    const closeBtn = document.querySelector("[data-drawer-close]");
+
+    if (!btn || !overlay || !drawer) return;
+
+    function open() {
+      overlay.classList.add("open");
+      drawer.classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+    function close() {
+      overlay.classList.remove("open");
+      drawer.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+
+    btn.addEventListener("click", open);
+    overlay.addEventListener("click", close);
+    if (closeBtn) closeBtn.addEventListener("click", close);
+
+    // close when clicking any drawer link
+    drawer.querySelectorAll("a").forEach((a) => {
+      a.addEventListener("click", close);
+    });
+
+    // ESC
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+    });
+  }
+
+  // =======================
+  // Mailto helper (static CTA)
+  // =======================
+  function setupMailto() {
+    const form = document.querySelector("[data-mailto-form]");
+    if (!form) return;
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = form.querySelector("input")?.value?.trim() || "";
+      const subject = "LedgerSeiri お問い合わせ";
+      const body =
+        "【お問い合わせ内容】\n" +
+        "- 相談したいこと：\n" +
+        "- 利用予定チャネル（例：Amazon JP / 楽天 / Shopify）：\n" +
+        "- 取引量（概算）：\n\n" +
+        (email ? `【返信先メール】${email}\n\n` : "") +
+        "（このメールはLPから作成されました）";
+
+      const mailto = `mailto:support@kimoca.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailto;
+    });
+  }
+
+  function init() {
+    const lang = getLang();
+
+    document.querySelectorAll("[data-lang-select]").forEach((sel) => {
+      sel.value = lang;
+      sel.addEventListener("change", (e) => setLang(e.target.value));
+    });
+
+    applyLang(lang);
+    setupDrawer();
+    setupMailto();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
