@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LedgerSeiri | 特定商取引法に基づく表記</title>
+  <title data-i18n="commerce_h1">LedgerSeiri | 特定商取引法に基づく表記</title>
   <meta name="description" content="LedgerSeiri - Commerce Disclosure (Japan Act on Specified Commercial Transactions)." />
   <link rel="stylesheet" href="/assets/styles.css" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect rx='22' width='100' height='100' fill='%231a73ff'/%3E%3C/svg%3E">
@@ -24,11 +24,12 @@
       </a>
 
       <nav class="nav" aria-label="Primary">
-        <a href="/#features">機能</a>
-        <a href="/#pricing">料金</a>
-        <a href="/#how">導入イメージ</a>
-        <a href="/#faq">FAQ</a>
-        <a href="/commerce">特定商取引法に基づく表記</a>
+        <a href="/#features" data-i18n="nav_features">機能</a>
+        <a href="/#pricing" data-i18n="nav_pricing">料金</a>
+        <a href="/#flow" data-i18n="nav_flow">導入の流れ</a>
+        <a href="/#faq" data-i18n="nav_faq">FAQ</a>
+        <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+        <a href="/commerce#disclosure" data-i18n="nav_disclosure">商業披露</a>
       </nav>
 
       <div class="topbar-right">
@@ -38,21 +39,58 @@
           <option value="en">English</option>
         </select>
 
-        <a class="btn btn-ghost" href="/" aria-label="Back to home">Home</a>
-        <a class="btn btn-primary" href="mailto:support@kimoca.com">お問い合わせ</a>
+        <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
+        <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+
+        <button class="icon-btn" type="button" aria-label="Open menu" data-drawer-open>
+          <div class="burger" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+        </button>
       </div>
     </div>
   </header>
 
+  <!-- Mobile drawer -->
+  <div class="drawer-overlay" data-drawer-overlay></div>
+  <aside class="drawer" data-drawer aria-label="Mobile menu">
+    <div class="drawer-head">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="logo" aria-hidden="true" style="width:34px;height:34px;border-radius:12px;"></div>
+        <strong>LedgerSeiri</strong>
+      </div>
+      <button class="icon-btn" type="button" aria-label="Close menu" data-drawer-close style="display:inline-flex;">
+        ✕
+      </button>
+    </div>
+    <div class="drawer-body">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select class="lang-select" data-lang-select aria-label="Language (drawer)" style="flex:1;min-width:160px;">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+      </div>
+
+      <nav class="drawer-nav" aria-label="Drawer navigation">
+        <a href="/#features" data-i18n="nav_features">機能</a>
+        <a href="/#pricing" data-i18n="nav_pricing">料金</a>
+        <a href="/#flow" data-i18n="nav_flow">導入の流れ</a>
+        <a href="/#faq" data-i18n="nav_faq">FAQ</a>
+        <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+        <a href="/commerce#disclosure" data-i18n="nav_disclosure">商業披露</a>
+      </nav>
+    </div>
+  </aside>
+
   <main id="content" class="page">
     <div class="container">
-      <h1>特定商取引法に基づく表記</h1>
+      <h1 data-i18n="commerce_h1">特定商取引法に基づく表記</h1>
 
       <div class="lead">
-        <p style="margin:0;">
-          本ページは、通信販売に関する表示事項を掲載しています。<br>
-          LedgerSeiriは会計データ（売上・手数料・費用等）の整理・集計・分類を支援するソフトウェア（SaaS）であり、
-          <strong>資金の保管、決済代行、税務代理業務は行いません。</strong>
+        <p style="margin:0;" data-i18n="commerce_lead">
+          本ページは、通信販売に関する表示事項を掲載しています。LedgerSeiriは会計データ（売上・手数料・費用等）の整理・集計・分類を支援するソフトウェア（SaaS）であり、資金の保管、決済代行、税務代理業務は行いません。
         </p>
       </div>
 
@@ -123,26 +161,45 @@
           <dt>返品・返金（不具合がある場合）</dt>
           <dd>
             サービスの重大な不具合等により、合理的に利用できない状態が継続する場合は、
-            サポート窓口へご連絡ください。状況確認のうえ、返金または相当する利用期間の付与等を含め
-            誠実に対応します。
+            サポート窓口へご連絡ください。状況確認のうえ、返金または相当する利用期間の付与等を含め誠実に対応します。
+          </dd>
+
+          <dt>重要事項</dt>
+          <dd>
+            LedgerSeiriは会計データの整理・集計・分類を支援するSaaSです。<br>
+            <strong>資金の保管、決済代行、税務代理業務は行いません。</strong><br>
+            <small>（決済はStripe等の決済事業者で処理されます）</small>
           </dd>
         </dl>
       </div>
 
       <section id="disclosure" class="section" style="padding-top:18px;">
         <div class="container" style="padding:0;">
-          <h2 style="margin-top:0;">商業披露（Commerce Disclosure）</h2>
+          <h2 style="margin-top:0;" data-i18n="commerce_disclosure_h2">商業披露（Commerce Disclosure）</h2>
           <div class="card" style="padding:18px;">
-            <p style="margin:0;color:var(--muted);">
-              本ページは、決済事業者・プラットフォームの審査で求められる「商業披露」要件を満たすための情報を含みます。
-              表示内容は予告なく更新される場合があります。
+            <p style="margin:0;color:var(--muted);" data-i18n="commerce_disclosure_p">
+              本ページは、決済事業者・プラットフォームの審査で求められる「商業披露」要件を満たすための情報を含みます。表示内容は予告なく更新される場合があります。
             </p>
+
+            <hr>
+
+            <div style="display:grid;gap:10px;">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+                <a class="btn btn-ghost" href="/#pricing" data-i18n="nav_pricing">料金</a>
+                <a class="btn btn-ghost" href="/#faq" data-i18n="nav_faq">FAQ</a>
+              </div>
+
+              <div style="font-size:12px;color:var(--muted2);">
+                ※ Terms / Privacy は正式公開時にリンク追加予定（Stripe審査で必要な場合は、先に設置してください）
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <div style="margin-top:14px;">
-        <a class="btn btn-ghost" href="/">← Home</a>
+        <a class="btn btn-ghost" href="/" data-i18n="commerce_back">← Home</a>
       </div>
     </div>
   </main>
@@ -150,20 +207,21 @@
   <footer class="footer">
     <div class="container footer-grid">
       <div>
-        <strong>運営会社</strong><br>
+        <strong data-i18n="footer_company">運営会社</strong><br>
         Kimoca Co., Ltd.<br>
         <small>事業内容：ソフトウェア開発・提供</small>
       </div>
 
       <div>
-        <strong>お問い合わせ</strong><br>
+        <strong data-i18n="footer_contact">お問い合わせ</strong><br>
         <a href="mailto:support@kimoca.com">support@kimoca.com</a><br>
         <small>+81-70-8332-2320（平日 10:00〜18:00）</small>
       </div>
 
       <div>
-        <a href="/commerce">特定商取引法に基づく表記</a><br>
-        <small>© 2026 LedgerSeiri</small>
+        <a href="/commerce" data-i18n="footer_legal">特定商取引法に基づく表記</a><br>
+        <a href="/commerce#disclosure" data-i18n="footer_disclosure">商業披露</a><br>
+        <small data-i18n="footer_copy">© 2026 LedgerSeiri</small>
       </div>
     </div>
   </footer>
