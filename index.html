@@ -29,7 +29,8 @@
         <a href="#pricing" data-i18n="nav_pricing">料金</a>
         <a href="#flow" data-i18n="nav_flow">導入の流れ</a>
         <a href="#faq" data-i18n="nav_faq">FAQ</a>
-        <a href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
+        <!-- ✅ add nav-legal -->
+        <a class="nav-legal" href="/commerce" data-i18n="nav_commerce">特定商取引法に基づく表記</a>
         <a href="/commerce#disclosure" data-i18n="nav_disclosure">商業披露</a>
       </nav>
 
@@ -40,8 +41,9 @@
           <option value="en">English</option>
         </select>
 
-        <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
-        <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+        <!-- ✅ swap + rename: [お問い合わせ] [ログイン] -->
+        <a class="btn btn-primary" href="/contact/" target="_blank" rel="noopener" data-i18n="cta_contact">お問い合わせ</a>
+        <a class="btn btn-ghost" href="/login/" target="_blank" rel="noopener">ログイン</a>
 
         <button class="icon-btn" type="button" aria-label="Open menu" data-drawer-open>
           <div class="burger" aria-hidden="true">
@@ -71,7 +73,10 @@
           <option value="zh-Hant">繁體中文</option>
           <option value="en">English</option>
         </select>
-        <a class="btn btn-primary" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+
+        <!-- ✅ drawer buttons swapped too -->
+        <a class="btn btn-primary" href="/contact/" target="_blank" rel="noopener" data-i18n="cta_contact">お問い合わせ</a>
+        <a class="btn btn-ghost" href="/login/" target="_blank" rel="noopener">ログイン</a>
       </div>
 
       <nav class="drawer-nav" aria-label="Drawer navigation">
@@ -345,7 +350,7 @@
           <div class="cta-row">
             <a class="btn btn-primary" href="/commerce" data-i18n="band_btn_1">特定商取引法に基づく表記</a>
             <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="band_btn_2">商業披露へ</a>
-            <a class="btn btn-soft" href="mailto:support@kimoca.com" data-i18n="cta_contact">お問い合わせ</a>
+            <a class="btn btn-soft" href="/contact/" target="_blank" rel="noopener" data-i18n="cta_contact">お問い合わせ</a>
           </div>
           <hr>
           <p style="margin:0;color:var(--muted2);font-size:12px;">
