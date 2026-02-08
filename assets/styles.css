@@ -829,3 +829,111 @@ hr{ border:0; border-top:1px solid var(--line); margin: 18px 0; }
 @media (max-width: 980px){
   .dash-kpis{ grid-template-columns: 1fr; }
 }
+/* =========================
+   ADDON: NAV label fix + CTA sizing
+   ========================= */
+
+/* 让导航区更宽一点，避免长文案被挤掉 */
+.topbar-inner{
+  gap: 12px;
+}
+.nav{
+  gap: 6px;
+}
+.nav a{
+  padding: 10px 10px;
+  font-size: 13px;
+}
+
+/* 特定商取引法リンク允许完整显示：不截断、可换行（仅这一项） */
+.nav a.nav-legal{
+  white-space: normal;
+  line-height: 1.1;
+  max-width: 190px;
+}
+
+/* 右侧按钮更紧凑一点，避免挤压导航 */
+.topbar-right .btn{
+  height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.lang-select{
+  height: 40px;
+}
+
+/* =========================
+   ADDON: Dashboard animation (freee-ish, subtle)
+   ========================= */
+.dash-anim{
+  animation: dashFadeUp 180ms ease-out both;
+}
+@keyframes dashFadeUp{
+  from{ opacity: 0.55; transform: translateY(6px); }
+  to  { opacity: 1; transform: translateY(0); }
+}
+
+/* 数字的微动画（更克制） */
+.dash-kpi-value.dash-num-anim{
+  animation: numPop 160ms ease-out both;
+}
+@keyframes numPop{
+  from{ opacity: 0.6; transform: translateY(4px); }
+  to  { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================
+   ADDON: Contact / Login pages
+   ========================= */
+.form-page{
+  padding: 26px 0 54px;
+}
+.form-card{
+  padding: 18px;
+}
+.form-grid{
+  display:grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.textarea{
+  min-height: 120px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.92);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+}
+.textarea:focus{
+  border-color: rgba(26,115,255,0.45);
+  box-shadow: 0 0 0 4px rgba(26,115,255,0.14);
+}
+
+/* Tabs for login */
+.auth-tabs{
+  display:flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.auth-tab{
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.92);
+  font-weight: 950;
+  font-size: 13px;
+  cursor: pointer;
+}
+.auth-tab.is-active{
+  border-color: rgba(26,115,255,0.22);
+  background: rgba(26,115,255,0.10);
+  color: var(--primary2);
+}
+.notice{
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted2);
+}
