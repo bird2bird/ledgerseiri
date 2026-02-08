@@ -29,7 +29,6 @@
           <option value="zh-Hant">繁體中文</option>
           <option value="en">English</option>
         </select>
-
         <a class="btn btn-primary" href="/contact/" target="_blank" rel="noopener">お問い合わせ</a>
         <a class="btn btn-ghost" href="/login/" target="_blank" rel="noopener">ログイン</a>
       </div>
@@ -40,33 +39,26 @@
     <div class="container">
       <h1 style="margin:0 0 10px;">お問い合わせ</h1>
       <p style="margin:0 0 14px;color:var(--muted2);">
-        送信内容は <b>bird2bird2024@gmail.com</b> 宛に送信されます。
+        送信内容は自動的にメール送信されます（宛先：bird2bird2024@gmail.com）。
       </p>
 
       <div class="card form-card">
-        <!-- ✅ FormSubmit: sends email without your backend -->
-        <form class="form-grid" action="https://formsubmit.co/bird2bird2024@gmail.com" method="POST">
-          <!-- FormSubmit settings -->
-          <input type="hidden" name="_subject" value="【LedgerSeiri】お問い合わせ" />
-          <input type="hidden" name="_captcha" value="false" />
-          <input type="hidden" name="_template" value="table" />
-          <!-- after submit -->
-          <input type="hidden" name="_next" value="/contact/?sent=1" />
-
+        <form class="form-grid" id="contactForm">
           <input class="input" name="name" placeholder="お名前" required />
           <input class="input" type="email" name="email" placeholder="メールアドレス" required />
           <input class="input" name="subject" placeholder="件名" />
           <textarea class="textarea" name="message" placeholder="お問い合わせ内容" required></textarea>
 
-          <button class="btn btn-primary" type="submit">送信</button>
-
-          <div class="notice">
-            ※ 初回は FormSubmit より確認メールが届く場合があります。受信後、承認すると送信が有効化されます。
+          <!-- honeypot (hidden for humans) -->
+          <div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+            <label>Company <input name="company" autocomplete="off" tabindex="-1" /></label>
           </div>
 
-          <div class="notice" id="sentNotice" style="display:none;color:var(--success);font-weight:900;">
-            送信しました。ありがとうございました。
-          </div>
+          <input type="hidden" name="startedAt" id="startedAt" />
+
+          <button class="btn btn-primary" type="submit" id="submitBtn">送信</button>
+
+          <div class="notice" id="statusMsg" style="display:none;"></div>
         </form>
       </div>
 
@@ -78,13 +70,52 @@
 
   <script src="/assets/app.js"></script>
   <script>
-    // show "sent" banner when redirected back
-    (function(){
-      const params = new URLSearchParams(location.search);
-      if(params.get('sent') === '1'){
-        const el = document.getElementById('sentNotice');
-        if(el) el.style.display = 'block';
+    (function () {
+      const startedAt = Date.now();
+      document.getElementById('startedAt').value = String(startedAt);
+
+      const form = document.getElementById('contactForm');
+      const btn = document.getElementById('submitBtn');
+      const msg = document.getElementById('statusMsg');
+
+      function setMsg(text, ok){
+        msg.style.display = 'block';
+        msg.style.color = ok ? 'var(--success)' : 'var(--muted2)';
+        msg.style.fontWeight = ok ? '900' : '700';
+        msg.textContent = text;
       }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        setMsg('送信中...', true);
+
+        const data = Object.fromEntries(new FormData(form).entries());
+
+        try{
+          const r = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+
+          const j = await r.json().catch(()=>({}));
+
+          if(r.ok && j.ok){
+            setMsg('送信しました。ありがとうございました。', true);
+            form.reset();
+            document.getElementById('startedAt').value = String(Date.now());
+          }else{
+            setMsg('送信に失敗しました。時間をおいて再度お試しください。', false);
+          }
+        }catch(err){
+          setMsg('送信に失敗しました。ネットワークをご確認ください。', false);
+        }finally{
+          btn.disabled = false;
+          btn.style.opacity = '1';
+        }
+      });
     })();
   </script>
 </body>
