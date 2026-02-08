@@ -125,43 +125,64 @@
         </div>
       </section>
 
-      <!-- Right: panel -->
-      <aside class="card hero-panel" aria-label="Panel">
-        <div class="panel-title">
-          <strong data-i18n="panel_title">検討中の方へ（静的デモ）</strong>
-          <div class="pills" aria-hidden="true">
-            <div class="pill" data-i18n="pill_1">最短</div>
-            <div class="pill" data-i18n="pill_2">明確</div>
-            <div class="pill" data-i18n="pill_3">安全</div>
-          </div>
-        </div>
+      <!-- Right: Dashboard (visual mock) -->
+      <aside class="card hero-panel" aria-label="Dashboard preview">
+        <div class="dash" data-dashboard>
 
-        <form class="form" data-mailto-form>
-          <input class="input" type="email" autocomplete="email" inputmode="email" data-i18n="panel_input_ph" placeholder="メールアドレス（例）" />
-          <button class="btn btn-primary" type="submit" data-i18n="panel_btn">問い合わせる（メール）</button>
-          <div class="form-note" data-i18n="panel_note">
-            ※ 静的LPのため、送信はメールアプリを開きます。課金/決済はStripeで実装予定です。
-          </div>
-        </form>
+          <div class="dash-head">
+            <div class="dash-title">
+              <span class="dash-dot" aria-hidden="true"></span>
+              <strong>ダッシュボード（例）</strong>
+            </div>
 
-        <div class="trust-row" aria-label="Trust">
-          <div class="trust">
-            <span class="dot-ok" aria-hidden="true"></span>
-            <span><b data-i18n="trust_1_b">カード登録不要</b> <span data-i18n="trust_1_s">（デモ）</span></span>
+            <div class="dash-tabs" aria-label="Dashboard tabs" role="tablist">
+              <button class="dash-tab is-active" type="button" role="tab" aria-selected="true" data-dash-tab="month">月次</button>
+              <button class="dash-tab" type="button" role="tab" aria-selected="false" data-dash-tab="channel">チャネル別</button>
+              <button class="dash-tab" type="button" role="tab" aria-selected="false" data-dash-tab="product">商品別</button>
+            </div>
           </div>
-          <div class="trust">
-            <span class="dot-ok" aria-hidden="true" style="background:var(--warn);box-shadow:0 0 0 5px rgba(245,158,11,0.12);"></span>
-            <span><b data-i18n="trust_2_b">返金方針</b> <span data-i18n="trust_2_s">明記</span></span>
-          </div>
-          <div class="trust">
-            <span class="dot-ok" aria-hidden="true" style="background:var(--primary2);box-shadow:0 0 0 5px rgba(11,92,255,0.12);"></span>
-            <span><b data-i18n="trust_3_b">商業披露</b> <span data-i18n="trust_3_s">対応</span></span>
-          </div>
-        </div>
 
-        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
-          <a class="btn btn-ghost" href="/commerce" data-i18n="cta_view_commerce">特定商取引法に基づく表記</a>
-          <a class="btn btn-ghost" href="/commerce#disclosure" data-i18n="cta_disclosure">商業披露</a>
+          <div class="dash-kpis">
+            <div class="dash-kpi">
+              <div class="dash-kpi-label">売上（例）</div>
+              <div class="dash-kpi-value" data-dash-kpi="sales">¥2,790,080</div>
+            </div>
+            <div class="dash-kpi">
+              <div class="dash-kpi-label">手数料（例）</div>
+              <div class="dash-kpi-value" data-dash-kpi="fee">¥-412,300</div>
+            </div>
+            <div class="dash-kpi">
+              <div class="dash-kpi-label">粗利（例）</div>
+              <div class="dash-kpi-value" data-dash-kpi="profit">¥1,103,500</div>
+            </div>
+          </div>
+
+          <div class="dash-list" role="list">
+            <div class="dash-row" role="listitem">
+              <div class="dash-row-left" data-dash-row-left>Amazon 手数料</div>
+              <span class="dash-badge" data-dash-row-badge>整形済み</span>
+            </div>
+
+            <div class="dash-row" role="listitem">
+              <div class="dash-row-left" data-dash-row-left>広告費（SP/SD）</div>
+              <span class="dash-badge" data-dash-row-badge>集計</span>
+            </div>
+
+            <div class="dash-row" role="listitem">
+              <div class="dash-row-left" data-dash-row-left>返金/返品</div>
+              <span class="dash-badge" data-dash-row-badge>分類</span>
+            </div>
+
+            <div class="dash-row" role="listitem" style="border-bottom:none;">
+              <div class="dash-row-left" data-dash-row-left>税理士向け出力</div>
+              <span class="dash-badge" data-dash-row-badge>CSV/Excel</span>
+            </div>
+          </div>
+
+          <div class="dash-note">
+            ※ 上記はイメージです。実際の数値・項目はご利用内容により異なります。
+          </div>
+
         </div>
       </aside>
     </div>
