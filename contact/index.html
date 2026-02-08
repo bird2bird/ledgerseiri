@@ -29,8 +29,9 @@
           <option value="zh-Hant">繁體中文</option>
           <option value="en">English</option>
         </select>
-        <a class="btn btn-ghost" href="/login" target="_blank" rel="noopener">ログイン</a>
-        <a class="btn btn-primary" href="/contact">お問い合わせ</a>
+
+        <a class="btn btn-primary" href="/contact/" target="_blank" rel="noopener">お問い合わせ</a>
+        <a class="btn btn-ghost" href="/login/" target="_blank" rel="noopener">ログイン</a>
       </div>
     </div>
   </header>
@@ -38,22 +39,33 @@
   <main class="form-page">
     <div class="container">
       <h1 style="margin:0 0 10px;">お問い合わせ</h1>
-      <p style="margin:0 0 14px;color:var(--muted);">
-        送信ボタンを押すと、メールアプリが開き、内容が自動入力されます（静的ページのため自動送信はできません）。
+      <p style="margin:0 0 14px;color:var(--muted2);">
+        送信内容は <b>bird2bird2024@gmail.com</b> 宛に送信されます。
       </p>
 
       <div class="card form-card">
-        <form class="form-grid" data-contact-form>
+        <!-- ✅ FormSubmit: sends email without your backend -->
+        <form class="form-grid" action="https://formsubmit.co/bird2bird2024@gmail.com" method="POST">
+          <!-- FormSubmit settings -->
+          <input type="hidden" name="_subject" value="【LedgerSeiri】お問い合わせ" />
+          <input type="hidden" name="_captcha" value="false" />
+          <input type="hidden" name="_template" value="table" />
+          <!-- after submit -->
+          <input type="hidden" name="_next" value="/contact/?sent=1" />
+
           <input class="input" name="name" placeholder="お名前" required />
           <input class="input" type="email" name="email" placeholder="メールアドレス" required />
           <input class="input" name="subject" placeholder="件名" />
           <textarea class="textarea" name="message" placeholder="お問い合わせ内容" required></textarea>
 
-          <button class="btn btn-primary" type="submit">送信（メール作成）</button>
+          <button class="btn btn-primary" type="submit">送信</button>
 
           <div class="notice">
-            ※ 送信先：bird2bird2024@gmail.com<br>
-            ※ 自動送信が必要な場合は、Vercel API（Serverless）を追加する必要があります。
+            ※ 初回は FormSubmit より確認メールが届く場合があります。受信後、承認すると送信が有効化されます。
+          </div>
+
+          <div class="notice" id="sentNotice" style="display:none;color:var(--success);font-weight:900;">
+            送信しました。ありがとうございました。
           </div>
         </form>
       </div>
@@ -65,5 +77,15 @@
   </main>
 
   <script src="/assets/app.js"></script>
+  <script>
+    // show "sent" banner when redirected back
+    (function(){
+      const params = new URLSearchParams(location.search);
+      if(params.get('sent') === '1'){
+        const el = document.getElementById('sentNotice');
+        if(el) el.style.display = 'block';
+      }
+    })();
+  </script>
 </body>
 </html>
