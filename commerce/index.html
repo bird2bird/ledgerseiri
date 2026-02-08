@@ -3,177 +3,171 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>特定商取引法に基づく表記｜LedgerSeiri</title>
-  <meta name="description" content="LedgerSeiriの特定商取引法に基づく表記（商業披露）ページです。" />
-  <link rel="stylesheet" href="/styles.css" />
+  <title>LedgerSeiri | 特定商取引法に基づく表記</title>
+  <meta name="description" content="LedgerSeiri - Commerce Disclosure (Japan Act on Specified Commercial Transactions)." />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect rx='22' width='100' height='100' fill='%231a73ff'/%3E%3C/svg%3E">
 </head>
 
 <body>
-  <!-- Topbar (same) -->
+  <a class="skip-link" href="#content">Skip to content</a>
+
+  <!-- Topbar -->
   <header class="topbar">
-    <div class="topbarInner">
-      <a class="brand" href="/" aria-label="LedgerSeiri Home">
+    <div class="container topbar-inner">
+      <a class="brand" href="/">
         <div class="logo" aria-hidden="true"></div>
-        <div class="brandText">
-          <div class="brandName">LedgerSeiri</div>
-          <div class="brandKana">（レジャーセイリ）</div>
+        <div class="brand-title">
+          <strong>LedgerSeiri</strong>
+          <span>（レジャーセイリ）</span>
         </div>
       </a>
 
       <nav class="nav" aria-label="Primary">
-        <div class="navLinks">
-          <a href="/#features">機能</a>
-          <a href="/#pricing">料金</a>
-          <a href="/#how">導入イメージ</a>
-          <a href="/#faq">FAQ</a>
-          <a href="/commerce">特定商取引法に基づく表記</a>
-        </div>
-
-        <div class="navRight">
-          <a class="btn btnPrimary" href="/#contact">お問い合わせ</a>
-        </div>
+        <a href="/#features">機能</a>
+        <a href="/#pricing">料金</a>
+        <a href="/#how">導入イメージ</a>
+        <a href="/#faq">FAQ</a>
+        <a href="/commerce">特定商取引法に基づく表記</a>
       </nav>
+
+      <div class="topbar-right">
+        <select class="lang-select" data-lang-select aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+
+        <a class="btn btn-ghost" href="/" aria-label="Back to home">Home</a>
+        <a class="btn btn-primary" href="mailto:support@kimoca.com">お問い合わせ</a>
+      </div>
     </div>
   </header>
 
-  <main class="page">
+  <main id="content" class="page">
     <div class="container">
-      <h1 class="pageTitle">特定商取引法に基づく表記</h1>
-      <p class="pageLead">
-        本ページは、通信販売に関する表示事項を掲載しています。<br/>
-        LedgerSeiriは会計データの整理・集計・分類を支援するソフトウェア（SaaS）であり、
-        <b>資金の保管、決済代行、税務代理業務は行いません。</b>
-      </p>
+      <h1>特定商取引法に基づく表記</h1>
 
-      <table class="table" aria-label="Commerce disclosure table">
-        <tr>
-          <td class="th">販売事業者（法定名称）</td>
-          <td class="td">Kimoca Co., Ltd.（株式会社キモカ）</td>
-        </tr>
-
-        <tr>
-          <td class="th">所在地</td>
-          <td class="td">
-            〒220-0004 神奈川県横浜市西区北幸2丁目（登記住所）<br/>
-            <!-- ここはあなたの登記住所に置換 -->
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">電話番号</td>
-          <td class="td">
-            +81-70-8332-2320（日本語対応）<br/>
-            受付時間：10:00〜18:00（平日）<br/>
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">メールアドレス</td>
-          <td class="td">
-            <a href="mailto:support@kimoca.com">support@kimoca.com</a>
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">運営統括責任者</td>
-          <td class="td">Weiwei Sun</td>
-        </tr>
-
-        <tr>
-          <td class="th">販売価格</td>
-          <td class="td">
-            サブスクリプション料金（消費税込）<br/>
-            Starter：¥1,980/月<br/>
-            Standard：¥4,980/月<br/>
-            Business：¥9,980/月<br/>
-            ※ 価格は各プラン表示に準じます。
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">商品（サービス）内容</td>
-          <td class="td">
-            クラウド型ソフトウェア（SaaS）の提供。<br/>
-            会計データ（売上・手数料・費用等）の整理・集計・分類、およびCSV/Excel出力を支援します。
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">追加手数料等の追加料金</td>
-          <td class="td">
-            インターネット接続料金、通信料金等はお客様のご負担となります。<br/>
-            （サービス利用料以外に当社が別途請求する費用は原則ありません）
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">お支払い方法</td>
-          <td class="td">
-            クレジットカード決済（Stripe）<br/>
-            <!-- 必要なら銀行振込等を追記 -->
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">支払時期（支払期限）</td>
-          <td class="td">
-            クレジットカード決済：お申し込み時に即時決済（以後、月次/年次で自動更新）<br/>
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">提供時期（引き渡し時期）</td>
-          <td class="td">
-            決済完了後、直ちにサービスをご利用いただけます。<br/>
-            （SaaSのため物理的な配送はありません）
-          </td>
-        </tr>
-
-        <tr>
-          <td class="th">返品・交換・キャンセル（不良時を含む）</td>
-          <td class="td">
-            ＜お客様都合のキャンセル＞<br/>
-            デジタルサービスの性質上、決済完了後の返金は原則として承っておりません。<br/><br/>
-            ＜不具合等がある場合＞<br/>
-            サービスの重大な不具合により継続利用が困難と当社が判断した場合、未利用期間に相当する金額を上限として返金対応する場合があります。<br/>
-            まずはサポート（support@kimoca.com / +81-70-8332-2320）までご連絡ください。<br/>
-          </td>
-        </tr>
-      </table>
-
-      <div class="noteBox">
-        <b>補足：</b><br/>
-        ・本サービスは会計データ整理を支援するソフトウェアであり、決済代行・資金保管・税務代理は行いません。<br/>
-        ・表示内容は法令/サービス提供形態に応じて更新される場合があります。
+      <div class="lead">
+        <p style="margin:0;">
+          本ページは、通信販売に関する表示事項を掲載しています。<br>
+          LedgerSeiriは会計データ（売上・手数料・費用等）の整理・集計・分類を支援するソフトウェア（SaaS）であり、
+          <strong>資金の保管、決済代行、税務代理業務は行いません。</strong>
+        </p>
       </div>
 
-      <div class="heroCtas" style="margin-top:14px">
-        <a class="btn btnPrimary" href="/">ホームへ戻る</a>
-        <a class="btn" href="mailto:support@kimoca.com">お問い合わせ</a>
+      <div class="card" style="margin-top:14px;">
+        <dl class="kv">
+          <dt>販売事業者（法定名称）</dt>
+          <dd>Kimoca Co., Ltd.（株式会社キモカ）</dd>
+
+          <dt>所在地</dt>
+          <dd>〒220-0004 神奈川県横浜市西区北幸2丁目（登記住所）</dd>
+
+          <dt>電話番号</dt>
+          <dd>+81-70-8332-2320（日本語対応）<br>受付時間：10:00〜18:00（平日）</dd>
+
+          <dt>メールアドレス</dt>
+          <dd><a href="mailto:support@kimoca.com">support@kimoca.com</a></dd>
+
+          <dt>運営統括責任者</dt>
+          <dd>Weiwei Sun</dd>
+
+          <dt>販売価格</dt>
+          <dd>
+            サブスクリプション料金（消費税込）<br>
+            Starter：<strong>¥1,980/月</strong><br>
+            Standard：<strong>¥4,980/月</strong><br>
+            Business：<strong>¥9,980/月</strong><br>
+            <small>※ 価格は各プラン表示に準じます。</small>
+          </dd>
+
+          <dt>商品（サービス）内容</dt>
+          <dd>
+            クラウド型ソフトウェア（SaaS）の提供。<br>
+            会計データ（売上・手数料・費用等）の整理・集計・分類、およびCSV/Excel出力を支援します。
+          </dd>
+
+          <dt>追加手数料等の追加料金</dt>
+          <dd>
+            インターネット接続料金、通信費等はお客様のご負担となります。<br>
+            （サービス利用料以外に当社が別途請求する費用は原則ありません）
+          </dd>
+
+          <dt>お支払い方法</dt>
+          <dd>クレジットカード決済（Stripe）</dd>
+
+          <dt>支払時期（支払期限）</dt>
+          <dd>
+            クレジットカード決済：お申し込み時に即時決済（以後、月次/年次で自動更新）
+          </dd>
+
+          <dt>提供時期（引き渡し時期）</dt>
+          <dd>
+            決済完了後、直ちにサービスをご利用いただけます。<br>
+            <small>（SaaSのため物理的な配送はありません）</small>
+          </dd>
+
+          <dt>キャンセル・解約</dt>
+          <dd>
+            いつでも解約可能です。次回更新日まで利用でき、更新後の請求は行われません。<br>
+            解約手続きは、サポート窓口（support@kimoca.com）までご連絡ください。
+          </dd>
+
+          <dt>返品・返金（不良がない場合）</dt>
+          <dd>
+            デジタルサービスの性質上、<strong>決済完了後の返金は原則として承っておりません。</strong><br>
+            ただし、二重課金等の当社起因の誤請求が確認できた場合は、調査のうえ返金します。
+          </dd>
+
+          <dt>返品・返金（不具合がある場合）</dt>
+          <dd>
+            サービスの重大な不具合等により、合理的に利用できない状態が継続する場合は、
+            サポート窓口へご連絡ください。状況確認のうえ、返金または相当する利用期間の付与等を含め
+            誠実に対応します。
+          </dd>
+        </dl>
+      </div>
+
+      <section id="disclosure" class="section" style="padding-top:18px;">
+        <div class="container" style="padding:0;">
+          <h2 style="margin-top:0;">商業披露（Commerce Disclosure）</h2>
+          <div class="card" style="padding:18px;">
+            <p style="margin:0;color:var(--muted);">
+              本ページは、決済事業者・プラットフォームの審査で求められる「商業披露」要件を満たすための情報を含みます。
+              表示内容は予告なく更新される場合があります。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div style="margin-top:14px;">
+        <a class="btn btn-ghost" href="/">← Home</a>
       </div>
     </div>
   </main>
 
   <footer class="footer">
-    <div class="container">
-      <div class="footerGrid">
-        <div class="footerSmall">
-          <div><b>LedgerSeiri</b>（レジャーセイリ）</div>
-          <div style="margin-top:8px">運営会社：Kimoca Co., Ltd.（株式会社キモカ）</div>
-          <div>事業内容：ソフトウェア開発・提供</div>
-          <div style="margin-top:8px">© <span id="year"></span> LedgerSeiri</div>
-        </div>
+    <div class="container footer-grid">
+      <div>
+        <strong>運営会社</strong><br>
+        Kimoca Co., Ltd.<br>
+        <small>事業内容：ソフトウェア開発・提供</small>
+      </div>
 
-        <div class="footerLinks">
-          <a href="/">ホーム</a>
-          <a href="/commerce">特定商取引法に基づく表記</a>
-        </div>
+      <div>
+        <strong>お問い合わせ</strong><br>
+        <a href="mailto:support@kimoca.com">support@kimoca.com</a><br>
+        <small>+81-70-8332-2320（平日 10:00〜18:00）</small>
+      </div>
+
+      <div>
+        <a href="/commerce">特定商取引法に基づく表記</a><br>
+        <small>© 2026 LedgerSeiri</small>
       </div>
     </div>
   </footer>
 
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
+  <script src="/assets/app.js"></script>
 </body>
 </html>
