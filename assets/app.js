@@ -36,22 +36,6 @@
       badge_3_a: "Stripe審査用",
       badge_3_b: "表記を整備",
 
-      // panel
-      panel_title: "検討中の方へ（静的デモ）",
-      pill_1: "最短",
-      pill_2: "明確",
-      pill_3: "安全",
-      panel_input_ph: "メールアドレス（例）",
-      panel_btn: "問い合わせる（メール）",
-      panel_note:
-        "※ 静的LPのため、送信はメールアプリを開きます。課金/決済はStripeで実装予定です。",
-      trust_1_b: "カード登録不要",
-      trust_1_s: "（デモ）",
-      trust_2_b: "返金方針",
-      trust_2_s: "明記",
-      trust_3_b: "商業披露",
-      trust_3_s: "対応",
-
       // sections
       sec_features_h2: "主要機能",
       sec_features_sub:
@@ -175,21 +159,6 @@
       badge_3_a: "Stripe 審核",
       badge_3_b: "表記完善",
 
-      panel_title: "給評估中的你（靜態示範）",
-      pill_1: "最快",
-      pill_2: "明確",
-      pill_3: "安全",
-      panel_input_ph: "Email（例）",
-      panel_btn: "發信詢問（Email）",
-      panel_note:
-        "※ 靜態頁面：按鈕會打開郵件應用。付費/扣款預計由 Stripe 處理。",
-      trust_1_b: "免綁卡",
-      trust_1_s: "（示範）",
-      trust_2_b: "退款政策",
-      trust_2_s: "清楚",
-      trust_3_b: "商業披露",
-      trust_3_s: "對應",
-
       sec_features_h2: "主要功能",
       sec_features_sub:
         "把「會計軟體前的資料」先整理好，月度差異與漏項更早被發現。",
@@ -304,21 +273,6 @@
       badge_2_b: "CSV/Excel",
       badge_3_a: "Stripe review",
       badge_3_b: "ready pages",
-
-      panel_title: "For reviewers (static demo)",
-      pill_1: "Fast",
-      pill_2: "Clear",
-      pill_3: "Safe",
-      panel_input_ph: "Email address (example)",
-      panel_btn: "Contact via email",
-      panel_note:
-        "* Static LP: button opens your email app. Billing will be implemented via Stripe.",
-      trust_1_b: "No card",
-      trust_1_s: "(demo)",
-      trust_2_b: "Refund policy",
-      trust_2_s: "clear",
-      trust_3_b: "Disclosure",
-      trust_3_s: "included",
 
       sec_features_h2: "Core features",
       sec_features_sub:
@@ -440,12 +394,10 @@
       if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
         el.placeholder = val;
       } else {
-        // allow \n in headings
         el.textContent = val;
       }
     });
 
-    // Titles / meta
     const titleEl = document.querySelector("title[data-i18n]");
     if (titleEl) {
       const key = titleEl.getAttribute("data-i18n");
@@ -481,12 +433,8 @@
     overlay.addEventListener("click", close);
     if (closeBtn) closeBtn.addEventListener("click", close);
 
-    // close when clicking any drawer link
-    drawer.querySelectorAll("a").forEach((a) => {
-      a.addEventListener("click", close);
-    });
+    drawer.querySelectorAll("a").forEach((a) => a.addEventListener("click", close));
 
-    // ESC
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") close();
     });
@@ -511,9 +459,90 @@
         (email ? `【返信先メール】${email}\n\n` : "") +
         "（このメールはLPから作成されました）";
 
-      const mailto = `mailto:support@kimoca.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const mailto = `mailto:support@kimoca.com?subject=${encodeURIComponent(
+        subject
+      )}&body=${encodeURIComponent(body)}`;
       window.location.href = mailto;
     });
+  }
+
+  // =======================
+  // Dashboard mock (visual only)
+  // =======================
+  function setupDashboardMock() {
+    const root = document.querySelector("[data-dashboard]");
+    if (!root) return;
+
+    const tabs = Array.from(root.querySelectorAll("[data-dash-tab]"));
+    const kpiEls = {
+      sales: root.querySelector('[data-dash-kpi="sales"]'),
+      fee: root.querySelector('[data-dash-kpi="fee"]'),
+      profit: root.querySelector('[data-dash-kpi="profit"]'),
+    };
+    const rowLeftEls = Array.from(root.querySelectorAll("[data-dash-row-left]"));
+    const rowBadgeEls = Array.from(root.querySelectorAll("[data-dash-row-badge]"));
+
+    const views = {
+      month: {
+        kpis: { sales: "¥2,790,080", fee: "¥-412,300", profit: "¥1,103,500" },
+        rows: [
+          { left: "Amazon 手数料", badge: "整形済み" },
+          { left: "広告費（SP/SD）", badge: "集計" },
+          { left: "返金/返品", badge: "分類" },
+          { left: "税理士向け出力", badge: "CSV/Excel" },
+        ],
+      },
+      channel: {
+        kpis: { sales: "¥1,842,000", fee: "¥-298,500", profit: "¥742,400" },
+        rows: [
+          { left: "Amazon（JP）", badge: "集計" },
+          { left: "楽天", badge: "集計" },
+          { left: "Shopify", badge: "整形済み" },
+          { left: "チャネル別出力", badge: "CSV/Excel" },
+        ],
+      },
+      product: {
+        kpis: { sales: "¥980,600", fee: "¥-158,900", profit: "¥401,200" },
+        rows: [
+          { left: "ASIN: B0XXXX（例）", badge: "分類" },
+          { left: "ASIN: B0YYYY（例）", badge: "分類" },
+          { left: "返品影響（商品別）", badge: "集計" },
+          { left: "商品別出力", badge: "CSV/Excel" },
+        ],
+      },
+    };
+
+    function apply(viewKey) {
+      const view = views[viewKey] || views.month;
+
+      // tab active
+      tabs.forEach((btn) => {
+        const key = btn.getAttribute("data-dash-tab");
+        btn.classList.toggle("is-active", key === viewKey);
+        btn.setAttribute("aria-selected", key === viewKey ? "true" : "false");
+      });
+
+      // kpis
+      if (kpiEls.sales) kpiEls.sales.textContent = view.kpis.sales;
+      if (kpiEls.fee) kpiEls.fee.textContent = view.kpis.fee;
+      if (kpiEls.profit) kpiEls.profit.textContent = view.kpis.profit;
+
+      // rows (expect 4)
+      for (let i = 0; i < 4; i++) {
+        if (rowLeftEls[i]) rowLeftEls[i].textContent = view.rows[i]?.left || "";
+        if (rowBadgeEls[i]) rowBadgeEls[i].textContent = view.rows[i]?.badge || "";
+      }
+    }
+
+    tabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-dash-tab") || "month";
+        apply(key);
+      });
+    });
+
+    // default
+    apply("month");
   }
 
   function init() {
@@ -527,6 +556,7 @@
     applyLang(lang);
     setupDrawer();
     setupMailto();
+    setupDashboardMock();
   }
 
   document.addEventListener("DOMContentLoaded", init);
