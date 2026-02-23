@@ -21,3 +21,21 @@ coverage
 apps/web/node_modules
 apps/**/node_modules
 apps/web/.env.production
+
+# ===== LedgerSeiri cleanup rules =====
+_trash/
+**/*.bak*
+**/*.tmp
+apps/web/.bak_*/
+apps/api/**/*.bak*
+apps/web/**/*.bak*
+
+# accidental files
+=
+CACHED
+[api
+[api]
+exporting
+writing
+naming
+transferring
