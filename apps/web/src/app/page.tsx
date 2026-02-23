@@ -1,0 +1,13 @@
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+
+export default async function Root() {
+  const h = await headers();
+  const acceptLang = h.get('accept-language') || '';
+
+  if (acceptLang.includes('zh-TW')) redirect('/zh-TW');
+  if (acceptLang.includes('zh')) redirect('/zh-CN');
+  if (acceptLang.includes('en')) redirect('/en');
+
+  redirect('/ja');
+}

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LedgerSeiri | お問い合わせ</title>
+  <meta name="description" content="Contact LedgerSeiri" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="/">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="brand-title">
+          <strong>LedgerSeiri</strong>
+          <span>（レジャーセイリ）</span>
+        </div>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a class="nav-legal" href="/commerce">特定商取引法に基づく表記</a>
+      </nav>
+
+      <div class="topbar-right">
+        <select class="lang-select" data-lang-select aria-label="Language">
+          <option value="ja">日本語</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+        <a class="btn btn-primary" href="/contact/" target="_blank" rel="noopener">お問い合わせ</a>
+        <a class="btn btn-ghost" href="/login/" target="_blank" rel="noopener">ログイン</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="form-page">
+    <div class="container">
+      <h1 style="margin:0 0 10px;">お問い合わせ</h1>
+      <p style="margin:0 0 14px;color:var(--muted2);">
+        送信内容は自動的にメール送信されます（宛先：bird2bird2024@gmail.com）。
+      </p>
+
+      <div class="card form-card">
+        <form class="form-grid" id="contactForm">
+          <input class="input" name="name" placeholder="お名前" required />
+          <input class="input" type="email" name="email" placeholder="メールアドレス" required />
+          <input class="input" name="subject" placeholder="件名" />
+          <textarea class="textarea" name="message" placeholder="お問い合わせ内容" required></textarea>
+
+          <!-- honeypot (hidden for humans) -->
+          <div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+            <label>Company <input name="company" autocomplete="off" tabindex="-1" /></label>
+          </div>
+
+          <input type="hidden" name="startedAt" id="startedAt" />
+
+          <button class="btn btn-primary" type="submit" id="submitBtn">送信</button>
+
+          <div class="notice" id="statusMsg" style="display:none;"></div>
+        </form>
+      </div>
+
+      <div style="margin-top:14px;">
+        <a class="btn btn-ghost" href="/">← Home</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/assets/app.js"></script>
+  <script>
+    (function () {
+      const startedAt = Date.now();
+      document.getElementById('startedAt').value = String(startedAt);
+
+      const form = document.getElementById('contactForm');
+      const btn = document.getElementById('submitBtn');
+      const msg = document.getElementById('statusMsg');
+
+      function setMsg(text, ok){
+        msg.style.display = 'block';
+        msg.style.color = ok ? 'var(--success)' : 'var(--muted2)';
+        msg.style.fontWeight = ok ? '900' : '700';
+        msg.textContent = text;
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        setMsg('送信中...', true);
+
+        const data = Object.fromEntries(new FormData(form).entries());
+
+        try{
+          const r = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+
+          const j = await r.json().catch(()=>({}));
+
+          if(r.ok && j.ok){
+            setMsg('送信しました。ありがとうございました。', true);
+            form.reset();
+            document.getElementById('startedAt').value = String(Date.now());
+          }else{
+            setMsg('送信に失敗しました。時間をおいて再度お試しください。', false);
+          }
+        }catch(err){
+          setMsg('送信に失敗しました。ネットワークをご確認ください。', false);
+        }finally{
+          btn.disabled = false;
+          btn.style.opacity = '1';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

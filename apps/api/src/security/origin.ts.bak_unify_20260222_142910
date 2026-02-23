@@ -1,0 +1,22 @@
+import type { Request, Response, NextFunction } from 'express';
+
+function getAllowedOrigins(): string[] {
+  const raw = process.env.ALLOWED_ORIGINS || 'https://www.ledgerseiri.com,https://ledgerseiri.com';
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+export function sameOriginProtect(req: Request, res: Response, next: NextFunction) {
+  const method = (req.method || '').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+
+  const allowed = getAllowedOrigins();
+  const origin = req.headers.origin ? String(req.headers.origin) : '';
+  const referer = req.headers.referer ? String(req.headers.referer) : '';
+
+  const ok =
+    (origin && allowed.includes(origin)) ||
+    (referer && allowed.some(a => referer.startsWith(a + '/')));
+
+  if (!ok) return res.status(403).json({ message: 'BAD_ORIGIN' });
+  next();
+}

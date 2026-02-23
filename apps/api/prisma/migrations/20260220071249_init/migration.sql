@@ -1,0 +1,2 @@
+-- Placeholder migration to match existing applied migration in database.
+-- Original migration file was missing locally.

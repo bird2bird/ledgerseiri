@@ -1,0 +1,105 @@
+import { Controller, Get, Post, Req, Res, HttpCode } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { csrfTokenHandler } from './csrf';
+
+function clearCookie(res: Response) {
+  // name must match session middleware `name`
+  res.clearCookie('lsid', { path: '/' });
+}
+
+async function destroySession(req: Request): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const sess: any = (req as any).session;
+    if (!sess) return resolve();
+    sess.destroy(() => resolve());
+  });
+}
+
+@Controller('auth')
+export class SessionSecurityController {
+  @Get('csrf')
+  csrf(@Req() req: Request, @Res() res: Response) {
+    return csrfTokenHandler(req, res);
+  }
+
+  @Get('session-me')
+  sessionMe(@Req() req: Request, @Res() res: Response) {
+    const userId = ((req as any).session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: 'UNAUTHORIZED' });
+    return res.json({ ok: true, userId });
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  async logout(@Req() req: Request, @Res() res: Response) {
+    await destroySession(req);
+    clearCookie(res);
+    return res.json({ ok: true });
+  }
+  @Get('_debug')
+  debug(@Req() req: any, @Res() res: any) {
+    const xfproto = req.headers['x-forwarded-proto'];
+    const origin = req.headers['origin'];
+    const referer = req.headers['referer'];
+    const hasSession = !!req.session;
+    const sessionID = req.sessionID || null;
+    const secure = !!req.secure;
+    return res.json({
+      ok: true,
+      routePrefix: '/auth',
+      hasSession,
+      sessionID,
+      secure,
+      xfproto: xfproto || null,
+      origin: origin || null,
+      referer: referer || null,
+      cookie: req.headers['cookie'] || null,
+    });
+  }
+
+}
+
+// Dual route for nginx /api/* split
+@Controller('api/auth')
+export class SessionSecurityApiController {
+  @Get('csrf')
+  csrf(@Req() req: Request, @Res() res: Response) {
+    return csrfTokenHandler(req, res);
+  }
+
+  @Get('session-me')
+  sessionMe(@Req() req: Request, @Res() res: Response) {
+    const userId = ((req as any).session as any)?.userId;
+    if (!userId) return res.status(401).json({ message: 'UNAUTHORIZED' });
+    return res.json({ ok: true, userId });
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  async logout(@Req() req: Request, @Res() res: Response) {
+    await destroySession(req);
+    clearCookie(res);
+    return res.json({ ok: true });
+  }
+  @Get('_debug')
+  debug(@Req() req: any, @Res() res: any) {
+    const xfproto = req.headers['x-forwarded-proto'];
+    const origin = req.headers['origin'];
+    const referer = req.headers['referer'];
+    const hasSession = !!req.session;
+    const sessionID = req.sessionID || null;
+    const secure = !!req.secure;
+    return res.json({
+      ok: true,
+      routePrefix: '/api/auth',
+      hasSession,
+      sessionID,
+      secure,
+      xfproto: xfproto || null,
+      origin: origin || null,
+      referer: referer || null,
+      cookie: req.headers['cookie'] || null,
+    });
+  }
+
+}

@@ -1,0 +1,61 @@
+import { ReactNode } from 'react';
+import Link from "next/link";
+import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import LanguageMenu from "@/components/LanguageMenu";
+
+const LOCALES = ['ja', 'en', 'zh-CN', 'zh-TW'] as const;
+type Locale = (typeof LOCALES)[number];
+
+const SITE = 'https://ledgerseiri.com';
+
+export function generateStaticParams() {
+  return LOCALES.map((lang) => ({ lang }));
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ lang: string }> }
+): Promise<Metadata> {
+  const { lang } = await params;
+  const locale = lang as Locale;
+  if (!LOCALES.includes(locale)) notFound();
+
+  // Some setups inject a header with the "path without locale" for canonical/hreflang.
+  const h = await headers();
+  const pathNoLocale = h.get('x-path-no-locale') || '/';
+
+  // normalize: '/' or '/xxx'
+  const suffix = pathNoLocale === '/' ? '' : pathNoLocale;
+
+  const canonical = `${SITE}/${locale}${suffix}`;
+  const languages: Record<string, string> = {};
+  for (const l of LOCALES) {
+    languages[l] = `${SITE}/${l}${suffix}`;
+  }
+  languages['x-default'] = `${SITE}/ja${suffix}`;
+
+  return {
+    metadataBase: new URL(SITE),
+    alternates: {
+      canonical,
+      languages,
+    },
+  };
+}
+
+export default async function LangLayout(
+  { children, params }: { children: ReactNode; params: Promise<{ lang: string }> }
+) {
+  const { lang } = await params;
+  const locale = lang as Locale;
+  if (!LOCALES.includes(locale)) notFound();
+
+  return (
+    <html lang={locale}>
+      <body>
+{children}
+      </body>
+    </html>
+  );
+}

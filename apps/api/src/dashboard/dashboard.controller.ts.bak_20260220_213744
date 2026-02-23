@@ -1,0 +1,75 @@
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
+import { JwtAuthGuard } from '../auth/jwt.guard';
+
+function monthRange(month: string) {
+  const [y, m] = month.split('-').map((v) => Number(v));
+  const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+  return { start, end };
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller()
+export class DashboardController {
+  constructor(private prisma: PrismaService) {}
+
+  private async assertStoreOwned(req: any, storeId: string) {
+    const userId = req.user.userId;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.companyId) return null;
+
+    return this.prisma.store.findFirst({
+      where: { id: storeId, companyId: user.companyId },
+    });
+  }
+
+  @Get('dashboard')
+  async monthly(
+    @Req() req: any,
+    @Query('storeId') storeId?: string,
+    @Query('month') month?: string,
+  ) {
+    if (!storeId) return { error: 'storeId is required' };
+    if (!month) return { error: 'month is required, e.g. 2026-02' };
+
+    const store = await this.assertStoreOwned(req, storeId);
+    if (!store) return { error: 'Store not found or not owned' };
+
+    const { start, end } = monthRange(month);
+
+    const rows = await this.prisma.transaction.groupBy({
+      by: ['type'],
+      where: { storeId, occurredAt: { gte: start, lt: end } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+
+    const sumByType: Record<string, number> = {};
+    let count = 0;
+    for (const r of rows as any[]) {
+      sumByType[r.type] = Number(r._sum?.amount ?? 0);
+      count += Number(r._count?._all ?? 0);
+    }
+
+    const sales = sumByType['SALE'] ?? 0;
+    const fbaFees = sumByType['FBA_FEE'] ?? 0;
+    const ads = sumByType['AD'] ?? 0;
+    const refunds = sumByType['REFUND'] ?? 0;
+    const other = sumByType['OTHER'] ?? 0;
+
+    const profit = sales - fbaFees - ads - refunds + other;
+
+    return {
+      storeId,
+      month,
+      sales,
+      fbaFees,
+      ads,
+      refunds,
+      other,
+      profit,
+      count,
+    };
+  }
+}

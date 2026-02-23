@@ -1,0 +1,124 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma.service';
+import { JwtService } from '@nestjs/jwt';
+import crypto from 'crypto';
+
+type RefreshPayload = { sub: string; jti: string; typ: 'refresh' };
+
+@Injectable()
+export class RefreshService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
+
+  private accessExpiresMinutes(): number {
+    const v = parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES || '60', 10);
+    return Number.isFinite(v) ? v : 60;
+  }
+  private refreshExpiresDays(): number {
+    const v = parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS || '14', 10);
+    return Number.isFinite(v) ? v : 14;
+  }
+
+  createAccessToken(userId: string): string {
+    const minutes = this.accessExpiresMinutes();
+    return this.jwt.sign(
+      { sub: userId },
+      { secret: process.env.JWT_SECRET, expiresIn: `${minutes}m` },
+    );
+  }
+
+  createRefreshToken(userId: string, jti: string): string {
+    const days = this.refreshExpiresDays();
+    const payload: RefreshPayload = { sub: userId, jti, typ: 'refresh' };
+    return this.jwt.sign(payload, {
+      secret: process.env.JWT_REFRESH_SECRET,
+      expiresIn: `${days}d`,
+    });
+  }
+
+  async issueRefreshSession(userId: string) {
+    const jti = crypto.randomUUID();
+    const days = this.refreshExpiresDays();
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    await this.prisma.refreshSession.create({
+      data: {
+        userId,
+        jti,
+        expiresAt,
+      },
+    });
+
+    return { jti, expiresAt };
+  }
+
+  async rotateRefreshSession(userId: string, oldJti: string) {
+    const newJti = crypto.randomUUID();
+    const days = this.refreshExpiresDays();
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    // Mark old revoked + replacedBy, create new in a transaction
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.refreshSession.updateMany({
+        where: { userId, jti: oldJti, revokedAt: null },
+        data: { revokedAt: new Date(), replacedByJti: newJti },
+      });
+      await tx.refreshSession.create({
+        data: {
+          userId,
+          jti: newJti,
+          expiresAt,
+        },
+      });
+    });
+
+    return { newJti, expiresAt };
+  }
+
+  async revokeUserAll(userId: string) {
+    await this.prisma.refreshSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeOne(userId: string, jti: string) {
+    await this.prisma.refreshSession.updateMany({
+      where: { userId, jti, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  verifyRefreshToken(token: string): RefreshPayload {
+    try {
+      const p = this.jwt.verify(token, { secret: process.env.JWT_REFRESH_SECRET }) as RefreshPayload;
+      if (!p?.sub || !p?.jti || p?.typ !== 'refresh') throw new Error('bad payload');
+      return p;
+    } catch {
+      throw new UnauthorizedException('REFRESH_INVALID');
+    }
+  }
+
+  async validateSessionOrReuse(userId: string, jti: string) {
+    const row = await this.prisma.refreshSession.findUnique({ where: { jti } });
+    if (!row || row.userId !== userId) throw new UnauthorizedException('REFRESH_NOT_FOUND');
+
+    const now = new Date();
+    if (row.expiresAt <= now) {
+      // expired: revoke it
+      await this.revokeOne(userId, jti);
+      throw new UnauthorizedException('REFRESH_EXPIRED');
+    }
+
+    if (row.revokedAt) {
+      // reuse detected: revoke all sessions for safety
+      await this.revokeUserAll(userId);
+      throw new UnauthorizedException('REFRESH_REUSE_DETECTED');
+    }
+
+    return row;
+  }
+}

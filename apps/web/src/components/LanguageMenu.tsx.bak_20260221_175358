@@ -1,0 +1,99 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+
+const SUPPORTED = ["ja", "en", "zh-CN", "zh-TW"] as const;
+type Lang = (typeof SUPPORTED)[number];
+
+const LABEL: Record<Lang, string> = {
+  ja: "日本語",
+  en: "English",
+  "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
+};
+
+function getCurrentLangFromPath(pathname: string): Lang {
+  const seg = pathname.split("/")[1] as Lang;
+  return (SUPPORTED as readonly string[]).includes(seg) ? seg : "ja";
+}
+
+export default function LanguageMenu() {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const lang = useMemo(() => getCurrentLangFromPath(pathname), [pathname]);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  // click outside -> close
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  // ESC -> close
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const switchTo = (next: Lang) => {
+    // Close dropdown immediately (fix your bug)
+    setOpen(false);
+
+    // Replace leading /{lang}
+    const parts = pathname.split("/");
+    if ((SUPPORTED as readonly string[]).includes(parts[1])) parts[1] = next;
+    const nextPath = parts.join("/") || `/${next}`;
+
+    // Persist language for LP/Login default (middleware will read cookie)
+    document.cookie = `ls_lang=${next}; path=/; max-age=${60 * 60 * 24 * 365}`;
+
+    router.push(nextPath);
+    router.refresh();
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm hover:bg-slate-50"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span className="opacity-70">🌐</span>
+        <span>语言</span>
+        <span className="font-semibold">{lang}</span>
+        <span className="opacity-60">▼</span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 mt-2 w-44 rounded-xl border border-slate-200 bg-white shadow-lg z-[9999] overflow-hidden"
+          role="menu"
+        >
+          {SUPPORTED.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => switchTo(l)}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 ${l === lang ? "bg-slate-50 font-semibold" : ""}`}
+              role="menuitem"
+            >
+              {LABEL[l]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,17 @@
+import Link from "next/link";
+
+export default function Home() {
+  return (
+    <main className="min-h-screen p-10">
+      <h1 className="text-3xl font-semibold">LedgerSeiri Web App</h1>
+      <p className="mt-3 text-slate-600">
+        Next.js is live. LP is preserved at <b>/lp</b>.
+      </p>
+
+      <div className="mt-6 flex gap-4">
+        <Link className="underline" href="/lp">Open LP</Link>
+        <a className="underline" href="/api/health">API Health</a>
+      </div>
+    </main>
+  );
+}

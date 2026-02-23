@@ -1,0 +1,60 @@
+import { ReactNode } from 'react';
+import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+
+const LOCALES = ['ja', 'en', 'zh-CN', 'zh-TW'] as const;
+type Locale = (typeof LOCALES)[number];
+
+const SITE = 'https://ledgerseiri.com';
+
+export function generateStaticParams() {
+  return LOCALES.map((lang) => ({ lang }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { lang: string };
+}): Promise<Metadata> {
+  const lang = params.lang as Locale;
+  if (!LOCALES.includes(lang)) notFound();
+
+  const h = await headers();
+  const pathNoLocale = h.get('x-path-no-locale') || '/';
+
+  // normalize: '/' or '/xxx'
+  const suffix = pathNoLocale === '/' ? '' : pathNoLocale;
+
+  const canonical = `${SITE}/${lang}${suffix}`;
+  const languages: Record<string, string> = {};
+  for (const l of LOCALES) {
+    languages[l] = `${SITE}/${l}${suffix}`;
+  }
+  languages['x-default'] = `${SITE}/ja${suffix}`;
+
+  return {
+    metadataBase: new URL(SITE),
+    alternates: {
+      canonical,
+      languages,
+    },
+  };
+}
+
+export default function LangLayout({
+  children,
+  params,
+}: {
+  children: ReactNode;
+  params: { lang: string };
+}) {
+  const lang = params.lang as Locale;
+  if (!LOCALES.includes(lang)) notFound();
+
+  return (
+    <html lang={lang}>
+      <body>{children}</body>
+    </html>
+  );
+}

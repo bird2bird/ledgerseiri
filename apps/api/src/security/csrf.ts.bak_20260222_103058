@@ -1,0 +1,37 @@
+import type { Request, Response, NextFunction } from 'express';
+import Csrf from 'csrf';
+
+const tokens = new Csrf();
+
+export function csrfInit(req: Request, _res: Response, next: NextFunction) {
+  const sess: any = (req as any).session;
+  if (!sess) return next(new Error('Session not initialized'));
+  if (!sess.csrfSecret) {
+    sess.csrfSecret = tokens.secretSync();
+  }
+  next();
+}
+
+export function csrfProtect(req: Request, res: Response, next: NextFunction) {
+  const method = (req.method || '').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return next();
+
+  const sess: any = (req as any).session;
+  const secret = sess?.csrfSecret;
+  if (!secret) return res.status(403).json({ message: 'CSRF_MISSING' });
+
+  const token = (req.header('x-csrf-token') || '').toString();
+  const ok = tokens.verify(secret, token);
+  if (!ok) return res.status(403).json({ message: 'CSRF_INVALID' });
+
+  next();
+}
+
+export function csrfTokenHandler(req: Request, res: Response) {
+  const sess: any = (req as any).session;
+  const secret = sess?.csrfSecret;
+  if (!secret) return res.status(500).json({ message: 'CSRF_NOT_READY' });
+  const token = tokens.create(secret);
+  res.setHeader('cache-control', 'no-store');
+  return res.json({ csrfToken: token });
+}

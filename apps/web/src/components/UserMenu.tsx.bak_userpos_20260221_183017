@@ -1,0 +1,96 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+
+type LangCode = "ja" | "en" | "zh-CN" | "zh-TW";
+
+const I18N: Record<
+  LangCode,
+  { profile: string; billing: string; upgrade: string; settings: string; logout: string; user: string }
+> = {
+  ja: { user: "ユーザー", profile: "プロフィール", billing: "請求", upgrade: "アカウントアップグレード", settings: "設定", logout: "ログアウト" },
+  en: { user: "User", profile: "Profile", billing: "Billing", upgrade: "Upgrade", settings: "Settings", logout: "Logout" },
+  "zh-CN": { user: "用户", profile: "个人资料", billing: "账单", upgrade: "账户升级", settings: "设置", logout: "退出登录" },
+  "zh-TW": { user: "用戶", profile: "個人資料", billing: "帳單", upgrade: "帳戶升級", settings: "設定", logout: "退出登入" },
+};
+
+function getLangFromPath(pathname: string): LangCode {
+  const seg = (pathname.split("/")[1] || "ja") as LangCode;
+  return seg === "ja" || seg === "en" || seg === "zh-CN" || seg === "zh-TW" ? seg : "ja";
+}
+
+function withLang(pathname: string, target: string): string {
+  const seg = pathname.split("/")[1];
+  const hasLang = seg === "ja" || seg === "en" || seg === "zh-CN" || seg === "zh-TW";
+  const lang = hasLang ? seg : "ja";
+  return `/${lang}${target}`;
+}
+
+export default function UserMenu({
+  onLogout,
+}: {
+  onLogout?: () => void;
+}) {
+  const pathname = usePathname() || "/ja";
+  const lang = useMemo(() => getLangFromPath(pathname), [pathname]);
+  const t = I18N[lang];
+
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!open) return;
+      const el = ref.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const go = (target: string) => {
+    setOpen(false);
+    window.location.href = withLang(pathname, target);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm hover:bg-black/[0.03]"
+      >
+        {t.user} ▾
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg z-[9999]">
+          <button className="block w-full px-4 py-2 text-left text-sm hover:bg-black/[0.04]" onClick={() => go("/app/profile")}>
+            {t.profile}
+          </button>
+          <button className="block w-full px-4 py-2 text-left text-sm hover:bg-black/[0.04]" onClick={() => go("/app/billing")}>
+            {t.billing}
+          </button>
+          <button className="block w-full px-4 py-2 text-left text-sm hover:bg-black/[0.04]" onClick={() => go("/app/upgrade")}>
+            {t.upgrade}
+          </button>
+          <button className="block w-full px-4 py-2 text-left text-sm hover:bg-black/[0.04]" onClick={() => go("/app/settings")}>
+            {t.settings}
+          </button>
+          <div className="my-1 h-px bg-black/10" />
+          <button
+            className="block w-full px-4 py-2 text-left text-sm hover:bg-black/[0.04]"
+            onClick={() => {
+              setOpen(false);
+              onLogout?.();
+            }}
+          >
+            {t.logout}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

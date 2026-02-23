@@ -1,0 +1,60 @@
+import { isAllowedRequestOrigin } from '../security/origin';
+import { Controller, Post, Req, Res, UnauthorizedException } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { RefreshService } from './refresh.service';
+
+function assertSameOrigin(req: Request) {
+  if (!isAllowedRequestOrigin(req)) throw new UnauthorizedException("BAD_ORIGIN");
+}
+
+function setRefreshCookie(res: Response, token: string) {
+  // For HTTPS only. __Host- prefix requires: Secure; Path=/; no Domain attribute
+  res.cookie('__Host-lsrt', token, {
+    httpOnly: true,
+    secure: 'auto',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearRefreshCookie(res: Response) {
+  res.clearCookie('__Host-lsrt', { path: '/' });
+}
+
+@Controller('/auth')
+export class RefreshController {
+  constructor(private readonly refresh: RefreshService) {}
+
+  @Post('/refresh')
+  async refreshToken(@Req() req: Request, @Res() res: Response) {
+    assertSameOrigin(req);
+
+    const rt = (req.cookies as any)?.['__Host-lsrt'];
+    if (!rt) throw new UnauthorizedException('NO_REFRESH');
+
+    const payload = this.refresh.verifyRefreshToken(rt);
+    await this.refresh.validateSessionOrReuse(payload.sub, payload.jti);
+
+    const { newJti } = await this.refresh.rotateRefreshSession(payload.sub, payload.jti);
+
+    const accessToken = this.refresh.createAccessToken(payload.sub);
+    const newRefreshToken = this.refresh.createRefreshToken(payload.sub, newJti);
+
+    setRefreshCookie(req, res, newRefreshToken);
+    return res.status(200).json({ accessToken });
+  }
+
+  @Post('/logout')
+  async logout(@Req() req: Request, @Res() res: Response) {
+    assertSameOrigin(req);
+
+    const rt = (req.cookies as any)?.['__Host-lsrt'];
+    if (rt) {
+      const payload = this.refresh.verifyRefreshToken(rt);
+      await this.refresh.revokeOne(payload.sub, payload.jti).catch(() => void 0);
+    }
+    clearRefreshCookie(res);
+    return res.status(200).json({ ok: true });
+  }
+}

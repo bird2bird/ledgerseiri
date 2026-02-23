@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ledgerseiri_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ledgerseiri
+      POSTGRES_USER: ledgerseiri
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: ledgerseiri_api
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env.production
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  web:
+    build:
+      context: ./apps/web
+    container_name: ledgerseiri_web
+    restart: unless-stopped
+    env_file:
+      - ./apps/web/.env.production
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  dbdata:
