@@ -1,165 +1,225 @@
-# API Contract (NestJS)
+# API Contract (Aligned to current implementation)
 
-本文档基于当前代码扫描结果（Controller decorators）生成，用于：
-- 前后端对齐路由与职责边界
-- 后续分模块开发避免“上下文丢失导致冲突”
-- 为 API 网关（/api 前缀）、同域 cookie、CSRF 等机制提供索引
+Generated at: 2026-02-23
+Alignment inputs:
+- apps/api/src/auth/auth.controller.ts
+- apps/api/src/security/session.controller.ts
+- apps/api/src/auth/refresh.controller.ts
 
-> 注意：此文档目前来自 `@Controller/@Get/@Post/...` 的静态扫描；  
-> 参数校验、DTO、返回结构细节需要结合各 Controller 代码逐步补齐（下一步我们可以自动化提取）。
-
----
-
-## 1. 基础约定（当前推断）
-
-- API 服务：NestJS（apps/api）
-- Web：Next.js（apps/web），同域反代（Nginx）
-- 路由存在两种风格：
-  1) 业务路由直接挂在根（如 `/transaction`、`/company`）
-  2) API 前缀路由（如 `/api/auth/*`、`/api/*`）——通常用于给前端 fetch 的稳定入口
+Purpose:
+Lock the interface contract to prevent context drift during modular development.
+This contract reflects current actual implementation (paths, cookie names, status codes).
 
 ---
 
-## 2. 路由总览（已确认的 decorator 级别路径）
+## Global Conventions
 
-### 2.1 Health
+### Routing
+- Backend: NestJS
+- Reverse proxy: Nginx (same-site deployment)
+- Mixed style currently:
+  - /auth/*
+  - /api/*
 
-存在两个 health 路由定义（建议后续统一一个）：
-- `GET /health`（apps/api/src/health.controller.ts）
-- `GET /health`（apps/api/src/app.controller.ts）
+### Access Token
+Returned in JSON:
+{
+  "accessToken": "string"
+}
 
-> 风险：重复路由可能导致维护混乱（但通常不会影响运行；后注册的 handler 可能覆盖/并存，取决于 Nest 路由解析）。  
-> 建议后续：保留 `HealthController` 一个即可。
+Sent by client via:
+Authorization: Bearer <accessToken>
 
----
+### Refresh Cookie
+Name: __Host-lsrt
+Attributes:
+- HttpOnly: true
+- SameSite: lax
+- Path: /
+- Secure: only when HTTPS (req.secure or x-forwarded-proto=https)
+- Max-Age: 14 days
 
-### 2.2 Auth（会话/登录态）
+### Session Cookie (CSRF/session layer)
+Cleared cookie:
+- lsid (path=/)
 
-#### A) 认证核心（/auth 前缀）
+### Origin Protection
+Used on:
+- POST /auth/refresh
+- POST /auth/logout
 
-来自 `apps/api/src/auth/auth.controller.ts`：
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET  /auth/me`
+Error code when origin invalid:
+BAD_ORIGIN
 
-用途（推断）：
-- register/login：创建用户并建立登录态（cookie/session/jwt 具体以实现为准）
-- me：返回当前用户信息（用于前端判断登录态）
-
-#### B) Refresh / Logout（/auth 前缀）
-
-来自 `apps/api/src/auth/refresh.controller.ts`：
-- `POST /auth/refresh`
-- `POST /auth/logout`
-
-用途（推断）：
-- refresh：刷新 access/session（配合 RefreshSession 表做 rotation）
-- logout：注销会话（可能同时清 cookie + revoke refresh session）
-
-#### C) CSRF + Session utilities（/auth 前缀）
-
-来自 `apps/api/src/security/session.controller.ts`：
-- `GET  /auth/csrf`
-- `GET  /auth/session-me`
-- `POST /auth/session-logout`
-
-用途（推断）：
-- csrf：获取 CSRF token（前端写入 header / cookie）
-- session-me：返回 session 维度的登录态信息
-- session-logout：按 session 机制注销
-
-> 备注：这里同时存在 `/auth/logout` 与 `/auth/session-logout`，建议后续统一命名与职责（否则前端容易混用）。
+### Current Error Patterns
+- EMAIL_REQUIRED (400)
+- NO_REFRESH (401)
+- UNAUTHORIZED (401)
 
 ---
 
-### 2.3 Password Reset（/api/auth 前缀）
+# AUTH MODULE
 
-来自 `apps/api/src/auth/password-reset.controller.ts`：
-- `POST /api/auth/forgot-password`
-- `POST /api/auth/reset-password`
+## POST /auth/register
 
-用途：
-- forgot-password：发起重置（创建 PasswordResetToken）
-- reset-password：使用 token 完成改密
+Auth Required: No
 
----
+Request Body:
+- email: string
+- password: string
 
-## 3. 业务域路由（Company/Store/Transaction/Dashboard）
-
-这些 controller 的 `@Controller()` 为空，意味着“挂在根路径”。
-
-### 3.1 Company
-
-来自 `apps/api/src/company/company.controller.ts`：
-- `POST /company`
-- `GET  /company`
-
-用途（推断）：
-- 创建公司、查询公司信息（当前用户所属 company）
-
-### 3.2 Store
-
-来自 `apps/api/src/store/store.controller.ts`：
-- `GET  /store`
-- `POST /store`
-
-用途（推断）：
-- 列表/创建店铺（属于 Company）
-
-### 3.3 Transaction
-
-来自 `apps/api/src/transaction/transaction.controller.ts`：
-- `POST   /transaction`
-- `GET    /transaction`
-- `DELETE /transaction/:id`
-- `POST   /transaction/bulk`
-
-用途（推断）：
-- 单条 CRUD + 批量导入
-
-### 3.4 Dashboard
-
-来自 `apps/api/src/dashboard/dashboard.controller.ts`：
-- `GET /dashboard`
-
-用途（推断）：
-- 返回 dashboard 聚合数据（按时间窗口、按 store/company 聚合）
+Response:
+- 200 OK
+- Body: AuthService.register() return value
 
 ---
 
-## 4. “API 前缀”控制器占位（需要下一步读取代码补齐）
+## POST /auth/login
 
-扫描到以下 controller 只有 `@Controller(...)`，未在 decorator 扫描中出现 method（可能 method 写在 .ts 但未匹配，或仅作为中转层/网关层）：
+Auth Required: No
 
-- `apps/api/src/dashboard/dashboard_api.controller.ts`：`@Controller('api')`
-- `apps/api/src/transaction/transaction_api.controller.ts`：`@Controller('api')`
-- `apps/api/src/store/store_api.controller.ts`：`@Controller('api')`
-- `apps/api/src/company/company_api.controller.ts`：`@Controller('api')`
+Request Body:
+- password: string
+- identifier:
+    - email OR
+    - username OR
+    - userName
 
-以及：
-- `apps/api/src/auth/auth_api.controller.ts`：`@Controller('api/auth')`
-- `apps/api/src/auth/refresh_api.controller.ts`：`@Controller('/api/auth')`
-- `apps/api/src/security/session_api.controller.ts`：`@Controller('/api/auth')`
+Behavior:
+- Missing identifier → 400 EMAIL_REQUIRED
+- Creates refresh session
+- Sets cookie: __Host-lsrt
+- Returns access token
 
-推断：
-- 这些 `*_api.controller.ts` 可能用于提供 `/api/...` 形式的同域接口（给 Next.js fetch 更方便）
-- 需要下一步对这些文件做一次 `sed -n` / grep method 扫描，补齐具体 endpoint 与返回结构
+Response:
+- 201 Created
+{
+  "accessToken": "string"
+}
+
+TODO:
+- Implement lockout policy (10 failures → 24h)
+- Standardize error schema
 
 ---
 
-## 5. 下一步（我建议你立刻做的 2 个动作）
+## GET /auth/me
 
-### 5.1 再做一次“更精确的路由提取”
-目前只抓到了装饰器行。下一步我们用 grep 直接把每个 controller 的方法块提取出来，补齐：
-- request body / query params
-- response shape（JSON schema）
-- auth 保护（是否需要登录态）
+Auth Required: Yes (JwtAuthGuard)
 
-我会给你一个“只读脚本”，自动生成更完整的 contract。
+Header:
+Authorization: Bearer <accessToken>
 
-### 5.2 固化“唯一入口策略”
-建议最终对外只保留一种风格，例如：
-- 对外统一：`/api/*`
-- 内部/兼容：根路径保留但标记 Deprecated（并在 Nginx 层逐步迁移）
+Response:
+- 200 OK
+- Body: AuthService.me(userId)
 
-这样前端不会混用 `/auth/*` 与 `/api/auth/*` 造成不可控 bug。
+Errors:
+- 401 invalid or expired token
+
+---
+
+# SESSION SECURITY MODULE
+
+## GET /auth/csrf
+
+Auth Required: No
+
+Delegates to csrfTokenHandler()
+
+Return shape: TBD (see csrf.ts)
+
+---
+
+## GET /auth/session-me
+
+Auth Required: Yes (Bearer token)
+
+Header:
+Authorization: Bearer <accessToken>
+
+Response:
+- 200 OK
+{
+  "ok": true,
+  "userId": "string"
+}
+
+Error:
+- 401
+{
+  "message": "UNAUTHORIZED"
+}
+
+---
+
+## POST /auth/session-logout
+
+Auth Required: No
+
+Behavior:
+- Destroy server session
+- Clear cookie: lsid
+
+Response:
+- 200 OK
+{
+  "ok": true
+}
+
+---
+
+# REFRESH MODULE
+
+## POST /auth/refresh
+
+Auth: Refresh cookie based
+Origin check enforced
+Rotation enabled
+
+Request Cookie:
+__Host-lsrt=<refreshToken>
+
+Behavior:
+- Invalid origin → 401 BAD_ORIGIN
+- Missing cookie → 401 NO_REFRESH
+- Verify refresh token (sub + jti)
+- Validate session / reuse detection
+- Rotate session
+- Issue new access token
+- Set new refresh cookie
+
+Response:
+- 200 OK
+{
+  "accessToken": "string"
+}
+
+---
+
+## POST /auth/logout
+
+Auth: Refresh cookie based
+Origin check enforced
+
+Request Cookie:
+optional __Host-lsrt
+
+Behavior:
+- Revoke refresh session (best effort)
+- Clear cookie __Host-lsrt
+
+Response:
+- 200 OK
+{
+  "ok": true
+}
+
+---
+
+# NEXT PRECISION STEPS
+
+To fully lock contract:
+- Review apps/api/src/security/csrf.ts
+- Review apps/api/src/security/origin.ts
+
