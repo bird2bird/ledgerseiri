@@ -1,6 +1,0 @@
-import { Controller } from '@nestjs/common';
-import { AuthController } from './auth.controller';
-
-// Same logic, different prefix: /api/auth/*
-@Controller('/api/auth')
-export class AuthApiController extends AuthController {}
