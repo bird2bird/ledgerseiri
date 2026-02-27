@@ -1,5 +1,5 @@
 # LedgerSeiri Project Context
-
+Doc Version: v1.4 (2026-02-27)
 ## Product Vision
 LedgerSeiri is a cross-border e-commerce bookkeeping SaaS focused on Amazon Japan sellers.
 
