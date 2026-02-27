@@ -1,5 +1,5 @@
 # LedgerSeiri Technical Docs Index
-
+Doc Version: v1.4 (2026-02-27)
 - 01-architecture.md
 - 02-backend-modules.md
 - 03-frontend-modules.md
