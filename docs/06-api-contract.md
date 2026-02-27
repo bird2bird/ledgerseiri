@@ -1,151 +1,113 @@
-Doc Version: v1.4 (2026-02-27)
-API Contract (Aligned to Current Implementation)
+# API Contract (Aligned to Current Implementation)
 
-Generated manually based on current controllers.
+Doc Version: v1.1
+Last Updated: 2026-02-27
+Owner: System Architect
+Status: Reflects Actual Backend Behavior
 
-Source of truth:
+---
 
-apps/api/src/auth/auth.controller.ts
+# 1. Source of Truth
 
-apps/api/src/security/session.controller.ts
+Controllers and services:
 
-apps/api/src/auth/refresh.controller.ts
+- apps/api/src/auth/auth.controller.ts
+- apps/api/src/auth/auth.service.ts
+- apps/api/src/auth/refresh.controller.ts
+- apps/api/src/auth/refresh.service.ts
+- apps/api/src/security/session.controller.ts
+- apps/api/src/security/csrf.ts
+- apps/api/src/security/origin.ts
+- apps/api/src/company/company.controller.ts
+- apps/api/src/store/store.controller.ts
+- apps/api/src/transaction/transaction.controller.ts
+- apps/api/src/dashboard/dashboard.controller.ts
+- apps/api/prisma/schema.prisma
 
-apps/api/src/auth/refresh.service.ts
+This document reflects current code behavior, not desired architecture.
 
-apps/api/src/security/csrf.ts
+---
 
-apps/api/src/security/origin.ts
+# 2. Global Conventions
 
-apps/api/src/company/company.controller.ts
+## 2.1 Access Token (JWT)
 
-apps/api/src/store/store.controller.ts
+Returned as:
 
-apps/api/src/transaction/transaction.controller.ts
-
-apps/api/src/dashboard/dashboard.controller.ts
-
-apps/api/src/auth/auth.service.ts
-
-apps/api/prisma/schema.prisma
-
-This document reflects actual current behavior, not desired design.
-
-0. Global Conventions
-0.1 Authentication (JWT Access Token)
-
-Access token returned as JSON:
-
-{ "accessToken": "string" }
+{
+  "accessToken": "string"
+}
 
 Client must send:
 
 Authorization: Bearer <accessToken>
 
-Access token:
+Properties:
 
-Signed with JWT_SECRET
+- Secret: JWT_SECRET
+- Expiration: JWT_ACCESS_EXPIRES_MINUTES (default 60)
+- Stateless (not stored in DB)
 
-Expiration: JWT_ACCESS_EXPIRES_MINUTES (default 60 minutes)
+---
 
-0.2 Refresh Token (Cookie Based, Rotation Enabled)
+## 2.2 Refresh Token (Cookie + Rotation)
 
-Refresh token:
+Cookie:
 
-Cookie name: __Host-lsrt
+Name: __Host-lsrt  
+HttpOnly: true  
+SameSite: lax  
+Path: /  
+Secure: only when HTTPS  
+Max-Age: JWT_REFRESH_EXPIRES_DAYS (default 14 days)
 
-HttpOnly: true
+Signed with: JWT_REFRESH_SECRET
 
-SameSite: lax
+Rotation:
 
-Path: /
-
-Secure: only when HTTPS
-
-Max-Age: 14 days
-
-Signed with JWT_REFRESH_SECRET
-
-TTL controlled by JWT_REFRESH_EXPIRES_DAYS (default 14 days)
-
-Rotation behavior:
-
-Old refresh session row:
-
-revokedAt set
-
-replacedByJti set
-
-New refresh session row inserted
+- Old session: revokedAt set
+- replacedByJti set
+- New session row inserted
+- New refresh cookie issued
 
 Reuse detection:
 
-If revoked token reused → revoke all sessions → reject
+If revoked token reused:
 
-0.3 CSRF (Session Bound Only)
+→ revokeUserAll(userId)  
+→ 401 REFRESH_REUSE_DETECTED
 
-Endpoint:
+---
 
-GET /auth/csrf
+## 2.3 Error Style (Current Reality)
 
-Response:
+There is NO unified error model.
 
-{ "csrfToken": "string" }
+Three patterns exist:
 
-Verification reads token from:
-
-Header: x-csrf-token
-
-OR body: csrfToken
-
-Note:
-
-Business APIs (company/store/transaction/dashboard) rely on JWT guard and do NOT explicitly verify CSRF.
-
-0.4 Same-Origin Protection
-
-Used in:
-
-POST /auth/refresh
-
-POST /auth/logout
-
-Allowed if:
-
-Origin header exactly matches ALLOWED_ORIGINS
-
-OR Referer starts with ALLOWED_ORIGINS + "/"
-
-OR both Origin and Referer absent (SSR/S2S)
-
-Default ALLOWED_ORIGINS:
-
-https://www.ledgerseiri.com
-https://ledgerseiri.com
-0.5 Error Style (Current Reality)
-
-There is no unified error model.
-
-Currently three patterns exist:
-
-Return object style:
+1) Direct return object:
 
 { "error": "message" }
 
-Boolean + message:
+2) Boolean style:
 
 { "ok": false, "message": "message" }
 
-Nest exception:
+3) NestJS exception:
 
-BadRequestException
+{
+  "statusCode": number,
+  "message": string,
+  "error": string
+}
 
-UnauthorizedException
+Frontend must normalize.
 
-Which returns standard Nest error JSON.
+---
 
-1. Auth Module
-1.1 POST /auth/register
+# 3. Auth Module
+
+## 3.1 POST /auth/register
 
 Auth: No
 
@@ -156,20 +118,17 @@ Request:
   "password": "string"
 }
 
-Response:
+Success:
+200 OK  
+Returns result of AuthService.register()
 
-200 OK
-Returns result of AuthService.register(...)
+Errors (400):
+- "email and password required"
+- "email already registered"
 
-Possible errors:
+---
 
-400:
-
-"email and password required"
-
-"email already registered"
-
-1.2 POST /auth/login
+## 3.2 POST /auth/login
 
 Auth: No
 
@@ -180,139 +139,182 @@ Request:
   "password": "string"
 }
 
-Response:
+Success:
 
-Status: 201
-
-Sets refresh cookie: __Host-lsrt
-
+Status: 201  
+Sets cookie: __Host-lsrt  
 Body:
 
-{ "accessToken": "string" }
+{
+  "accessToken": "string"
+}
 
 Errors:
 
 400:
-
-"EMAIL_REQUIRED"
+- "EMAIL_REQUIRED"
 
 401:
+- "invalid credentials"
 
-"invalid credentials"
+---
 
-1.3 GET /auth/me
+## 3.3 GET /auth/me
 
-Auth: Yes (JWT Guard)
+Auth: Yes (JwtAuthGuard)
 
 Header:
+Authorization: Bearer
 
-Authorization: Bearer <accessToken>
+Success:
+200 OK  
+Returns user object from AuthService.me()
 
-Response:
+Error:
+401 (Nest UnauthorizedException)
 
-200 OK
-Returns AuthService.me(userId)
+---
 
-401 if token invalid
+# 4. Session Utilities
 
-2. Session Utilities
-2.1 GET /auth/session-me
+## 4.1 GET /auth/session-me
 
-Auth: Bearer token manually verified
+Auth: Access token manually verified
 
-Response:
+Success:
 
-{ "ok": true, "userId": "string" }
+{
+  "ok": true,
+  "userId": "string"
+}
 
 Error:
 
 401:
+{
+  "message": "UNAUTHORIZED"
+}
 
-{ "message": "UNAUTHORIZED" }
-2.2 POST /auth/session-logout
+---
 
-Destroys express session and clears lsid cookie.
+## 4.2 POST /auth/session-logout
+
+Destroys express session  
+Clears cookie: lsid
 
 Response:
 
-{ "ok": true }
-3. Refresh / Logout
-3.1 POST /auth/refresh
+{
+  "ok": true
+}
+
+---
+
+# 5. CSRF
+
+## 5.1 GET /auth/csrf
+
+Response:
+
+{
+  "csrfToken": "string"
+}
+
+Token verification reads from:
+
+Header: x-csrf-token  
+OR body: csrfToken
+
+Note:
+
+Business endpoints (company/store/transaction/dashboard)
+DO NOT explicitly verify CSRF.
+
+---
+
+# 6. Refresh
+
+## 6.1 POST /auth/refresh
 
 Requires:
 
-Refresh cookie __Host-lsrt
+- Refresh cookie (__Host-lsrt)
+- Origin validation
 
-Origin validation
+Success:
 
-Response:
-
-200 OK
-
-Sets new refresh cookie.
-
+200 OK  
+Sets new refresh cookie  
 Body:
 
-{ "accessToken": "string" }
+{
+  "accessToken": "string"
+}
 
-Errors:
+Errors (401):
 
-401:
+- BAD_ORIGIN
+- NO_REFRESH
+- REFRESH_INVALID
+- REFRESH_NOT_FOUND
+- REFRESH_EXPIRED
+- REFRESH_REUSE_DETECTED
 
-BAD_ORIGIN
+---
 
-NO_REFRESH
-
-REFRESH_INVALID
-
-REFRESH_NOT_FOUND
-
-REFRESH_EXPIRED
-
-REFRESH_REUSE_DETECTED
-
-3.2 POST /auth/logout
+## 6.2 POST /auth/logout
 
 Clears refresh cookie.
 
 Response:
 
-{ "ok": true }
-4. Company Module
-4.1 POST /company
+{
+  "ok": true
+}
+
+Access token remains valid until expiry.
+
+---
+
+# 7. Company Module
+
+## 7.1 POST /company
 
 Auth: Yes
 
 Request:
 
 {
-  "name": "string?",
-  "fiscalMonthStart": number?,
-  "timezone": "string?",
-  "currency": "string?"
+  "name"?: string,
+  "fiscalMonthStart"?: number,
+  "timezone"?: string,
+  "currency"?: string
 }
 
 Defaults:
 
-name: "My Company"
-
-fiscalMonthStart: 1
-
-timezone: "Asia/Tokyo"
-
+name: "My Company"  
+fiscalMonthStart: 1  
+timezone: "Asia/Tokyo"  
 currency: "JPY"
 
-Response:
+Success:
+Returns Prisma Company object
 
-Company object (Prisma model)
+Also updates user.companyId.
 
-4.2 GET /company
+---
+
+## 7.2 GET /company
 
 Auth: Yes
 
-If user has no company:
+If no company:
 
-{ "company": null, "stores": [] }
+{
+  "company": null,
+  "stores": []
+}
 
 Else:
 
@@ -320,50 +322,61 @@ Else:
   "company": {...},
   "stores": [...]
 }
-5. Store Module
-5.1 GET /store
+
+---
+
+# 8. Store Module
+
+## 8.1 GET /store
 
 Auth: Yes
 
-Response:
-
 If no company:
 
-{ "stores": [] }
+{
+  "stores": []
+}
 
 Else:
 
-{ "stores": [...] }
-5.2 POST /store
+{
+  "stores": [...]
+}
+
+---
+
+## 8.2 POST /store
 
 Auth: Yes
 
 Request:
 
 {
-  "name": "string?",
-  "platform": "string?",
-  "region": "string?"
+  "name"?: string,
+  "platform"?: string,
+  "region"?: string
 }
 
 Defaults:
 
-name: "Amazon JP Store"
-
-platform: "AMAZON"
-
+name: "Amazon JP Store"  
+platform: "AMAZON"  
 region: "JP"
 
 If no company:
 
-{ "error": "No company yet. Create company first." }
+{
+  "error": "No company yet. Create company first."
+}
 
-Else:
+Success:
+Returns Prisma Store object.
 
-Returns Store object.
+---
 
-6. Transaction Module
-6.1 POST /transaction
+# 9. Transaction Module
+
+## 9.1 POST /transaction
 
 Auth: Yes
 
@@ -374,18 +387,18 @@ Request:
   "type": "SALE | FBA_FEE | AD | REFUND | OTHER",
   "amount": number,
   "occurredAt": ISO string,
-  "memo": "string?"
+  "memo"?: string
 }
 
 Rules:
 
-SALE → positive
+SALE → positive  
+FBA_FEE / AD / REFUND → negative  
+OTHER → numeric as-is  
 
-FBA_FEE / AD / REFUND → negative
+Invalid occurredAt:
 
-OTHER → numeric as-is
-
-Invalid occurredAt → throws → 500
+Throws unhandled error → 500
 
 Errors:
 
@@ -393,10 +406,11 @@ Errors:
 { "error": "Store not found or not owned" }
 
 Success:
+Returns created Prisma Transaction.
 
-Returns created Transaction.
+---
 
-6.2 GET /transaction
+## 9.2 GET /transaction
 
 Query:
 
@@ -410,27 +424,38 @@ Errors:
 
 Success:
 
-{ "items": [...] }
+{
+  "items": [...]
+}
 
-Sorted by occurredAt desc.
-Limit: 500.
+Sorted by occurredAt desc  
+Limit: 500
 
-6.3 DELETE /transaction/:id
+---
 
-Response:
+## 9.3 DELETE /transaction/:id
 
-If not found:
+If transaction not found:
 
-{ "ok": true }
+{
+  "ok": true
+}
 
 If not owned:
 
-{ "error": "Store not found or not owned" }
+{
+  "error": "Store not found or not owned"
+}
 
 Else:
 
-{ "ok": true }
-6.4 POST /transaction/bulk
+{
+  "ok": true
+}
+
+---
+
+## 9.4 POST /transaction/bulk
 
 Request:
 
@@ -439,7 +464,7 @@ Request:
   "items": [ ... ]
 }
 
-Limits:
+Constraints:
 
 1 ≤ items ≤ 5000
 
@@ -452,15 +477,22 @@ Errors:
 
 Success:
 
-{ "ok": true, "created": number }
-7. Dashboard Module
-7.1 GET /dashboard
+{
+  "ok": true,
+  "created": number
+}
+
+---
+
+# 10. Dashboard Module
+
+## 10.1 GET /dashboard
 
 Query:
 
 ?storeId=xxx&month=YYYY-MM
 
-Errors same as transaction list.
+Errors same as GET /transaction
 
 Success:
 
@@ -477,24 +509,25 @@ Success:
   "count": number
 }
 
-Computation:
+Calculation:
 
-Group by type → sum amount
+Group by type → SUM(amount)  
+monthNet = SUM(amount)  
+profit = monthNet  
 
-monthNet = SUM(amount)
+---
 
-profit = monthNet
+# 11. Contract Stability Policy
 
-Contract Stability Policy
+From this version forward:
 
-From this point forward:
+Any of the following changes MUST update this file:
 
-Any controller return shape change
+- Path change
+- Request body change
+- Response shape change
+- Cookie name change
+- Error behavior change
+- HTTP status code change
 
-Any cookie name change
-
-Any error shape change
-
-Any path change
-
-MUST update this document in same PR.
+Code and contract must remain aligned.
