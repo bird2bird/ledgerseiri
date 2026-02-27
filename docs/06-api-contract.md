@@ -1,3 +1,4 @@
+Doc Version: v1.4 (2026-02-27)
 API Contract (Aligned to Current Implementation)
 
 Generated manually based on current controllers.
