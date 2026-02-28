@@ -1,3 +1,5 @@
+import ScrollToTop from "@/components/ScrollToTop";
+import LanguageMenuLP from "@/components/LanguageMenuLP";
 import type { Metadata } from "next";
 
 import Link from 'next/link';
@@ -371,38 +373,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           <div className="flex items-center gap-2">
             
 {/* Language */}
-<details className="relative">
-  <summary className="list-none cursor-pointer select-none rounded-full border border-black/10 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur hover:bg-white flex items-center gap-2">
-    🌐 <span className="font-medium">
-      {lang === 'en' ? 'English' : lang === 'zh-CN' ? '简体中文' : lang === 'zh-TW' ? '繁體中文' : '日本語'}
-    </span>
-    <span className="text-slate-400">▾</span>
-  </summary>
-  <div className="absolute right-0 mt-2 min-w-full w-max overflow-hidden rounded-2xl border border-black/10 bg-white/85 shadow-xl backdrop-blur z-50">
-    {[
-      { code: 'en', label: 'English' },
-      { code: 'zh-CN', label: '简体中文' },
-      { code: 'zh-TW', label: '繁體中文' },
-      { code: 'ja', label: '日本語' },
-    ].map((it) => (
-      <Link
-        key={it.code}
-        href={`/${it.code}`}
-        className="group relative block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-black/[0.04]"
-      >
-        <span className="absolute left-0 top-0 h-full w-1 bg-[#2b5cff] opacity-0 group-hover:opacity-100" />
-        <span className="flex items-center justify-between gap-6">
-          <span>{it.label}</span>
-          {lang === it.code && (
-            <svg className="h-4 w-4 text-[#2b5cff]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 111.414-1.414l2.793 2.793 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-          )}
-        </span>
-      </Link>
-    ))}
-  </div>
-</details>
+              <LanguageMenuLP current={lang} />
 
 <a
               href={ctaHref}
@@ -663,6 +634,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           </div>
         </div>
       </footer>
-    </main>
+      <ScrollToTop />
+</main>
   );
 }
