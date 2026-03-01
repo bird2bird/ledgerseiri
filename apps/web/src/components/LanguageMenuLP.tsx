@@ -12,6 +12,10 @@ const ITEMS: Array<{ code: Lang; label: string; short: string }> = [
   { code: "ja", label: "日本語", short: "JA" },
 ];
 
+function cn(...a: (string | false | null | undefined)[]) {
+  return a.filter(Boolean).join(" ");
+}
+
 export default function LanguageMenuLP({ current }: { current: Lang }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -21,7 +25,6 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
     return hit?.label ?? "日本語";
   }, [current]);
 
-  // Close on outside click + ESC
   useEffect(() => {
     if (!open) return;
 
@@ -37,7 +40,6 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
 
     window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKeyDown, true);
-
     return () => {
       window.removeEventListener("pointerdown", onPointerDown, true);
       window.removeEventListener("keydown", onKeyDown, true);
@@ -51,12 +53,10 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={[
-          "ls-btn ls-btn-ghost",
-          "inline-flex items-center gap-2",
-          "text-slate-700",
-          "active:scale-[0.99]",
-        ].join(" ")}
+        className={cn(
+          "inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white/70",
+          "px-3 text-sm text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
+        )}
       >
         <span className="text-slate-500">🌐</span>
         <span className="font-medium">{currentLabel}</span>
@@ -64,7 +64,13 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
       </button>
 
       {open && (
-        <div role="menu" className="ls-menu absolute right-0 mt-2 min-w-full w-max overflow-hidden z-50">
+        <div
+          role="menu"
+          className={cn(
+            "absolute right-0 mt-2 w-[220px] overflow-hidden rounded-2xl border border-black/10",
+            "bg-white/70 shadow-xl backdrop-blur z-50"
+          )}
+        >
           {ITEMS.map((it) => (
             <Link
               key={it.code}
@@ -74,22 +80,12 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
                 if (it.code === current) e.preventDefault();
                 setOpen(false);
               }}
-              className="group relative block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-black/[0.04] focus:outline-none"
+              className="group relative flex items-center justify-between gap-4 px-4 py-2.5 text-sm text-slate-700 hover:bg-black/[0.04]"
             >
               <span className="absolute left-0 top-0 h-full w-1 bg-[#2b5cff] opacity-0 group-hover:opacity-100" />
-              <span className="flex items-center justify-between gap-6">
-                <span>{it.label}</span>
-                {current === it.code ? (
-                  <svg className="h-4 w-4 text-[#2b5cff]" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 111.414-1.414l2.793 2.793 6.543-6.543a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <span className="text-[12px] text-slate-400">{it.short}</span>
-                )}
+              <span>{it.label}</span>
+              <span className="inline-flex h-10 h-6 min-w-6 items-center justify-center rounded-full border border-black/10 bg-white/70 text-[12px] text-slate-600">
+                {it.short}
               </span>
             </Link>
           ))}

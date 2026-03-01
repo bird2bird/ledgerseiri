@@ -1,134 +1,133 @@
 @import "tailwindcss";
 
-/* =========================================================
-   LedgerSeiri UI Tokens (LP-first)
-   - Tailwind v4 with CSS variables
-   - "freee-like" clean + subtle depth
-   ========================================================= */
+/* ============================================================
+   LedgerSeiri Theme: "Business Clarity"
+   - Primary: Ledger Blue
+   - Profit: Emerald
+   - Cost/Alert: Amber
+   - Background: cool off-white + section tints + glass cards
+   ============================================================ */
 
-:root {
-  /* Core */
-  --bg: 255 255 255;
-  --fg: 15 23 42;          /* slate-900 */
-  --muted: 71 85 105;      /* slate-600 */
-  --muted-2: 100 116 139;  /* slate-500 */
+:root{
+  --ls-bg: #F6F8FF;          /* page base */
+  --ls-bg2: #EEF3FF;         /* section tint */
+  --ls-surface: rgba(255,255,255,0.78); /* glass surface */
+  --ls-surface-solid: #ffffff;
 
-  /* Surfaces */
-  --card: 255 255 255;
-  --card-2: 248 250 252;   /* slate-50 */
-  --border: 15 23 42 / 0.10; /* subtle border */
+  --ls-text: #0F172A;        /* slate-900 */
+  --ls-muted: #475569;       /* slate-600 */
+  --ls-border: rgba(15,23,42,0.08);
 
-  /* Brand */
-  --brand: 43 92 255;      /* #2b5cff */
-  --brand-2: 14 165 233;   /* sky-500-ish for gradients */
+  --ls-primary: #2B5CFF;     /* Ledger Blue */
+  --ls-profit: #12B981;      /* Emerald */
+  --ls-cost: #F59E0B;        /* Amber */
+  --ls-ring: 43 92 255;      /* for focus ring (RGB) */
 
-  /* Radius */
-  --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 24px;
+  --ls-r-xl: 24px;
+  --ls-r-2xl: 32px;
 
-  /* Shadows (subtle, stacked) */
-  --sh-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --sh-md: 0 8px 20px rgba(15, 23, 42, 0.08);
-  --sh-lg: 0 18px 50px rgba(15, 23, 42, 0.12);
-
-  /* Ring */
-  --ring: 43 92 255 / 0.25;
+  --sh-sm: 0 10px 30px rgba(2,6,23,0.06);
+  --sh-md: 0 18px 48px rgba(2,6,23,0.10);
+  --sh-lg: 0 26px 70px rgba(2,6,23,0.14);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: 2 6 23;            /* slate-950 */
-    --fg: 226 232 240;       /* slate-200 */
-    --muted: 148 163 184;    /* slate-400 */
-    --muted-2: 100 116 139;  /* slate-500 */
-    --card: 15 23 42;        /* slate-900 */
-    --card-2: 2 6 23;        /* slate-950 */
-    --border: 226 232 240 / 0.12;
-    --sh-sm: 0 1px 2px rgba(0,0,0,0.35);
-    --sh-md: 0 10px 24px rgba(0,0,0,0.45);
-    --sh-lg: 0 22px 60px rgba(0,0,0,0.55);
-    --ring: 43 92 255 / 0.35;
+  :root{
+    --ls-bg: #0B1220;
+    --ls-bg2: #0F1A30;
+    --ls-surface: rgba(17,24,39,0.70);
+    --ls-surface-solid: #111827;
+
+    --ls-text: #E5E7EB;
+    --ls-muted: #9CA3AF;
+    --ls-border: rgba(148,163,184,0.14);
+
+    --sh-sm: 0 10px 30px rgba(0,0,0,0.35);
+    --sh-md: 0 18px 48px rgba(0,0,0,0.45);
+    --sh-lg: 0 26px 70px rgba(0,0,0,0.55);
   }
 }
 
-/* Tailwind base hooks */
-@layer base {
-  html {
-    color-scheme: light dark;
-  }
+html, body { height: 100%; }
 
-  body {
-    background: rgb(var(--bg));
-    color: rgb(var(--fg));
-    /* Prefer Geist variables from RootLayout if available */
-    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  }
-
-  a {
-    text-underline-offset: 3px;
-  }
-
-  ::selection {
-    background: rgba(43, 92, 255, 0.18);
-  }
+body{
+  background: var(--ls-bg);
+  color: var(--ls-text);
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Reusable LP utility classes (no extra deps) */
-@layer components {
+/* Tailwind v4: put custom utilities into @layer */
+@layer utilities {
+  /* Page background with multi-orb gradient (subtle, non-flat) */
+  .ls-bg {
+    background:
+      radial-gradient(900px 520px at 50% -120px, rgba(43,92,255,0.18), transparent 60%),
+      radial-gradient(760px 420px at 10% 18%, rgba(18,185,129,0.10), transparent 55%),
+      radial-gradient(860px 480px at 95% 22%, rgba(245,158,11,0.10), transparent 58%),
+      linear-gradient(180deg, var(--ls-bg), var(--ls-bg));
+  }
+
+  /* Section tint (for alternation) */
+  .ls-section {
+    background:
+      radial-gradient(700px 420px at 15% 30%, rgba(43,92,255,0.10), transparent 55%),
+      linear-gradient(180deg, rgba(255,255,255,0.0), rgba(255,255,255,0.0));
+  }
+
+  .ls-section-tint {
+    background:
+      radial-gradient(820px 460px at 20% 30%, rgba(43,92,255,0.14), transparent 55%),
+      radial-gradient(760px 420px at 85% 55%, rgba(18,185,129,0.10), transparent 58%),
+      linear-gradient(180deg, var(--ls-bg2), var(--ls-bg2));
+  }
+
+  /* Cards */
   .ls-card {
-    border: 1px solid rgba(var(--border));
-    background: rgb(var(--card) / 0.82);
-    border-radius: var(--r-lg);
-    box-shadow: var(--sh-sm);
+    border: 1px solid var(--ls-border);
+    background: var(--ls-surface);
     backdrop-filter: blur(10px);
+    border-radius: var(--ls-r-2xl);
+    box-shadow: var(--sh-sm);
   }
-
   .ls-card-solid {
-    border: 1px solid rgba(var(--border));
-    background: rgb(var(--card));
-    border-radius: var(--r-lg);
+    border: 1px solid var(--ls-border);
+    background: var(--ls-surface-solid);
+    border-radius: var(--ls-r-2xl);
     box-shadow: var(--sh-sm);
   }
 
+  /* Buttons */
   .ls-btn {
-    border: 1px solid rgba(var(--border));
-    border-radius: 9999px;
-    padding: 10px 16px;
-    font-size: 14px;
-    line-height: 20px;
-    box-shadow: var(--sh-sm);
-    transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+    border-radius: 999px;
+    font-weight: 600;
+    transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, background-color .12s ease;
+    box-shadow: 0 10px 24px rgba(2,6,23,0.10);
   }
-
+  .ls-btn:active { transform: translateY(0.5px) scale(0.995); }
   .ls-btn:focus-visible {
     outline: none;
-    box-shadow: var(--sh-sm), 0 0 0 4px rgba(var(--ring));
-  }
-
-  .ls-btn-ghost {
-    background: rgb(var(--card) / 0.72);
-  }
-
-  .ls-btn-ghost:hover {
-    background: rgba(15, 23, 42, 0.03);
+    box-shadow: 0 0 0 4px rgba(var(--ls-ring) / 0.25), 0 10px 24px rgba(2,6,23,0.10);
   }
 
   .ls-btn-primary {
-    background: rgb(var(--brand));
-    border-color: rgb(var(--brand));
+    background: linear-gradient(135deg, rgba(43,92,255,1), rgba(43,92,255,0.86));
     color: white;
   }
+  .ls-btn-primary:hover { opacity: 0.96; }
 
-  .ls-btn-primary:hover {
-    opacity: 0.96;
+  .ls-btn-ghost {
+    background: rgba(255,255,255,0.65);
+    border: 1px solid var(--ls-border);
+    color: var(--ls-text);
   }
+  .ls-btn-ghost:hover { background: rgba(255,255,255,0.78); }
 
-  .ls-menu {
-    border: 1px solid rgba(var(--border));
-    background: rgb(var(--card) / 0.68);
-    border-radius: var(--r-md);
-    box-shadow: var(--sh-lg);
-    backdrop-filter: blur(14px);
+  /* Small semantic badges */
+  .ls-badge {
+    border: 1px solid var(--ls-border);
+    background: rgba(255,255,255,0.55);
+    border-radius: 999px;
   }
+  .ls-badge-profit { background: rgba(18,185,129,0.10); border-color: rgba(18,185,129,0.20); }
+  .ls-badge-cost { background: rgba(245,158,11,0.10); border-color: rgba(245,158,11,0.20); }
 }

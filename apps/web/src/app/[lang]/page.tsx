@@ -1,7 +1,9 @@
 import ScrollToTop from "@/components/ScrollToTop";
 import LanguageMenuLP from "@/components/LanguageMenuLP";
-import FaqAccordion from "@/components/FaqAccordion";
+import FAQAccordion from "@/components/FAQAccordion";
 import type { Metadata } from "next";
+import Link from "next/link";
+
 
 export const metadata: Metadata = {
   title: "LedgerSeiri | 経営級クラウド記帳（クロスボーダーEC向け）",
@@ -345,7 +347,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
   const recommendedIndex = 1;
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
+    <main className="min-h-screen ls-bg text-slate-900">
       {/* Subtle gradient background */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-24 left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#2b5cff]/10 via-sky-100/40 to-transparent blur-2xl" />
@@ -374,7 +376,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
 
           <div className="flex items-center gap-2">
             <LanguageMenuLP current={lang} />
-            <a href={ctaHref} className="ls-btn ls-btn-ghost">
+            <a href={ctaHref} className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]">
               {t.nav.login}
             </a>
           </div>
@@ -433,14 +435,14 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
                   </div>
                   <div className="rounded-2xl border border-black/10 bg-white p-4">
                     <div className="text-[12px] text-slate-500">Sales</div>
-                    <div className="mt-2 text-2xl font-semibold">¥40,000</div>
+                    <div className="mt-2 text-2xl font-semibold text-[#2b5cff]">¥40,000</div>
                   </div>
                   <div className="col-span-2 rounded-2xl border border-black/10 bg-white p-4">
                     <div className="text-[12px] text-slate-500">Cost mix</div>
                     <div className="mt-3 h-2 w-full rounded-full bg-black/[0.05] overflow-hidden">
                       <div className="h-2 w-[68%] bg-[#2b5cff]" />
                     </div>
-                    <div className="mt-2 text-[12px] text-slate-500">FBA 8% · Ads 3% · Refund 1%</div>
+                    <div className="mt-2 text-[12px] text-slate-500">FBA <span className="text-amber-600 font-semibold">8%</span> · Ads <span className="text-amber-600 font-semibold">3%</span> · Refund <span className="text-amber-600 font-semibold">1%</span></div>
                   </div>
                 </div>
 
@@ -467,13 +469,36 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       {/* Value props (3 cols) */}
       <section id="features" className="mx-auto max-w-6xl px-5 py-10">
         <h2 className="text-2xl font-semibold tracking-tight">{t.value.title}</h2>
+
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {t.value.items.map((it) => (
-            <div key={it.title} className="ls-card-solid p-6 transition hover:shadow-[var(--sh-md)]">
-              <div className="text-sm font-semibold">{it.title}</div>
-              <div className="mt-2 text-sm text-slate-600">{it.desc}</div>
-            </div>
-          ))}
+          {t.value.items.map((it, i) => {
+            const tint =
+              i === 0
+                ? "from-[#2b5cff]/10 via-white/70 to-white/70"
+                : i === 1
+                ? "from-emerald-500/10 via-white/70 to-white/70"
+                : "from-amber-500/10 via-white/70 to-white/70";
+
+            const icon =
+              i === 0 ? "✓" : i === 1 ? "⇄" : "◉";
+
+            const iconBg =
+              i === 0 ? "bg-[#2b5cff]/10 text-[#2b5cff]" :
+              i === 1 ? "bg-emerald-500/10 text-emerald-600" :
+                        "bg-amber-500/10 text-amber-600";
+
+            return (
+              <div key={it.title} className={`ls-card p-6 bg-gradient-to-br ${tint}`}>
+                <div className="flex items-start gap-3">
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl ${iconBg}`}>{icon}</span>
+                  <div>
+                    <div className="text-sm font-semibold">{it.title}</div>
+                    <div className="mt-2 text-sm text-slate-600">{it.desc}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -545,7 +570,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       </section>
 
       {/* Pricing preview */}
-      <section id="pricing" className="mx-auto max-w-6xl px-5 py-10">
+      <section id="pricing" className="mx-auto max-w-6xl px-5 py-10 ls-section rounded-[32px]">
         <h2 className="text-2xl font-semibold tracking-tight">{t.pricing.title}</h2>
         <p className="mt-2 text-sm text-slate-600">{t.pricing.lead}</p>
         <div className="mt-2 text-[12px] text-slate-500">{t.pricing.hint}</div>
@@ -597,7 +622,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       <section id="faq" className="mx-auto max-w-6xl px-5 py-10">
         <h2 className="text-2xl font-semibold tracking-tight">{t.faq.title}</h2>
         <div className="mt-6">
-          <FaqAccordion items={t.faq.items} columns={2} />
+          <FAQAccordion items={t.faq.items} defaultOpenIndex={-1} twoColumn />
         </div>
       </section>
 
