@@ -16,7 +16,7 @@ type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 const I18N: Record<
   Lang,
   {
-    nav: { features: string; usecases: string; pricing: string; faq: string; login: string };
+    nav: { features: string; usecases: string; pricing: string; faq: string; login: string; trial: string };
     hero: {
       eyebrow: string;
       title1: string;
@@ -41,7 +41,7 @@ const I18N: Record<
   }
 > = {
   ja: {
-    nav: { features: "特長", usecases: "活用シーン", pricing: "料金", faq: "FAQ", login: "ログイン" },
+    nav: { features: "特長", usecases: "活用シーン", pricing: "料金", faq: "FAQ", login: "ログイン", trial: "無料で始める"},
     hero: {
       eyebrow: "クロスボーダーEC向け 経営級SaaS",
       title1: "会計・広告・返金・FBA手数料。",
@@ -125,7 +125,7 @@ const I18N: Record<
   },
 
   en: {
-    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", login: "Login" },
+    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", login: "Login", trial: "Start free"},
     hero: {
       eyebrow: "Business-grade SaaS for cross-border e-commerce",
       title1: "Sales, ads, refunds, FBA fees —",
@@ -192,7 +192,7 @@ const I18N: Record<
   },
 
   "zh-CN": {
-    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", login: "登录" },
+    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", login: "登录", trial: "免费体验"},
     hero: {
       eyebrow: "面向跨境电商卖家的经营级 SaaS",
       title1: "销售、广告、退款、FBA 费用——",
@@ -259,7 +259,7 @@ const I18N: Record<
   },
 
   "zh-TW": {
-    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", login: "登入" },
+    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", login: "登入", trial: "免費體驗"},
     hero: {
       eyebrow: "面向跨境電商賣家的經營級 SaaS",
       title1: "銷售、廣告、退款、FBA 費用——",
@@ -341,6 +341,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
   const t = I18N[lang];
 
   const ctaHref = `/${lang}/login`;
+  const registerHref = `/${lang}/register`;
   const brochureHref = `/${lang}/lp`; // 先指向你原来的 LP 或后续做下载页
 
   // pick "Standard" as recommended (index 1)
@@ -357,6 +358,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       {/* Top nav */}
       <header className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+          {/* Brand */}
           <a href={`/${lang}`} className="flex items-center gap-3">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b5cff] text-white text-sm font-bold shadow-sm">
               LS
@@ -367,6 +369,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
             </div>
           </a>
 
+          {/* Nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
             <a className="hover:text-slate-900" href="#features">{t.nav.features}</a>
             <a className="hover:text-slate-900" href="#usecases">{t.nav.usecases}</a>
@@ -374,10 +377,33 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
             <a className="hover:text-slate-900" href="#faq">{t.nav.faq}</a>
           </nav>
 
+          {/* Right actions */}
           <div className="flex items-center gap-2">
             <LanguageMenuLP current={lang} />
-            <a href={ctaHref} className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]">
-              {t.nav.login}
+
+            {/* Login (with icon) */}
+            <a
+              href={ctaHref}
+              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+                <path
+                  d="M10 7h8m0 0v10m0-10-9 9"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>{t.nav.login}</span>
+            </a>
+
+            {/* Trial button */}
+            <a
+              href={registerHref}
+              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-rose-500 px-5 text-sm font-semibold text-white shadow-sm hover:bg-rose-600 active:scale-[0.99]"
+            >
+              {t.nav.trial}
             </a>
           </div>
         </div>
