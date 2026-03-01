@@ -29,7 +29,6 @@ export default function LoginPage() {
     try {
       // TODO: call your real API
       // await fetch('/api/auth/login' ...)
-      // success -> go to dashboard
       router.push(`/${lang}/app`);
     } catch (e: any) {
       setErr("LOGIN_FAILED");
@@ -38,17 +37,17 @@ export default function LoginPage() {
     }
   }
 
+  const inputCls =
+    "mt-1 w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-slate-900 shadow-sm " +
+    "placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2b5cff]/20";
+
   return (
-    <AuthShell
-      lang={lang}
-      title={t.loginTitle}
-      subtitle={t.loginSubtitle}
-    >
+    <AuthShell lang={lang} title={t.loginTitle} subtitle={t.loginSubtitle}>
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className="text-sm text-slate-700">{t.email}</label>
           <input
-            className="mt-1 w-full rounded-xl border px-4 py-3 bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className={inputCls}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
@@ -59,12 +58,16 @@ export default function LoginPage() {
         <div>
           <div className="flex items-center justify-between">
             <label className="text-sm text-slate-700">{t.password}</label>
-            <button type="button" className="text-sm text-slate-500 hover:underline" onClick={() => setShow(!show)}>
+            <button
+              type="button"
+              className="text-sm text-slate-500 hover:text-slate-700"
+              onClick={() => setShow(!show)}
+            >
               {t.show}
             </button>
           </div>
           <input
-            className="mt-1 w-full rounded-xl border px-4 py-3 bg-blue-50/60 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className={inputCls}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             type={show ? "text" : "password"}
@@ -77,7 +80,7 @@ export default function LoginPage() {
             <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
             {t.keepMe}
           </label>
-          <Link className="text-sm text-blue-600 hover:underline" href={`/${lang}/forgot-password`}>
+          <Link className="text-sm text-[#2b5cff] hover:underline" href={`/${lang}/forgot-password`}>
             {t.forgot}
           </Link>
         </div>
@@ -87,19 +90,22 @@ export default function LoginPage() {
         <button
           disabled={!canSubmit || loading}
           className={
-            "w-full rounded-xl py-3 font-medium text-white " +
-            (!canSubmit || loading ? "bg-slate-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700")
+            "w-full rounded-full px-6 py-3 text-sm font-semibold text-white shadow-sm transition " +
+            (!canSubmit || loading ? "bg-slate-300 cursor-not-allowed" : "bg-[#2b5cff] hover:opacity-95")
           }
         >
           {t.login}
         </button>
       </form>
 
-      <div className="mt-6 rounded-2xl border p-6 bg-slate-50">
+      <div className="mt-6 rounded-3xl border border-black/10 bg-white/70 p-6 shadow-sm backdrop-blur">
         <div className="text-center font-semibold text-slate-900">{t.firstTimeTitle}</div>
         <div className="text-center text-sm text-slate-600 mt-1">{t.firstTimeSub}</div>
         <div className="mt-4 flex justify-center">
-          <Link href={`/${lang}/register`} className="rounded-xl border bg-white px-4 py-2 text-sm hover:bg-slate-100">
+          <Link
+            href={`/${lang}/register`}
+            className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white/80 px-5 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-white"
+          >
             {t.registerCta}
           </Link>
         </div>
