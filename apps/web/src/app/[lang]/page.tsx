@@ -1,8 +1,7 @@
 import ScrollToTop from "@/components/ScrollToTop";
 import LanguageMenuLP from "@/components/LanguageMenuLP";
+import FaqAccordion from "@/components/FaqAccordion";
 import type { Metadata } from "next";
-
-import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: "LedgerSeiri | 経営級クラウド記帳（クロスボーダーEC向け）",
@@ -342,6 +341,9 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
   const ctaHref = `/${lang}/login`;
   const brochureHref = `/${lang}/lp`; // 先指向你原来的 LP 或后续做下载页
 
+  // pick "Standard" as recommended (index 1)
+  const recommendedIndex = 1;
+
   return (
     <main className="min-h-screen bg-white text-slate-900">
       {/* Subtle gradient background */}
@@ -371,14 +373,8 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           </nav>
 
           <div className="flex items-center gap-2">
-            
-{/* Language */}
-              <LanguageMenuLP current={lang} />
-
-<a
-              href={ctaHref}
-              className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm shadow-sm hover:bg-black/[0.03]"
-            >
+            <LanguageMenuLP current={lang} />
+            <a href={ctaHref} className="ls-btn ls-btn-ghost">
               {t.nav.login}
             </a>
           </div>
@@ -400,21 +396,13 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
               <span className="text-slate-900">{t.hero.title2}</span>
             </h1>
 
-            <p className="mt-4 text-base text-slate-600 md:text-lg">
-              {t.hero.lead}
-            </p>
+            <p className="mt-4 text-base text-slate-600 md:text-lg">{t.hero.lead}</p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <a
-                href={ctaHref}
-                className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95"
-              >
+              <a href={ctaHref} className="ls-btn ls-btn-primary inline-flex items-center justify-center px-5 py-3">
                 {t.hero.ctaPrimary}
               </a>
-              <a
-                href={brochureHref}
-                className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-black/[0.03]"
-              >
+              <a href={brochureHref} className="ls-btn ls-btn-ghost inline-flex items-center justify-center px-5 py-3 text-slate-900">
                 {t.hero.ctaSecondary}
               </a>
             </div>
@@ -432,7 +420,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
 
           {/* Hero visual placeholder */}
           <div className="col-span-12 lg:col-span-5">
-            <div className="rounded-3xl border border-black/10 bg-white/80 shadow-sm overflow-hidden">
+            <div className="ls-card overflow-hidden">
               <div className="border-b border-black/5 px-5 py-4">
                 <div className="text-sm font-semibold">LedgerSeiri Dashboard</div>
                 <div className="text-[12px] text-slate-500">Sales / Fees / Ads / Refunds / Net</div>
@@ -463,11 +451,11 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+              <div className="ls-card px-4 py-4">
                 <div className="text-[12px] text-slate-500">Trusted by</div>
                 <div className="mt-2 text-sm font-semibold">Cross-border sellers</div>
               </div>
-              <div className="rounded-2xl border border-black/10 bg-white/80 p-4 shadow-sm">
+              <div className="ls-card px-4 py-4">
                 <div className="text-[12px] text-slate-500">Built for</div>
                 <div className="mt-2 text-sm font-semibold">Japan market</div>
               </div>
@@ -481,7 +469,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         <h2 className="text-2xl font-semibold tracking-tight">{t.value.title}</h2>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           {t.value.items.map((it) => (
-            <div key={it.title} className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+            <div key={it.title} className="ls-card-solid p-6 transition hover:shadow-[var(--sh-md)]">
               <div className="text-sm font-semibold">{it.title}</div>
               <div className="mt-2 text-sm text-slate-600">{it.desc}</div>
             </div>
@@ -497,7 +485,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           return (
             <div key={k} className={cls("grid grid-cols-12 gap-6 items-center py-8", reverse && "lg:[&>*:first-child]:order-2")}>
               <div className="col-span-12 lg:col-span-6">
-                <div className="rounded-3xl border border-black/10 bg-white/80 p-6 shadow-sm">
+                <div className="ls-card p-6">
                   <div className="text-lg font-semibold tracking-tight">{b.title}</div>
                   <div className="mt-2 text-sm text-slate-600">{b.desc}</div>
                   <ul className="mt-4 space-y-2 text-sm text-slate-700">
@@ -511,7 +499,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
                 </div>
               </div>
               <div className="col-span-12 lg:col-span-6">
-                <div className="rounded-3xl border border-black/10 bg-gradient-to-br from-white to-slate-50 p-6 shadow-sm">
+                <div className="ls-card p-6">
                   <div className="text-[12px] text-slate-500">Visual placeholder</div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <div className="h-20 rounded-2xl border border-black/10 bg-white" />
@@ -531,7 +519,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         <p className="mt-2 text-sm text-slate-600">{t.grid.lead}</p>
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {t.grid.cards.map((c) => (
-            <div key={c.title} className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
+            <div key={c.title} className="ls-card-solid p-6 transition hover:shadow-[var(--sh-md)]">
               <div className="text-sm font-semibold">{c.title}</div>
               <div className="mt-2 text-sm text-slate-600">{c.desc}</div>
             </div>
@@ -541,7 +529,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
 
       {/* Use cases */}
       <section id="usecases" className="mx-auto max-w-6xl px-5 py-10">
-        <div className="rounded-3xl border border-black/10 bg-white/80 p-8 shadow-sm">
+        <div className="ls-card p-8">
           <h2 className="text-2xl font-semibold tracking-tight">{t.usecases.title}</h2>
           <p className="mt-2 text-sm text-slate-600">{t.usecases.lead}</p>
 
@@ -563,39 +551,53 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         <div className="mt-2 text-[12px] text-slate-500">{t.pricing.hint}</div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {t.pricing.plans.map((p) => (
-            <div key={p.name} className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold">{p.name}</div>
-              <div className="mt-2 text-xl font-semibold tracking-tight">{p.price}</div>
-              <ul className="mt-4 space-y-2 text-sm text-slate-700">
-                {p.items.map((x) => (
-                  <li key={x} className="flex gap-2">
-                    <span className="mt-1 inline-flex h-2 w-2 rounded-full bg-[#2b5cff]" />
-                    <span>{x}</span>
-                  </li>
-                ))}
-              </ul>
-              <a
-                href={ctaHref}
-                className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[#2b5cff] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:opacity-95"
+          {t.pricing.plans.map((p, idx) => {
+            const isRec = idx === recommendedIndex;
+            return (
+              <div
+                key={p.name}
+                className={cls(
+                  "relative rounded-3xl border bg-white p-6",
+                  isRec ? "border-[#2b5cff]/35 shadow-[var(--sh-lg)]" : "border-black/10 shadow-[var(--sh-sm)]"
+                )}
               >
-                {t.hero.ctaPrimary}
-              </a>
-            </div>
-          ))}
+                {isRec && (
+                  <div className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-[#2b5cff] px-3 py-1 text-[12px] font-semibold text-white shadow-sm">
+                    Recommended
+                  </div>
+                )}
+
+                <div className="text-sm font-semibold">{p.name}</div>
+                <div className="mt-2 text-xl font-semibold tracking-tight">{p.price}</div>
+                <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                  {p.items.map((x) => (
+                    <li key={x} className="flex gap-2">
+                      <span className="mt-1 inline-flex h-2 w-2 rounded-full bg-[#2b5cff]" />
+                      <span>{x}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <a
+                  href={ctaHref}
+                  className={cls(
+                    "mt-6 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold shadow-sm",
+                    isRec ? "bg-[#2b5cff] text-white hover:opacity-95" : "bg-black/[0.03] text-slate-900 hover:bg-black/[0.06]"
+                  )}
+                >
+                  {t.hero.ctaPrimary}
+                </a>
+              </div>
+            );
+          })}
         </div>
       </section>
 
       {/* FAQ */}
       <section id="faq" className="mx-auto max-w-6xl px-5 py-10">
         <h2 className="text-2xl font-semibold tracking-tight">{t.faq.title}</h2>
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {t.faq.items.map((f) => (
-            <div key={f.q} className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-              <div className="text-sm font-semibold">{f.q}</div>
-              <div className="mt-2 text-sm text-slate-600">{f.a}</div>
-            </div>
-          ))}
+        <div className="mt-6">
+          <FaqAccordion items={t.faq.items} columns={2} />
         </div>
       </section>
 
@@ -605,16 +607,10 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           <h2 className="text-3xl font-semibold tracking-tight">{t.final.title}</h2>
           <p className="mt-3 text-sm text-slate-600">{t.final.lead}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <a
-              href={ctaHref}
-              className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95"
-            >
+            <a href={ctaHref} className="ls-btn ls-btn-primary inline-flex items-center justify-center px-6 py-3">
               {t.final.cta}
             </a>
-            <a
-              href={brochureHref}
-              className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-black/[0.03]"
-            >
+            <a href={brochureHref} className="ls-btn ls-btn-ghost inline-flex items-center justify-center px-6 py-3 text-slate-900">
               {t.hero.ctaSecondary}
             </a>
           </div>
@@ -634,7 +630,8 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           </div>
         </div>
       </footer>
+
       <ScrollToTop />
-</main>
+    </main>
   );
 }

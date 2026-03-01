@@ -50,23 +50,26 @@ export function MenuPopover({
   const toggle = () => setOpen((v) => !v);
   const close = () => setOpen(false);
 
-  // click-outside + ESC
+  // pointerdown capture: more reliable than mousedown (esp. nested portals)
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!open) return;
+    if (!open) return;
+
+    const onPointerDown = (e: PointerEvent) => {
       const el = ref.current;
       if (!el) return;
-      if (e.target instanceof Node && !el.contains(e.target)) close();
+      if (!el.contains(e.target as Node)) close();
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
+
     return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown, true);
     };
   }, [open]);
 
@@ -84,9 +87,7 @@ export function MenuPopover({
       {open && (
         <div
           className={cn(
-            "absolute top-full mt-2 overflow-hidden rounded-2xl border border-black/10 bg-white/80 backdrop-blur",
-            "shadow-xl",
-            "z-[9999]",
+            "ls-menu absolute top-full mt-2 overflow-hidden z-[9999]",
             "animate-[menuIn_120ms_ease-out]",
             wClass,
             align === "right" ? "right-0" : "left-0"
@@ -94,32 +95,6 @@ export function MenuPopover({
         >
           <div className="py-1">
             {items.map((it) => {
-              const content = (
-                <div
-                  className={cn(
-                    "group relative flex w-full items-center gap-2 px-3 py-2 text-sm",
-                    it.danger ? "text-rose-600" : "text-slate-900",
-                    "hover:bg-black/[0.03]"
-                  )}
-                >
-                  {/* left blue bar on hover */}
-                  <span className="absolute left-0 top-0 h-full w-1 bg-[#2b5cff] opacity-0 group-hover:opacity-100" />
-
-                  {it.leftIcon ? <span className="text-slate-500">{it.leftIcon}</span> : null}
-
-                  <span className="flex-1">{it.label}</span>
-
-                  {/* selected check */}
-                  {withCheck && it.selected ? (
-                    <span className="text-[#2b5cff]">
-                      <CheckIcon />
-                    </span>
-                  ) : it.rightIcon ? (
-                    <span className="text-slate-400">{it.rightIcon}</span>
-                  ) : null}
-                </div>
-              );
-
               const onSelect = () => {
                 close();
                 if (it.onSelect) it.onSelect();
@@ -130,10 +105,30 @@ export function MenuPopover({
                 <button
                   key={it.key}
                   type="button"
-                  className="block w-full text-left"
+                  className="block w-full text-left focus:outline-none"
                   onClick={onSelect}
                 >
-                  {content}
+                  <div
+                    className={cn(
+                      "group relative flex w-full items-center gap-2 px-3 py-2 text-sm",
+                      it.danger ? "text-rose-600" : "text-slate-900",
+                      "hover:bg-black/[0.03]"
+                    )}
+                  >
+                    <span className="absolute left-0 top-0 h-full w-1 bg-[#2b5cff] opacity-0 group-hover:opacity-100" />
+
+                    {it.leftIcon ? <span className="text-slate-500">{it.leftIcon}</span> : null}
+
+                    <span className="flex-1">{it.label}</span>
+
+                    {withCheck && it.selected ? (
+                      <span className="text-[#2b5cff]">
+                        <CheckIcon />
+                      </span>
+                    ) : it.rightIcon ? (
+                      <span className="text-slate-400">{it.rightIcon}</span>
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
