@@ -16,7 +16,7 @@ type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 const I18N: Record<
   Lang,
   {
-    nav: { features: string; usecases: string; pricing: string; faq: string; plans: string; login: string; trial: string; };
+    nav: { features: string; usecases: string; pricing: string; faq: string; plans: string; login: string; trial: string; resources: string; cases: string; support: string; };
     hero: {
       eyebrow: string;
       title1: string;
@@ -42,7 +42,10 @@ const I18N: Record<
 > = {
 
   ja: {
-    nav: { features: "特長", usecases: "適合/不適合", pricing: "料金", faq: "FAQ", plans: "料金プラン", login: "ログイン", trial: "無料体験" },
+    nav: { features: "特長", usecases: "適合/不適合", pricing: "料金", faq: "FAQ", plans: "料金プラン", login: "ログイン", trial: "無料体験",
+        resources: "資料一覧",
+        cases: "導入事例",
+        support: "support",},
 
     hero: {
       eyebrow: "クロスボーダーEC向け 経営級SaaS",
@@ -136,7 +139,10 @@ const I18N: Record<
 
   en: {
 
-    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", plans: "Plans", login: "Login", trial: "Start free"},
+    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", plans: "Plans", login: "Login", trial: "Start free",
+        resources: "Resources",
+        cases: "Case studies",
+        support: "Support",},
     hero: {
       eyebrow: "Business-grade SaaS for cross-border e-commerce",
       title1: "Sales, ads, refunds, FBA fees —",
@@ -203,7 +209,10 @@ const I18N: Record<
   },
 
   "zh-CN": {
-    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", plans: "价格方案", login: "登录", trial: "免费体验"},
+    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", plans: "价格方案", login: "登录", trial: "免费体验",
+        resources: "资料一览",
+        cases: "导入事例",
+        support: "支持",},
     hero: {
       eyebrow: "面向跨境电商卖家的经营级 SaaS",
       title1: "销售、广告、退款、FBA 费用——",
@@ -270,7 +279,10 @@ const I18N: Record<
   },
 
   "zh-TW": {
-    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", plans: "價格方案", login: "登入", trial: "免費體驗"},
+    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", plans: "價格方案", login: "登入", trial: "免費體驗",
+        resources: "資料一覽",
+        cases: "導入事例",
+        support: "支援",},
     hero: {
       eyebrow: "面向跨境電商賣家的經營級 SaaS",
       title1: "銷售、廣告、退款、FBA 費用——",
@@ -355,6 +367,13 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
   const registerHref = `/${lang}/register`;
   const brochureHref = `/${lang}/lp`; // 先指向你原来的 LP 或后续做下载页
 
+    const featuresHref = `/${lang}/features`;
+    const pricingHref = `/${lang}/pricing`;
+    const resourcesHref = `/${lang}/resources`;
+    const usecasesHref = `/${lang}/usecases`;
+    const casesHref = `/${lang}/cases`;
+    const supportHref = `/${lang}/support`;
+
   // pick "Standard" as recommended (index 1)
   const recommendedIndex = 1;
 
@@ -367,7 +386,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       </div>
 
             {/* Top nav */}
-      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
+<header className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
   <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
     <a href={`/${lang}`} className="flex items-center gap-3">
       <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b5cff] text-white text-sm font-bold shadow-sm">
@@ -375,22 +394,37 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       </span>
       <div className="leading-tight">
         <div className="text-sm font-semibold tracking-tight">LedgerSeiri</div>
-        <div className="text-[12px] text-slate-500">Business Ledger for Cross-border Sellers</div>
+        <div className="text-[12px] text-slate-500">Official</div>
       </div>
     </a>
 
-    <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-      <a className="hover:text-slate-900" href="#features">{t.nav.features}</a>
-      <a className="hover:text-slate-900" href="#usecases">{t.nav.usecases}</a>
-      <a className="hover:text-slate-900" href="#pricing">{t.nav.pricing}</a>
-      <a className="hover:text-slate-900" href="#faq">{t.nav.faq}</a>
-      <a className="hover:text-slate-900" href={`/${lang}/pricing`}>{t.nav.plans}</a>
+    {/* Center menu (desktop) */}
+    <nav className="hidden lg:flex items-center gap-1 rounded-full border border-black/10 bg-white/60 px-2 py-1 shadow-sm backdrop-blur">
+      <a href={featuresHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.features}
+      </a>
+      <a href={pricingHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.pricing}
+      </a>
+      <a href={resourcesHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.resources}
+      </a>
+      <a href={usecasesHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.usecases}
+      </a>
+      <a href={casesHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.cases}
+      </a>
+      <a href={supportHref} className="rounded-full px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-black/[0.04]">
+        {t.nav.support}
+      </a>
     </nav>
 
+    {/* Right actions (keep) */}
     <div className="flex items-center gap-2">
       <LanguageMenuLP current={lang} />
       <a
-        href={`/${lang}/login`}
+        href={ctaHref}
         className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
       >
         <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[#2b5cff]" aria-hidden="true">
@@ -400,11 +434,23 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         <span>{t.nav.login}</span>
       </a>
       <a
-        href={`/${lang}/register`}
-        className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-[#2b5cff] px-5 text-sm font-semibold text-white shadow-sm hover:opacity-95 active:scale-[0.99]"
+        href={registerHref}
+        className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-rose-500 px-5 text-sm font-semibold text-white shadow-sm hover:bg-rose-600 active:scale-[0.99]"
       >
         {t.nav.trial}
       </a>
+    </div>
+  </div>
+
+  {/* Mobile menu (simple chips) */}
+  <div className="lg:hidden border-t border-black/5 bg-white/60 backdrop-blur">
+    <div className="mx-auto max-w-6xl px-5 py-2 flex gap-2 overflow-x-auto">
+      <a href={featuresHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.features}</a>
+      <a href={pricingHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.pricing}</a>
+      <a href={resourcesHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.resources}</a>
+      <a href={usecasesHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.usecases}</a>
+      <a href={casesHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.cases}</a>
+      <a href={supportHref} className="shrink-0 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-semibold text-slate-700">{t.nav.support}</a>
     </div>
   </div>
 </header>

@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import LanguageMenuLP from "@/components/LanguageMenuLP";
+import MarketingTopBar from "@/components/MarketingTopBar";
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 type Billing = "monthly" | "yearly";
 type PlanKey = "starter" | "standard" | "ai";
-
 
 /* LS_CURRENCY_HELPERS */
 type LS_Currency = "JPY" | "USD" | "CNY" | "TWD";
@@ -88,8 +88,6 @@ function LS_localeByLang(lang: Lang) {
 
 // FX: 1 JPY -> target currency (marketing fixed rates; adjust as desired)
 
-
-
 const YEARLY_DISCOUNT = 0.25; // 25% OFF
 const YEARLY_FACTOR = 1 - YEARLY_DISCOUNT; // 0.75
 
@@ -116,7 +114,17 @@ type Plan = {
 type Badge = { k: string; v: string; sub: string };
 type QA = { q: string; a: string };
 type T = {
-  nav: { home: string; login: string; trial: string };
+  nav: {
+      home: string;
+      features: string;
+      pricing: string;
+      resources: string;
+      usecases: string;
+      cases: string;
+      support: string;
+      login: string;
+      trial: string;
+};
   hero: { eyebrow: string; h1: string; h2: string; note: string };
   billing: { monthly: string; yearly: string; yearlyOff: string; save: string; annualTotal: string; eqMonthly: string };
   slider: { title: string; hint: string; left: string; right: string };
@@ -131,7 +139,13 @@ type T = {
 
 const I18N: Record<Lang, T> = {
   ja: {
-    nav: { home: "ホーム", login: "ログイン", trial: "無料で体験" },
+    nav: {
+      features: "機能",
+      pricing: "料金",
+      resources: "資料一覧",
+      usecases: "活用シーン",
+      cases: "導入事例",
+      support: "サポート", home: "ホーム", login: "ログイン", trial: "無料で体験" },
     hero: {
       eyebrow: "料金プラン（クロスボーダーEC向け）",
       h1: "まずは無料で。必要になったら、賢くアップグレード。",
@@ -225,7 +239,13 @@ const I18N: Record<Lang, T> = {
   },
 
   en: {
-    nav: { home: "Home", login: "Login", trial: "Start free" },
+    nav: {
+      features: "Features",
+      pricing: "Pricing",
+      resources: "Resources",
+      usecases: "Use cases",
+      cases: "Case studies",
+      support: "Support", home: "Home", login: "Login", trial: "Start free" },
     hero: { eyebrow: "Pricing", h1: "Start free. Upgrade only when it pays off.", h2: "Yearly is 25% off. Pick what matches your scale.", note: "* Business insights tool. Final filing by professionals." },
     billing: { monthly: "Monthly", yearly: "Yearly", yearlyOff: "Yearly 25% off", save: "Save", annualTotal: "Annual total", eqMonthly: "Per month" },
     slider: { title: "Savings slider", hint: "Slide right to see yearly savings.", left: "Monthly", right: "Yearly (25% off)" },
@@ -240,7 +260,13 @@ const I18N: Record<Lang, T> = {
   },
 
   "zh-CN": {
-    nav: { home: "首页", login: "登录", trial: "免费体验" },
+    nav: {
+      features: "功能",
+      pricing: "价格",
+      resources: "资料一览",
+      usecases: "使用场景",
+      cases: "导入事例",
+      support: "支持", home: "首页", login: "登录", trial: "免费体验" },
     hero: { eyebrow: "价格方案", h1: "从免费开始，用得上再升级。", h2: "年付 25% 优惠。按经营规模选择最合适方案。", note: "※ 经营参考工具，最终申告以税理士判断为准。" },
     billing: { monthly: "月付", yearly: "年付", yearlyOff: "年付 25% 优惠", save: "节省", annualTotal: "年付总价", eqMonthly: "月换算" },
     slider: { title: "价格对比滑块", hint: "往右滑动，直观看到年付能省多少。", left: "月付", right: "年付（25%OFF）" },
@@ -255,7 +281,13 @@ const I18N: Record<Lang, T> = {
   },
 
   "zh-TW": {
-    nav: { home: "首頁", login: "登入", trial: "免費體驗" },
+    nav: {
+      features: "功能",
+      pricing: "價格",
+      resources: "資料一覽",
+      usecases: "活用情境",
+      cases: "導入事例",
+      support: "支援", home: "首頁", login: "登入", trial: "免費體驗" },
     hero: { eyebrow: "價格方案", h1: "從免費開始，用得上再升級。", h2: "年付 25% 優惠。依規模選最合適方案。", note: "※ 經營參考工具，最終申告以稅理士判斷為準。" },
     billing: { monthly: "月付", yearly: "年付", yearlyOff: "年付 25% 優惠", save: "節省", annualTotal: "年付總價", eqMonthly: "月換算" },
     slider: { title: "價格對比滑塊", hint: "往右滑，直觀看到年付省多少。", left: "月付", right: "年付（25%OFF）" },
@@ -268,6 +300,7 @@ const I18N: Record<Lang, T> = {
     faq: { title: "FAQ", items: [{ q: "免費體驗後會自動扣費嗎？", a: "目前不會。未來訂閱也會由你確認後才計費。" }, { q: "年付能省多少？", a: "年付按月換算 25%OFF（0.75 倍），節省額自動計算。" }, { q: "可以隨時升級/降級嗎？", a: "可以（規劃）。" }] },
     bottom: { title: "先免費開始，10 分鐘看到第一份利潤概覽。", lead: "規模變大再升級，不浪費。", cta: "現在開始免費體驗", sub: "※ 最終申告以稅理士判斷為準（本服務僅供經營參考）。" },
   },
+
 };
 
 const PLANS: Record<Lang, Plan[]> = {
@@ -376,7 +409,6 @@ export default function PricingPage() {
   const currency = LS_currencyForLang(lang);
   const plans = PLANS[lang];
 
-
   // LS_HOVERED_KEY: hover to animate price
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const homeHref = `/${lang}`;
@@ -386,7 +418,6 @@ export default function PricingPage() {
   // ① Slider + billing sync
   const [slider, setSlider] = useState<number>(80); // default: yearly side
   const billing: Billing = slider >= 50 ? "yearly" : "monthly";
-
 
   // LS_SLIDER_DEFAULT_EFFECT: keep yearly as default (conversion)
   useEffect(() => {
@@ -422,40 +453,8 @@ export default function PricingPage() {
       </div>
 
       {/* Top nav */}
-      <header className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
-          <a href={homeHref} className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b5cff] text-white text-sm font-bold shadow-sm">
-              LS
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">LedgerSeiri</div>
-              <div className="text-[12px] text-slate-500">Pricing</div>
-            </div>
-          </a>
-
-          <div className="flex items-center gap-2">
-            <LanguageMenuLP current={lang} />
-            <a
-              href={loginHref}
-              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
-            >
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[#2b5cff]" aria-hidden="true">
-                <path d="M10 7h8m0 0v10m0-10-9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M14 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.65" />
-              </svg>
-              <span>{t.nav.login}</span>
-            </a>
-
-            <a
-              href={trialHref}
-              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-rose-500 px-5 text-sm font-semibold text-white shadow-sm hover:bg-rose-600 active:scale-[0.99]"
-            >
-              {t.nav.trial}
-            </a>
-          </div>
-        </div>
-      </header>
+      {/* LS_TOPBAR_UNIFIED */}
+      <MarketingTopBar active="auto" lang={lang} nav={t.nav as any} subtitle="Pricing" />
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-5 pt-12 pb-10">
@@ -659,7 +658,6 @@ export default function PricingPage() {
                     </div>
                   </>
                 )}
-
 
                 <div className="text-sm font-semibold">{pl.name}</div>
                 <div className="mt-1 text-[12px] text-slate-600">{pl.tagline}</div>
