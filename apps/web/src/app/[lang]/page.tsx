@@ -16,7 +16,7 @@ type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 const I18N: Record<
   Lang,
   {
-    nav: { features: string; usecases: string; pricing: string; faq: string; login: string; trial: string };
+    nav: { features: string; usecases: string; pricing: string; faq: string; plans: string; login: string; trial: string; };
     hero: {
       eyebrow: string;
       title1: string;
@@ -40,92 +40,103 @@ const I18N: Record<
     final: { title: string; lead: string; cta: string; sub: string };
   }
 > = {
+
   ja: {
-    nav: { features: "特長", usecases: "活用シーン", pricing: "料金", faq: "FAQ", login: "ログイン", trial: "無料で始める"},
+    nav: { features: "特長", usecases: "適合/不適合", pricing: "料金", faq: "FAQ", plans: "料金プラン", login: "ログイン", trial: "無料体験" },
+
     hero: {
       eyebrow: "クロスボーダーEC向け 経営級SaaS",
-      title1: "会計・広告・返金・FBA手数料。",
-      title2: "全部つなげて、経営を見える化。",
-      lead: "Amazon/複数ストアの取引データをまとめて取り込み、ダッシュボードで収益構造を把握。記帳の手間を減らし、意思決定を速くします。",
-      ctaPrimary: "無料で体験する",
-      ctaSecondary: "資料をダウンロード",
-      note: "無料体験後、自動課金はありません（予定）。",
-      badges: ["Amazon/FBA対応", "多言語（JP/EN/中文）", "経営ダッシュボード", "AI分類（計画）"],
+      title1: "電商売家的经营财务，",
+      title2: "一眼就清楚",
+      lead: "不用等税理士、不用学会计。实时掌握 销售 · 库存 · 成本 · 利润 · 税务风险。",
+      ctaPrimary: "👉 免费开始使用",
+      ctaSecondary: "👉 看看能解决什么问题",
+      note: "※ 本服务为经营参考工具，最终申告以税理士判断为准",
+      badges: ["销售数据整合", "库存与COGS", "利润看板", "发票管理", "AI经营助理"],
     },
+
     value: {
-      title: "LedgerSeiri の特長",
+      title: "卖得不错，却不知道到底赚没赚？",
       items: [
-        { title: "誰でもカンタン", desc: "最小ステップで初期設定。迷わないUIで日々の記帳をスムーズに。" },
-        { title: "まとめて効率化", desc: "売上・広告・返金・手数料を一元化。月次の締め作業を短縮。" },
-        { title: "経営が見える", desc: "粗利・コスト構成・推移をダッシュボードで確認。改善点がわかる。" },
+        { title: "销售额很高，但钱却没剩多少", desc: "Amazon 后台销售额看起来不错，但实际利润却不清楚。" },
+        { title: "成本与费用散落各处", desc: "成本、广告费、运费、税分散在不同系统里。" },
+        { title: "年底才发现利润不如预期", desc: "税理士来了才知道真实情况，已经来不及调整。" },
       ],
     },
+
     blocks: {
       a: {
-        title: "記帳の「面倒」を減らす",
-        desc: "FBA/広告/返金など、EC特有の取引をまとめて扱える設計。必要な数字が一箇所に集まります。",
-        bullets: ["取引インポート（CSV/拡張）", "売上・手数料・広告・返金の統合", "月次集計を自動化（計画）"],
+        title: "这是一个“经营财务工具”，不是会计软件",
+        desc: "LedgerSeiri 帮助电商卖家，把分散的数据整合成老板能立刻看懂的经营状态。不要求你懂会计，不替代税理士，只做一件事：让你不再盲飞。",
+        bullets: ["不要求会计知识", "不替代税理士", "实时看懂经营状态"],
       },
       b: {
-        title: "経営判断を速くするダッシュボード",
-        desc: "売上と利益だけでなく「どこにコストが出ているか」を直感的に把握。",
-        bullets: ["コスト構成（Top3）", "推移チャート（売上/純利益）", "ヘルススコア（ルール/AI）"],
+        title: "销售数据自动整理，不再只看表面业绩",
+        desc: "从 Amazon 获取销售与结算数据，自动拆分销售额、退款、平台费用、代收税。",
+        bullets: ["知道钱怎么卖出来", "知道钱怎么被扣掉", "不再只看销售额"],
       },
       c: {
-        title: "将来：AIで仕訳・証憑まで",
-        desc: "OCR/分類/異常検知など、AIで“経理の自動運転”へ。まずは経営データの整流化から。",
-        bullets: ["領収書OCR（計画）", "勘定科目の自動提案（計画）", "異常値アラート（計画）"],
+        title: "知道库存数量，更要知道库存成本",
+        desc: "记录进货数量与成本，自动计算销售成本（COGS），随时查看库存价值。",
+        bullets: ["自动计算 COGS", "查看库存价值", "不用等年底才知道利润"],
       },
     },
+
     grid: {
-      title: "主要な機能（V0.3〜V0.5）",
-      lead: "まずは「EC経営の数字」を整えることに集中。必要な機能から順に追加していきます。",
+      title: "核心功能",
+      lead: "围绕“经营可视化”设计的关键模块。",
       cards: [
-        { title: "複数ストア管理", desc: "Amazonなど複数店舗を切り替えて集計。" },
-        { title: "取引管理", desc: "追加・削除・月次でフィルタ。CSVインポート拡張予定。" },
-        { title: "経営ダッシュボード", desc: "売上/費用/純利益、コスト構成、推移を表示。" },
-        { title: "多言語UI", desc: "日本語/英語/简体/繁體を切替。" },
-        { title: "ロール/権限（計画）", desc: "経理/経営/外部税理士などの権限を分離。" },
-        { title: "サブスク（計画）", desc: "無料体験→プラン課金へ。Stripe連携準備中。" },
+        { title: "支出与发票管理", desc: "记录所有支出，上传并绑定发票，一眼看出缺票支出。" },
+        { title: "利润看板", desc: "销售 − 成本 − 费用 − 税务参考，自动汇总利润趋势。" },
+        { title: "税理士协作导出", desc: "销售汇总、支出明细+发票、库存变动一键导出。" },
+        { title: "AI 经营助理（Premium）", desc: "月度经营解读、异常提示、对话式查询、发票识别。" },
+        { title: "利润变化解释", desc: "清楚说明利润波动原因，辅助决策。" },
+        { title: "税务参考说明", desc: "所有数据为经营参考值，申告以税理士调整为准。" },
       ],
     },
+
     usecases: {
-      title: "活用シーン",
-      lead: "小規模でも“経営レベルの数字”を毎月見える化したい人向け。",
+      title: "适合谁？不适合谁？",
+      lead: "帮助真正关心经营数据的卖家。",
       items: [
-        { title: "Amazon運用を標準化したい", desc: "月次の数字を同じ型で揃えて、比較しやすくする。" },
-        { title: "広告費の効き方を知りたい", desc: "広告比率・返金率・粗利のバランスで改善点を特定。" },
-        { title: "複数ストアを一本化したい", desc: "店舗別・月別の損益をまとめて確認。" },
+        { title: "适合：电商卖家 / 个人事业主", desc: "想随时知道现在赚没赚的人。" },
+        { title: "适合：已委托税理士的卖家", desc: "希望更高效协作。" },
+        { title: "不适合：只想最低成本报税", desc: "或希望系统完全替代税理士的人。" },
       ],
     },
+
     pricing: {
-      title: "料金（予定）",
-      lead: "初期は“使い続けやすい価格”を重視。必要な機能で段階的に。",
-      hint: "※正式な料金は近日公開。まずは無料体験でフィードバックをください。",
+      title: "从免费开始，按需要升级",
+      lead: "免费版支持基础记账与利润看板。",
+      hint: "👉 免费注册，10分钟看到第一份利润概览",
       plans: [
-        { name: "Starter", price: "¥980/月〜（案）", items: ["単一ストア", "基本ダッシュボード", "CSVインポート（基本）"] },
-        { name: "Standard", price: "¥1,980/月〜（案）", items: ["複数ストア", "高度な集計", "優先サポート"] },
-        { name: "AI Pro", price: "¥4,980/月〜（案）", items: ["AI分類/提案（計画）", "OCR（計画）", "自動チェック（計画）"] },
+        { name: "Free", price: "¥0", items: ["基础记账", "利润看板"] },
+        { name: "Premium", price: "¥1,980/月", items: ["AI经营助理", "深度分析"] },
+        { name: "Enterprise", price: "Coming Soon", items: ["高级协作", "数据导出增强"] },
       ],
     },
+
     faq: {
-      title: "よくある質問",
+      title: "常见问题",
       items: [
-        { q: "無料体験後に自動課金されますか？", a: "現状は自動課金しません（将来サブスク導入時も明確に案内します）。" },
-        { q: "対応プラットフォームは？", a: "まずは Amazon を中心に設計しています。順次拡張予定です。" },
-        { q: "税務申告までできますか？", a: "当面は“経営数字の整流化”に集中。申告は連携/出力で支援する方針です。" },
+        { q: "这是会计软件吗？", a: "不是。它是经营参考工具。" },
+        { q: "会替代税理士吗？", a: "不会。最终申告以税理士判断为准。" },
+        { q: "利润数据准确吗？", a: "利润为经营参考值。" },
+        { q: "AI 是否提供法律意见？", a: "不会。AI 仅提供经营参考。" },
       ],
     },
+
     final: {
-      title: "経営の数字、今日から整えよう。",
-      lead: "まずはダッシュボードを触って、必要な機能の優先順位を一緒に決めましょう。",
-      cta: "無料で体験する",
-      sub: "フィードバック歓迎。最短でプロダクトに反映します。",
+      title: "别等税理士来告诉你结果",
+      lead: "在经营过程中，就该知道现在发生了什么。",
+      cta: "👉 现在开始使用 LedgerSeiri",
+      sub: "实时掌握经营状况，而不是事后复盘。",
     },
   },
 
   en: {
-    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", login: "Login", trial: "Start free"},
+
+    nav: { features: "Features", usecases: "Use cases", pricing: "Pricing", faq: "FAQ", plans: "Plans", login: "Login", trial: "Start free"},
     hero: {
       eyebrow: "Business-grade SaaS for cross-border e-commerce",
       title1: "Sales, ads, refunds, FBA fees —",
@@ -192,7 +203,7 @@ const I18N: Record<
   },
 
   "zh-CN": {
-    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", login: "登录", trial: "免费体验"},
+    nav: { features: "特长", usecases: "场景", pricing: "价格", faq: "FAQ", plans: "价格方案", login: "登录", trial: "免费体验"},
     hero: {
       eyebrow: "面向跨境电商卖家的经营级 SaaS",
       title1: "销售、广告、退款、FBA 费用——",
@@ -259,7 +270,7 @@ const I18N: Record<
   },
 
   "zh-TW": {
-    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", login: "登入", trial: "免費體驗"},
+    nav: { features: "特長", usecases: "場景", pricing: "價格", faq: "FAQ", plans: "價格方案", login: "登入", trial: "免費體驗"},
     hero: {
       eyebrow: "面向跨境電商賣家的經營級 SaaS",
       title1: "銷售、廣告、退款、FBA 費用——",
@@ -355,59 +366,48 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         <div className="absolute top-[520px] left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full bg-gradient-to-br from-emerald-100/35 via-white to-transparent blur-2xl" />
       </div>
 
-      {/* Top nav */}
+            {/* Top nav */}
       <header className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
-          {/* Brand */}
-          <a href={`/${lang}`} className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b5cff] text-white text-sm font-bold shadow-sm">
-              LS
-            </span>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold tracking-tight">LedgerSeiri</div>
-              <div className="text-[12px] text-slate-500">Business Ledger for Cross-border Sellers</div>
-            </div>
-          </a>
+  <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+    <a href={`/${lang}`} className="flex items-center gap-3">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#2b5cff] text-white text-sm font-bold shadow-sm">
+        LS
+      </span>
+      <div className="leading-tight">
+        <div className="text-sm font-semibold tracking-tight">LedgerSeiri</div>
+        <div className="text-[12px] text-slate-500">Business Ledger for Cross-border Sellers</div>
+      </div>
+    </a>
 
-          {/* Nav */}
-          <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-            <a className="hover:text-slate-900" href="#features">{t.nav.features}</a>
-            <a className="hover:text-slate-900" href="#usecases">{t.nav.usecases}</a>
-            <a className="hover:text-slate-900" href="#pricing">{t.nav.pricing}</a>
-            <a className="hover:text-slate-900" href="#faq">{t.nav.faq}</a>
-          </nav>
+    <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
+      <a className="hover:text-slate-900" href="#features">{t.nav.features}</a>
+      <a className="hover:text-slate-900" href="#usecases">{t.nav.usecases}</a>
+      <a className="hover:text-slate-900" href="#pricing">{t.nav.pricing}</a>
+      <a className="hover:text-slate-900" href="#faq">{t.nav.faq}</a>
+      <a className="hover:text-slate-900" href={`/${lang}/pricing`}>{t.nav.plans}</a>
+    </nav>
 
-          {/* Right actions */}
-          <div className="flex items-center gap-2">
-            <LanguageMenuLP current={lang} />
-
-            {/* Login (with icon) */}
-            <a
-              href={ctaHref}
-              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
-            >
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                <path
-                  d="M10 7h8m0 0v10m0-10-9 9"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>{t.nav.login}</span>
-            </a>
-
-            {/* Trial button */}
-            <a
-              href={registerHref}
-              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-rose-500 px-5 text-sm font-semibold text-white shadow-sm hover:bg-rose-600 active:scale-[0.99]"
-            >
-              {t.nav.trial}
-            </a>
-          </div>
-        </div>
-      </header>
+    <div className="flex items-center gap-2">
+      <LanguageMenuLP current={lang} />
+      <a
+        href={`/${lang}/login`}
+        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[#2b5cff]" aria-hidden="true">
+          <path d="M10 7h8m0 0v10m0-10-9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M14 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.65" />
+        </svg>
+        <span>{t.nav.login}</span>
+      </a>
+      <a
+        href={`/${lang}/register`}
+        className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-[#2b5cff] px-5 text-sm font-semibold text-white shadow-sm hover:opacity-95 active:scale-[0.99]"
+      >
+        {t.nav.trial}
+      </a>
+    </div>
+  </div>
+</header>
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-5 pt-12 pb-8">
@@ -644,7 +644,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
         </div>
       </section>
 
-      {/* FAQ */}
+            {/* FAQ */}
       <section id="faq" className="mx-auto max-w-6xl px-5 py-10">
         <h2 className="text-2xl font-semibold tracking-tight">{t.faq.title}</h2>
         <div className="mt-6">
