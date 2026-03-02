@@ -3,6 +3,7 @@ import LanguageMenuLP from "@/components/LanguageMenuLP";
 import FAQAccordion from "@/components/FAQAccordion";
 import type { Metadata } from "next";
 import Link from "next/link";
+import MarketingFooter from "@/components/MarketingFooter";
 
 
 export const metadata: Metadata = {
@@ -714,21 +715,9 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
           <div className="mt-3 text-[12px] text-slate-500">{t.final.sub}</div>
         </div>
       </section>
-
-      <footer className="border-t border-black/5 bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-10 text-sm text-slate-500">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>© {new Date().getFullYear()} LedgerSeiri</div>
-            <div className="flex gap-4">
-              <a className="hover:text-slate-700" href={`/${lang}/lp`}>LP</a>
-              <a className="hover:text-slate-700" href={ctaHref}>Login</a>
-              <a className="hover:text-slate-700" href={`/${lang}/app`}>App</a>
-            </div>
-          </div>
-        </div>
-      </footer>
-
       <ScrollToTop />
-    </main>
+    
+      <MarketingFooter lang={lang} />
+</main>
   );
 }

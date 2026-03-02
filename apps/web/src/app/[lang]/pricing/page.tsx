@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import LanguageMenuLP from "@/components/LanguageMenuLP";
 import MarketingTopBar from "@/components/MarketingTopBar";
+import MarketingFooter from "@/components/MarketingFooter";
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 type Billing = "monthly" | "yearly";
@@ -347,10 +348,10 @@ function recommendBySales(sales: number): { key: PlanKey; why: string[] } {
 
 function Avatar({ name }: { name: string }) {
   const initials = useMemo(() => {
-    const parts = name.trim().split(/\s+/);
-    const a = (parts[0] || "U")[0]?.toUpperCase() || "U";
-    const b = (parts[1] || "")[0]?.toUpperCase() || "";
-    return (a + b).slice(0, 2);
+    const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+    const a = (parts[0]?.[0] ?? "L");
+    const b = (parts.length > 1 ? (parts[1]?.[0] ?? "") : (parts[0]?.[1] ?? ""));
+    return (a + b).toUpperCase().slice(0, 2);
   }, [name]);
 
   return (
@@ -358,6 +359,7 @@ function Avatar({ name }: { name: string }) {
       {initials}
     </div>
   );
+
 }
 
 // LS_PRICE_NUMBER: hover count-up (no layout change)
@@ -852,20 +854,6 @@ export default function PricingPage() {
           <div className="mt-3 text-[12px] text-slate-600">{t.bottom.sub}</div>
         </div>
       </section>
-
-      <footer className="border-t border-black/5 bg-white">
-        <div className="mx-auto max-w-6xl px-5 py-10 text-sm text-slate-500">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>© {new Date().getFullYear()} LedgerSeiri</div>
-            <div className="flex gap-4">
-              <a className="hover:text-slate-700" href={homeHref}>{t.nav.home}</a>
-              <a className="hover:text-slate-700" href={loginHref}>{t.nav.login}</a>
-              <a className="hover:text-slate-700" href={trialHref}>{t.nav.trial}</a>
-            </div>
-          </div>
-        </div>
-      </footer>
-    
       {/* LS_FLOAT_KEYFRAMES */}
       <style jsx global>{`
         @keyframes ls-float {
@@ -876,6 +864,7 @@ export default function PricingPage() {
           animation: ls-float 2.8s ease-in-out infinite;
         }
       `}</style>
+      <MarketingFooter lang={lang} />
     </main>
-  );
+);
 }

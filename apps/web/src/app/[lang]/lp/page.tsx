@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import MarketingFooter from "@/components/MarketingFooter";
 
 type Lang = 'ja' | 'en' | 'zh-CN' | 'zh-TW';
 
@@ -19,7 +20,7 @@ export default function LP() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6">
+    <main className="min-h-screen flex flex-col items-center justify-center gap-6">
       <div className="absolute top-4 right-4">
         <select
           value={lang}
@@ -40,6 +41,8 @@ export default function LP() {
         {lang === 'zh-CN' && '跨境电商经营级SaaS'}
         {lang === 'zh-TW' && '跨境電商經營級SaaS'}
       </p>
-    </div>
+    
+      <MarketingFooter lang={lang} />
+</main>
   );
 }

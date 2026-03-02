@@ -1,4 +1,5 @@
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
+import MarketingFooter from "@/components/MarketingFooter";
 
 export default function TermsPage({ params }: { params: { lang: string } }) {
   const lang: Lang = normalizeLang(params.lang);

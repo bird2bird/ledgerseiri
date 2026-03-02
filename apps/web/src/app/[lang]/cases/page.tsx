@@ -1,4 +1,5 @@
 import MarketingTopBar from "@/components/MarketingTopBar";
+import MarketingFooter from "@/components/MarketingFooter";
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 
@@ -116,6 +117,9 @@ const homeHref = `/${lang}`;
         </div>
       </section>
     </main>
+
+      <MarketingFooter lang={lang} />
+
     </>
   );
 
