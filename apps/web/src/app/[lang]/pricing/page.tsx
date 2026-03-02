@@ -1,11 +1,56 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import LanguageMenuLP from "@/components/LanguageMenuLP";
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 type Billing = "monthly" | "yearly";
 type PlanKey = "starter" | "standard" | "ai";
+
+
+/* LS_CURRENCY_HELPERS */
+type LS_Currency = "JPY" | "USD" | "CNY" | "TWD";
+
+/**
+ * Static FX per 1 JPY. Tune anytime.
+ * NOTE: We intentionally keep it static (no external API) for stability.
+ */
+const LS_FX_PER_JPY: Record<LS_Currency, number> = {
+  JPY: 1,
+  USD: 0.0067,
+  CNY: 0.048,
+  TWD: 0.22,
+};
+
+function LS_currencyForLang(lang: Lang): LS_Currency {
+  if (lang === "en") return "USD";
+  if (lang === "zh-CN") return "CNY";
+  if (lang === "zh-TW") return "TWD";
+  return "JPY";
+}
+
+function LS_getLangFromPath(pathname: string | null): Lang {
+  const p = (pathname || "/ja").startsWith("/") ? (pathname || "/ja") : `/${pathname || "ja"}`;
+  const seg = (p.split("/")[1] || "ja") as Lang;
+  return seg === "ja" || seg === "en" || seg === "zh-CN" || seg === "zh-TW" ? seg : "ja";
+}
+
+function LS_toCurrencyFromJPY(jpy: number, cur: LS_Currency) {
+  return jpy * (LS_FX_PER_JPY[cur] ?? 1);
+}
+
+function LS_toJPYFromCurrency(amount: number, cur: LS_Currency) {
+  const r = LS_FX_PER_JPY[cur] ?? 1;
+  return r == 0 ? amount : amount / r;
+}
+
+function LS_fmtMoneyFromJPY(jpy: number, lang: Lang) {
+  const cur = LS_currencyForLang(lang);
+  const v = LS_toCurrencyFromJPY(jpy, cur);
+  const locale = lang === "ja" ? "ja-JP" : lang === "en" ? "en-US" : lang === "zh-CN" ? "zh-CN" : "zh-TW";
+  return new Intl.NumberFormat(locale, { style: "currency", currency: cur, maximumFractionDigits: 0 }).format(Math.round(v));
+}
 
 function cn(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
@@ -17,8 +62,33 @@ function getLangFromPath(pathname: string): Lang {
 }
 
 function fmtJPY(n: number) {
+  // legacy helper (JPY only). Keep for any remaining callers.
   return new Intl.NumberFormat("ja-JP").format(Math.round(n));
 }
+
+// ------------------------------------------------------------
+// Currency mapping (marketing fixed rates; edit anytime)
+// Base prices are in JPY; we convert for display per language.
+// ------------------------------------------------------------
+type Currency = "JPY" | "USD" | "CNY" | "TWD";
+
+function LS_currencyByLang(lang: Lang): Currency {
+  if (lang === "en") return "USD";
+  if (lang === "zh-CN") return "CNY";
+  if (lang === "zh-TW") return "TWD";
+  return "JPY";
+}
+
+function LS_localeByLang(lang: Lang) {
+  if (lang === "en") return "en-US";
+  if (lang === "zh-CN") return "zh-CN";
+  if (lang === "zh-TW") return "zh-TW";
+  return "ja-JP";
+}
+
+// FX: 1 JPY -> target currency (marketing fixed rates; adjust as desired)
+
+
 
 const YEARLY_DISCOUNT = 0.25; // 25% OFF
 const YEARLY_FACTOR = 1 - YEARLY_DISCOUNT; // 0.75
@@ -52,7 +122,7 @@ type T = {
   slider: { title: string; hint: string; left: string; right: string };
   simulator: { title: string; lead: string; input: string; placeholder: string; rec: string; why: string; tip: string };
   compare: { title: string; left: string; right: string; leftItems: string[]; rightItems: string[] };
-  plans: { title: string; lead: string; disclaimer: string; ctaTrial: string; ctaLogin: string; recommended: string };
+  plans: { title: string; lead: string; disclaimer: string; ctaTrial: string; ctaLogin: string; recommended: string; no1: string;};
   trust: { title: string; badges: Badge[]; voices: string; note: string; samples: { name: string; role: string; title: string; quote: string }[] };
   ai: { title: string; lead: string; items: string[]; note: string };
   faq: { title: string; items: QA[] };
@@ -116,7 +186,7 @@ const I18N: Record<Lang, T> = {
       ctaTrial: "無料で体験",
       ctaLogin: "ログイン",
       recommended: "おすすめ",
-    },
+      no1: "人気 No.1" },
     trust: {
       title: "信頼背書き（転化を支える理由）",
       badges: [
@@ -161,7 +231,8 @@ const I18N: Record<Lang, T> = {
     slider: { title: "Savings slider", hint: "Slide right to see yearly savings.", left: "Monthly", right: "Yearly (25% off)" },
     simulator: { title: "Scale simulator", lead: "Estimate the best plan from monthly sales (rough guide).", input: "Monthly sales (JPY)", placeholder: "e.g. 1500000", rec: "Recommended", why: "Why", tip: "* Guideline only; store/SKU/ads can change the best fit." },
     compare: { title: "With vs without LedgerSeiri", left: "Without", right: "With", leftItems: ["Revenue looks good, profit unclear", "Costs scattered", "Year-end scramble", "Learn the truth too late"], rightItems: ["Sales/costs/profit in one view", "Clear cost mix", "Monthly improvement loop", "Easier handoff to accountants"] },
-    plans: { title: "Plans", lead: "Start free, upgrade as needed. Yearly is 25% off.", disclaimer: "* AI is not legal/tax advice. Final filing by professionals.", ctaTrial: "Start free", ctaLogin: "Login", recommended: "Recommended" },
+    plans: { title: "Plans", lead: "Start free, upgrade as needed. Yearly is 25% off.", disclaimer: "* AI is not legal/tax advice. Final filing by professionals.", ctaTrial: "Start free", ctaLogin: "Login", recommended: "Recommended", 
+      no1: "No.1 Popular" },
     trust: { title: "Trust signals", badges: [{ k: "Workflow", v: "Designed for clarity", sub: "Transactions + expenses + receipts in one flow" }, { k: "Visibility", v: "From data to decisions", sub: "Sales, costs, inventory, profit connected" }, { k: "Accountant-ready", v: "Export-friendly", sub: "Details + receipts + inventory references" }], voices: "Amazon seller profiles (sample)", note: "* Placeholders. Replace with real users/logos later.", samples: [{ name: "Sato", role: "Amazon seller", title: "Fewer blind spots", quote: "Seeing fees and ads together speeds up decisions." }, { name: "Chen", role: "Cross-border SME", title: "Receipts under control", quote: "Linking expenses with receipts prevents year-end panic." }, { name: "Yamada", role: "Multi-store operator", title: "Easy comparisons", quote: "Comparable profitability changes how we invest." }] },
     ai: { title: "AI Premium", lead: "Turn numbers into actionable insights.", items: ["Monthly AI summary", "Anomaly & risk alerts", "Chat-style queries", "Receipt OCR & matching (planned)"], note: "* AI provides business insights only; not legal/tax advice." },
     faq: { title: "FAQ", items: [{ q: "Auto-charge after trial?", a: "No. Billing will be explicit and opt-in." }, { q: "How much do I save yearly?", a: "Yearly is 25% off. Savings are calculated automatically." }, { q: "Can I change plans?", a: "Yes. Upgrade/downgrade will be supported (planned)." }] },
@@ -175,7 +246,8 @@ const I18N: Record<Lang, T> = {
     slider: { title: "价格对比滑块", hint: "往右滑动，直观看到年付能省多少。", left: "月付", right: "年付（25%OFF）" },
     simulator: { title: "经营规模模拟器", lead: "输入月销售额，推荐合适方案（仅供参考）。", input: "月销售额（JPY）", placeholder: "例如：1500000", rec: "推荐方案", why: "推荐理由", tip: "※ 仅供参考；店铺数/SKU/广告规模会影响最优选择。" },
     compare: { title: "有 vs 没有 LedgerSeiri", left: "没有", right: "有", leftItems: ["只看到销售额，看不清利润结构", "广告/运费/税分散", "年底才补资料，决策滞后", "税理士来了才发现问题"], rightItems: ["销售/成本/费用/利润一体化", "成本结构一眼可见", "按月复盘、及时调整", "税理士协作更顺畅（导出/证凭整理）"] },
-    plans: { title: "价格方案", lead: "免费开始，按需要升级。年付 25% 优惠。", disclaimer: "※ AI 不构成税务/法律意见。最终申告以税理士判断为准。", ctaTrial: "免费体验", ctaLogin: "登录", recommended: "推荐" },
+    plans: { title: "价格方案", lead: "免费开始，按需要升级。年付 25% 优惠。", disclaimer: "※ AI 不构成税务/法律意见。最终申告以税理士判断为准。", ctaTrial: "免费体验", ctaLogin: "登录", recommended: "推荐", 
+      no1: "人气 No.1" },
     trust: { title: "信任背书", badges: [{ k: "月度整理", v: "更快更清楚", sub: "交易+支出+证凭同一路径" }, { k: "经营看板", v: "把钱看懂", sub: "销售/成本/库存/利润连接起来" }, { k: "税理士协作", v: "交付更省事", sub: "明细+证凭+库存参考更好给" }], voices: "Amazon seller 画像（示例）", note: "※ 示例文案/头像可替换成真实用户/Logo", samples: [{ name: "佐藤", role: "Amazon 个人卖家", title: "少了很多经营盲区", quote: "统一看板后，调整更快。" }, { name: "陈", role: "跨境小团队", title: "证凭更安心", quote: "费用和证凭绑定后，沟通成本下降。" }, { name: "山田", role: "多店铺运营", title: "对比更轻松", quote: "店铺利润结构统一后，判断更快。" }] },
     ai: { title: "AI Premium 专属强化", lead: "把数字变成能用的信息。", items: ["AI 月度经营解读", "异常与风险提示", "对话式查询", "发票识别与匹配（计划）"], note: "※ AI 仅提供经营参考，不构成税务/法律意见。" },
     faq: { title: "FAQ", items: [{ q: "免费体验后会自动扣费吗？", a: "目前不会。未来上线订阅也会由你确认后才开始计费。" }, { q: "年付能省多少？", a: "年付按月换算 25%OFF（0.75 倍），节省额自动计算。" }, { q: "可以随时升级/降级吗？", a: "可以（规划）。" }] },
@@ -189,7 +261,8 @@ const I18N: Record<Lang, T> = {
     slider: { title: "價格對比滑塊", hint: "往右滑，直觀看到年付省多少。", left: "月付", right: "年付（25%OFF）" },
     simulator: { title: "經營規模模擬器", lead: "輸入月銷售額，推薦合適方案（僅供參考）。", input: "月銷售額（JPY）", placeholder: "例如：1500000", rec: "推薦方案", why: "推薦理由", tip: "※ 僅供參考；店舖/SKU/廣告規模會影響最適選擇。" },
     compare: { title: "有 vs 沒有 LedgerSeiri", left: "沒有", right: "有", leftItems: ["只看得到營收，看不懂利潤", "廣告/運費/稅分散", "年末才補資料", "稅理士來了才發現問題"], rightItems: ["銷售/成本/費用/利潤一體化", "成本結構一眼可見", "按月復盤、即時調整", "稅理士協作更順（導出/證憑整理）"] },
-    plans: { title: "價格方案", lead: "免費開始，按需要升級。年付 25% 優惠。", disclaimer: "※ AI 不構成稅務/法律意見。最終申告以稅理士判斷為準。", ctaTrial: "免費體驗", ctaLogin: "登入", recommended: "推薦" },
+    plans: { title: "價格方案", lead: "免費開始，按需要升級。年付 25% 優惠。", disclaimer: "※ AI 不構成稅務/法律意見。最終申告以稅理士判斷為準。", ctaTrial: "免費體驗", ctaLogin: "登入", recommended: "推薦", 
+      no1: "人氣 No.1" },
     trust: { title: "信任背書", badges: [{ k: "月度整理", v: "更快更清楚", sub: "交易+支出+證憑同一路徑" }, { k: "經營看板", v: "把錢看懂", sub: "銷售/成本/庫存/利潤連起來" }, { k: "稅理士協作", v: "交付更省事", sub: "明細+證憑+庫存參考更好給" }], voices: "Amazon seller 画像（示例）", note: "※ 示例可替換為真實用戶/Logo", samples: [{ name: "佐藤", role: "Amazon 個人賣家", title: "少了很多盲區", quote: "統一看板後，調整更快。" }, { name: "陳", role: "跨境小團隊", title: "證憑更安心", quote: "費用與證憑綁定後，溝通成本下降。" }, { name: "山田", role: "多店舖運營", title: "對比更輕鬆", quote: "利潤結構統一後，判斷更快。" }] },
     ai: { title: "AI Premium 專屬強化", lead: "把數字變成能用的資訊。", items: ["AI 月度經營解讀", "異常與風險提示", "對話式查詢", "發票識別與匹配（計畫）"], note: "※ AI 僅提供經營參考，不構成稅務/法律意見。" },
     faq: { title: "FAQ", items: [{ q: "免費體驗後會自動扣費嗎？", a: "目前不會。未來訂閱也會由你確認後才計費。" }, { q: "年付能省多少？", a: "年付按月換算 25%OFF（0.75 倍），節省額自動計算。" }, { q: "可以隨時升級/降級嗎？", a: "可以（規劃）。" }] },
@@ -254,11 +327,58 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
+// LS_PRICE_NUMBER: hover count-up (no layout change)
+function PriceNumber({
+  value,
+  active,
+  suffix = "/mo",
+}: {
+  value: number;
+  active: boolean;
+  suffix?: string;
+}) {
+  const [d, setD] = useState<number>(value);
+
+  useEffect(() => {
+    if (!active) {
+      setD(value);
+      return;
+    }
+    const from = 0;
+    const to = Math.max(0, value);
+    const dur = 420; // ms (snappy)
+    const t0 = performance.now();
+
+    let raf = 0;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const eased = 1 - Math.pow(1 - k, 3); // easeOutCubic
+      setD(from + (to - from) * eased);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, value]);
+
+  return (
+    <div className="mt-2 text-3xl font-semibold tracking-tight">
+      {LS_fmtMoneyFromJPY(d, LS_getLangFromPath(typeof window !== "undefined" ? window.location.pathname : "/ja"))}
+      <span className="text-sm font-semibold text-slate-500">{suffix}</span>
+    </div>
+  );
+}
+
 export default function PricingPage() {
-  const lang = typeof window !== "undefined" ? getLangFromPath(window.location.pathname) : "ja";
+  const pathname = usePathname();
+  const lang = useMemo(() => LS_getLangFromPath(pathname), [pathname]);
   const t = I18N[lang];
+
+  const currency = LS_currencyForLang(lang);
   const plans = PLANS[lang];
 
+
+  // LS_HOVERED_KEY: hover to animate price
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const homeHref = `/${lang}`;
   const loginHref = `/${lang}/login`;
   const trialHref = `/${lang}/register`;
@@ -267,19 +387,29 @@ export default function PricingPage() {
   const [slider, setSlider] = useState<number>(80); // default: yearly side
   const billing: Billing = slider >= 50 ? "yearly" : "monthly";
 
+
+  // LS_SLIDER_DEFAULT_EFFECT: keep yearly as default (conversion)
+  useEffect(() => {
+    // ensure first render stays on yearly side
+    setSlider((v) => (typeof v === "number" ? v : 80));
+    setSlider(80);
+  }, []);
   // ② Simulator
   const [salesInput, setSalesInput] = useState<string>("1500000");
   const sales = useMemo(() => {
     const v = Number((salesInput || "").replace(/,/g, ""));
-    return Number.isFinite(v) ? v : 0;
-  }, [salesInput]);
+    const amt = Number.isFinite(v) ? v : 0;
+    // input is shown in current currency; convert to JPY for internal thresholds
+    const jpy = LS_toJPYFromCurrency(amt, currency);
+    return Number.isFinite(jpy) ? jpy : 0;
+  }, [salesInput, currency]);
 
   const rec = useMemo(() => recommendBySales(sales), [sales]);
   const recPlan = useMemo(() => plans.find((p) => p.key === rec.key) || plans[1], [plans, rec.key]);
 
-  const priceLabel = (monthly: number) => {
-    if (billing === "monthly") return `¥${fmtJPY(monthly)}/mo`;
-    return `¥${fmtJPY(yearlyEqMonthly(monthly))}/mo`;
+  const priceLabel = (monthlyJPY: number) => {
+    if (billing === "monthly") return `${LS_fmtMoneyFromJPY(monthlyJPY, lang)}/mo`;
+    return `${LS_fmtMoneyFromJPY(yearlyEqMonthly(monthlyJPY), lang)}/mo`;
   };
 
   return (
@@ -510,6 +640,8 @@ export default function PricingPage() {
             return (
               <div
                 key={pl.key}
+                onMouseEnter={() => setHoveredKey(pl.key)}
+                onMouseLeave={() => setHoveredKey(null)}
                 className={cn(
                   "relative rounded-3xl border border-black/10 bg-white/85 p-6 shadow-sm transition hover:shadow-lg",
                   isRec && "border-[#2b5cff]/25 bg-gradient-to-br from-[#2b5cff]/10 via-white to-emerald-50",
@@ -517,10 +649,17 @@ export default function PricingPage() {
                 )}
               >
                 {isRec && (
-                  <div className="absolute -top-3 left-6 inline-flex items-center gap-2 rounded-full bg-[#2b5cff] px-3 py-1 text-[12px] font-semibold text-white shadow-sm">
-                    {t.plans.recommended}
-                  </div>
+                  <>
+                    <div className="pointer-events-none absolute -top-3 left-6 inline-flex items-center gap-2 rounded-full bg-[#2b5cff] px-3 py-1 text-[12px] font-semibold text-white shadow-sm">
+                      {t.plans.recommended}
+                    </div>
+                    <div className="pointer-events-none absolute -top-3 right-6 inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-1 text-[12px] font-semibold text-slate-900 shadow-sm">
+                      <span aria-hidden="true">👑</span>
+                      <span>{t.plans.no1}</span>
+                    </div>
+                  </>
                 )}
+
 
                 <div className="text-sm font-semibold">{pl.name}</div>
                 <div className="mt-1 text-[12px] text-slate-600">{pl.tagline}</div>
@@ -537,7 +676,7 @@ export default function PricingPage() {
                       <div>
                         <div className="text-slate-500">{t.billing.monthly}</div>
                         <div className="mt-1 text-base font-semibold text-slate-900">
-                          ¥{fmtJPY(pl.monthly)}/mo
+                          {LS_fmtMoneyFromJPY(pl.monthly, lang)}/mo
                         </div>
                       </div>
 
@@ -545,10 +684,10 @@ export default function PricingPage() {
                       <div className="text-right">
                         <div className="text-[#2b5cff] font-semibold">{t.billing.yearly}</div>
                         <div className="mt-1 text-base font-semibold text-[#2b5cff]">
-                          ¥{fmtJPY(yEq)}/mo
+                          {LS_fmtMoneyFromJPY(yEq, lang)}/mo
                         </div>
                         <div className="mt-1 text-[12px] text-slate-500">
-                          {t.billing.annualTotal} ¥{fmtJPY(yTotal)}
+                          {t.billing.annualTotal} {LS_fmtMoneyFromJPY(yTotal, lang)}
                         </div>
                       </div>
 
@@ -557,7 +696,7 @@ export default function PricingPage() {
                     <div className="mt-3 flex justify-center">
                       <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-1 text-[12px] font-semibold text-emerald-800 border border-emerald-300">
                         <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                        <span>{t.billing.save} ¥{fmtJPY(save)}</span>
+                        <span>{t.billing.save} {LS_fmtMoneyFromJPY(save, lang)}</span>
                       </div>
                     </div>
                   </div>
@@ -566,15 +705,15 @@ export default function PricingPage() {
                   <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-800 border border-emerald-200 shadow-sm">
                     <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                     <span>
-                      {t.billing.save} ¥{fmtJPY(save)}
+                      {t.billing.save} {LS_fmtMoneyFromJPY(save, lang)}
                     </span>
                   </div>
                 )}
 
                   <div className="mt-2 text-[12px] text-slate-600">
                     {billing === "yearly"
-                      ? `${t.billing.annualTotal}: ¥${fmtJPY(yTotal)} · ${t.billing.save}: ¥${fmtJPY(save)}/年`
-                      : `${t.billing.annualTotal}: ¥${fmtJPY(pl.monthly * 12)}（参考）`}
+                      ? `${t.billing.annualTotal}: ${LS_fmtMoneyFromJPY(yTotal, lang)} · ${t.billing.save}: ${LS_fmtMoneyFromJPY(save, lang)}/year`
+                      : `${t.billing.annualTotal}: ${LS_fmtMoneyFromJPY(pl.monthly * 12, lang)} (ref)`}
                   </div>
                 </div>
 
@@ -728,6 +867,17 @@ export default function PricingPage() {
           </div>
         </div>
       </footer>
+    
+      {/* LS_FLOAT_KEYFRAMES */}
+      <style jsx global>{`
+        @keyframes ls-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
+        .ls-float {
+          animation: ls-float 2.8s ease-in-out infinite;
+        }
+      `}</style>
     </main>
   );
 }
