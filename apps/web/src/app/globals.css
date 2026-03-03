@@ -96,7 +96,22 @@ body{
     box-shadow: var(--sh-sm);
   }
 
-  /* Buttons */
+  
+
+    /* Dropdown / Popover panel (used by MenuPopover: .ls-menu) */
+    .ls-menu {
+      border: 1px solid var(--ls-border);
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border-radius: 16px; /* ~ rounded-2xl */
+      box-shadow: var(--sh-md);
+    }
+    @media (prefers-color-scheme: dark) {
+      .ls-menu {
+        background: rgba(17,24,39,0.86);
+      }
+    }
+/* Buttons */
   .ls-btn {
     border-radius: 999px;
     font-weight: 600;

@@ -4,9 +4,6 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-
-import { DashboardTopbar } from "@/components/app/DashboardTopbar";
-import { DashboardSidebar } from "@/components/app/DashboardSidebar";
 import { Card, MiniStat, SparkCard, CostRow, QuickCard, NoticeItem } from "@/components/app/DashboardAtoms";
 
 function cls(...a: (string | false | null | undefined)[]) {
@@ -561,17 +558,9 @@ export default function AppHome() {
 
   return (
     <div className="min-h-screen ls-bg">
-      <DashboardTopbar
-        appName={t("appName")}
-        companyName={company ? company.name : t("demoCompany")}
-        onLogout={logout}
-      />
-
-      <div className="mx-auto grid max-w-7xl grid-cols-12 gap-4 px-4 py-6">
-        <DashboardSidebar t={t} />
-
-        {/* Main */}
-        <main className="col-span-12 lg:col-span-6 space-y-4">
+<div className="mx-auto grid max-w-7xl grid-cols-12 gap-4 px-4 py-6">
+{/* Main */}
+        <main className="col-span-12 lg:col-span-8 space-y-4">
           {err && !String(err).includes("401") && !String(err).includes("UNAUTHORIZED") && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {err}
@@ -773,7 +762,7 @@ export default function AppHome() {
         </main>
 
         {/* Right column */}
-        <aside className="col-span-12 lg:col-span-3 space-y-4">
+        <aside className="col-span-12 lg:col-span-4 space-y-4">
           {/* Block 4 */}
           <section className="ls-card-solid p-4">
             <div className="flex items-start justify-between">

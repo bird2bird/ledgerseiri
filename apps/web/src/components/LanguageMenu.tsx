@@ -6,11 +6,11 @@ import { MenuPopover } from "@/components/ui/MenuPopover";
 
 type LangCode = "ja" | "en" | "zh-CN" | "zh-TW";
 
-const LANGS: { code: LangCode; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "zh-CN", label: "简体中文" },
-  { code: "zh-TW", label: "繁體中文" },
-  { code: "ja", label: "日本語" },
+const LANGS: { code: LangCode; label: string; ccy: string }[] = [
+  { code: "en", label: "English", ccy: "USD" },
+  { code: "zh-CN", label: "简体中文", ccy: "CNY" },
+  { code: "zh-TW", label: "繁體中文", ccy: "TWD" },
+  { code: "ja", label: "日本語", ccy: "JPY" },
 ];
 
 function getLangFromPath(pathname: string): LangCode {
@@ -29,7 +29,8 @@ function withLang(pathname: string, target: string, lang: LangCode): string {
 export default function LanguageMenu() {
   const pathname = usePathname() || "/ja";
   const current = useMemo(() => getLangFromPath(pathname), [pathname]);
-  const currentLabel = useMemo(() => LANGS.find((x) => x.code === current)?.label ?? current, [current]);
+  const currentItem = useMemo(() => LANGS.find((x) => x.code === current), [current]);
+const currentLabel = useMemo(() => currentItem?.label ?? current, [currentItem, current]);
 
   return (
     <MenuPopover
@@ -43,15 +44,21 @@ export default function LanguageMenu() {
         >
           <span className="text-slate-500">🌐</span>
           <span className="font-medium">{currentLabel}</span>
-          <span className="text-slate-400">▾</span>
+            <span className="ml-1 rounded-md bg-black/[0.04] px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">{currentItem?.ccy}</span>
+<span className="text-slate-400">▾</span>
         </button>
       )}
       items={LANGS.map((l) => ({
-        key: l.code,
-        label: l.label,
-        selected: l.code === current,
-        href: withLang(pathname, "", l.code),
-      }))}
+  key: l.code,
+  label: (
+    <span className="flex w-full items-center justify-between gap-3 pr-2">
+      <span>{l.label}</span>
+      <span className="ml-auto rounded-md bg-black/[0.04] px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-200">{l.ccy}</span>
+    </span>
+  ),
+  selected: l.code === current,
+  href: withLang(pathname, "", l.code),
+}))}
     />
   );
 }
