@@ -65,7 +65,122 @@ body{
       radial-gradient(760px 420px at 10% 18%, rgba(18,185,129,0.10), transparent 55%),
       radial-gradient(860px 480px at 95% 22%, rgba(245,158,11,0.10), transparent 58%),
       linear-gradient(180deg, var(--ls-bg), var(--ls-bg));
+  
+  /* LS_VISUAL_V1_START */
+  /* ============================================================
+     Operating-grade SaaS Utilities (Stripe-like polish)
+     - Topbar / Inputs / Nav / Micro-interactions
+     ============================================================ */
+
+  .ls-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-bottom: 1px solid var(--ls-border);
+    background: color-mix(in srgb, var(--ls-surface-solid) 82%, transparent);
+    backdrop-filter: blur(14px);
   }
+
+  .ls-topbar-inner {
+    max-width: 80rem; /* ~ max-w-7xl */
+    margin: 0 auto;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ls-input {
+    width: 100%;
+    border: 1px solid color-mix(in srgb, var(--ls-border) 85%, transparent);
+    background: color-mix(in srgb, var(--ls-surface-solid) 70%, transparent);
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--ls-text);
+    box-shadow: 0 8px 22px rgba(2,6,23,0.06);
+    transition: box-shadow .12s ease, transform .12s ease, border-color .12s ease, background-color .12s ease;
+  }
+  .ls-input:focus {
+    outline: none;
+    border-color: rgba(var(--ls-ring) / 0.35);
+    box-shadow: 0 0 0 4px rgba(var(--ls-ring) / 0.18), 0 10px 26px rgba(2,6,23,0.08);
+  }
+
+  .ls-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--ls-border);
+    background: rgba(255,255,255,0.75);
+    font-size: 11px;
+    color: color-mix(in srgb, var(--ls-muted) 85%, transparent);
+    box-shadow: 0 6px 14px rgba(2,6,23,0.05);
+  }
+
+  .ls-nav-card {
+    border: 1px solid var(--ls-border);
+    background: var(--ls-surface-solid);
+    border-radius: var(--ls-r-2xl);
+    box-shadow: var(--sh-sm);
+  }
+
+  .ls-nav-item {
+    position: relative;
+    display: block;
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 14px;
+    transition: background-color .12s ease, transform .12s ease;
+    color: var(--ls-text);
+  }
+  .ls-nav-item:hover {
+    background: rgba(2,6,23,0.03);
+  }
+
+  .ls-nav-item-active {
+    background: rgba(43,92,255,0.10);
+    color: var(--ls-primary);
+    font-weight: 700;
+  }
+  .ls-nav-item-active::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--ls-primary);
+    box-shadow: 0 10px 24px rgba(43,92,255,0.25);
+  }
+
+  .ls-soft-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(15,23,42,0.10), transparent);
+  }
+
+  /* Card hover polish */
+  .ls-card-solid:hover {
+    box-shadow: var(--sh-md);
+    transform: translateY(-1px);
+    transition: box-shadow .18s ease, transform .18s ease;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .ls-kbd {
+      background: rgba(17,24,39,0.65);
+      color: rgba(229,231,235,0.75);
+    }
+  }
+
+  /* LS_VISUAL_V1_END */
+
+}
 
   /* Section tint (for alternation) */
   .ls-section {

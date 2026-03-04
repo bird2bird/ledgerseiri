@@ -555,12 +555,10 @@ export default function AppHome() {
   const profitRate = dash ? Math.round((net / Math.max(1, dash.sales)) * 100) : 0;
   const refundRate = dash ? Math.round((Math.abs(dash.refunds) / Math.max(1, dash.sales)) * 100) : 0;
   const adsRate = dash ? Math.round((Math.abs(dash.ads) / Math.max(1, dash.sales)) * 100) : 0;
-
-  return (
-    <div className="min-h-screen ls-bg">
-<div className="mx-auto grid max-w-7xl grid-cols-12 gap-4 px-4 py-6">
+    return (
+      <div className="grid grid-cols-12 gap-4">
 {/* Main */}
-        <main className="col-span-12 lg:col-span-8 space-y-4">
+        <section className="col-span-12 lg:col-span-8 space-y-4">
           {err && !String(err).includes("401") && !String(err).includes("UNAUTHORIZED") && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {err}
@@ -759,7 +757,7 @@ export default function AppHome() {
           </section>
 
           <div className="text-[12px] text-slate-500">{t("tips")}</div>
-        </main>
+        </section>
 
         {/* Right column */}
         <aside className="col-span-12 lg:col-span-4 space-y-4">
@@ -845,17 +843,5 @@ export default function AppHome() {
           </section>
         </aside>
       </div>
-
-      {/* Back to top */}
-      <button
-        type="button"
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed bottom-6 right-6 z-[9999] pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white/95 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
-        aria-label="Back to top"
-        title="Back to top"
-      >
-        <span className="text-[color:var(--ls-primary)] text-xl leading-none">↑</span>
-      </button>
-    </div>
   );
 }

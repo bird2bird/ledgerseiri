@@ -15,8 +15,8 @@ export function DashboardTopbar({
   onLogout: () => void;
 }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+    <header className="ls-topbar">
+      <div className="ls-topbar-inner">
         {/* Brand */}
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[color:var(--ls-primary)] text-white text-sm font-bold shadow-sm">
@@ -36,11 +36,11 @@ export function DashboardTopbar({
           <div className="hidden lg:flex items-center">
             <div className="relative">
               <input
-                className="w-[280px] rounded-full border border-black/10 bg-white/80 px-4 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[color:rgba(var(--ls-ring)/0.25)]"
+                className="ls-input w-[320px]"
                 placeholder="Search… (⌘K)"
                 readOnly
               />
-              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-black/10 bg-white px-2 py-0.5 text-[11px] text-slate-500 shadow-sm">
+              <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ls-kbd">
                 ⌘K
               </div>
             </div>
@@ -50,6 +50,6 @@ export function DashboardTopbar({
           <UserMenu onLogout={onLogout} />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

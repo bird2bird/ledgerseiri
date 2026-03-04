@@ -70,8 +70,7 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
       <Link
         href={withLang(href)}
         className={cls(
-          "block rounded-xl px-3 py-2 text-sm transition",
-          active ? "bg-[color:rgba(43,92,255,0.10)] font-semibold text-[color:var(--ls-primary)]" : "hover:bg-slate-50"
+          "ls-nav-item", active ? "ls-nav-item-active" : ""
         )}
       >
         {label}
@@ -90,7 +89,7 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
   }) => {
     return (
       <details className="group" {...(defaultOpen ? { open: true } : {})}>
-        <summary className="list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-slate-50">
+        <summary className="list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-black/[0.03]">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-900">{title}</span>
             <span className="group-open:hidden">
@@ -107,19 +106,21 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
   };
 
   return (
-    <aside className="col-span-12 lg:col-span-3">
-      <div className="ls-card-solid p-4 sticky top-[76px]">
-        <div className="flex items-center justify-between">
+    <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
+      <div className="sticky top-[78px]">{/* LS_SIDEBAR_WRAP_V2 */}
+
+        <div className="ls-nav-card p-4 top-[78px]">
+<div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">{t("menu")}</div>
-          <div className="text-[11px] text-slate-400">Block 5</div>
+          <div className="text-[11px] text-slate-400/80">Block 5</div>
         </div>
 
         <div className="mt-3 text-[12px] text-slate-500">{t("cloudLedger")}</div>
 
-        <nav className="mt-2 space-y-1">
+        <nav className="mt-2 space-y-1 flex-1 min-h-0 overflow-auto pr-1">
           <Item href="/app" label={t("home")} />
 
-          <div className="my-2 border-t" />
+          <div className="my-3 ls-soft-divider" />
 
           <Group title={t("ledgerList")} defaultOpen={openLedger}>
             <Item href="/app/journals" label={t("journalList")} />
@@ -130,7 +131,7 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
             <Item href="/app/other-expense" label={t("otherExpense")} />
           </Group>
 
-          <div className="my-2 border-t" />
+          <div className="my-3 ls-soft-divider" />
 
           <Group title={t("financeReport")} defaultOpen={openReport}>
             <Item href="/app/reports/profit" label={t("profitReport")} />
@@ -138,7 +139,7 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
             <Item href="/app/reports/detail" label={t("detail")} />
           </Group>
 
-          <div className="my-2 border-t" />
+          <div className="my-3 ls-soft-divider" />
 
           <Group title={t("tax")} defaultOpen={openTax}>
             <Item href="/app/tax/vat" label={t("vat")} />
@@ -147,6 +148,9 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
             <Item href="/app/tax/annual-settlement" label={t("annualSettlement")} />
           </Group>
         </nav>
+      
+        </div>
+
       </div>
     </aside>
   );

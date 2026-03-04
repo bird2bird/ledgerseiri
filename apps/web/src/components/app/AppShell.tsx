@@ -23,9 +23,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen ls-bg">
       <DashboardTopbar appName={t("appName")} companyName={t("demoCompany")} onLogout={logout} />
 
-      <div className="mx-auto grid max-w-7xl grid-cols-12 gap-4 px-4 py-6">
+      <div className="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 py-7 items-stretch">
         <DashboardSidebar t={t} />
-        <main className="col-span-12 lg:col-span-9">{children}</main>
+        <main className="col-span-12 lg:col-span-9 space-y-5">{children}</main>
       </div>
     </div>
   );
