@@ -109,7 +109,7 @@ export function DashboardSidebar({ t }: { t: (k: string) => string }) {
     <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
       <div className="sticky top-[78px]">{/* LS_SIDEBAR_WRAP_V2 */}
 
-        <div className="ls-nav-card p-4 top-[78px]">
+        <div className="ls-nav-card p-4 min-h-[360px] top-[78px]">
 <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">{t("menu")}</div>
           <div className="text-[11px] text-slate-400/80">Block 5</div>
