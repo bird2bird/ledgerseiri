@@ -24,7 +24,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <DashboardTopbar appName={t("appName")} companyName={t("demoCompany")} onLogout={logout} />
 
       <div className="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 py-7 items-stretch">
-        <DashboardSidebar t={t} />
+        <DashboardSidebar />
         <main className="col-span-12 lg:col-span-9 space-y-5">{children}</main>
       </div>
     </div>
