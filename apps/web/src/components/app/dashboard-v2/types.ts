@@ -1,5 +1,7 @@
 export type DashboardRange = "thisMonth" | "lastMonth" | "thisYear" | "custom";
 
+export type PlanCode = "starter" | "standard" | "premium";
+
 export type DashboardFilterState = {
   range: DashboardRange;
   storeId: string;

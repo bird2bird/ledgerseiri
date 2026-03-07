@@ -7,13 +7,18 @@ function normalizePlanCode(raw?: string): PlanCode {
   return "starter";
 }
 
-export default async function AppHomePage({
+export default async function AppHomeAliasPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{ plan?: string }>;
 }) {
+  const p = await params;
   const sp = await searchParams;
+
+  const slug = p?.slug || "weiwei";
   const planCode = normalizePlanCode(sp?.plan);
 
-  return <DashboardHomeV2 userName="Weiwei" planCode={planCode} />;
+  return <DashboardHomeV2 slug={slug} userName={slug} planCode={planCode} />;
 }

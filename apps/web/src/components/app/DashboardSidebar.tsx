@@ -96,7 +96,7 @@ const DICT: Record<Lang, Dict> = {
   ja: {
     menu: "メニュー",
     cloudLedger: "クラウド経営",
-    home: "Home",
+    home: "ホーム",
     help: "ヘルプ",
     accountSettings: "アカウント設定",
     funds: "資金管理",
@@ -147,7 +147,7 @@ const DICT: Record<Lang, Dict> = {
   en: {
     menu: "Menu",
     cloudLedger: "Business Console",
-    home: "Home",
+    home: "首页",
     help: "Help",
     accountSettings: "Account Settings",
     funds: "Funds",
@@ -198,7 +198,7 @@ const DICT: Record<Lang, Dict> = {
   "zh-CN": {
     menu: "菜单",
     cloudLedger: "云记账",
-    home: "Home",
+    home: "首頁",
     help: "帮助",
     accountSettings: "账户设置",
     funds: "资金管理",
