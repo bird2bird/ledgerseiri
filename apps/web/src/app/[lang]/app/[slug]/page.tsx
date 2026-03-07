@@ -1,11 +1,6 @@
 import React from "react";
 import { DashboardHomeV2 } from "@/components/app/dashboard-v2/DashboardHomeV2";
-import type { PlanCode } from "@/components/app/dashboard-v2/types";
-
-function normalizePlanCode(raw?: string): PlanCode {
-  if (raw === "starter" || raw === "standard" || raw === "premium") return raw;
-  return "starter";
-}
+import { resolveMockWorkspace } from "@/core/workspace/workspace";
 
 export default async function AppHomeAliasPage({
   params,
@@ -17,8 +12,10 @@ export default async function AppHomeAliasPage({
   const p = await params;
   const sp = await searchParams;
 
-  const slug = p?.slug || "weiwei";
-  const planCode = normalizePlanCode(sp?.plan);
+  const workspace = resolveMockWorkspace({
+    slug: p?.slug,
+    plan: sp?.plan,
+  });
 
-  return <DashboardHomeV2 slug={slug} userName={slug} planCode={planCode} />;
+  return <DashboardHomeV2 workspace={workspace} />;
 }

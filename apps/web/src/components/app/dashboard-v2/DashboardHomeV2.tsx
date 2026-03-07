@@ -7,6 +7,7 @@ import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
 import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
 import type { DashboardRange, PlanCode, QuickActionItem } from "@/components/app/dashboard-v2/types";
+import type { Workspace } from "@/core/workspace/workspace";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
 import { KpiRowPrimary } from "@/components/app/dashboard-v2/KpiRowPrimary";
@@ -51,26 +52,10 @@ function getQuickActionsByPlan(
   return items;
 }
 
-function prettifyDisplayName(input?: string) {
-  const raw = (input || "").trim();
-  if (!raw) return "Weiwei";
-
-  return raw
-    .replace(/[-_]+/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 export function DashboardHomeV2({
-  userName = "Weiwei",
-  slug,
-  planCode = "starter",
+  workspace,
 }: {
-  userName?: string;
-  slug?: string;
-  planCode?: PlanCode;
+  workspace: Workspace;
 }) {
   const params = useParams<{ lang: string }>();
   const currentLang = normalizeLang(params?.lang) as Lang;
@@ -89,11 +74,9 @@ export function DashboardHomeV2({
 
   const totalCash = data.cashBalances.reduce((sum, item) => sum + item.balance, 0);
 
-  const resolvedUserName = prettifyDisplayName(userName || slug || "Weiwei");
-
   const quickActions = useMemo(
-    () => getQuickActionsByPlan(planCode, data.quickActions),
-    [planCode, data.quickActions]
+    () => getQuickActionsByPlan(workspace.planCode, data.quickActions),
+    [workspace.planCode, data.quickActions]
   );
 
   return (
@@ -101,15 +84,15 @@ export function DashboardHomeV2({
       <div className="flex items-center justify-end">
         <span
           className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium ${planBadgeClass(
-            planCode
+            workspace.planCode
           )}`}
         >
-          Current Plan: {planLabel(planCode)}
+          Current Plan: {planLabel(workspace.planCode)}
         </span>
       </div>
 
       <DashboardHeader
-        userName={resolvedUserName}
+        userName={workspace.displayName}
         subtitle="今日の経営状況を確認しましょう"
         range={range}
         storeId={storeId}
@@ -117,7 +100,12 @@ export function DashboardHomeV2({
         onChangeRange={setRange}
         onChangeStore={setStoreId}
         onRefresh={() => {
-          console.log("refresh dashboard home v2", currentLang, slug || "root", planCode);
+          console.log(
+            "refresh dashboard home v2",
+            currentLang,
+            workspace.slug,
+            workspace.planCode
+          );
         }}
       />
 
@@ -156,10 +144,10 @@ export function DashboardHomeV2({
           <AlertsTasksCard items={data.alerts} />
         </div>
         <div className="col-span-12 xl:col-span-8">
-          {planCode === "premium" ? (
+          {workspace.planCode === "premium" ? (
             <BusinessHealthCard data={data.businessHealth} />
           ) : (
-            <BusinessHealthLockedCard planCode={planCode} />
+            <BusinessHealthLockedCard planCode={workspace.planCode} />
           )}
         </div>
       </div>
