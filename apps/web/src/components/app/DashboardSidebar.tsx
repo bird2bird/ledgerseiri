@@ -4,9 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
+import { fetchWorkspaceContext } from "@/core/workspace/api";
+import { useFeatures } from "@/hooks/useFeatures";
 import type { PlanCode } from "@/components/app/dashboard-v2/types";
-import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
-import { resolveWorkspaceContext } from "@/core/workspace/resolve";
 
 function cls(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
@@ -381,38 +381,54 @@ export function DashboardSidebar() {
   const pathname = usePathname() || "";
   const params = useParams<{ lang: string; slug?: string }>();
   const lang = normalizeLang(params?.lang) as Lang;
-  const currentSlug = "weiwei";
   const t = DICT[lang];
 
   const [planCode, setPlanCode] = useState<PlanCode>("starter");
-  const [queryString, setQueryString] = useState("");
+
+  const currentSlug = useMemo(() => {
+    const parts = (pathname || "").split("/").filter(Boolean);
+    return parts.length >= 3 ? parts[2] : "weiwei";
+  }, [pathname]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sp = new URLSearchParams(window.location.search);
-    const resolved = resolveWorkspaceContext({
-      slug: currentSlug,
-      plan: sp.get("plan"),
-      locale: lang,
-    });
-    setPlanCode(resolved.subscription.planCode);
-    setQueryString(sp.toString());
-  }, [params, lang]);
+    let alive = true;
 
-  const ctx = resolveWorkspaceContext({
-    slug: currentSlug,
-    plan: planCode,
-    locale: lang,
-  });
+    async function loadWorkspacePlan() {
+      try {
+        const token =
+          typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
+
+        if (!token) return;
+
+        const ctx = await fetchWorkspaceContext({
+          token,
+          slug: currentSlug,
+          locale: lang,
+        });
+
+        if (!alive) return;
+        setPlanCode(ctx.subscription.planCode);
+      } catch {
+        // keep starter fallback
+      }
+    }
+
+    loadWorkspacePlan();
+    return () => {
+      alive = false;
+    };
+  }, [currentSlug, lang]);
+
+  const { features } = useFeatures(planCode);
+
 
   // repository-ready note:
   // server pages should use getWorkspaceContext()
   // client sidebar keeps lightweight local resolution for now.
 
   
-  const { features, subscription } = useWorkspaceContext(ctx);
 
-  const withLang = (p: string) => `/${lang}${p}${queryString ? `?${queryString}` : ""}`;
+  const withLang = (p: string) => `/${lang}${p}`;
 
   const isActive = (p?: string) => {
     if (!p) return false;
@@ -627,7 +643,7 @@ export function DashboardSidebar() {
         <div className="ls-nav-card p-4 min-h-[360px]">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">{t.menu}</div>
-            <div className="text-[11px] text-slate-400/80">{subscription.planCode}</div>
+            <div className="text-[11px] text-slate-400/80">{planCode}</div>
           </div>
 
           <div className="mt-3 text-[12px] text-slate-500">{t.cloudLedger}</div>

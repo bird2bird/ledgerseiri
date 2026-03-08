@@ -91,7 +91,6 @@ export function DashboardHomeV2({
         const serverCtx = await fetchWorkspaceContext({
           token,
           slug: workspace.slug,
-          plan: subscription.source === "mock-query" ? subscription.planCode : undefined,
           locale: currentLang,
         });
 
@@ -110,7 +109,7 @@ export function DashboardHomeV2({
     return () => {
       alive = false;
     };
-  }, [workspace.slug, subscription.planCode, subscription.source, currentLang]);
+  }, [workspace.slug, currentLang]);
 
   const storeOptions = [
     { id: "all", name: "全店舗" },
@@ -127,7 +126,7 @@ export function DashboardHomeV2({
         fundTransfer: features.fundTransfer,
         invoiceManagement: features.invoiceManagement,
         advancedExport: features.advancedExport,
-        invoiceUpload: true,
+        invoiceUpload: features.invoiceUpload,
       }),
     [data.quickActions, features]
   );
@@ -144,9 +143,11 @@ export function DashboardHomeV2({
           Current Plan: {planLabel(subscription.planCode)} · {limits.maxStores} Stores
         </span>
 
-        <span className="inline-flex rounded-full border border-black/5 bg-white px-3 py-1.5 text-[12px] text-slate-600">
-          source: {subscription.source}
-        </span>
+        {subscription.source !== "db" ? (
+          <span className="inline-flex rounded-full border border-black/5 bg-white px-3 py-1.5 text-[12px] text-slate-600">
+            source: {subscription.source}
+          </span>
+        ) : null}
 
         {ctxLoading ? (
           <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[12px] text-amber-700">
@@ -156,8 +157,8 @@ export function DashboardHomeV2({
       </div>
 
       {ctxError ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          workspace context fallback active: {ctxError}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          workspace context refresh failed, using last known context
         </div>
       ) : null}
 
@@ -186,7 +187,7 @@ export function DashboardHomeV2({
         <div className="col-span-12 xl:col-span-8">
           <RevenueProfitTrendCard
             points={data.revenueProfitTrend}
-            rangeLabel={features.history24m ? "30D" : "30D"}
+            rangeLabel="30D"
           />
         </div>
         <div className="col-span-12 xl:col-span-4">
