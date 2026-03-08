@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
 import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
-import type { DashboardRange, QuickActionItem } from "@/components/app/dashboard-v2/types";
+import type { DashboardHomeData, DashboardRange, QuickActionItem } from "@/components/app/dashboard-v2/types";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { fetchWorkspaceContext } from "@/core/workspace/api";
+import { fetchDashboardSummary } from "@/core/dashboard/api";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
 import { KpiRowPrimary } from "@/components/app/dashboard-v2/KpiRowPrimary";
@@ -106,12 +107,16 @@ export function DashboardHomeV2({
   const [ctxLoading, setCtxLoading] = useState(false);
   const [ctxError, setCtxError] = useState<string | null>(null);
 
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+
   const { workspace, subscription, features, limits, can } = useWorkspaceContext(resolvedCtx);
 
-  const data = dashboardHomeMock;
+  const [dashboardData, setDashboardData] = useState<DashboardHomeData>(dashboardHomeMock);
+  const data = dashboardData;
 
-  const [range, setRange] = useState<DashboardRange>(data.filters.range);
-  const [storeId, setStoreId] = useState<string>(data.filters.storeId);
+  const [range, setRange] = useState<DashboardRange>(dashboardHomeMock.filters.range);
+  const [storeId, setStoreId] = useState<string>(dashboardHomeMock.filters.storeId);
 
   useEffect(() => {
     let alive = true;
@@ -149,6 +154,43 @@ export function DashboardHomeV2({
       alive = false;
     };
   }, [workspace.slug, currentLang, debugPlan]);
+
+  const loadDashboardSummary = useCallback(async () => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
+
+    if (!token) return;
+
+    try {
+      setDashboardLoading(true);
+      setDashboardError(null);
+
+      const summary = await fetchDashboardSummary({
+        token,
+        storeId,
+        range,
+        locale: currentLang,
+      });
+
+      setDashboardData(summary);
+
+      if (summary?.filters?.range) {
+        setRange(summary.filters.range);
+      }
+
+      if (summary?.filters?.storeId) {
+        setStoreId(summary.filters.storeId);
+      }
+    } catch (e: any) {
+      setDashboardError(e?.message ?? String(e));
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [storeId, range, currentLang]);
+
+  useEffect(() => {
+    loadDashboardSummary();
+  }, [loadDashboardSummary]);
 
   const storeOptions = [
     { id: "all", name: "全店舗" },
@@ -193,11 +235,23 @@ export function DashboardHomeV2({
             syncing...
           </span>
         ) : null}
+
+        {dashboardLoading ? (
+          <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[12px] text-violet-700">
+            dashboard syncing...
+          </span>
+        ) : null}
       </div>
 
       {ctxError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           workspace context refresh failed, using last known context
+        </div>
+      ) : null}
+
+      {dashboardError ? (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+          dashboard summary fetch failed, using last known dashboard data
         </div>
       ) : null}
 
@@ -209,14 +263,7 @@ export function DashboardHomeV2({
         storeOptions={storeOptions}
         onChangeRange={setRange}
         onChangeStore={setStoreId}
-        onRefresh={() => {
-          console.log("refresh dashboard home v2", {
-            lang: currentLang,
-            workspace: workspace.slug,
-            plan: subscription.planCode,
-            source: subscription.source,
-          });
-        }}
+        onRefresh={loadDashboardSummary}
       />
 
       <KpiRowPrimary items={data.kpiPrimary} />
