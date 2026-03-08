@@ -2,21 +2,47 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 type PlanCodeLower = 'starter' | 'standard' | 'premium';
-type SubscriptionSource = 'db' | 'mock-default' | 'mock-query';
+type SubscriptionStatusLower = 'active' | 'trialing' | 'past_due' | 'canceled';
+
+type WorkspaceContextValue = {
+  workspace: {
+    slug: string;
+    displayName: string;
+    companyName: string;
+    locale: string;
+  };
+  subscription: {
+    planCode: PlanCodeLower;
+    status: SubscriptionStatusLower;
+    source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    limits: {
+      maxStores: number;
+      invoiceStorageMb: number;
+      aiChatMonthly: number;
+      aiInvoiceOcrMonthly: number;
+      historyMonths: number;
+    };
+  };
+};
 
 @Injectable()
 export class WorkspaceService {
   constructor(private readonly prisma: PrismaService) {}
 
   private normalizePlanCode(raw?: string | null): PlanCodeLower {
-    if (!raw) return 'starter';
-    const v = String(raw).toLowerCase();
+    const v = String(raw || '').trim().toLowerCase();
     if (v === 'starter' || v === 'standard' || v === 'premium') return v;
     return 'starter';
   }
 
+  private normalizeStatus(raw?: string | null): SubscriptionStatusLower {
+    const v = String(raw || '').trim().toLowerCase();
+    if (v === 'active' || v === 'trialing' || v === 'past_due' || v === 'canceled') return v;
+    return 'active';
+  }
+
   private prettifyWorkspaceName(input?: string | null): string {
-    const raw = (input || '').trim();
+    const raw = String(input || '').trim();
     if (!raw) return 'Weiwei';
 
     return raw
@@ -27,13 +53,14 @@ export class WorkspaceService {
       .join(' ');
   }
 
-  private getPlanLimits(planCode: PlanCodeLower) {
+  private getDefaultLimits(planCode: PlanCodeLower) {
     if (planCode === 'premium') {
       return {
         maxStores: 10,
-        invoiceStorageMb: 5120,
+        invoiceStorageMb: 5 * 1024,
         aiChatMonthly: 50,
         aiInvoiceOcrMonthly: 100,
+        historyMonths: 24,
       };
     }
 
@@ -43,6 +70,7 @@ export class WorkspaceService {
         invoiceStorageMb: 1024,
         aiChatMonthly: 0,
         aiInvoiceOcrMonthly: 0,
+        historyMonths: 24,
       };
     }
 
@@ -51,62 +79,141 @@ export class WorkspaceService {
       invoiceStorageMb: 200,
       aiChatMonthly: 0,
       aiInvoiceOcrMonthly: 0,
+      historyMonths: 12,
     };
   }
 
-  async getContext(args: {
-    userId: string;
-    slug?: string | null;
-    plan?: string | null;
-    locale?: string | null;
-  }) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: args.userId },
-      include: {
-        company: {
-          include: {
-            subscription: true,
-          },
-        },
+  private buildContext(args: {
+    slug: string;
+    locale: string;
+    companyName: string;
+    planCode: PlanCodeLower;
+    status: SubscriptionStatusLower;
+    source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    limits: {
+      maxStores: number;
+      invoiceStorageMb: number;
+      aiChatMonthly: number;
+      aiInvoiceOcrMonthly: number;
+      historyMonths: number;
+    };
+  }): WorkspaceContextValue {
+    return {
+      workspace: {
+        slug: args.slug,
+        displayName: this.prettifyWorkspaceName(args.slug),
+        companyName: args.companyName,
+        locale: args.locale,
+      },
+      subscription: {
+        planCode: args.planCode,
+        status: args.status,
+        source: args.source,
+        limits: args.limits,
+      },
+    };
+  }
+
+  async getContext(
+    input?: { slug?: string; plan?: string; locale?: string } | string,
+    maybePlan?: string,
+    maybeLocale?: string,
+  ): Promise<WorkspaceContextValue> {
+    const query =
+      typeof input === 'string'
+        ? { slug: input, plan: maybePlan, locale: maybeLocale }
+        : (input || {});
+
+    const slug = String(query.slug || 'weiwei').trim() || 'weiwei';
+    const locale = String(query.locale || 'ja').trim() || 'ja';
+    const queryPlan = String(query.plan || '').trim();
+
+    // Temporary production-safe resolution:
+    // use the first company as workspace source of truth.
+    // Later this will be replaced by real workspace-slug -> company mapping.
+    const company = await this.prisma.company.findFirst({
+      orderBy: {
+        createdAt: 'asc',
       },
     });
 
-    const fallbackSlug = (args.slug || 'weiwei').trim() || 'weiwei';
-    const locale = args.locale || 'ja';
+    if (!company) {
+      const fallbackPlan = queryPlan
+        ? this.normalizePlanCode(queryPlan)
+        : 'starter';
 
-    let planCode: PlanCodeLower = 'starter';
-    let source: SubscriptionSource = 'mock-default';
-
-    if (user?.company?.subscription) {
-      const dbPlan = String(user.company.subscription.planCode || 'STARTER').toLowerCase();
-      planCode = this.normalizePlanCode(dbPlan);
-      source = 'db';
-    } else if (args.plan) {
-      planCode = this.normalizePlanCode(args.plan);
-      source = 'mock-query';
+      return this.buildContext({
+        slug,
+        locale,
+        companyName: 'LedgerSeiri Demo Company',
+        planCode: fallbackPlan,
+        status: 'active',
+        source: queryPlan ? 'mock-query' : 'mock-default',
+        limits: this.getDefaultLimits(fallbackPlan),
+      });
     }
 
-    const limits = this.getPlanLimits(planCode);
-
-    const slug = fallbackSlug;
-    const displayName =
-      this.prettifyWorkspaceName(slug) ||
-      this.prettifyWorkspaceName(user?.email?.split('@')[0]) ||
-      'Weiwei';
-
-    return {
-      workspace: {
-        slug,
-        displayName,
-        companyName: user?.company?.name || 'LedgerSeiri Demo Company',
-        locale,
+    const subscriptionRow = await this.prisma.workspaceSubscription.findUnique({
+      where: {
+        companyId: company.id,
       },
-      subscription: {
-        planCode,
-        status: 'active',
-        source,
-        limits,
-      },
+    });
+
+    const dbPlan = subscriptionRow?.planCode
+      ? this.normalizePlanCode(String(subscriptionRow.planCode))
+      : 'starter';
+
+    const dbStatus = subscriptionRow?.status
+      ? this.normalizeStatus(String(subscriptionRow.status))
+      : 'active';
+
+    const effectivePlan = queryPlan
+      ? this.normalizePlanCode(queryPlan)
+      : dbPlan;
+
+    const source: WorkspaceContextValue['subscription']['source'] = queryPlan
+      ? 'db+query-override'
+      : 'db';
+
+    const defaultLimits = this.getDefaultLimits(effectivePlan);
+
+    const limits = {
+      maxStores:
+        typeof subscriptionRow?.maxStores === 'number'
+          ? subscriptionRow.maxStores
+          : defaultLimits.maxStores,
+      invoiceStorageMb:
+        typeof subscriptionRow?.invoiceStorageMb === 'number'
+          ? subscriptionRow.invoiceStorageMb
+          : defaultLimits.invoiceStorageMb,
+      aiChatMonthly:
+        typeof subscriptionRow?.aiChatMonthly === 'number'
+          ? subscriptionRow.aiChatMonthly
+          : defaultLimits.aiChatMonthly,
+      aiInvoiceOcrMonthly:
+        typeof subscriptionRow?.aiInvoiceOcrMonthly === 'number'
+          ? subscriptionRow.aiInvoiceOcrMonthly
+          : defaultLimits.aiInvoiceOcrMonthly,
+      historyMonths:
+        effectivePlan === 'starter' ? 12 : 24,
     };
+
+    return this.buildContext({
+      slug,
+      locale,
+      companyName: company.name || 'LedgerSeiri Demo Company',
+      planCode: effectivePlan,
+      status: dbStatus,
+      source,
+      limits,
+    });
+  }
+
+  async resolveContext(
+    input?: { slug?: string; plan?: string; locale?: string } | string,
+    maybePlan?: string,
+    maybeLocale?: string,
+  ): Promise<WorkspaceContextValue> {
+    return this.getContext(input as any, maybePlan, maybeLocale);
   }
 }
