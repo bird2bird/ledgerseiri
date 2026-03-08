@@ -195,3 +195,49 @@
 - 多币种策略（amount 与 currency 的一致性校验）
 - Store 平台枚举化/约束（避免脏数据）
 - Company/User 的权限模型（Owner/Admin/Member）
+
+
+## Workspace Subscription (Draft)
+
+### Enums
+
+- `PlanCode`
+  - `STARTER`
+  - `STANDARD`
+  - `PREMIUM`
+
+- `SubscriptionStatus`
+  - `ACTIVE`
+  - `TRIALING`
+  - `PAST_DUE`
+  - `CANCELED`
+
+### Model: `WorkspaceSubscription`
+
+Purpose:
+- store the current paid plan for one company/workspace
+- provide limits and entitlement source-of-truth for frontend gating
+
+Fields:
+- `id: String @id`
+- `companyId: String @unique`
+- `planCode: PlanCode`
+- `status: SubscriptionStatus`
+- `currentPeriodEnd: DateTime?`
+- `maxStores: Int`
+- `invoiceStorageMb: Int`
+- `aiChatMonthly: Int`
+- `aiInvoiceOcrMonthly: Int`
+- `createdAt: DateTime`
+- `updatedAt: DateTime`
+
+Relation:
+- one `Company` has zero or one `WorkspaceSubscription`
+
+Initial rollout note:
+- V1 keeps plan limits in DB as explicit columns for simplicity.
+- entitlements are derived in application layer from `planCode`.
+- future Stripe integration may add provider fields such as:
+  - `provider`
+  - `providerCustomerId`
+  - `providerSubscriptionId`

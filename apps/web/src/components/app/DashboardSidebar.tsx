@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
+import type { PlanCode } from "@/components/app/dashboard-v2/types";
+import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
+import { resolveWorkspaceContext } from "@/core/workspace/resolve";
 
 function cls(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
+}
+
+function normalizePlanCode(raw?: string | null): PlanCode {
+  if (raw === "starter" || raw === "standard" || raw === "premium") return raw;
+  return "starter";
 }
 
 function Caret({ open }: { open: boolean }) {
@@ -24,11 +32,61 @@ function Caret({ open }: { open: boolean }) {
   );
 }
 
+function LockBadge({ level }: { level: "standard" | "premium" }) {
+  const text = level === "standard" ? "🔒 Std+" : "🔒 Pro";
+  const tone =
+    level === "standard"
+      ? "border-sky-200 bg-sky-50 text-sky-700"
+      : "border-violet-200 bg-violet-50 text-violet-700";
+
+  return (
+    <span
+      className={cls(
+        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none",
+        tone
+      )}
+    >
+      {text}
+    </span>
+  );
+}
+
+function requiredPlanTooltip(
+  lang: Lang,
+  level?: "standard" | "premium"
+): string | undefined {
+  if (!level) return undefined;
+
+  if (lang === "ja") {
+    return level === "standard"
+      ? "Standard 以上で利用できます"
+      : "Premium プランで利用できます";
+  }
+
+  if (lang === "zh-CN") {
+    return level === "standard"
+      ? "Standard 及以上套餐可用"
+      : "Premium 套餐可用";
+  }
+
+  if (lang === "zh-TW") {
+    return level === "standard"
+      ? "Standard 以上方案可用"
+      : "Premium 方案可用";
+  }
+
+  return level === "standard"
+    ? "Available on Standard and Premium"
+    : "Available on Premium";
+}
+
 type MenuLeaf = {
   kind: "leaf";
   key: string;
   label: string;
-  href?: string; // no href = visual-only item for now
+  href?: string;
+  locked?: boolean;
+  requiredPlan?: "standard" | "premium";
 };
 
 type MenuGroup = {
@@ -36,6 +94,8 @@ type MenuGroup = {
   key: string;
   label: string;
   items: Array<MenuLeaf | MenuGroup>;
+  locked?: boolean;
+  requiredPlan?: "standard" | "premium";
 };
 
 type MenuNode = MenuLeaf | MenuGroup;
@@ -147,7 +207,7 @@ const DICT: Record<Lang, Dict> = {
   en: {
     menu: "Menu",
     cloudLedger: "Business Console",
-    home: "首页",
+    home: "Home",
     help: "Help",
     accountSettings: "Account Settings",
     funds: "Funds",
@@ -198,7 +258,7 @@ const DICT: Record<Lang, Dict> = {
   "zh-CN": {
     menu: "菜单",
     cloudLedger: "云记账",
-    home: "首頁",
+    home: "首页",
     help: "帮助",
     accountSettings: "账户设置",
     funds: "资金管理",
@@ -249,7 +309,7 @@ const DICT: Record<Lang, Dict> = {
   "zh-TW": {
     menu: "選單",
     cloudLedger: "雲記帳",
-    home: "Home",
+    home: "首頁",
     help: "幫助",
     accountSettings: "帳戶設定",
     funds: "資金管理",
@@ -299,180 +359,246 @@ const DICT: Record<Lang, Dict> = {
   },
 };
 
+function leaf(
+  key: string,
+  label: string,
+  href?: string,
+  locked = false,
+  requiredPlan?: "standard" | "premium"
+): MenuLeaf {
+  return { kind: "leaf", key, label, href, locked, requiredPlan };
+}
+
+function group(
+  key: string,
+  label: string,
+  items: Array<MenuLeaf | MenuGroup>
+): MenuGroup {
+  return { kind: "group", key, label, items };
+}
+
 export function DashboardSidebar() {
   const pathname = usePathname() || "";
-  const params = useParams<{ lang: string }>();
+  const params = useParams<{ lang: string; slug?: string }>();
   const lang = normalizeLang(params?.lang) as Lang;
+  const currentSlug = "weiwei";
   const t = DICT[lang];
 
-  const withLang = (p: string) => `/${lang}${p}`;
+  const [planCode, setPlanCode] = useState<PlanCode>("starter");
+  const [queryString, setQueryString] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const resolved = resolveWorkspaceContext({
+      slug: currentSlug,
+      plan: sp.get("plan"),
+      locale: lang,
+    });
+    setPlanCode(resolved.subscription.planCode);
+    setQueryString(sp.toString());
+  }, [params, lang]);
+
+  const ctx = resolveWorkspaceContext({
+    slug: currentSlug,
+    plan: planCode,
+    locale: lang,
+  });
+
+  // repository-ready note:
+  // server pages should use getWorkspaceContext()
+  // client sidebar keeps lightweight local resolution for now.
+
+  
+  const { features, subscription } = useWorkspaceContext(ctx);
+
+  const withLang = (p: string) => `/${lang}${p}${queryString ? `?${queryString}` : ""}`;
 
   const isActive = (p?: string) => {
     if (!p) return false;
-    const full = withLang(p);
+    const full = `/${lang}${p}`;
     return pathname === full || pathname.startsWith(full + "/");
   };
 
   const menu = useMemo<MenuNode[]>(() => {
     return [
-      { kind: "leaf", key: "home", label: t.home, href: "/app" },
+      leaf("home", t.home, "/app"),
 
-      {
-        kind: "group",
-        key: "funds",
-        label: t.funds,
-        items: [
-          { kind: "leaf", key: "accountList", label: t.accountList },
-          { kind: "leaf", key: "accountBalance", label: t.accountBalance },
-          { kind: "leaf", key: "fundTransfer", label: t.fundTransfer },
-        ],
-      },
+      group("funds", t.funds, [
+        leaf("account-list", t.accountList, "/app/accounts"),
+        leaf("account-balance", t.accountBalance, "/app/account-balances"),
+        leaf(
+          "fund-transfer",
+          t.fundTransfer,
+          "/app/fund-transfer",
+          !features.fundTransfer,
+          "standard"
+        ),
+      ]),
 
-      {
-        kind: "group",
-        key: "transactions",
-        label: t.transactions,
-        items: [
-          {
-            kind: "group",
-            key: "income",
-            label: t.income,
-            items: [
-              { kind: "leaf", key: "cashIncome", label: t.cashIncome },
-              { kind: "leaf", key: "storeOrders", label: t.storeOrders },
-              { kind: "leaf", key: "otherIncome", label: t.otherIncome },
-            ],
-          },
-          {
-            kind: "group",
-            key: "expense",
-            label: t.expense,
-            items: [
-              { kind: "leaf", key: "storeOpsExpense", label: t.storeOpsExpense },
-              { kind: "leaf", key: "companyOpsExpense", label: t.companyOpsExpense },
-              { kind: "leaf", key: "salary", label: t.salary },
-              { kind: "leaf", key: "otherExpense", label: t.otherExpense },
-            ],
-          },
-        ],
-      },
+      group("transactions", t.transactions, [
+        group("income", t.income, [
+          leaf("cash-income", t.cashIncome, "/app/income/cash"),
+          leaf("store-orders", t.storeOrders, "/app/income/store-orders"),
+          leaf("other-income", t.otherIncome, "/app/income/other"),
+        ]),
+        group("expense", t.expense, [
+          leaf("store-ops", t.storeOpsExpense, "/app/expense/store-ops"),
+          leaf("company-ops", t.companyOpsExpense, "/app/expense/company-ops"),
+          leaf("salary", t.salary, "/app/expense/salary"),
+          leaf("other-expense", t.otherExpense, "/app/expense/other"),
+        ]),
+      ]),
 
-      {
-        kind: "group",
-        key: "inventory",
-        label: t.inventory,
-        items: [
-          { kind: "leaf", key: "productList", label: t.productList },
-          { kind: "leaf", key: "inventoryStatus", label: t.inventoryStatus },
-          { kind: "leaf", key: "inventoryAlerts", label: t.inventoryAlerts },
-        ],
-      },
+      group("inventory", t.inventory, [
+        leaf("product-list", t.productList, "/app/products"),
+        leaf(
+          "inventory-status",
+          t.inventoryStatus,
+          "/app/inventory/status",
+          !features.multiStore,
+          "standard"
+        ),
+        leaf("inventory-alerts", t.inventoryAlerts, "/app/inventory/alerts"),
+      ]),
 
-      {
-        kind: "group",
-        key: "invoices",
-        label: t.invoices,
-        items: [
-          { kind: "leaf", key: "invoiceList", label: t.invoiceList },
-          { kind: "leaf", key: "unpaid", label: t.unpaid },
-          { kind: "leaf", key: "paymentHistory", label: t.paymentHistory },
-        ],
-      },
+      group("invoices", t.invoices, [
+        leaf(
+          "invoice-list",
+          t.invoiceList,
+          "/app/invoices",
+          !features.invoiceManagement,
+          "standard"
+        ),
+        leaf(
+          "unpaid",
+          t.unpaid,
+          "/app/invoices/unpaid",
+          !features.invoiceManagement,
+          "standard"
+        ),
+        leaf(
+          "payment-history",
+          t.paymentHistory,
+          "/app/invoices/history",
+          !features.invoiceManagement,
+          "standard"
+        ),
+      ]),
 
-      {
-        kind: "group",
-        key: "reports",
-        label: t.reports,
-        items: [
-          { kind: "leaf", key: "incomeAnalysis", label: t.incomeAnalysis },
-          { kind: "leaf", key: "expenseAnalysis", label: t.expenseAnalysis },
-          { kind: "leaf", key: "profitAnalysis", label: t.profitAnalysis, href: "/app/reports/profit" },
-          { kind: "leaf", key: "cashflow", label: t.cashflow, href: "/app/reports/cashflow" },
-        ],
-      },
+      group("reports", t.reports, [
+        leaf("income-analysis", t.incomeAnalysis, "/app/reports/income"),
+        leaf("expense-analysis", t.expenseAnalysis, "/app/reports/expense"),
+        leaf(
+          "profit-analysis",
+          t.profitAnalysis,
+          "/app/reports/profit",
+          !features.history24m,
+          "standard"
+        ),
+        leaf("cashflow", t.cashflow, "/app/reports/cashflow"),
+      ]),
 
-      {
-        kind: "group",
-        key: "taxSummary",
-        label: t.taxSummary,
-        items: [
-          { kind: "leaf", key: "consumptionTaxEstimate", label: t.consumptionTaxEstimate },
-        ],
-      },
+      group("tax-summary", t.taxSummary, [
+        leaf("consumption-tax", t.consumptionTaxEstimate, "/app/tax/summary"),
+      ]),
 
-      {
-        kind: "group",
-        key: "dataManagement",
-        label: t.dataManagement,
-        items: [
-          { kind: "leaf", key: "dataImport", label: t.dataImport },
-          { kind: "leaf", key: "dataExport", label: t.dataExport },
-        ],
-      },
+      group("data-management", t.dataManagement, [
+        leaf(
+          "data-import",
+          t.dataImport,
+          "/app/data/import",
+          !features.invoiceUpload,
+          "standard"
+        ),
+        leaf(
+          "data-export",
+          t.dataExport,
+          "/app/data/export",
+          !features.advancedExport,
+          "standard"
+        ),
+      ]),
 
-      { kind: "leaf", key: "help", label: t.help },
+      leaf("help", t.help, "/app/help"),
 
-      {
-        kind: "group",
-        key: "accountSettings",
-        label: t.accountSettings,
-        items: [
-          { kind: "leaf", key: "profile", label: t.profile },
-          { kind: "leaf", key: "companyInfo", label: t.companyInfo },
-          { kind: "leaf", key: "userManagement", label: t.userManagement },
-          { kind: "leaf", key: "permissionManagement", label: t.permissionManagement },
-          { kind: "leaf", key: "accountConfig", label: t.accountConfig },
-          { kind: "leaf", key: "categoryManagement", label: t.categoryManagement },
-          { kind: "leaf", key: "storeManagement", label: t.storeManagement },
-          { kind: "leaf", key: "currencyTaxSettings", label: t.currencyTaxSettings },
-          { kind: "leaf", key: "notificationSettings", label: t.notificationSettings },
-          { kind: "leaf", key: "security", label: t.security },
-          { kind: "leaf", key: "planInfo", label: t.planInfo },
-          { kind: "leaf", key: "planChange", label: t.planChange },
-        ],
-      },
+      group("account-settings", t.accountSettings, [
+        leaf("profile", t.profile, "/app/settings/profile"),
+        leaf("company-info", t.companyInfo, "/app/settings/company"),
+        leaf("user-management", t.userManagement, "/app/settings/users"),
+        leaf("permission-management", t.permissionManagement, "/app/settings/permissions"),
+        leaf("account-config", t.accountConfig, "/app/settings/accounts"),
+        leaf("category-management", t.categoryManagement, "/app/settings/categories"),
+        leaf(
+          "store-management",
+          t.storeManagement,
+          "/app/settings/stores",
+          !features.multiStore,
+          "standard"
+        ),
+        leaf("currency-tax-settings", t.currencyTaxSettings, "/app/settings/currency-tax"),
+        leaf("notification-settings", t.notificationSettings, "/app/settings/notifications"),
+        leaf("security", t.security, "/app/settings/security"),
+        leaf("plan-info", t.planInfo, "/app/billing"),
+        leaf("plan-change", t.planChange, "/app/billing/change"),
+      ]),
     ];
-  }, [t]);
+  }, [t, features]);
 
-  const nodeHasActive = (node: MenuNode): boolean => {
-    if (node.kind === "leaf") return isActive(node.href);
-    return node.items.some(nodeHasActive);
-  };
+  function LeafItem({ item, depth = 0 }: { item: MenuLeaf; depth?: number }) {
+    const active = isActive(item.href);
+    const tooltip = requiredPlanTooltip(lang, item.requiredPlan);
 
-  const Leaf = ({ node, depth = 0 }: { node: MenuLeaf; depth?: number }) => {
-    const active = isActive(node.href);
-    const baseClass = cls(
-      "block rounded-xl px-3 py-2 text-sm transition",
-      depth === 0 ? "font-medium" : "text-slate-700",
-      active ? "ls-nav-item ls-nav-item-active" : depth === 0 ? "ls-nav-item" : "hover:bg-black/[0.03]"
+    const commonClass = cls(
+      "flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition",
+      depth > 0 ? "ml-3" : "",
+      item.locked
+        ? "cursor-not-allowed border border-dashed border-slate-200 bg-slate-50/70 text-slate-400"
+        : active
+        ? "ls-nav-item ls-nav-item-active"
+        : "ls-nav-item"
     );
 
-    if (node.href) {
+    const left = (
+      <div className="min-w-0 truncate font-medium">
+        {item.label}
+      </div>
+    );
+
+    const right = item.locked ? <LockBadge level={item.requiredPlan || "premium"} /> : null;
+
+    if (item.locked) {
       return (
-        <Link href={withLang(node.href)} className={baseClass}>
-          {node.label}
-        </Link>
+        <div
+          className={commonClass}
+          title={tooltip}
+          aria-disabled="true"
+        >
+          {left}
+          {right}
+        </div>
       );
     }
 
     return (
-      <div className={cls(baseClass, "cursor-default text-slate-700/90")}>
-        {node.label}
-      </div>
+      <Link href={withLang(item.href || "/app")} className={commonClass} title={tooltip}>
+        {left}
+        {right}
+      </Link>
     );
-  };
+  }
 
-  const Group = ({ node, depth = 0 }: { node: MenuGroup; depth?: number }) => {
-    const open = nodeHasActive(node) || depth === 0;
+  function GroupNode({ node, depth = 0 }: { node: MenuGroup; depth?: number }) {
+    const childHasActive = node.items.some((it) => {
+      if (it.kind === "leaf") return isActive(it.href);
+      return it.items.some((x) => (x.kind === "leaf" ? isActive(x.href) : false));
+    });
 
     return (
-      <details className="group" {...(open ? { open: true } : {})}>
-        <summary className={cls(
-          "list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-black/[0.03]",
-          depth === 0 ? "text-sm font-semibold text-slate-900" : "text-sm font-medium text-slate-800"
-        )}>
-          <div className="flex items-center justify-between">
-            <span>{node.label}</span>
+      <details className={cls("group", depth > 0 && "ml-3")} open={childHasActive || depth === 0}>
+        <summary className="list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-black/[0.03]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-slate-900">{node.label}</span>
             <span className="group-open:hidden">
               <Caret open={false} />
             </span>
@@ -482,36 +608,36 @@ export function DashboardSidebar() {
           </div>
         </summary>
 
-        <div className={cls("mt-1 space-y-1", depth === 0 ? "pl-3" : "pl-4")}>
-          {node.items.map((child) =>
-            child.kind === "leaf" ? (
-              <Leaf key={child.key} node={child} depth={depth + 1} />
+        <div className="mt-1 space-y-1">
+          {node.items.map((it) =>
+            it.kind === "leaf" ? (
+              <LeafItem key={it.key} item={it} depth={depth + 1} />
             ) : (
-              <Group key={child.key} node={child} depth={depth + 1} />
+              <GroupNode key={it.key} node={it} depth={depth + 1} />
             )
           )}
         </div>
       </details>
     );
-  };
+  }
 
   return (
     <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
       <div className="sticky top-[78px]">
-        <div className="ls-nav-card p-4 h-[calc(100vh-78px-28px)] flex flex-col">
+        <div className="ls-nav-card p-4 min-h-[360px]">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-slate-900">{t.menu}</div>
-            <div className="text-[11px] text-slate-400/80">Block 5</div>
+            <div className="text-[11px] text-slate-400/80">{subscription.planCode}</div>
           </div>
 
           <div className="mt-3 text-[12px] text-slate-500">{t.cloudLedger}</div>
 
-          <nav className="mt-3 flex-1 min-h-0 overflow-auto space-y-3 pr-1">
+          <nav className="mt-3 max-h-[calc(100vh-140px)] overflow-auto space-y-3 pr-1">
             {menu.map((node) =>
               node.kind === "leaf" ? (
-                <Leaf key={node.key} node={node} />
+                <LeafItem key={node.key} item={node} />
               ) : (
-                <Group key={node.key} node={node} />
+                <GroupNode key={node.key} node={node} />
               )
             )}
           </nav>

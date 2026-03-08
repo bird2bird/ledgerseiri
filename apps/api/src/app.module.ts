@@ -4,11 +4,13 @@ import { AuthModule } from './auth/auth.module';
 import { CompanyModule } from './company/company.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { WorkspaceModule } from './workspace/workspace.module';
 import { StoreModule } from './store/store.module';
 import { HealthController } from './health.controller';
 
 @Module({
-  imports: [AuthModule, CompanyModule, StoreModule, TransactionModule, DashboardModule,
+  imports: [
+    WorkspaceModule,AuthModule, CompanyModule, StoreModule, TransactionModule, DashboardModule,
     SecurityModule,
 ],
   controllers: [HealthController],

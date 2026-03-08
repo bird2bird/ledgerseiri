@@ -1,0 +1,30 @@
+import type { WorkspaceContextValue } from "@/core/workspace/types";
+
+export async function fetchWorkspaceContext(args: {
+  token: string;
+  slug?: string;
+  plan?: string;
+  locale?: string;
+}): Promise<WorkspaceContextValue> {
+  const qs = new URLSearchParams();
+
+  if (args.slug) qs.set("slug", args.slug);
+  if (args.plan) qs.set("plan", args.plan);
+  if (args.locale) qs.set("locale", args.locale);
+
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
+  const res = await fetch(`/workspace/context${suffix}`, {
+    headers: {
+      Authorization: `Bearer ${args.token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`/workspace/context failed: ${res.status} ${text}`);
+  }
+
+  return (await res.json()) as WorkspaceContextValue;
+}

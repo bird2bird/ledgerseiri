@@ -29,6 +29,8 @@ model Company {
   users           User[]
   stores          Store[]
   createdAt       DateTime @default(now())
+
+  subscription WorkspaceSubscription?
 }
 
 model Store {
@@ -65,7 +67,6 @@ model Transaction {
   @@index([type])
 }
 
-
 model RefreshSession {
   id            String   @id @default(cuid())
   userId        String
@@ -80,7 +81,6 @@ model RefreshSession {
   @@index([userId])
   @@index([expiresAt])
 }
-
 
 /// Keep connect-pg-simple table in DB (do NOT let prisma db push drop it)
 model PgSession {
@@ -104,4 +104,38 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum PlanCode {
+  STARTER
+  STANDARD
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+}
+
+model WorkspaceSubscription {
+  id                  String             @id @default(cuid())
+  companyId           String             @unique
+  planCode            PlanCode           @default(STARTER)
+  status              SubscriptionStatus @default(ACTIVE)
+
+  currentPeriodEnd    DateTime?
+  maxStores           Int                @default(1)
+  invoiceStorageMb    Int                @default(200)
+  aiChatMonthly       Int                @default(0)
+  aiInvoiceOcrMonthly Int                @default(0)
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([planCode])
+  @@index([status])
 }
