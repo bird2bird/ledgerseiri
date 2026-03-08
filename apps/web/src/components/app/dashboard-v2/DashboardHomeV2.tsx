@@ -171,7 +171,7 @@ export function DashboardHomeV2({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span
           className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium ${planBadgeClass(
@@ -222,7 +222,7 @@ export function DashboardHomeV2({
       <KpiRowPrimary items={data.kpiPrimary} />
       <KpiRowSecondary items={data.kpiSecondary} />
 
-      <div className="grid grid-cols-12 gap-4 xl:gap-5">
+      <div className="grid grid-cols-12 gap-5 xl:gap-6">
         <div className="col-span-12 xl:col-span-8">
           <RevenueProfitTrendCard
             points={data.revenueProfitTrend}
@@ -234,7 +234,7 @@ export function DashboardHomeV2({
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4 xl:gap-5">
+      <div className="grid grid-cols-12 gap-5 xl:gap-6">
         <div className="col-span-12 lg:col-span-6 xl:col-span-4">
           <ExpenseBreakdownCard items={data.expenseBreakdown} />
         </div>
@@ -246,7 +246,7 @@ export function DashboardHomeV2({
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4 xl:gap-5">
+      <div className="grid grid-cols-12 gap-5 xl:gap-6">
         <div className="col-span-12 xl:col-span-4">
           <AlertsTasksCard items={data.alerts} />
         </div>
@@ -261,7 +261,7 @@ export function DashboardHomeV2({
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4 xl:gap-5">
+      <div className="grid grid-cols-12 gap-5 xl:gap-6">
         <div className="col-span-12 xl:col-span-8">
           <RecentTransactionsCard items={data.recentTransactions} />
         </div>

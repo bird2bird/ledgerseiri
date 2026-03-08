@@ -21,21 +21,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen ls-bg">
-      <DashboardTopbar appName={t("appName")} companyName={t("demoCompany")} onLogout={logout} />
+      <DashboardTopbar
+        appName={t("appName")}
+        companyName={t("demoCompany")}
+        onLogout={logout}
+      />
 
-      <div className="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 py-7 items-stretch">
+      <div className="grid min-h-[calc(100vh-78px)] grid-cols-1 lg:grid-cols-[292px_minmax(0,1fr)] gap-0">
         <Suspense
           fallback={
-            <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
-              <div className="sticky top-[78px]">
-                <div className="ls-nav-card p-4 min-h-[360px]" />
-              </div>
+            <aside className="hidden lg:block border-r border-black/5 bg-white/65 px-4 py-5">
+              <div className="ls-nav-card min-h-[calc(100vh-118px)] p-4" />
             </aside>
           }
         >
           <DashboardSidebar />
         </Suspense>
-        <main className="col-span-12 lg:col-span-9 space-y-5">{children}</main>
+
+        <main className="min-w-0 px-5 py-5 lg:px-6 lg:py-6 xl:px-7 xl:py-7">
+          {children}
+        </main>
       </div>
     </div>
   );

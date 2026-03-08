@@ -8,6 +8,34 @@ import { fetchWorkspaceContext } from "@/core/workspace/api";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { PlanCode } from "@/components/app/dashboard-v2/types";
 
+function menuGlyph(key: string): string {
+  switch (key) {
+    case "home":
+      return "⌂";
+    case "funds":
+      return "¤";
+    case "transactions":
+      return "↕";
+    case "inventory":
+      return "▣";
+    case "invoices":
+      return "□";
+    case "reports":
+      return "◫";
+    case "tax-summary":
+      return "%";
+    case "data-management":
+      return "⇅";
+    case "account-settings":
+      return "⚙";
+    case "help":
+      return "?";
+    default:
+      return "•";
+  }
+}
+
+
 function cls(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
 }
@@ -617,7 +645,12 @@ export function DashboardSidebar() {
       <details className={cls("group", depth > 0 && "ml-3")} open={childHasActive || depth === 0}>
         <summary className="list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-black/[0.03]">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-slate-900">{node.label}</span>
+            <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-xl bg-slate-100 text-[12px] text-slate-500">
+                  {menuGlyph(node.key)}
+                </span>
+                <span>{node.label}</span>
+              </span>
             <span className="group-open:hidden">
               <Caret open={false} />
             </span>
@@ -641,27 +674,27 @@ export function DashboardSidebar() {
   }
 
   return (
-    <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
-      <div className="sticky top-[78px]">
-        <div className="ls-nav-card p-4 min-h-[360px]">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">{t.menu}</div>
-            <div className="text-[11px] text-slate-400/80">{planCode}</div>
+      <aside className="hidden lg:block border-r border-black/5 bg-white/68 px-4 py-5">
+        <div className="sticky top-[90px]">
+          <div className="ls-nav-card p-4 min-h-[calc(100vh-122px)]">
+            <div className="flex items-center justify-between">
+              <div className="text-xl font-semibold tracking-tight text-slate-900">{t.menu}</div>
+              <div className="text-[11px] font-medium text-slate-400">{planCode}</div>
+            </div>
+
+            <div className="mt-3 text-[12px] text-slate-500">{t.cloudLedger}</div>
+
+            <nav className="mt-4 max-h-[calc(100vh-170px)] overflow-auto space-y-3 pr-1">
+              {menu.map((node) =>
+                node.kind === "leaf" ? (
+                  <LeafItem key={node.key} item={node} />
+                ) : (
+                  <GroupNode key={node.key} node={node} />
+                )
+              )}
+            </nav>
           </div>
-
-          <div className="mt-3 text-[12px] text-slate-500">{t.cloudLedger}</div>
-
-          <nav className="mt-3 max-h-[calc(100vh-140px)] overflow-auto space-y-3 pr-1">
-            {menu.map((node) =>
-              node.kind === "leaf" ? (
-                <LeafItem key={node.key} item={node} />
-              ) : (
-                <GroupNode key={node.key} node={node} />
-              )
-            )}
-          </nav>
         </div>
-      </div>
-    </aside>
-  );
+      </aside>
+    );
 }
