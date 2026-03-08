@@ -96,7 +96,10 @@ export type QuickActionItem = {
   label: string;
   subLabel: string;
   href: string;
-  icon: string;
+  icon: "plus" | "minus" | "arrow" | "file" | "upload" | "chart";
+  locked?: boolean;
+  requiredPlan?: "standard" | "premium";
+  upgradeHint?: string;
 };
 
 export type DashboardHomeData = {

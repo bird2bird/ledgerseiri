@@ -1,4 +1,5 @@
 import type { PlanCode } from "@/components/app/dashboard-v2/types";
+import type { FeatureMatrix } from "@/core/billing/features";
 
 export type Workspace = {
   slug: string;
@@ -13,33 +14,28 @@ export type WorkspaceSubscriptionStatus =
   | "past_due"
   | "canceled";
 
-export type WorkspaceEntitlements = {
-  aiInsights: boolean;
-  aiChat: boolean;
-  invoiceOcr: boolean;
-  multiStore: boolean;
-  fundTransfer: boolean;
-  invoiceManagement: boolean;
-  advancedExport: boolean;
-  skuLevelExport: boolean;
-  history24m: boolean;
-};
+export type WorkspaceEntitlements = FeatureMatrix;
 
 export type WorkspaceLimits = {
   maxStores: number;
   invoiceStorageMb: number;
   aiChatMonthly: number;
   aiInvoiceOcrMonthly: number;
+  historyMonths: number;
 };
 
-export type SubscriptionSource = "mock-query" | "mock-default" | "db";
+export type SubscriptionSource =
+  | "mock-query"
+  | "mock-default"
+  | "db"
+  | "db+query-override";
 
 export type WorkspaceSubscription = {
   planCode: PlanCode;
   status: WorkspaceSubscriptionStatus;
   source: SubscriptionSource;
   currentPeriodEnd?: string | null;
-  entitlements: WorkspaceEntitlements;
+  entitlements?: WorkspaceEntitlements;
   limits: WorkspaceLimits;
 };
 

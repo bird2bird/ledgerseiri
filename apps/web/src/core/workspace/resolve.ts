@@ -32,6 +32,7 @@ function buildLimits(planCode: PlanCode): WorkspaceLimits {
       invoiceStorageMb: 200,
       aiChatMonthly: 0,
       aiInvoiceOcrMonthly: 0,
+      historyMonths: 12,
     };
   }
 
@@ -41,6 +42,7 @@ function buildLimits(planCode: PlanCode): WorkspaceLimits {
       invoiceStorageMb: 1024,
       aiChatMonthly: 0,
       aiInvoiceOcrMonthly: 0,
+      historyMonths: 24,
     };
   }
 
@@ -49,22 +51,12 @@ function buildLimits(planCode: PlanCode): WorkspaceLimits {
     invoiceStorageMb: 5120,
     aiChatMonthly: 50,
     aiInvoiceOcrMonthly: 100,
+    historyMonths: 24,
   };
 }
 
 function buildEntitlements(planCode: PlanCode): WorkspaceEntitlements {
-  const f = getPlanFeatures(planCode);
-  return {
-    aiInsights: f.aiInsights,
-    aiChat: f.aiChat,
-    invoiceOcr: f.invoiceOcr,
-    multiStore: f.multiStore,
-    fundTransfer: f.fundTransfer,
-    invoiceManagement: f.invoiceManagement,
-    advancedExport: f.advancedExport,
-    skuLevelExport: f.skuLevelExport,
-    history24m: f.history24m,
-  };
+  return getPlanFeatures(planCode);
 }
 
 export function resolveWorkspaceContext(args: {

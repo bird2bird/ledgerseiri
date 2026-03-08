@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { Suspense, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { getAppT } from "@/lib/i18n/app";
@@ -24,7 +24,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <DashboardTopbar appName={t("appName")} companyName={t("demoCompany")} onLogout={logout} />
 
       <div className="mx-auto grid max-w-7xl grid-cols-12 gap-6 px-4 py-7 items-stretch">
-        <DashboardSidebar />
+        <Suspense
+          fallback={
+            <aside className="col-span-12 lg:col-span-3 self-stretch flex flex-col">
+              <div className="sticky top-[78px]">
+                <div className="ls-nav-card p-4 min-h-[360px]" />
+              </div>
+            </aside>
+          }
+        >
+          <DashboardSidebar />
+        </Suspense>
         <main className="col-span-12 lg:col-span-9 space-y-5">{children}</main>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname, useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { fetchWorkspaceContext } from "@/core/workspace/api";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -379,8 +379,10 @@ function group(
 
 export function DashboardSidebar() {
   const pathname = usePathname() || "";
+  const searchParams = useSearchParams();
   const params = useParams<{ lang: string; slug?: string }>();
   const lang = normalizeLang(params?.lang) as Lang;
+  const debugPlan = searchParams?.get("plan") || undefined;
   const t = DICT[lang];
 
   const [planCode, setPlanCode] = useState<PlanCode>("starter");
@@ -401,10 +403,11 @@ export function DashboardSidebar() {
         if (!token) return;
 
         const ctx = await fetchWorkspaceContext({
-          token,
-          slug: currentSlug,
-          locale: lang,
-        });
+            token,
+            slug: currentSlug,
+            locale: lang,
+            plan: debugPlan,
+          });
 
         if (!alive) return;
         setPlanCode(ctx.subscription.planCode);
@@ -417,7 +420,7 @@ export function DashboardSidebar() {
     return () => {
       alive = false;
     };
-  }, [currentSlug, lang]);
+  }, [currentSlug, lang, debugPlan]);
 
   const { features } = useFeatures(planCode);
 

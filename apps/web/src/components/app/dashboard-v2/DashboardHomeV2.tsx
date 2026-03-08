@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
@@ -46,12 +46,49 @@ function getQuickActionsByFeatures(
     invoiceUpload: boolean;
   }
 ): QuickActionItem[] {
-  return items.filter((item) => {
-    if (item.key === "transfer") return features.fundTransfer;
-    if (item.key === "invoice") return features.invoiceManagement;
-    if (item.key === "import") return features.invoiceUpload;
-    if (item.key === "export") return features.advancedExport;
-    return true;
+  return items.map((item) => {
+    if (item.key === "transfer" && !features.fundTransfer) {
+      return {
+        ...item,
+        locked: true,
+        requiredPlan: "standard",
+        upgradeHint: "Standard 以上で資金移動を利用できます。",
+      };
+    }
+
+    if (item.key === "invoice" && !features.invoiceManagement) {
+      return {
+        ...item,
+        locked: true,
+        requiredPlan: "standard",
+        upgradeHint: "Standard 以上で請求管理を利用できます。",
+      };
+    }
+
+    if (item.key === "import" && !features.invoiceUpload) {
+      return {
+        ...item,
+        locked: true,
+        requiredPlan: "standard",
+        upgradeHint: "上位プランでデータインポートを利用できます。",
+      };
+    }
+
+    if (item.key === "export" && !features.advancedExport) {
+      return {
+        ...item,
+        locked: true,
+        requiredPlan: "standard",
+        upgradeHint: "Standard 以上で高度なデータエクスポートを利用できます。",
+      };
+    }
+
+    return {
+      ...item,
+      locked: false,
+      requiredPlan: undefined,
+      upgradeHint: undefined,
+    };
   });
 }
 
@@ -61,14 +98,15 @@ export function DashboardHomeV2({
   ctx: WorkspaceContextValue;
 }) {
   const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
   const currentLang = normalizeLang(params?.lang) as Lang;
+  const debugPlan = searchParams?.get("plan") || undefined;
 
   const [resolvedCtx, setResolvedCtx] = useState<WorkspaceContextValue>(ctx);
   const [ctxLoading, setCtxLoading] = useState(false);
   const [ctxError, setCtxError] = useState<string | null>(null);
 
-  const { workspace, subscription, features } = useWorkspaceContext(resolvedCtx);
-  const limits = subscription.limits;
+  const { workspace, subscription, features, limits, can } = useWorkspaceContext(resolvedCtx);
 
   const data = dashboardHomeMock;
 
@@ -92,6 +130,7 @@ export function DashboardHomeV2({
           token,
           slug: workspace.slug,
           locale: currentLang,
+          plan: debugPlan,
         });
 
         if (!alive) return;
@@ -109,7 +148,7 @@ export function DashboardHomeV2({
     return () => {
       alive = false;
     };
-  }, [workspace.slug, currentLang]);
+  }, [workspace.slug, currentLang, debugPlan]);
 
   const storeOptions = [
     { id: "all", name: "全店舗" },
@@ -123,12 +162,12 @@ export function DashboardHomeV2({
   const quickActions = useMemo(
     () =>
       getQuickActionsByFeatures(data.quickActions, {
-        fundTransfer: features.fundTransfer,
-        invoiceManagement: features.invoiceManagement,
-        advancedExport: features.advancedExport,
-        invoiceUpload: features.invoiceUpload,
+        fundTransfer: can("fundTransfer"),
+        invoiceManagement: can("invoiceManagement"),
+        advancedExport: can("advancedExport"),
+        invoiceUpload: can("invoiceUpload"),
       }),
-    [data.quickActions, features]
+    [data.quickActions, can]
   );
 
   return (
