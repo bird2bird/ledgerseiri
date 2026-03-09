@@ -6,37 +6,85 @@ import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { fetchWorkspaceContext } from "@/core/workspace/api";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
+import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
+import { getPlanFeatures } from "@/core/billing/features";
+import { getPlanLimits } from "@/core/billing/planLimits";
+
+type PlanCode = "starter" | "standard" | "premium";
 
 function cls(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
 }
 
-function cardTone(code: "starter" | "standard" | "premium") {
+function cardTone(code: PlanCode) {
   if (code === "premium") return "border-violet-200 bg-violet-50";
   if (code === "standard") return "border-sky-200 bg-sky-50";
   return "border-slate-200 bg-white";
 }
 
-function planPrice(code: "starter" | "standard" | "premium") {
+function planPrice(code: PlanCode) {
   if (code === "starter") return "¥980 / 月";
   if (code === "standard") return "¥1,980 / 月";
   return "¥4,980 / 月";
 }
 
-function maxStores(code: "starter" | "standard" | "premium") {
-  if (code === "starter") return 1;
-  if (code === "standard") return 3;
-  return 10;
+function planLabel(code: PlanCode) {
+  if (code === "starter") return "Starter";
+  if (code === "standard") return "Standard";
+  return "Premium";
 }
 
-function featureList(code: "starter" | "standard" | "premium") {
-  if (code === "starter") {
-    return ["基本帳簿", "単一店舗", "基本ダッシュボード", "12ヶ月履歴"];
-  }
-  if (code === "standard") {
-    return ["3店舗", "請求管理", "資金移動", "高度エクスポート", "24ヶ月履歴"];
-  }
-  return ["10店舗", "AI Insights", "AI OCR", "AI Chat", "高度分析", "24ヶ月履歴"];
+function statusLabel(status?: string | null) {
+  if (status === "trialing") return "Trialing";
+  if (status === "past_due") return "Past Due";
+  if (status === "canceled") return "Canceled";
+  return "Active";
+}
+
+function normalizePlan(code?: string | null): PlanCode | undefined {
+  if (code === "starter" || code === "standard" || code === "premium") return code;
+  return undefined;
+}
+
+function buildPlanFeatureList(code: PlanCode): string[] {
+  const limits = getPlanLimits(code);
+  const features = getPlanFeatures(code);
+
+  const items: string[] = [
+    `${limits.maxStores} 店舗`,
+    `${limits.historyMonths} ヶ月履歴`,
+    `請求アップロード`,
+  ];
+
+  if (features.invoiceManagement) items.push("請求管理");
+  if (features.fundTransfer) items.push("資金移動");
+  if (features.advancedExport) items.push("高度エクスポート");
+  if (features.aiInsights) items.push("AI Insights");
+  if (features.aiChat) items.push("AI Chat");
+  if (features.invoiceOcr) items.push("AI OCR");
+
+  return items;
+}
+
+function buildFallbackContext(args: {
+  planCode: PlanCode;
+  locale: string;
+  source: "mock-default" | "mock-query";
+}): WorkspaceContextValue {
+  return {
+    workspace: {
+      slug: "default",
+      displayName: "Default",
+      companyName: "LedgerSeiri Demo Company",
+      locale: args.locale,
+    },
+    subscription: {
+      planCode: args.planCode,
+      status: "active",
+      source: args.source,
+      limits: getPlanLimits(args.planCode),
+    },
+  };
 }
 
 function ChangePlanInner() {
@@ -46,12 +94,11 @@ function ChangePlanInner() {
   const debugPlan = searchParams?.get("plan") || undefined;
 
   const rawTarget = searchParams.get("target") || "standard";
-  const target = (rawTarget === "starter" || rawTarget === "standard" || rawTarget === "premium"
-    ? rawTarget
-    : "standard") as "starter" | "standard" | "premium";
+  const target = (normalizePlan(rawTarget) ?? "standard") as PlanCode;
 
   const [ctx, setCtx] = useState<WorkspaceContextValue | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -59,13 +106,12 @@ function ChangePlanInner() {
     async function load() {
       try {
         const token =
-          typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
+          typeof window !== "undefined"
+            ? localStorage.getItem("ls_token") ?? undefined
+            : undefined;
 
-        if (!token) {
-          if (!alive) return;
-          setLoading(false);
-          return;
-        }
+        setLoading(true);
+        setError(null);
 
         const data = await fetchWorkspaceContext({
           token,
@@ -76,6 +122,9 @@ function ChangePlanInner() {
 
         if (!alive) return;
         setCtx(data);
+      } catch (e: any) {
+        if (!alive) return;
+        setError(e?.message ?? String(e));
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -88,13 +137,28 @@ function ChangePlanInner() {
     };
   }, [lang, debugPlan]);
 
-  const currentPlan = ctx?.subscription.planCode ?? "starter";
+  const fallbackPlan = normalizePlan(debugPlan) ?? "starter";
+
+  const effectiveCtx = useMemo(
+    () =>
+      ctx ??
+      buildFallbackContext({
+        planCode: fallbackPlan,
+        locale: lang,
+        source: debugPlan ? "mock-query" : "mock-default",
+      }),
+    [ctx, fallbackPlan, lang, debugPlan]
+  );
+
+  const { workspace, subscription, limits } = useWorkspaceContext(effectiveCtx);
+
+  const currentPlan = subscription.planCode;
 
   const plans = useMemo(
     () =>
       (["starter", "standard", "premium"] as const).map((code) => ({
         code,
-        name: code === "starter" ? "Starter" : code === "standard" ? "Standard" : "Premium",
+        name: planLabel(code),
         price: planPrice(code),
         desc:
           code === "starter"
@@ -102,8 +166,8 @@ function ChangePlanInner() {
             : code === "standard"
             ? "複数店舗・請求管理・高度な出力向け"
             : "AI 分析・OCR・高度な運営支援向け",
-        maxStores: maxStores(code),
-        features: featureList(code),
+        limits: getPlanLimits(code),
+        features: buildPlanFeatureList(code),
       })),
     []
   );
@@ -122,7 +186,7 @@ function ChangePlanInner() {
             </h1>
 
             <div className="mt-2 text-sm text-white/80">
-              現在プランと変更候補を比較できます。決済導線は次ステップで接続します。
+              現在の契約プランと変更候補を比較できます。決済導線は次ステップで接続します。
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -132,6 +196,14 @@ function ChangePlanInner() {
               >
                 Billing に戻る
               </Link>
+
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                status: {statusLabel(subscription.status)}
+              </span>
+
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                source: {subscription.source}
+              </span>
             </div>
           </div>
 
@@ -139,15 +211,19 @@ function ChangePlanInner() {
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Current Plan</div>
               <div className="mt-2 text-lg font-semibold">
-                {currentPlan === "starter" ? "Starter" : currentPlan === "standard" ? "Standard" : "Premium"}
+                {planLabel(currentPlan)}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                maxStores: {limits.maxStores}
               </div>
             </div>
 
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
-              <div className="text-[11px] font-medium text-slate-500">Selected Target</div>
+              <div className="text-[11px] font-medium text-slate-500">Workspace</div>
               <div className="mt-2 text-lg font-semibold">
-                {target === "starter" ? "Starter" : target === "standard" ? "Standard" : "Premium"}
+                {workspace.displayName}
               </div>
+              <div className="mt-1 text-xs text-slate-500">{workspace.slug}</div>
             </div>
           </div>
         </div>
@@ -155,7 +231,13 @@ function ChangePlanInner() {
 
       {loading ? (
         <div className="rounded-[28px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          current subscription を読み込み中...
+          契約情報を読み込み中...
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-[28px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          契約情報の取得に失敗しました。最後に利用可能な情報を表示しています。
         </div>
       ) : null}
 
@@ -197,7 +279,7 @@ function ChangePlanInner() {
               <div className="mt-4 rounded-[18px] border border-black/5 bg-white/70 p-3">
                 <div className="text-[11px] font-medium text-slate-500">Store limit</div>
                 <div className="mt-1 text-base font-semibold text-slate-900">
-                  {plan.maxStores} stores
+                  {plan.limits.maxStores} stores
                 </div>
               </div>
 
@@ -233,20 +315,20 @@ function ChangePlanInner() {
           <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
             <div className="text-[11px] font-medium text-slate-500">Current</div>
             <div className="mt-2 text-lg font-semibold text-slate-900">
-              {currentPlan === "starter" ? "Starter" : currentPlan === "standard" ? "Standard" : "Premium"}
+              {planLabel(currentPlan)}
             </div>
             <div className="mt-1 text-sm text-slate-600">
-              最大 {maxStores(currentPlan)} 店舗
+              最大 {limits.maxStores} 店舗
             </div>
           </div>
 
           <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
             <div className="text-[11px] font-medium text-slate-500">Target</div>
             <div className="mt-2 text-lg font-semibold text-slate-900">
-              {target === "starter" ? "Starter" : target === "standard" ? "Standard" : "Premium"}
+              {planLabel(target)}
             </div>
             <div className="mt-1 text-sm text-slate-600">
-              最大 {maxStores(target)} 店舗
+              最大 {getPlanLimits(target).maxStores} 店舗
             </div>
           </div>
         </div>
@@ -254,7 +336,7 @@ function ChangePlanInner() {
         <div className="mt-5 rounded-[22px] border border-dashed border-[color:var(--ls-primary)]/35 bg-[color:var(--ls-primary)]/5 p-4">
           <div className="text-sm font-medium text-slate-900">Next Step</div>
           <div className="mt-2 text-sm text-slate-600">
-            Step 23B で決済導線、請求履歴、請求状態、upgrade action を接続します。
+            次ステップで決済導線、請求履歴、upgrade action を接続します。
           </div>
         </div>
       </section>

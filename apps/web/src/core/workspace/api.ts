@@ -1,7 +1,7 @@
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 
 export async function fetchWorkspaceContext(args: {
-  token: string;
+  token?: string;
   slug?: string;
   plan?: string;
   locale?: string;
@@ -14,10 +14,14 @@ export async function fetchWorkspaceContext(args: {
 
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
 
+  const headers: Record<string, string> = {};
+
+  if (args.token) {
+    headers.Authorization = `Bearer ${args.token}`;
+  }
+
   const res = await fetch(`/workspace/context${suffix}`, {
-    headers: {
-      Authorization: `Bearer ${args.token}`,
-    },
+    headers,
     cache: "no-store",
   });
 

@@ -426,13 +426,12 @@ export function DashboardSidebar() {
     async function loadWorkspacePlan() {
       try {
         const token =
-          typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
-
-        if (!token) return;
-
+            typeof window !== "undefined"
+              ? localStorage.getItem("ls_token") ?? undefined
+              : undefined;
         const ctx = await fetchWorkspaceContext({
             token,
-            slug: currentSlug,
+            slug: "default",
             locale: lang,
             plan: debugPlan,
           });
@@ -448,7 +447,7 @@ export function DashboardSidebar() {
     return () => {
       alive = false;
     };
-  }, [currentSlug, lang, debugPlan]);
+  }, [lang, debugPlan]);
 
   const { features } = useFeatures(planCode);
 
