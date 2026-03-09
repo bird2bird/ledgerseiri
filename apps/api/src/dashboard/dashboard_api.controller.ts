@@ -32,10 +32,6 @@ function resolveRange(range?: DashboardRange) {
   }
 }
 
-function fmtJPY(n: number) {
-  return `¥${Math.round(n).toLocaleString('ja-JP')}`;
-}
-
 function previousRange(range?: DashboardRange) {
   const now = new Date();
   const thisMonthStart = startOfMonth(now);
@@ -57,12 +53,94 @@ function previousRange(range?: DashboardRange) {
   }
 }
 
+function fmtJPY(n: number) {
+  return `¥${Math.round(n).toLocaleString('ja-JP')}`;
+}
+
+function kpiPrefixFromLabel(label: string) {
+  switch (label) {
+    case '先月':
+      return '先月';
+    case '今年':
+      return '今年';
+    case 'カスタム':
+      return '期間';
+    case '今月':
+    default:
+      return '今月';
+  }
+}
+
 function pctDelta(current: number, previous: number) {
   if (previous === 0 && current === 0) return '0.0%';
   if (previous === 0) return '+100.0%';
   const delta = ((current - previous) / Math.abs(previous)) * 100;
   const sign = delta >= 0 ? '+' : '';
   return `${sign}${delta.toFixed(1)}%`;
+}
+
+function isRevenueType(type: string): boolean {
+  return ['SALE', 'INCOME', 'CASH_INCOME', 'OTHER_INCOME'].includes(type);
+}
+
+function isExpenseType(type: string): boolean {
+  return [
+    'FBA_FEE',
+    'AD',
+    'REFUND',
+    'EXPENSE',
+    'STORE_OPS',
+    'COMPANY_OPS',
+    'SALARY',
+    'OTHER_EXPENSE',
+    'PURCHASE',
+    'LOGISTICS',
+    'TAX',
+  ].includes(type);
+}
+
+function expenseCategoryLabel(type: string): string {
+  switch (type) {
+    case 'AD':
+      return '広告費';
+    case 'FBA_FEE':
+      return 'FBA手数料';
+    case 'REFUND':
+      return '返金';
+    case 'SALARY':
+      return '給与';
+    case 'PURCHASE':
+      return '仕入';
+    case 'LOGISTICS':
+      return '物流';
+    case 'STORE_OPS':
+      return '店舗運営費';
+    case 'COMPANY_OPS':
+      return '会社運営費';
+    case 'OTHER_EXPENSE':
+      return 'その他支出';
+    case 'TAX':
+      return '税金';
+    case 'EXPENSE':
+      return '支出';
+    default:
+      return type || 'その他';
+  }
+}
+
+function transactionTypeLabel(type: string): string {
+  if (isRevenueType(type)) return '収入';
+  if (isExpenseType(type)) return '支出';
+  return type || 'OTHER';
+}
+
+function dayKey(d: Date): string {
+  return new Date(d).toISOString().slice(5, 10);
+}
+
+function monthKey(d: Date): string {
+  const x = new Date(d);
+  return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -143,6 +221,7 @@ export class DashboardApiController {
 
     const { start, end, label } = resolveRange(resolvedRange);
     const prev = previousRange(resolvedRange);
+    const kpiPrefix = kpiPrefixFromLabel(label);
 
     if (!scope.companyId) {
       return {
@@ -255,126 +334,38 @@ export class DashboardApiController {
       const amount = Number(row.amount ?? 0);
       sumCurrent.profit += amount;
 
-      if (amount >= 0) {
-        sumCurrent.revenue += amount;
-      } else {
-        sumCurrent.expense += Math.abs(amount);
+      if (amount > 0 || isRevenueType(row.type)) {
+        sumCurrent.revenue += Math.max(amount, 0);
       }
 
-      if (String(row.type || '').toUpperCase().includes('TAX')) {
-        sumCurrent.tax += Math.abs(amount);
+      if (amount < 0 || isExpenseType(row.type)) {
+        sumCurrent.expense += Math.abs(Math.min(amount, 0));
       }
+
     }
 
     for (const row of prevRows) {
       const amount = Number(row.amount ?? 0);
       sumPrev.profit += amount;
 
-      if (amount >= 0) {
-        sumPrev.revenue += amount;
-      } else {
-        sumPrev.expense += Math.abs(amount);
+      if (amount > 0 || isRevenueType(row.type)) {
+        sumPrev.revenue += Math.max(amount, 0);
       }
 
-      if (String(row.type || '').toUpperCase().includes('TAX')) {
-        sumPrev.tax += Math.abs(amount);
+      if (amount < 0 || isExpenseType(row.type)) {
+        sumPrev.expense += Math.abs(Math.min(amount, 0));
       }
+
     }
-
-    const unpaidAmount = 0;
-    const unpaidCount = 0;
-
-    const inventoryAmount = 0;
-    const stockAlertCount = 0;
-
-    const runwayMonths =
-      sumCurrent.expense > 0
-        ? (Math.max(sumCurrent.revenue - sumCurrent.expense, 0) / Math.max(sumCurrent.expense, 1)) * 12
-        : 0;
-
-    const kpiPrimary = [
-      {
-        key: 'revenue',
-        label: `${label}収入`,
-        value: fmtJPY(sumCurrent.revenue),
-        deltaText: `${pctDelta(sumCurrent.revenue, sumPrev.revenue)} vs 前期間`,
-        trend: sumCurrent.revenue >= sumPrev.revenue ? 'up' : 'down',
-        tone: 'profit',
-      },
-      {
-        key: 'expense',
-        label: `${label}支出`,
-        value: fmtJPY(sumCurrent.expense),
-        deltaText: `${pctDelta(sumCurrent.expense, sumPrev.expense)} vs 前期間`,
-        trend: sumCurrent.expense <= sumPrev.expense ? 'up' : 'down',
-        tone: 'warning',
-      },
-      {
-        key: 'profit',
-        label: `${label}利益`,
-        value: fmtJPY(sumCurrent.profit),
-        deltaText: `${pctDelta(sumCurrent.profit, sumPrev.profit)} vs 前期間`,
-        trend: sumCurrent.profit >= sumPrev.profit ? 'up' : 'down',
-        tone: 'profit',
-      },
-      {
-        key: 'cash',
-        label: '総資金',
-        value: fmtJPY(sumCurrent.profit),
-        deltaText: `${pctDelta(sumCurrent.profit, sumPrev.profit)}`,
-        trend: sumCurrent.profit >= sumPrev.profit ? 'up' : 'down',
-        tone: 'info',
-      },
-      {
-        key: 'tax',
-        label: '消費税概算',
-        value: fmtJPY(sumCurrent.tax),
-        subLabel: 'transaction ベース暫定',
-        tone: 'default',
-      },
-    ];
-
-    const kpiSecondary = [
-      {
-        key: 'invoice',
-        label: '未入金',
-        value: fmtJPY(unpaidAmount),
-        subLabel: `${unpaidCount}件`,
-        tone: 'warning',
-      },
-      {
-        key: 'inventory',
-        label: '在庫金額',
-        value: fmtJPY(inventoryAmount),
-        subLabel: 'inventory 未接続',
-        tone: 'default',
-      },
-      {
-        key: 'stockAlert',
-        label: '在庫アラート',
-        value: `${stockAlertCount}件`,
-        subLabel: 'inventory 未接続',
-        tone: 'danger',
-      },
-      {
-        key: 'runway',
-        label: '資金余力',
-        value: `${runwayMonths.toFixed(1)}ヶ月`,
-        subLabel: '暫定推計',
-        tone: 'info',
-      },
-    ];
 
     const storeNameMap = new Map(scope.stores.map((s) => [s.id, s.name]));
 
     const recentTransactions = recentRows.map((row) => {
       const amount = Number(row.amount ?? 0);
-      const typeLabel = amount >= 0 ? '収入' : '支出';
-
       return {
         id: row.id,
         date: new Date(row.occurredAt).toISOString().slice(0, 10),
-        type: typeLabel,
+        type: transactionTypeLabel(row.type),
         category: row.type || 'OTHER',
         amount,
         account: '未接続',
@@ -383,15 +374,171 @@ export class DashboardApiController {
       };
     });
 
-    const fallbackTrend = [
-      { label: '03-01', revenue: 38000, profit: 12000 },
-      { label: '03-02', revenue: 52000, profit: 18000 },
-      { label: '03-03', revenue: 47000, profit: 15000 },
-      { label: '03-04', revenue: 61000, profit: 22000 },
-      { label: '03-05', revenue: 56000, profit: 21000 },
-      { label: '03-06', revenue: 72000, profit: 26000 },
-      { label: '03-07', revenue: 68000, profit: 24000 },
-    ];
+    const periodBuckets = new Map<string, { revenue: number; profit: number; cashIn: number; cashOut: number }>();
+
+    for (const row of rows) {
+      const amount = Number(row.amount ?? 0);
+      const key = resolvedRange === 'thisYear' ? monthKey(row.occurredAt) : dayKey(row.occurredAt);
+
+      if (!periodBuckets.has(key)) {
+        periodBuckets.set(key, { revenue: 0, profit: 0, cashIn: 0, cashOut: 0 });
+      }
+
+      const bucket = periodBuckets.get(key)!;
+      bucket.profit += amount;
+
+      if (amount > 0 || isRevenueType(row.type)) {
+        bucket.revenue += Math.max(amount, 0);
+        bucket.cashIn += Math.max(amount, 0);
+      }
+
+      if (amount < 0 || isExpenseType(row.type)) {
+        bucket.cashOut += Math.abs(Math.min(amount, 0));
+      }
+    }
+
+    const sortedBucketKeys = Array.from(periodBuckets.keys()).sort();
+
+    const revenueProfitTrend =
+      sortedBucketKeys.length > 0
+        ? sortedBucketKeys.map((key) => ({
+            label: key,
+            revenue: Math.round(periodBuckets.get(key)!.revenue),
+            profit: Math.round(periodBuckets.get(key)!.profit),
+          }))
+        : [
+            { label: label, revenue: 0, profit: 0 },
+          ];
+
+    const cashFlowTrend =
+      sortedBucketKeys.length > 0
+        ? sortedBucketKeys.map((key) => {
+            const bucket = periodBuckets.get(key)!;
+            return {
+              label: key,
+              cashIn: Math.round(bucket.cashIn),
+              cashOut: Math.round(bucket.cashOut),
+              netCash: Math.round(bucket.cashIn - bucket.cashOut),
+            };
+          })
+        : [
+            { label: label, cashIn: 0, cashOut: 0, netCash: 0 },
+          ];
+
+    const expenseByType = new Map<string, number>();
+
+    for (const row of rows) {
+      const amount = Number(row.amount ?? 0);
+      if (amount >= 0 && !isExpenseType(row.type)) continue;
+
+      const cat = expenseCategoryLabel(row.type);
+      const current = expenseByType.get(cat) || 0;
+      expenseByType.set(cat, current + Math.abs(Math.min(amount, 0) || amount));
+    }
+
+    const totalExpenseForBreakdown = Array.from(expenseByType.values()).reduce((a, b) => a + b, 0);
+
+    const expenseBreakdown =
+      expenseByType.size > 0
+        ? Array.from(expenseByType.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([category, amount]) => ({
+              category,
+              amount: Math.round(amount),
+              pct: totalExpenseForBreakdown > 0 ? Math.round((amount / totalExpenseForBreakdown) * 100) : 0,
+            }))
+        : [
+            { category: '支出合計', amount: 0, pct: 100 },
+          ];
+
+    const alertList: Array<{
+      id: string;
+      type: 'inventory' | 'invoice' | 'cash' | 'tax' | 'expense';
+      severity: 'info' | 'warning' | 'critical';
+      title: string;
+      description?: string;
+      href: string;
+    }> = [];
+
+    if (sumCurrent.expense > sumCurrent.revenue && rows.length > 0) {
+      alertList.push({
+        id: 'al-expense-over-revenue',
+        type: 'expense',
+        severity: 'critical',
+        title: '支出が収入を上回っています',
+        description: '当期間は赤字傾向です。広告費・返金・固定費を確認してください。',
+        href: `/${resolvedLocale}/app/reports/expense`,
+      });
+    }
+
+    if (sumCurrent.tax > 0) {
+      alertList.push({
+        id: 'al-tax-estimate',
+        type: 'tax',
+        severity: 'info',
+        title: `消費税見込みは ${fmtJPY(sumCurrent.tax)} です`,
+        description: 'transaction ベースの暫定参考値です。',
+        href: `/${resolvedLocale}/app/tax/summary`,
+      });
+    }
+
+    if (sumCurrent.expense > 0 && sumPrev.expense > 0) {
+      const expenseDelta = ((sumCurrent.expense - sumPrev.expense) / Math.abs(sumPrev.expense)) * 100;
+      if (expenseDelta >= 20) {
+        alertList.push({
+          id: 'al-expense-spike',
+          type: 'expense',
+          severity: 'warning',
+          title: `支出が前期間比 ${expenseDelta.toFixed(1)}% 増加しました`,
+          description: '費用増加の内訳を確認してください。',
+          href: `/${resolvedLocale}/app/reports/expense`,
+        });
+      }
+    }
+
+    if (recentTransactions.length === 0) {
+      alertList.push({
+        id: 'al-no-transactions',
+        type: 'cash',
+        severity: 'info',
+        title: '対象期間の transaction はまだありません',
+        description: 'まずは収入または支出を登録すると、ダッシュボードに反映されます。',
+        href: `/${resolvedLocale}/app`,
+      });
+    }
+
+    const alerts =
+      alertList.length > 0
+        ? alertList
+        : [
+            {
+              id: 'summary-alert-1',
+              type: 'cash' as const,
+              severity: 'info' as const,
+              title: '現時点で重要アラートはありません',
+              description: 'ダッシュボードは transaction 集計データから生成されています。',
+              href: `/${resolvedLocale}/app`,
+            },
+          ];
+
+    const estimatedRunwayMonths =
+      sumCurrent.expense > 0 ? Number((sumCurrent.revenue / sumCurrent.expense).toFixed(1)) : 0;
+
+    const businessHealthScore = Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          50 +
+            Math.min(25, sumCurrent.profit / 10000) -
+            Math.min(20, sumCurrent.expense / 20000)
+        )
+      )
+    );
+
+    const businessHealthStatus =
+      businessHealthScore >= 75 ? 'good' : businessHealthScore >= 50 ? 'attention' : 'risk';
 
     return {
       filters: {
@@ -400,70 +547,115 @@ export class DashboardApiController {
         refreshedAt: new Date().toISOString(),
       },
 
-      kpiPrimary,
-      kpiSecondary,
+      kpiPrimary: [
+        {
+          key: 'revenue',
+          label: `${kpiPrefix}収入`,
+          value: fmtJPY(sumCurrent.revenue),
+          deltaText: `${pctDelta(sumCurrent.revenue, sumPrev.revenue)} vs 前期間`,
+          trend: sumCurrent.revenue >= sumPrev.revenue ? 'up' : 'down',
+          tone: 'profit',
+        },
+        {
+          key: 'expense',
+          label: `${kpiPrefix}支出`,
+          value: fmtJPY(sumCurrent.expense),
+          deltaText: `${pctDelta(sumCurrent.expense, sumPrev.expense)} vs 前期間`,
+          trend: sumCurrent.expense <= sumPrev.expense ? 'up' : 'down',
+          tone: 'warning',
+        },
+        {
+          key: 'profit',
+          label: `${kpiPrefix}利益`,
+          value: fmtJPY(sumCurrent.profit),
+          deltaText: `${pctDelta(sumCurrent.profit, sumPrev.profit)} vs 前期間`,
+          trend: sumCurrent.profit >= sumPrev.profit ? 'up' : 'down',
+          tone: 'profit',
+        },
+        {
+          key: 'cash',
+          label: '総資金',
+          value: fmtJPY(sumCurrent.profit),
+          deltaText: pctDelta(sumCurrent.profit, sumPrev.profit),
+          trend: sumCurrent.profit >= sumPrev.profit ? 'up' : 'down',
+          tone: 'info',
+        },
+        {
+          key: 'tax',
+          label: '消費税概算',
+          value: fmtJPY(sumCurrent.tax),
+          subLabel: 'transaction 集計ベース（暫定）',
+          tone: 'default',
+        },
+      ],
 
-      revenueProfitTrend: fallbackTrend,
+      kpiSecondary: [
+        {
+          key: 'invoice',
+          label: '未入金',
+          value: '¥0',
+          subLabel: '0件',
+          tone: 'warning',
+        },
+        {
+          key: 'inventory',
+          label: '在庫金額',
+          value: '¥0',
+          subLabel: 'inventory 未接続（暫定）',
+          tone: 'default',
+        },
+        {
+          key: 'stockAlert',
+          label: '在庫アラート',
+          value: '0件',
+          subLabel: 'inventory 未接続（暫定）',
+          tone: 'danger',
+        },
+        {
+          key: 'runway',
+          label: '資金余力',
+          value: `${estimatedRunwayMonths.toFixed(1)}ヶ月`,
+          subLabel: 'transaction 支出ベース推計',
+          tone: 'info',
+        },
+      ],
 
+      revenueProfitTrend,
       cashBalances: [
         {
           accountId: 'fallback-cash',
           accountName: '未接続',
           accountType: 'cash',
-          balance: Math.max(sumCurrent.profit, 0),
+          balance: Math.round(sumCurrent.profit),
           currency: 'JPY',
           sharePct: 100,
         },
       ],
-
-      expenseBreakdown: [
-        {
-          category: '支出合計',
-          amount: sumCurrent.expense,
-          pct: 100,
-        },
-      ],
-
-      cashFlowTrend: [
-        {
-          label: label,
-          cashIn: sumCurrent.revenue,
-          cashOut: sumCurrent.expense,
-          netCash: sumCurrent.profit,
-        },
-      ],
+      expenseBreakdown,
+      cashFlowTrend,
 
       taxSummary: {
-        outputTax: sumCurrent.tax,
+        outputTax: Math.round(sumCurrent.tax),
         inputTax: 0,
-        estimatedTaxPayable: sumCurrent.tax,
+        estimatedTaxPayable: Math.round(sumCurrent.tax),
         periodLabel: label,
-        note: 'transaction ベース暫定',
+        note: 'transaction 集計ベース（暫定）',
       },
 
-      alerts: [
-        {
-          id: 'summary-alert-1',
-          type: 'info',
-          severity: 'info',
-          title: 'Step 22B v1: KPI / Recent Transactions は実データです',
-          description: 'Charts / Alerts / Inventory は次段階で接続します。',
-          href: `/${resolvedLocale}/app`,
-        },
-      ],
+      alerts,
 
       businessHealth: {
-        score: sumCurrent.profit > 0 ? 78 : 52,
-        status: sumCurrent.profit > 0 ? 'good' : 'attention',
+        score: businessHealthScore,
+        status: businessHealthStatus,
         dimensions: [
-          { label: 'Revenue', score: Math.min(100, Math.round(sumCurrent.revenue / 10000)) },
-          { label: 'Profit', score: Math.min(100, Math.max(0, Math.round(sumCurrent.profit / 10000))) },
-          { label: 'Expense Control', score: sumCurrent.expense > 0 ? 60 : 40 },
+          { label: 'Revenue', score: Math.max(0, Math.min(100, Math.round(sumCurrent.revenue / 10000))) },
+          { label: 'Profit', score: Math.max(0, Math.min(100, Math.round(Math.max(sumCurrent.profit, 0) / 10000))) },
+          { label: 'Expense Control', score: Math.max(0, 100 - Math.min(60, Math.round(sumCurrent.expense / 10000))) },
         ],
         insights: [
           {
             id: 'bh-1',
-            title: '現在は transaction ベースの暫定 Business Health です',
+            title: 'Business Health は transaction 集計ベースの暫定スコアです',
             tone: 'default',
           },
         ],
