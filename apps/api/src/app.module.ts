@@ -7,11 +7,13 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { StoreModule } from './store/store.module';
 import { HealthController } from './health.controller';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
     WorkspaceModule,AuthModule, CompanyModule, StoreModule, TransactionModule, DashboardModule,
-    SecurityModule,
+    BillingModule,
+      SecurityModule,
 ],
   controllers: [HealthController],
 })

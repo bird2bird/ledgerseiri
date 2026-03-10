@@ -302,9 +302,36 @@ function ChangePlanInner() {
           </div>
         </div>
       </section>
-    </main>
+    
+        <section className="ls-card-solid rounded-[28px] p-5">
+          <div className="text-sm font-semibold text-slate-900">Next Action</div>
+          <div className="mt-1 text-[12px] text-slate-500">
+            Step 27 stub 導線。checkout / portal の UI 動線を確認できます。
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Link
+              href={`/${lang}/app/billing/checkout?target=${target}&current=${currentPlan}${debugPlan ? `&plan=${debugPlan}` : ""}`}
+              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              checkout に進む
+            </Link>
+
+            <Link
+              href={`/${lang}/app/billing/portal${debugPlan ? `?plan=${debugPlan}` : ""}`}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              billing portal を開く
+            </Link>
+          </div>
+        </section>
+
+      </main>
   );
 }
+
+
+
 
 export default function Page() {
   return (
