@@ -1,14 +1,14 @@
 "use client";
 
-import React, { Suspense, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { fetchWorkspaceContext } from "@/core/workspace/api";
-import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
+import type { WorkspaceContextValue } from "@/core/workspace/types";
+import { useWorkspaceProvider } from "@/core/workspace/provider";
 
 type PlanCode = "starter" | "standard" | "premium";
 
@@ -92,50 +92,12 @@ function ChangePlanInner() {
   const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
+  const { ctx, loading, error } = useWorkspaceProvider();
 
   const rawTarget = searchParams.get("target") || "standard";
   const target = (normalizePlan(rawTarget) ?? "standard") as PlanCode;
 
-  const [ctx, setCtx] = useState<WorkspaceContextValue | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("ls_token") ?? undefined
-            : undefined;
-
-        setLoading(true);
-        setError(null);
-
-        const data = await fetchWorkspaceContext({
-          token,
-          slug: "default",
-          locale: lang,
-          plan: debugPlan,
-        });
-
-        if (!alive) return;
-        setCtx(data);
-      } catch (e: any) {
-        if (!alive) return;
-        setError(e?.message ?? String(e));
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [lang, debugPlan]);
 
   const fallbackPlan = normalizePlan(debugPlan) ?? "starter";
 

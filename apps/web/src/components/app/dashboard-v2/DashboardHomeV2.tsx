@@ -1,15 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
 import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
-import type { DashboardHomeData, DashboardRange, QuickActionItem } from "@/components/app/dashboard-v2/types";
-import type { WorkspaceContextValue } from "@/core/workspace/types";
+import type { DashboardHomeData, DashboardRange, QuickActionItem, PlanCode } from "@/components/app/dashboard-v2/types";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
-import { fetchWorkspaceContext } from "@/core/workspace/api";
+import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { fetchDashboardSummary } from "@/core/dashboard/api";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
@@ -26,13 +25,13 @@ import { BusinessHealthLockedCard } from "@/components/app/dashboard-v2/Business
 import { RecentTransactionsCard } from "@/components/app/dashboard-v2/RecentTransactionsCard";
 import { QuickActionsCard } from "@/components/app/dashboard-v2/QuickActionsCard";
 
-function planBadgeClass(planCode: WorkspaceContextValue["subscription"]["planCode"]) {
+function planBadgeClass(planCode: PlanCode) {
   if (planCode === "starter") return "border-slate-200 bg-slate-50 text-slate-700";
   if (planCode === "standard") return "border-sky-200 bg-sky-50 text-sky-700";
   return "border-violet-200 bg-violet-50 text-violet-700";
 }
 
-function planLabel(planCode: WorkspaceContextValue["subscription"]["planCode"]) {
+function planLabel(planCode: PlanCode) {
   if (planCode === "starter") return "Starter";
   if (planCode === "standard") return "Standard";
   return "Premium";
@@ -93,24 +92,36 @@ function getQuickActionsByFeatures(
   });
 }
 
-export function DashboardHomeV2({
-  ctx,
-}: {
-  ctx: WorkspaceContextValue;
-}) {
+export function DashboardHomeV2() {
   const params = useParams<{ lang: string }>();
-  const searchParams = useSearchParams();
   const currentLang = normalizeLang(params?.lang) as Lang;
-  const debugPlan = searchParams?.get("plan") || undefined;
 
-  const [resolvedCtx, setResolvedCtx] = useState<WorkspaceContextValue>(ctx);
-  const [ctxLoading, setCtxLoading] = useState(false);
-  const [ctxError, setCtxError] = useState<string | null>(null);
 
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
-  const { workspace, subscription, features, limits, can } = useWorkspaceContext(resolvedCtx);
+  const { ctx: providerCtx, loading: ctxLoading, error: ctxError } = useWorkspaceProvider();
+  const effectiveCtx = providerCtx ?? {
+    workspace: {
+      slug: "default",
+      displayName: "Default",
+      companyName: "LedgerSeiri Demo Company",
+      locale: currentLang,
+    },
+    subscription: {
+      planCode: "starter",
+      status: "active",
+      source: "mock-default",
+      limits: {
+        maxStores: 1,
+        invoiceStorageMb: 200,
+        aiChatMonthly: 0,
+        aiInvoiceOcrMonthly: 0,
+        historyMonths: 12,
+      },
+    },
+  };
+  const { workspace, subscription, features, limits, can } = useWorkspaceContext(effectiveCtx);
 
   const [dashboardData, setDashboardData] = useState<DashboardHomeData>(dashboardHomeMock);
   const data = dashboardData;
@@ -118,42 +129,6 @@ export function DashboardHomeV2({
   const [range, setRange] = useState<DashboardRange>(dashboardHomeMock.filters.range);
   const [storeId, setStoreId] = useState<string>(dashboardHomeMock.filters.storeId);
 
-  useEffect(() => {
-    let alive = true;
-
-    async function loadWorkspaceContext() {
-      try {
-        const token =
-          typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
-
-        if (!token) return;
-
-        setCtxLoading(true);
-        setCtxError(null);
-
-        const serverCtx = await fetchWorkspaceContext({
-          token,
-          slug: workspace.slug,
-          locale: currentLang,
-          plan: debugPlan,
-        });
-
-        if (!alive) return;
-        setResolvedCtx(serverCtx);
-      } catch (e: any) {
-        if (!alive) return;
-        setCtxError(e?.message ?? String(e));
-      } finally {
-        if (!alive) return;
-        setCtxLoading(false);
-      }
-    }
-
-    loadWorkspaceContext();
-    return () => {
-      alive = false;
-    };
-  }, [workspace.slug, currentLang, debugPlan]);
 
   const loadDashboardSummary = useCallback(async () => {
     const token =

@@ -18,5 +18,5 @@ export default async function AppHomePage({
     locale: p?.lang,
   });
 
-  return <DashboardHomeV2 ctx={ctx} />;
+  return <DashboardHomeV2 />;
 }

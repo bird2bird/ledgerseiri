@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { fetchWorkspaceContext } from "@/core/workspace/api";
+import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { PlanCode } from "@/components/app/dashboard-v2/types";
 
@@ -412,42 +412,8 @@ export function DashboardSidebar() {
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
   const t = DICT[lang];
-
-  const [planCode, setPlanCode] = useState<PlanCode>("starter");
-
-  const currentSlug = useMemo(() => {
-    const parts = (pathname || "").split("/").filter(Boolean);
-    return parts.length >= 3 ? parts[2] : "weiwei";
-  }, [pathname]);
-
-  useEffect(() => {
-    let alive = true;
-
-    async function loadWorkspacePlan() {
-      try {
-        const token =
-            typeof window !== "undefined"
-              ? localStorage.getItem("ls_token") ?? undefined
-              : undefined;
-        const ctx = await fetchWorkspaceContext({
-            token,
-            slug: "default",
-            locale: lang,
-            plan: debugPlan,
-          });
-
-        if (!alive) return;
-        setPlanCode(ctx.subscription.planCode);
-      } catch {
-        // keep starter fallback
-      }
-    }
-
-    loadWorkspacePlan();
-    return () => {
-      alive = false;
-    };
-  }, [lang, debugPlan]);
+  const { ctx } = useWorkspaceProvider();
+  const planCode: PlanCode = ctx?.subscription.planCode ?? "starter";
 
   const { features } = useFeatures(planCode);
 
