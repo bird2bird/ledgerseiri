@@ -4,11 +4,10 @@ import React, { Suspense, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
+import { useWorkspaceProvider } from "@/core/workspace/provider";
+import { useWorkspaceUsage } from "@/hooks/useWorkspaceUsage";
 import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
-import type { WorkspaceContextValue } from "@/core/workspace/types";
-import { useWorkspaceProvider } from "@/core/workspace/provider";
 
 type PlanCode = "starter" | "standard" | "premium";
 
@@ -60,83 +59,90 @@ function normalizePlan(code?: string | null): PlanCode | undefined {
   return undefined;
 }
 
-function statusLabel(status?: string | null) {
-  if (status === "trialing") return "Trialing";
-  if (status === "past_due") return "Past Due";
-  if (status === "canceled") return "Canceled";
-  return "Active";
-}
-
-function yesNo(v: boolean) {
-  return v ? "利用可能" : "制限あり";
-}
-
-function buildPlanFeatureList(code: PlanCode): string[] {
-  const limits = getPlanLimits(code);
+function featureList(code: PlanCode) {
   const features = getPlanFeatures(code);
+  const limits = getPlanLimits(code);
 
-  const items: string[] = [
+  const rows = [
     `${limits.maxStores} 店舗`,
     `${limits.historyMonths} ヶ月履歴`,
-    `請求アップロード`,
+    "請求アップロード",
   ];
 
-  if (features.invoiceManagement) items.push("請求管理");
-  if (features.fundTransfer) items.push("資金移動");
-  if (features.advancedExport) items.push("高度なエクスポート");
-  if (features.aiInsights) items.push("AI Insights");
-  if (features.aiChat) items.push("AI Chat");
-  if (features.invoiceOcr) items.push("AI OCR");
+  if (features.invoiceManagement) rows.push("請求管理");
+  if (features.fundTransfer) rows.push("資金移動");
+  if (features.advancedExport) rows.push("高度なエクスポート");
+  if (features.aiInsights) rows.push("AI Insights");
+  if (features.aiChat) rows.push("AI Chat");
+  if (features.invoiceOcr) rows.push("AI OCR");
 
-  return items;
+  return rows;
 }
 
-function buildFallbackContext(args: {
-  planCode: PlanCode;
-  locale: string;
-  source: "mock-default" | "mock-query";
-}): WorkspaceContextValue {
-  return {
-    workspace: {
-      slug: "default",
-      displayName: "Default",
-      companyName: "LedgerSeiri Demo Company",
-      locale: args.locale,
-    },
-    subscription: {
-      planCode: args.planCode,
-      status: "active",
-      source: args.source,
-      limits: getPlanLimits(args.planCode),
-    },
-  };
+function UsageProgress({
+  label,
+  helper,
+  used,
+  limit,
+  pct,
+  over,
+}: {
+  label: string;
+  helper: string;
+  used: number;
+  limit: number;
+  pct: number;
+  over: boolean;
+}) {
+  return (
+    <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-sm font-medium text-slate-900">{label}</div>
+          <div className="mt-1 text-xs text-slate-500">{helper}</div>
+        </div>
+
+        <div className="text-right">
+          <div className="text-lg font-semibold text-slate-900">
+            {used} / {limit}
+          </div>
+          <div className={cls("mt-1 text-xs", over ? "text-rose-600" : "text-slate-500")}>
+            {pct}% 使用
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+        <div
+          className={cls(
+            "h-full rounded-full transition-all",
+            over ? "bg-rose-500" : "bg-[color:var(--ls-primary)]"
+          )}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
-function BillingPageContent() {
+function BillingPageInner() {
   const params = useParams<{ lang: string }>();
   const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
-  const { ctx, loading, error } = useWorkspaceProvider();
 
+  const { ctx, loading: ctxLoading, error: ctxError } = useWorkspaceProvider();
+  const usage = useWorkspaceUsage({
+    slug: "default",
+    locale: lang,
+    plan: debugPlan,
+  });
 
+  const currentPlan =
+    normalizePlan(ctx?.subscription.planCode) ??
+    normalizePlan(debugPlan) ??
+    "starter";
 
-  const fallbackPlan = normalizePlan(debugPlan) ?? "starter";
-
-  const effectiveCtx = useMemo(
-    () =>
-      ctx ??
-      buildFallbackContext({
-        planCode: fallbackPlan,
-        locale: lang,
-        source: debugPlan ? "mock-query" : "mock-default",
-      }),
-    [ctx, fallbackPlan, lang, debugPlan]
-  );
-
-  const { workspace, subscription, features, limits } = useWorkspaceContext(effectiveCtx);
-
-  const currentPlan = subscription.planCode;
   const tone = planTone(currentPlan);
 
   const plans = useMemo(
@@ -145,12 +151,20 @@ function BillingPageContent() {
         code,
         name: planLabel(code),
         price: planPrice(code),
-        features: buildPlanFeatureList(code),
+        features: featureList(code),
         tone: planTone(code),
-        limits: getPlanLimits(code),
       })),
     []
   );
+
+  const effectiveLimits =
+    usage.data?.effectiveLimits ??
+    ctx?.subscription.limits ??
+    getPlanLimits(currentPlan);
+
+  const usageData = usage.data?.usage;
+  const util = usage.data?.utilization;
+  const over = usage.data?.overLimit;
 
   return (
     <main className="space-y-6">
@@ -187,12 +201,12 @@ function BillingPageContent() {
                 プラン変更へ
               </Link>
 
-              <span className="inline-flex rounded-full border border-black/5 bg-white/80 px-3 py-1 text-[11px] text-slate-600">
-                status: {statusLabel(subscription.status)}
+              <span className="text-xs text-slate-500">
+                status: {ctx?.subscription.status ?? "active"}
               </span>
 
-              <span className="inline-flex rounded-full border border-black/5 bg-white/80 px-3 py-1 text-[11px] text-slate-600">
-                source: {subscription.source}
+              <span className="text-xs text-slate-500">
+                source: {ctx?.subscription.source ?? "unknown"}
               </span>
             </div>
           </div>
@@ -209,7 +223,7 @@ function BillingPageContent() {
             <div className="rounded-[22px] border border-black/5 bg-white/85 p-4 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Store Limit</div>
               <div className="mt-2 text-lg font-semibold text-slate-900">
-                {limits.maxStores}
+                {effectiveLimits.maxStores}
               </div>
               <div className="mt-1 text-xs text-slate-500">最大サポート店舗数</div>
             </div>
@@ -217,103 +231,72 @@ function BillingPageContent() {
             <div className="rounded-[22px] border border-black/5 bg-white/85 p-4 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Workspace</div>
               <div className="mt-2 text-lg font-semibold text-slate-900">
-                {workspace.displayName}
+                {ctx?.workspace.displayName ?? "—"}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                {workspace.slug}
+                {ctx?.workspace.slug ?? "default"}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {loading ? (
+      {ctxLoading || usage.loading ? (
         <div className="rounded-[28px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          契約情報を読み込み中...
+          subscription / usage を読み込み中...
         </div>
       ) : null}
 
-      {error ? (
+      {ctxError || usage.error ? (
         <div className="rounded-[28px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          契約情報の取得に失敗しました。最後に利用可能な情報を表示しています。
+          契約情報または利用状況の取得に失敗しました。最後に利用可能な情報を表示しています。
         </div>
       ) : null}
 
       <div className="grid grid-cols-12 gap-5 xl:gap-6">
         <section className="col-span-12 xl:col-span-5 ls-card-solid rounded-[28px] p-5">
           <div className="text-sm font-semibold text-slate-900">Usage / Limits</div>
-          <div className="mt-1 text-[12px] text-slate-500">現在の契約上限</div>
+          <div className="mt-1 text-[12px] text-slate-500">
+            現在の利用状況と上限
+            {usage.data?.period?.monthKey ? `（${usage.data.period.monthKey}）` : ""}
+          </div>
 
           <div className="mt-5 space-y-4">
-            <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">店舗数</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    現在のプランで利用できる最大店舗数
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {limits.maxStores}
-                </div>
-              </div>
-            </div>
+            <UsageProgress
+              label="店舗数"
+              helper="現在利用中の店舗数 / 利用上限"
+              used={usageData?.storesUsed ?? 0}
+              limit={effectiveLimits.maxStores}
+              pct={util?.storesPct ?? 0}
+              over={over?.stores ?? false}
+            />
 
-            <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">請求保存容量</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    請求書・証憑の保存上限
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {limits.invoiceStorageMb} MB
-                </div>
-              </div>
-            </div>
+            <UsageProgress
+              label="請求保存容量"
+              helper="請求書・証憑の保存容量"
+              used={usageData?.invoiceStorageMbUsed ?? 0}
+              limit={effectiveLimits.invoiceStorageMb}
+              pct={util?.invoiceStoragePct ?? 0}
+              over={over?.invoiceStorage ?? false}
+            />
 
-            <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">AI Chat / 月</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    月次 AI Chat 利用上限
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {limits.aiChatMonthly}
-                </div>
-              </div>
-            </div>
+            <UsageProgress
+              label="AI Chat / 月"
+              helper="月次 AI Chat 利用量"
+              used={usageData?.aiChatUsedMonthly ?? 0}
+              limit={effectiveLimits.aiChatMonthly}
+              pct={util?.aiChatPct ?? 0}
+              over={over?.aiChat ?? false}
+            />
 
-            <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">AI OCR / 月</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    月次 AI OCR 利用上限
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {limits.aiInvoiceOcrMonthly}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">履歴保持</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    閲覧できる履歴保持期間
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {limits.historyMonths} ヶ月
-                </div>
-              </div>
-            </div>
+            <UsageProgress
+              label="AI OCR / 月"
+              helper="月次 AI OCR 利用量"
+              used={usageData?.aiInvoiceOcrUsedMonthly ?? 0}
+              limit={effectiveLimits.aiInvoiceOcrMonthly}
+              pct={util?.aiInvoiceOcrPct ?? 0}
+              over={over?.aiInvoiceOcr ?? false}
+            />
           </div>
         </section>
 
@@ -337,6 +320,7 @@ function BillingPageContent() {
           <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
             {plans.map((plan) => {
               const active = plan.code === currentPlan;
+              const planLimits = getPlanLimits(plan.code);
 
               return (
                 <section
@@ -364,8 +348,8 @@ function BillingPageContent() {
                     ))}
                   </ul>
 
-                  <div className="mt-5 text-xs text-slate-500">
-                    maxStores: {plan.limits.maxStores} / history: {plan.limits.historyMonths}m
+                  <div className="mt-4 text-xs text-slate-500">
+                    maxStores: {planLimits.maxStores} / history: {planLimits.historyMonths}m
                   </div>
 
                   <div className="mt-5">
@@ -385,35 +369,6 @@ function BillingPageContent() {
           </div>
         </section>
       </div>
-
-      <section className="ls-card-solid rounded-[28px] p-5">
-        <div className="text-sm font-semibold text-slate-900">Feature Availability</div>
-        <div className="mt-1 text-[12px] text-slate-500">
-          現在の契約で解放されている機能
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">請求・出力系</div>
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <div>請求アップロード: {yesNo(features.invoiceUpload)}</div>
-              <div>請求管理: {yesNo(features.invoiceManagement)}</div>
-              <div>高度エクスポート: {yesNo(features.advancedExport)}</div>
-              <div>SKU レベル出力: {yesNo(features.skuLevelExport)}</div>
-            </div>
-          </div>
-
-          <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">AI・運営分析系</div>
-            <div className="mt-3 space-y-2 text-sm text-slate-600">
-              <div>AI Insights: {yesNo(features.aiInsights)}</div>
-              <div>AI Chat: {yesNo(features.aiChat)}</div>
-              <div>AI OCR: {yesNo(features.invoiceOcr)}</div>
-              <div>資金移動: {yesNo(features.fundTransfer)}</div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }
@@ -429,7 +384,7 @@ export default function BillingPage() {
         </div>
       }
     >
-      <BillingPageContent />
+      <BillingPageInner />
     </Suspense>
   );
 }

@@ -17,4 +17,17 @@ export class WorkspaceController {
       locale,
     });
   }
+
+  @Get('usage')
+  async getUsage(
+    @Query('slug') slug?: string,
+    @Query('plan') plan?: string,
+    @Query('locale') locale?: string,
+  ) {
+    return this.workspaceService.getUsage({
+      slug,
+      plan,
+      locale,
+    });
+  }
 }

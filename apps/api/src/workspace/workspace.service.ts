@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 
 type PlanCodeLower = 'starter' | 'standard' | 'premium';
 type SubscriptionStatusLower = 'active' | 'trialing' | 'past_due' | 'canceled';
+type SubscriptionSource = 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
 
 type WorkspaceEntitlements = {
   aiInsights: boolean;
@@ -17,6 +18,14 @@ type WorkspaceEntitlements = {
   history24m: boolean;
 };
 
+type WorkspaceLimits = {
+  maxStores: number;
+  invoiceStorageMb: number;
+  aiChatMonthly: number;
+  aiInvoiceOcrMonthly: number;
+  historyMonths: number;
+};
+
 type WorkspaceContextValue = {
   workspace: {
     slug: string;
@@ -27,15 +36,38 @@ type WorkspaceContextValue = {
   subscription: {
     planCode: PlanCodeLower;
     status: SubscriptionStatusLower;
-    source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    source: SubscriptionSource;
     entitlements: WorkspaceEntitlements;
-    limits: {
-      maxStores: number;
-      invoiceStorageMb: number;
-      aiChatMonthly: number;
-      aiInvoiceOcrMonthly: number;
-      historyMonths: number;
-    };
+    limits: WorkspaceLimits;
+  };
+};
+
+type WorkspaceUsage = {
+  storesUsed: number;
+  invoiceStorageMbUsed: number;
+  aiChatUsedMonthly: number;
+  aiInvoiceOcrUsedMonthly: number;
+};
+
+type WorkspaceUsageResponse = {
+  workspace: WorkspaceContextValue['workspace'];
+  subscription: WorkspaceContextValue['subscription'];
+  effectiveLimits: WorkspaceLimits;
+  usage: WorkspaceUsage;
+  utilization: {
+    storesPct: number;
+    invoiceStoragePct: number;
+    aiChatPct: number;
+    aiInvoiceOcrPct: number;
+  };
+  overLimit: {
+    stores: boolean;
+    invoiceStorage: boolean;
+    aiChat: boolean;
+    aiInvoiceOcr: boolean;
+  };
+  period: {
+    monthKey: string;
   };
 };
 
@@ -112,7 +144,7 @@ export class WorkspaceService {
     };
   }
 
-  private getDefaultLimits(planCode: PlanCodeLower) {
+  private getDefaultLimits(planCode: PlanCodeLower): WorkspaceLimits {
     if (planCode === 'premium') {
       return {
         maxStores: 10,
@@ -148,15 +180,9 @@ export class WorkspaceService {
     companyName: string;
     planCode: PlanCodeLower;
     status: SubscriptionStatusLower;
-    source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    source: SubscriptionSource;
     entitlements: WorkspaceEntitlements;
-    limits: {
-      maxStores: number;
-      invoiceStorageMb: number;
-      aiChatMonthly: number;
-      aiInvoiceOcrMonthly: number;
-      historyMonths: number;
-    };
+    limits: WorkspaceLimits;
   }): WorkspaceContextValue {
     return {
       workspace: {
@@ -175,6 +201,50 @@ export class WorkspaceService {
     };
   }
 
+  private buildEffectiveLimits(ctx: WorkspaceContextValue): WorkspaceLimits {
+    const planDefaults = this.getDefaultLimits(ctx.subscription.planCode);
+    const raw = ctx.subscription.limits;
+
+    if (
+      ctx.subscription.source === 'db+query-override' ||
+      ctx.subscription.source === 'mock-query'
+    ) {
+      return planDefaults;
+    }
+
+    return {
+      maxStores: typeof raw?.maxStores === 'number' ? raw.maxStores : planDefaults.maxStores,
+      invoiceStorageMb:
+        typeof raw?.invoiceStorageMb === 'number'
+          ? raw.invoiceStorageMb
+          : planDefaults.invoiceStorageMb,
+      aiChatMonthly:
+        typeof raw?.aiChatMonthly === 'number'
+          ? raw.aiChatMonthly
+          : planDefaults.aiChatMonthly,
+      aiInvoiceOcrMonthly:
+        typeof raw?.aiInvoiceOcrMonthly === 'number'
+          ? raw.aiInvoiceOcrMonthly
+          : planDefaults.aiInvoiceOcrMonthly,
+      historyMonths:
+        typeof raw?.historyMonths === 'number'
+          ? raw.historyMonths
+          : planDefaults.historyMonths,
+    };
+  }
+
+  private pct(used: number, limit: number): number {
+    if (!limit || limit <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+  }
+
+  private currentMonthKey(): string {
+    const d = new Date();
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+
   async getContext(
     input?: { slug?: string; plan?: string; locale?: string } | string,
     maybePlan?: string,
@@ -189,9 +259,6 @@ export class WorkspaceService {
     const locale = String(query.locale || 'ja').trim() || 'ja';
     const queryPlan = String(query.plan || '').trim();
 
-    // Temporary production-safe resolution:
-    // use the first company as workspace source of truth.
-    // Later this will be replaced by real workspace-slug -> company mapping.
     const company = await this.prisma.company.findFirst({
       orderBy: {
         createdAt: 'asc',
@@ -233,13 +300,13 @@ export class WorkspaceService {
       ? this.normalizePlanCode(queryPlan)
       : dbPlan;
 
-    const source: WorkspaceContextValue['subscription']['source'] = queryPlan
+    const source: SubscriptionSource = queryPlan
       ? 'db+query-override'
       : 'db';
 
     const defaultLimits = this.getDefaultLimits(effectivePlan);
 
-    const limits = {
+    const limits: WorkspaceLimits = {
       maxStores:
         typeof subscriptionRow?.maxStores === 'number'
           ? subscriptionRow.maxStores
@@ -270,6 +337,63 @@ export class WorkspaceService {
       entitlements: this.getPlanEntitlements(effectivePlan),
       limits,
     });
+  }
+
+  async getUsage(
+    input?: { slug?: string; plan?: string; locale?: string } | string,
+    maybePlan?: string,
+    maybeLocale?: string,
+  ): Promise<WorkspaceUsageResponse> {
+    const ctx = await this.getContext(input as any, maybePlan, maybeLocale);
+    const effectiveLimits = this.buildEffectiveLimits(ctx);
+
+    const company = await this.prisma.company.findFirst({
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    let storesUsed = 0;
+
+    if (company) {
+      storesUsed = await this.prisma.store.count({
+        where: {
+          companyId: company.id,
+        },
+      });
+    }
+
+    const usage: WorkspaceUsage = {
+      storesUsed,
+      invoiceStorageMbUsed: 0,
+      aiChatUsedMonthly: 0,
+      aiInvoiceOcrUsedMonthly: 0,
+    };
+
+    return {
+      workspace: ctx.workspace,
+      subscription: ctx.subscription,
+      effectiveLimits,
+      usage,
+      utilization: {
+        storesPct: this.pct(usage.storesUsed, effectiveLimits.maxStores),
+        invoiceStoragePct: this.pct(usage.invoiceStorageMbUsed, effectiveLimits.invoiceStorageMb),
+        aiChatPct: this.pct(usage.aiChatUsedMonthly, effectiveLimits.aiChatMonthly),
+        aiInvoiceOcrPct: this.pct(
+          usage.aiInvoiceOcrUsedMonthly,
+          effectiveLimits.aiInvoiceOcrMonthly,
+        ),
+      },
+      overLimit: {
+        stores: usage.storesUsed > effectiveLimits.maxStores,
+        invoiceStorage: usage.invoiceStorageMbUsed > effectiveLimits.invoiceStorageMb,
+        aiChat: usage.aiChatUsedMonthly > effectiveLimits.aiChatMonthly,
+        aiInvoiceOcr: usage.aiInvoiceOcrUsedMonthly > effectiveLimits.aiInvoiceOcrMonthly,
+      },
+      period: {
+        monthKey: this.currentMonthKey(),
+      },
+    };
   }
 
   async resolveContext(
