@@ -1,0 +1,284 @@
+// ============================================================
+// LedgerSeiri Step 30A — Prisma domain extension proposal
+// SAFE PROPOSAL FILE ONLY
+// Do NOT replace schema.prisma blindly.
+// Merge manually in Step 30B after comparing current schema.
+// ============================================================
+
+enum AccountType {
+  BANK
+  CASH
+  EWALLET
+  PAYMENT_GATEWAY
+  OTHER
+}
+
+enum TransactionDirection {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionSourceType {
+  MANUAL
+  STORE_ORDER
+  INVOICE_PAYMENT
+  IMPORT
+  SYSTEM
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+model Account {
+  id             String      @id @default(cuid())
+  companyId       String
+  storeId         String?
+  name           String
+  type           AccountType @default(BANK)
+  currency       String      @default("JPY")
+  openingBalance Int         @default(0)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store          Store?      @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  transactions   Transaction[]
+  transfersOut   FundTransfer[] @relation("TransferFromAccount")
+  transfersIn    FundTransfer[] @relation("TransferToAccount")
+  payments       PaymentReceipt[]
+
+  @@index([companyId])
+  @@index([storeId])
+}
+
+model FundTransfer {
+  id             String   @id @default(cuid())
+  companyId       String
+  fromAccountId   String
+  toAccountId     String
+  amount         Int
+  currency       String   @default("JPY")
+  occurredAt     DateTime
+  memo           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromAccount    Account  @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccount      Account  @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, occurredAt])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+}
+
+model TransactionCategory {
+  id             String               @id @default(cuid())
+  companyId       String
+  name           String
+  direction      TransactionDirection
+  code           String?
+  isSystem       Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  @@index([companyId, direction])
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  companyId       String
+  name           String
+  brand          String?
+  category       String?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  skus           ProductSku[]
+
+  @@index([companyId])
+}
+
+model ProductSku {
+  id             String      @id @default(cuid())
+  companyId       String
+  productId       String
+  storeId         String?
+  skuCode        String
+  name           String?
+  costAmount     Int?
+  salePrice      Int?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store          Store?      @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  balances       InventoryBalance[]
+  movements      InventoryMovement[]
+
+  @@index([companyId])
+  @@index([productId])
+  @@index([storeId])
+  @@unique([companyId, skuCode])
+}
+
+model InventoryBalance {
+  id             String      @id @default(cuid())
+  companyId       String
+  skuId           String
+  quantity       Int         @default(0)
+  reservedQty    Int         @default(0)
+  alertLevel     Int         @default(0)
+  updatedAt      DateTime    @updatedAt
+
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sku            ProductSku  @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, skuId])
+}
+
+model InventoryMovement {
+  id             String                @id @default(cuid())
+  companyId       String
+  skuId           String
+  type           InventoryMovementType
+  quantity       Int
+  occurredAt     DateTime
+  memo           String?
+  createdAt      DateTime              @default(now())
+
+  company        Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sku            ProductSku            @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, occurredAt])
+  @@index([skuId, occurredAt])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  companyId       String
+  storeId         String?
+  invoiceNo      String
+  customerName   String
+  issueDate      DateTime
+  dueDate        DateTime
+  currency       String        @default("JPY")
+  totalAmount    Int
+  paidAmount     Int           @default(0)
+  status         InvoiceStatus @default(DRAFT)
+  memo           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store          Store?        @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  payments       PaymentReceipt[]
+
+  @@index([companyId, issueDate])
+  @@index([status])
+  @@unique([companyId, invoiceNo])
+}
+
+model PaymentReceipt {
+  id             String   @id @default(cuid())
+  companyId       String
+  invoiceId       String
+  accountId       String?
+  amount         Int
+  currency       String   @default("JPY")
+  receivedAt     DateTime
+  memo           String?
+  createdAt      DateTime @default(now())
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  account        Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, receivedAt])
+  @@index([invoiceId])
+}
+
+model ImportJob {
+  id             String    @id @default(cuid())
+  companyId       String
+  domain         String
+  filename       String
+  status         JobStatus @default(PENDING)
+  totalRows      Int?
+  successRows    Int?
+  failedRows     Int?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([domain, status])
+}
+
+model ExportJob {
+  id             String    @id @default(cuid())
+  companyId       String
+  domain         String
+  format         String
+  status         JobStatus @default(PENDING)
+  filterJson     Json?
+  fileUrl        String?
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([domain, status])
+}
+
+// ============================================================
+// Proposed Transaction upgrade notes:
+//
+// Existing Transaction model should be extended with:
+// - direction      TransactionDirection
+// - sourceType     TransactionSourceType @default(MANUAL)
+// - accountId      String?
+// - categoryId     String?
+// - currency       String @default("JPY")
+// - externalRef    String?
+// - memo           String?
+// - updatedAt      DateTime @updatedAt
+//
+// And relations:
+// - account        Account?
+// - category       TransactionCategory?
+// ============================================================

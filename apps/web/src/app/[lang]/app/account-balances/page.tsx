@@ -12,9 +12,9 @@ export default function Page() {
   return (
     <PagePlaceholder
       lang={lang}
-      title="利益分析"
-      description="利益率・粗利・営業利益を分析します。"
-      moduleKey="reports-profit"
+      title="口座残高"
+      description="口座別の残高と推移を確認します。"
+      moduleKey="account-balances"
     />
   );
 }

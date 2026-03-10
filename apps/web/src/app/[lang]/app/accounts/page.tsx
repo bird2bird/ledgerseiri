@@ -12,9 +12,9 @@ export default function Page() {
   return (
     <PagePlaceholder
       lang={lang}
-      title="利益分析"
-      description="利益率・粗利・営業利益を分析します。"
-      moduleKey="reports-profit"
+      title="口座一覧"
+      description="銀行口座・電子ウォレット・現金口座を管理します。"
+      moduleKey="accounts"
     />
   );
 }

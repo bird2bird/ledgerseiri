@@ -12,9 +12,9 @@ export default function Page() {
   return (
     <PagePlaceholder
       lang={lang}
-      title="利益分析"
-      description="利益率・粗利・営業利益を分析します。"
-      moduleKey="reports-profit"
+      title="未入金"
+      description="未回収の請求と期日超過案件を確認します。"
+      moduleKey="invoices-unpaid"
     />
   );
 }

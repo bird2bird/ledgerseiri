@@ -12,9 +12,9 @@ export default function Page() {
   return (
     <PagePlaceholder
       lang={lang}
-      title="利益分析"
-      description="利益率・粗利・営業利益を分析します。"
-      moduleKey="reports-profit"
+      title="権限管理"
+      description="ロールと権限ポリシーを管理します。"
+      moduleKey="settings-permissions"
     />
   );
 }
