@@ -7,14 +7,34 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { StoreModule } from './store/store.module';
 import { HealthController } from './health.controller';
+import { JobModule } from './job/job.module';
+import { PaymentModule } from './payment/payment.module';
+import { InvoiceModule } from './invoice/invoice.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { TransactionCategoryModule } from './transaction-category/transaction-category.module';
+import { FundTransferModule } from './fund-transfer/fund-transfer.module';
+import { AccountModule } from './account/account.module';
 import { BillingModule } from './billing/billing.module';
 
 @Module({
-  imports: [
-    WorkspaceModule,AuthModule, CompanyModule, StoreModule, TransactionModule, DashboardModule,
-    BillingModule,
+      imports: [
+      WorkspaceModule,
+      AuthModule,
+      CompanyModule,
+      StoreModule,
+      TransactionModule,
+      DashboardModule,
+      AccountModule,
+      FundTransferModule,
+      TransactionCategoryModule,
+      CatalogModule,
+      InventoryModule,
+      InvoiceModule,
+      PaymentModule,
+      JobModule,
       SecurityModule,
-],
-  controllers: [HealthController],
+    ],
+    controllers: [HealthController],
 })
 export class AppModule {}

@@ -8,29 +8,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id])
-  createdAt DateTime @default(now())
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  password            String
+  companyId           String?
+  company             Company?             @relation(fields: [companyId], references: [id])
+  createdAt           DateTime             @default(now())
   // Refresh token sessions (opposite side of RefreshSession.user)
-  refreshSessions RefreshSession[]
+  refreshSessions     RefreshSession[]
   passwordResetTokens PasswordResetToken[]
-
 }
 
 model Company {
-  id              String   @id @default(cuid())
-  name            String
-  fiscalMonthStart Int     @default(1)
-  timezone        String   @default("Asia/Tokyo")
-  currency        String   @default("JPY")
-  users           User[]
-  stores          Store[]
-  createdAt       DateTime @default(now())
+  id               String   @id @default(cuid())
+  name             String
+  fiscalMonthStart Int      @default(1)
+  timezone         String   @default("Asia/Tokyo")
+  currency         String   @default("JPY")
+  users            User[]
+  stores           Store[]
+  createdAt        DateTime @default(now())
 
-  subscription WorkspaceSubscription?
+  subscription          WorkspaceSubscription?
+  transactions          Transaction[]
+  accounts              Account[]
+  fundTransfers         FundTransfer[]
+  transactionCategories TransactionCategory[]
+  products              Product[]
+  productSkus           ProductSku[]
+  inventoryBalances     InventoryBalance[]
+  inventoryMovements    InventoryMovement[]
+  invoices              Invoice[]
+  paymentReceipts       PaymentReceipt[]
+  importJobs            ImportJob[]
+  exportJobs            ExportJob[]
 }
 
 model Store {
@@ -41,7 +52,13 @@ model Store {
   platform  String   @default("AMAZON")
   region    String   @default("JP")
   createdAt DateTime @default(now())
+
   transactions Transaction[]
+  accounts     Account[]
+  productSkus  ProductSku[]
+  invoices     Invoice[]
+
+  @@index([companyId])
 }
 
 enum TransactionType {
@@ -52,31 +69,307 @@ enum TransactionType {
   OTHER
 }
 
+enum AccountType {
+  BANK
+  CASH
+  EWALLET
+  PAYMENT_GATEWAY
+  OTHER
+}
+
+enum TransactionDirection {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionSourceType {
+  MANUAL
+  STORE_ORDER
+  INVOICE_PAYMENT
+  IMPORT
+  SYSTEM
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
 model Transaction {
-  id         String           @id @default(cuid())
+  id         String  @id @default(cuid())
+  companyId  String?
   storeId    String
-  store      Store            @relation(fields: [storeId], references: [id])
-  type       TransactionType
-  amount     Int              // JPY as integer (no decimals)
-  currency   String           @default("JPY")
+  accountId  String?
+  categoryId String?
+
+  company  Company?             @relation(fields: [companyId], references: [id])
+  store    Store                @relation(fields: [storeId], references: [id])
+  account  Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category TransactionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  type        TransactionType
+  direction   TransactionDirection?
+  sourceType  TransactionSourceType @default(MANUAL)
+  amount      Int
+  currency    String                @default("JPY")
+  occurredAt  DateTime
+  externalRef String?
+  memo        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([companyId, occurredAt])
+  @@index([storeId, occurredAt])
+  @@index([accountId, occurredAt])
+  @@index([categoryId])
+  @@index([type])
+  @@index([direction])
+}
+
+model Account {
+  id             String      @id @default(cuid())
+  companyId      String
+  storeId        String?
+  name           String
+  type           AccountType @default(BANK)
+  currency       String      @default("JPY")
+  openingBalance Int         @default(0)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  transactions Transaction[]
+  transfersOut FundTransfer[]   @relation("TransferFromAccount")
+  transfersIn  FundTransfer[]   @relation("TransferToAccount")
+  payments     PaymentReceipt[]
+
+  @@index([companyId])
+  @@index([storeId])
+}
+
+model FundTransfer {
+  id            String   @id @default(cuid())
+  companyId     String
+  fromAccountId String
+  toAccountId   String
+  amount        Int
+  currency      String   @default("JPY")
+  occurredAt    DateTime
+  memo          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromAccount Account @relation("TransferFromAccount", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccount   Account @relation("TransferToAccount", fields: [toAccountId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, occurredAt])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+}
+
+model TransactionCategory {
+  id        String               @id @default(cuid())
+  companyId String
+  name      String
+  direction TransactionDirection
+  code      String?
+  isSystem  Boolean              @default(false)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([companyId, direction])
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  brand     String?
+  category  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  skus    ProductSku[]
+
+  @@index([companyId])
+}
+
+model ProductSku {
+  id         String   @id @default(cuid())
+  companyId  String
+  productId  String
+  storeId    String?
+  skuCode    String
+  name       String?
+  costAmount Int?
+  salePrice  Int?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  balances  InventoryBalance[]
+  movements InventoryMovement[]
+
+  @@unique([companyId, skuCode])
+  @@index([companyId])
+  @@index([productId])
+  @@index([storeId])
+}
+
+model InventoryBalance {
+  id          String   @id @default(cuid())
+  companyId   String
+  skuId       String
+  quantity    Int      @default(0)
+  reservedQty Int      @default(0)
+  alertLevel  Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sku     ProductSku @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, skuId])
+}
+
+model InventoryMovement {
+  id         String                @id @default(cuid())
+  companyId  String
+  skuId      String
+  type       InventoryMovementType
+  quantity   Int
   occurredAt DateTime
   memo       String?
-  createdAt  DateTime         @default(now())
+  createdAt  DateTime              @default(now())
 
-  @@index([storeId, occurredAt])
-  @@index([type])
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sku     ProductSku @relation(fields: [skuId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, occurredAt])
+  @@index([skuId, occurredAt])
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  companyId    String
+  storeId      String?
+  invoiceNo    String
+  customerName String
+  issueDate    DateTime
+  dueDate      DateTime
+  currency     String        @default("JPY")
+  totalAmount  Int
+  paidAmount   Int           @default(0)
+  status       InvoiceStatus @default(DRAFT)
+  memo         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store    Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  payments PaymentReceipt[]
+
+  @@unique([companyId, invoiceNo])
+  @@index([companyId, issueDate])
+  @@index([status])
+}
+
+model PaymentReceipt {
+  id         String   @id @default(cuid())
+  companyId  String
+  invoiceId  String
+  accountId  String?
+  amount     Int
+  currency   String   @default("JPY")
+  receivedAt DateTime
+  memo       String?
+  createdAt  DateTime @default(now())
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, receivedAt])
+  @@index([invoiceId])
+}
+
+model ImportJob {
+  id           String    @id @default(cuid())
+  companyId    String
+  domain       String
+  filename     String
+  status       JobStatus @default(PENDING)
+  totalRows    Int?
+  successRows  Int?
+  failedRows   Int?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([domain, status])
+}
+
+model ExportJob {
+  id           String    @id @default(cuid())
+  companyId    String
+  domain       String
+  format       String
+  status       JobStatus @default(PENDING)
+  filterJson   Json?
+  fileUrl      String?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([domain, status])
 }
 
 model RefreshSession {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  jti           String   @unique
-  createdAt     DateTime @default(now())
+  jti           String    @unique
+  createdAt     DateTime  @default(now())
   expiresAt     DateTime
   revokedAt     DateTime?
   replacedByJti String?
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -85,20 +378,20 @@ model RefreshSession {
 /// Keep connect-pg-simple table in DB (do NOT let prisma db push drop it)
 model PgSession {
   sid    String   @id @db.VarChar
-  sess   Json @db.Json
+  sess   Json     @db.Json
   expire DateTime @db.Timestamp(6)
 
-  @@map("session")
   @@index([expire], map: "IDX_session_expire")
+  @@map("session")
 }
 
 model PasswordResetToken {
-  id         String   @id @default(cuid())
-  userId     String
-  tokenHash  String   @unique
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-  usedAt     DateTime?
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -120,21 +413,21 @@ enum SubscriptionStatus {
 }
 
 model WorkspaceSubscription {
-  id                  String             @id @default(cuid())
-  companyId           String             @unique
-  planCode            PlanCode           @default(STARTER)
-  status              SubscriptionStatus @default(ACTIVE)
+  id        String             @id @default(cuid())
+  companyId String             @unique
+  planCode  PlanCode           @default(STARTER)
+  status    SubscriptionStatus @default(ACTIVE)
 
   currentPeriodEnd    DateTime?
-  maxStores           Int                @default(1)
-  invoiceStorageMb    Int                @default(200)
-  aiChatMonthly       Int                @default(0)
-  aiInvoiceOcrMonthly Int                @default(0)
+  maxStores           Int       @default(1)
+  invoiceStorageMb    Int       @default(200)
+  aiChatMonthly       Int       @default(0)
+  aiInvoiceOcrMonthly Int       @default(0)
 
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([planCode])
   @@index([status])

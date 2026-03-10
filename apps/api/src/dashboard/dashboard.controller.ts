@@ -1,81 +1,74 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { JwtAuthGuard } from '../auth/jwt.guard';
 
-function monthRange(month: string) {
-  const [y, m] = month.split('-').map((v) => Number(v));
-  const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-  return { start, end };
-}
-
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class DashboardController {
-  constructor(private prisma: PrismaService) {}
-
-  private async assertStoreOwned(req: any, storeId: string) {
-    const userId = req.user.userId;
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.companyId) return null;
-
-    return this.prisma.store.findFirst({
-      where: { id: storeId, companyId: user.companyId },
-    });
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get('dashboard')
-  async monthly(@Req() req: any, @Query('storeId') storeId?: string, @Query('month') month?: string) {
-    if (!storeId) return { error: 'storeId is required' };
-    if (!month) return { error: 'month is required, e.g. 2026-02' };
+  async legacyDashboard() {
+    return this.summary();
+  }
 
-    const store = await this.assertStoreOwned(req, storeId);
-    if (!store) return { error: 'Store not found or not owned' };
-
-    const { start, end } = monthRange(month);
-
-    // group by type (display)
-    const rows = await this.prisma.transaction.groupBy({
-      by: ['type'],
-      where: { storeId, occurredAt: { gte: start, lt: end } },
-      _sum: { amount: true },
-      _count: { _all: true },
+  @Get('dashboard/summary')
+  async summary() {
+    const company = await this.prisma.company.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
     });
 
-    const sumByType: Record<string, number> = {};
-    let count = 0;
-    for (const r of rows as any[]) {
-      sumByType[r.type] = Number(r._sum?.amount ?? 0);
-      count += Number(r._count?._all ?? 0);
+    if (!company) {
+      return {
+        ok: true,
+        revenue: 0,
+        expense: 0,
+        profit: 0,
+        cash: 0,
+        message: 'no company',
+      };
     }
 
-    const sales = sumByType['SALE'] ?? 0;
-    const fbaFees = sumByType['FBA_FEE'] ?? 0;
-    const ads = sumByType['AD'] ?? 0;
-    const refunds = sumByType['REFUND'] ?? 0;
-    const other = sumByType['OTHER'] ?? 0;
+    const [incomeAgg, expenseAgg, balances] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: {
+          companyId: company.id,
+          direction: 'INCOME',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: {
+          companyId: company.id,
+          direction: 'EXPENSE',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.account.findMany({
+        where: { companyId: company.id },
+        include: {
+          transfersOut: { select: { amount: true } },
+          transfersIn: { select: { amount: true } },
+        },
+      }),
+    ]);
 
-    // single source of truth: monthNet = SUM(amount)
-    const total = await this.prisma.transaction.aggregate({
-      where: { storeId, occurredAt: { gte: start, lt: end } },
-      _sum: { amount: true },
-    });
-    const monthNet = Number(total._sum.amount ?? 0);
+    const revenue = incomeAgg._sum.amount ?? 0;
+    const expense = expenseAgg._sum.amount ?? 0;
+    const profit = revenue - expense;
 
-    // profit equals monthNet (strict)
-    const profit = monthNet;
+    const cash = balances.reduce((sum, a) => {
+      const transferOut = a.transfersOut.reduce((x, t) => x + t.amount, 0);
+      const transferIn = a.transfersIn.reduce((x, t) => x + t.amount, 0);
+      return sum + a.openingBalance - transferOut + transferIn;
+    }, 0);
 
     return {
-      storeId,
-      month,
-      sales,
-      fbaFees,
-      ads,
-      refunds,
-      other,
+      ok: true,
+      revenue,
+      expense,
       profit,
-      monthNet,
-      count,
+      cash,
+      message: 'dashboard summary loaded',
     };
   }
 }

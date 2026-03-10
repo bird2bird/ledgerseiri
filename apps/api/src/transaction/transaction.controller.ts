@@ -1,158 +1,42 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
-import { JwtAuthGuard } from '../auth/jwt.guard';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { TransactionService } from './transaction.service';
 
-
-
-function normalizeSignedAmount(type: string, amount: any): number {
-  const abs = Math.abs(Number(amount || 0));
-  if (type === 'SALE') return abs;
-  if (type === 'FBA_FEE' || type === 'AD' || type === 'REFUND') return -abs;
-  return Number(amount || 0);
-}
-
-
-type TxType = 'SALE' | 'FBA_FEE' | 'AD' | 'REFUND' | 'OTHER';
-
-function monthRange(month: string) {
-  const [y, m] = month.split('-').map((v) => Number(v));
-  const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(y, m, 1, 0, 0, 0));
-  return { start, end };
-}
-
-function assertType(x: any): TxType {
-  const v = String(x || '').toUpperCase();
-  if (v === 'SALE' || v === 'FBA_FEE' || v === 'AD' || v === 'REFUND' || v === 'OTHER') return v;
-  return 'OTHER';
-}
-
-// DB single-source-of-truth: normalize sign
-function normalizeAmount(type: TxType, amountInput: any): number {
-  const n = Number(amountInput);
-  const abs = Math.abs(Number.isFinite(n) ? n : 0);
-  if (type === 'SALE') return abs;
-  if (type === 'FBA_FEE' || type === 'AD' || type === 'REFUND') return -abs;
-  return Number.isFinite(n) ? n : 0;
-}
-
-function parseOccurredAt(x: any): Date {
-  const d = new Date(x);
-  if (Number.isNaN(d.getTime())) throw new Error('occurredAt is invalid (ISO required)');
-  return d;
-}
-
-@UseGuards(JwtAuthGuard)
 @Controller()
 export class TransactionController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly service: TransactionService) {}
 
-  private async assertStoreOwned(req: any, storeId: string) {
-    const userId = req.user.userId;
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.companyId) return null;
-
-    return this.prisma.store.findFirst({
-      where: { id: storeId, companyId: user.companyId },
-    });
+  @Get('api/transactions')
+  list(@Query('direction') direction?: 'INCOME' | 'EXPENSE' | 'TRANSFER') {
+    return this.service.list(direction);
   }
 
-  // 新增流水（单笔）
-  @Post('transaction')
-  async create(@Req() req: any, @Body() body: any) {
-    const storeId = body?.storeId;
-    if (!storeId) return { error: 'storeId is required' };
-
-    const store = await this.assertStoreOwned(req, storeId);
-    if (!store) return { error: 'Store not found or not owned' };
-
-    const type: TxType = assertType(body?.type);
-    const amount = normalizeAmount(type, body?.amount);
-    const occurredAt = parseOccurredAt(body?.occurredAt);
-    const memo = body?.memo ?? null;
-
-        // ===== amount sign normalization (DB is source of truth) =====
-    const normalizedAmount = normalizeSignedAmount(type, amount);
-
-    const tx = await this.prisma.transaction.create({
-      data: {
-        storeId,
-        type,
-      amount,
-        occurredAt,
-        memo,
-      } as any,
-    });
-
-    return tx;
+  @Post('api/transactions')
+  create(@Body() body: unknown) {
+    return this.service.create((body || {}) as any);
   }
 
-  // 流水列表（月度）
+  @Get('api/transaction-categories')
+  listCategories(@Query('direction') direction?: 'INCOME' | 'EXPENSE' | 'TRANSFER') {
+    return this.service.listCategories(direction);
+  }
+
+  @Post('api/transaction-categories')
+  createCategory(@Body() body: unknown) {
+    return this.service.createCategory((body || {}) as any);
+  }
+
+  @Post('api/transaction-categories/seed')
+  seedDefaultCategories() {
+    return this.service.seedDefaultCategories();
+  }
+
   @Get('transaction')
-  async list(@Req() req: any, @Query('storeId') storeId?: string, @Query('month') month?: string) {
-    if (!storeId) return { error: 'storeId is required' };
-    if (!month) return { error: 'month is required, e.g. 2026-02' };
-
-    const store = await this.assertStoreOwned(req, storeId);
-    if (!store) return { error: 'Store not found or not owned' };
-
-    const { start, end } = monthRange(month);
-
-    const where: any = { storeId, occurredAt: { gte: start, lt: end } };
-
-    const items = await this.prisma.transaction.findMany({
-      where,
-      orderBy: { occurredAt: 'desc' as any },
-      take: 500,
-    });
-
-    return { items };
+  legacyList(@Query('direction') direction?: 'INCOME' | 'EXPENSE' | 'TRANSFER') {
+    return this.service.list(direction);
   }
 
-  // 删除流水
-  @Delete('transaction/:id')
-  async remove(@Req() req: any, @Param('id') id: string) {
-    const tx = await this.prisma.transaction.findUnique({ where: { id } });
-    if (!tx) return { ok: true };
-
-    const store = await this.assertStoreOwned(req, tx.storeId);
-    if (!store) return { error: 'Store not found or not owned' };
-
-    await this.prisma.transaction.delete({ where: { id } });
-    return { ok: true };
-  }
-
-  // ===== CSV Import MVP: Bulk Create (secure + normalized) =====
-  @Post('transaction/bulk')
-  async bulkCreate(@Req() req: any, @Body() body: any) {
-    const storeId = body?.storeId;
-    const items = Array.isArray(body?.items) ? body.items : [];
-
-    if (!storeId) return { ok: false, message: 'storeId is required' };
-
-    const store = await this.assertStoreOwned(req, storeId);
-    if (!store) return { ok: false, message: 'Store not found or not owned' };
-
-    if (!items.length) return { ok: false, message: 'items is empty' };
-    if (items.length > 5000) return { ok: false, message: 'items too large (max 5000)' };
-
-    const normalized = items.map((it: any) => {
-      const type: TxType = assertType(it?.type);
-      const amount = normalizeAmount(type, it?.amount);
-      const occurredAt = parseOccurredAt(it?.occurredAt);
-      return {
-        storeId,
-        type,
-        amount,
-        occurredAt,
-        memo: it?.memo ?? null,
-      };
-    });
-
-    const result = await this.prisma.transaction.createMany({
-      data: normalized as any,
-    });
-
-    return { ok: true, created: result.count };
+  @Post('transaction')
+  legacyCreate(@Body() body: unknown) {
+    return this.service.create((body || {}) as any);
   }
 }

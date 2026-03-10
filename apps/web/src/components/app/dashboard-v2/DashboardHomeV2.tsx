@@ -131,37 +131,71 @@ export function DashboardHomeV2() {
 
 
   const loadDashboardSummary = useCallback(async () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("ls_token") : null;
+      try {
+        setDashboardLoading(true);
+        setDashboardError(null);
 
-    if (!token) return;
+        const summary = await fetchDashboardSummary({
+          storeId,
+          range,
+          locale: currentLang,
+        });
 
-    try {
-      setDashboardLoading(true);
-      setDashboardError(null);
+        setDashboardData((prev) => {
+          const base = prev ?? dashboardHomeMock;
 
-      const summary = await fetchDashboardSummary({
-        token,
-        storeId,
-        range,
-        locale: currentLang,
-      });
+          const nextPrimary = base.kpiPrimary.map((item) => {
+            if (item.key === "revenue") {
+              return { ...item, value: `¥${summary.revenue.toLocaleString("ja-JP")}` };
+            }
+            if (item.key === "expense") {
+              return { ...item, value: `¥${summary.expense.toLocaleString("ja-JP")}` };
+            }
+            if (item.key === "profit") {
+              return { ...item, value: `¥${summary.profit.toLocaleString("ja-JP")}` };
+            }
+            if (item.key === "cash") {
+              return { ...item, value: `¥${summary.cash.toLocaleString("ja-JP")}` };
+            }
+            return item;
+          });
 
-      setDashboardData(summary);
+          const cashBalances =
+            base.cashBalances && base.cashBalances.length > 0
+              ? (() => {
+                  const originalTotal = base.cashBalances.reduce((sum, item) => sum + item.balance, 0);
+                  if (originalTotal <= 0) return base.cashBalances;
 
-      if (summary?.filters?.range) {
-        setRange(summary.filters.range);
+                  let remaining = summary.cash;
+                  return base.cashBalances.map((item, index) => {
+                    if (index === base.cashBalances.length - 1) {
+                      return { ...item, balance: Math.max(0, remaining) };
+                    }
+                    const scaled = Math.round((item.balance / originalTotal) * summary.cash);
+                    remaining -= scaled;
+                    return { ...item, balance: Math.max(0, scaled) };
+                  });
+                })()
+              : base.cashBalances;
+
+          return {
+            ...base,
+            filters: {
+              ...base.filters,
+              range,
+              storeId,
+              refreshedAt: new Date().toISOString(),
+            },
+            kpiPrimary: nextPrimary,
+            cashBalances,
+          };
+        });
+      } catch (e: any) {
+        setDashboardError(e?.message ?? String(e));
+      } finally {
+        setDashboardLoading(false);
       }
-
-      if (summary?.filters?.storeId) {
-        setStoreId(summary.filters.storeId);
-      }
-    } catch (e: any) {
-      setDashboardError(e?.message ?? String(e));
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, [storeId, range, currentLang]);
+    }, [storeId, range, currentLang]);
 
   useEffect(() => {
     loadDashboardSummary();

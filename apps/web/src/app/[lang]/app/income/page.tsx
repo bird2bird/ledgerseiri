@@ -40,8 +40,8 @@ export default function Page() {
       setLoading(true);
       setError(null);
       const [tx, cat, acc] = await Promise.all([
-        listTransactions("EXPENSE"),
-        listTransactionCategories("EXPENSE"),
+        listTransactions("INCOME"),
+        listTransactionCategories("INCOME"),
         listAccounts(),
       ]);
       setRows(tx.items);
@@ -65,8 +65,8 @@ export default function Page() {
       await createTransaction({
         accountId: accountId || null,
         categoryId: categoryId || null,
-        type: "OTHER",
-        direction: "EXPENSE",
+        type: "SALE",
+        direction: "INCOME",
         amount: Number(amount || 0),
         currency,
         occurredAt: new Date(occurredAt).toISOString(),
@@ -90,7 +90,7 @@ export default function Page() {
       {
         key: "amount",
         title: "金額",
-        render: (r) => <div className="font-semibold text-rose-700">{yen(r.amount)}</div>,
+        render: (r) => <div className="font-semibold text-emerald-700">{yen(r.amount)}</div>,
       },
       { key: "memo", title: "メモ", render: (r) => r.memo ?? "-" },
     ],
@@ -100,20 +100,20 @@ export default function Page() {
   return (
     <>
       <CrudPageShell
-        title="支出"
-        description="広告費・運営費・その他支出を記録します。"
+        title="収入"
+        description="売上・その他収入を記録します。"
         actions={
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
           >
-            新規支出
+            新規収入
           </button>
         }
         filters={
           <FilterBar>
-            <div className="text-sm text-slate-500">支出一覧（最新順）</div>
+            <div className="text-sm text-slate-500">収入一覧（最新順）</div>
           </FilterBar>
         }
       >
@@ -123,15 +123,15 @@ export default function Page() {
           <div className="text-sm text-slate-500">読み込み中...</div>
         ) : rows.length === 0 ? (
           <EmptyState
-            title="支出データがありません"
-            description="最初の支出を登録してください。"
+            title="収入データがありません"
+            description="最初の収入を登録してください。"
             action={
               <button
                 type="button"
                 onClick={() => setDrawerOpen(true)}
                 className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
               >
-                支出を作成
+                収入を作成
               </button>
             }
           />
@@ -140,7 +140,7 @@ export default function Page() {
         )}
       </CrudPageShell>
 
-      <CreateEditDrawer open={drawerOpen} title="新規支出" onClose={() => setDrawerOpen(false)}>
+      <CreateEditDrawer open={drawerOpen} title="新規収入" onClose={() => setDrawerOpen(false)}>
         <div className="space-y-4">
           <div>
             <div className="mb-1 text-sm font-medium text-slate-700">カテゴリ</div>

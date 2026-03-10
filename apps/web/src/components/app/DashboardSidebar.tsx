@@ -441,15 +441,15 @@ export function DashboardSidebar() {
 
       group("transactions", t.transactions, [
         group("income", t.income, [
-          leaf("cash-income", t.cashIncome, "/app/income/cash"),
-          leaf("store-orders", t.storeOrders, "/app/income/store-orders"),
-          leaf("other-income", t.otherIncome, "/app/income/other"),
+          leaf("cash-income", t.cashIncome, "/app/income"),
+          leaf("store-orders", t.storeOrders, "/app/income"),
+          leaf("other-income", t.otherIncome, "/app/income"),
         ]),
         group("expense", t.expense, [
-          leaf("store-ops", t.storeOpsExpense, "/app/expense/store-ops"),
-          leaf("company-ops", t.companyOpsExpense, "/app/expense/company-ops"),
-          leaf("salary", t.salary, "/app/expense/salary"),
-          leaf("other-expense", t.otherExpense, "/app/expense/other"),
+          leaf("store-ops", t.storeOpsExpense, "/app/expenses"),
+          leaf("company-ops", t.companyOpsExpense, "/app/expenses"),
+          leaf("salary", t.salary, "/app/expenses"),
+          leaf("other-expense", t.otherExpense, "/app/expenses"),
         ]),
       ]),
 
