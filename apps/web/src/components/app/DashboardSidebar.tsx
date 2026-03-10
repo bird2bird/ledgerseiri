@@ -4,9 +4,7 @@ import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { useWorkspaceProvider } from "@/core/workspace/provider";
-import { useFeatures } from "@/hooks/useFeatures";
-import type { PlanCode } from "@/components/app/dashboard-v2/types";
+import { useWorkspaceGate } from "@/hooks/useWorkspaceGate";
 
 function menuGlyph(key: string): string {
   switch (key) {
@@ -40,10 +38,6 @@ function cls(...a: (string | false | null | undefined)[]) {
   return a.filter(Boolean).join(" ");
 }
 
-function normalizePlanCode(raw?: string | null): PlanCode {
-  if (raw === "starter" || raw === "standard" || raw === "premium") return raw;
-  return "starter";
-}
 
 function Caret({ open }: { open: boolean }) {
   return (
@@ -412,10 +406,7 @@ export function DashboardSidebar() {
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
   const t = DICT[lang];
-  const { ctx } = useWorkspaceProvider();
-  const planCode: PlanCode = ctx?.subscription.planCode ?? "starter";
-
-  const { features } = useFeatures(planCode);
+  const { planCode, features } = useWorkspaceGate();
 
 
   // repository-ready note:

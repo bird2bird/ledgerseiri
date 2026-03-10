@@ -4,6 +4,19 @@ import { PrismaService } from '../prisma.service';
 type PlanCodeLower = 'starter' | 'standard' | 'premium';
 type SubscriptionStatusLower = 'active' | 'trialing' | 'past_due' | 'canceled';
 
+type WorkspaceEntitlements = {
+  aiInsights: boolean;
+  aiChat: boolean;
+  invoiceUpload: boolean;
+  invoiceOcr: boolean;
+  multiStore: boolean;
+  fundTransfer: boolean;
+  invoiceManagement: boolean;
+  advancedExport: boolean;
+  skuLevelExport: boolean;
+  history24m: boolean;
+};
+
 type WorkspaceContextValue = {
   workspace: {
     slug: string;
@@ -15,6 +28,7 @@ type WorkspaceContextValue = {
     planCode: PlanCodeLower;
     status: SubscriptionStatusLower;
     source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    entitlements: WorkspaceEntitlements;
     limits: {
       maxStores: number;
       invoiceStorageMb: number;
@@ -51,6 +65,51 @@ export class WorkspaceService {
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  private getPlanEntitlements(planCode: PlanCodeLower): WorkspaceEntitlements {
+    if (planCode === 'premium') {
+      return {
+        aiInsights: true,
+        aiChat: true,
+        invoiceUpload: true,
+        invoiceOcr: true,
+        multiStore: true,
+        fundTransfer: true,
+        invoiceManagement: true,
+        advancedExport: true,
+        skuLevelExport: true,
+        history24m: true,
+      };
+    }
+
+    if (planCode === 'standard') {
+      return {
+        aiInsights: false,
+        aiChat: false,
+        invoiceUpload: true,
+        invoiceOcr: false,
+        multiStore: true,
+        fundTransfer: true,
+        invoiceManagement: true,
+        advancedExport: true,
+        skuLevelExport: true,
+        history24m: true,
+      };
+    }
+
+    return {
+      aiInsights: false,
+      aiChat: false,
+      invoiceUpload: true,
+      invoiceOcr: false,
+      multiStore: false,
+      fundTransfer: false,
+      invoiceManagement: false,
+      advancedExport: false,
+      skuLevelExport: false,
+      history24m: false,
+    };
   }
 
   private getDefaultLimits(planCode: PlanCodeLower) {
@@ -90,6 +149,7 @@ export class WorkspaceService {
     planCode: PlanCodeLower;
     status: SubscriptionStatusLower;
     source: 'db' | 'db+query-override' | 'mock-default' | 'mock-query';
+    entitlements: WorkspaceEntitlements;
     limits: {
       maxStores: number;
       invoiceStorageMb: number;
@@ -109,6 +169,7 @@ export class WorkspaceService {
         planCode: args.planCode,
         status: args.status,
         source: args.source,
+        entitlements: args.entitlements,
         limits: args.limits,
       },
     };
@@ -149,6 +210,7 @@ export class WorkspaceService {
         planCode: fallbackPlan,
         status: 'active',
         source: queryPlan ? 'mock-query' : 'mock-default',
+        entitlements: this.getPlanEntitlements(fallbackPlan),
         limits: this.getDefaultLimits(fallbackPlan),
       });
     }
@@ -205,6 +267,7 @@ export class WorkspaceService {
       planCode: effectivePlan,
       status: dbStatus,
       source,
+      entitlements: this.getPlanEntitlements(effectivePlan),
       limits,
     });
   }
