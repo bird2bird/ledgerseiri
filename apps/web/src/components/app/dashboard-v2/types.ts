@@ -1,4 +1,4 @@
-export type DashboardRange = "thisMonth" | "lastMonth" | "thisYear" | "custom";
+export type DashboardRange = "7d" | "30d" | "90d" | "12m";
 
 export type PlanCode = "starter" | "standard" | "premium";
 

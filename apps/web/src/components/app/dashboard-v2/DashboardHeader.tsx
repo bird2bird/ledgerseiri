@@ -24,10 +24,10 @@ type DashboardHeaderProps = {
 };
 
 const RANGE_OPTIONS: Array<{ value: DashboardRange; label: string }> = [
-  { value: "thisMonth", label: "今月" },
-  { value: "lastMonth", label: "先月" },
-  { value: "thisYear", label: "今年" },
-  { value: "custom", label: "カスタム" },
+  { value: "7d", label: "7日" },
+  { value: "30d", label: "30日" },
+  { value: "90d", label: "90日" },
+  { value: "12m", label: "12ヶ月" },
 ];
 
 export function DashboardHeader({

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 type CreateInvoicePayload = {
@@ -10,8 +11,8 @@ type CreateInvoicePayload = {
   currency?: string;
   issueDate?: string;
   dueDate?: string;
-  totalAmount?: number | string;
-  total?: number | string;
+  subtotal?: number | string;
+  tax?: number | string;
   memo?: string;
 };
 
@@ -46,7 +47,29 @@ export class InvoiceService {
     return store?.id ?? null;
   }
 
-  private mapInvoice(row: any) {
+  private mapInvoice(
+    row: {
+      id: string;
+      companyId: string;
+      storeId: string | null;
+      invoiceNo: string;
+      customerName: string;
+      status: InvoiceStatus;
+      currency: string;
+      issueDate: Date;
+      dueDate: Date;
+      totalAmount: number;
+      paidAmount: number;
+      memo: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      store?: { name: string } | null;
+    },
+  ) {
+    const totalAmount = row.totalAmount ?? 0;
+    const subtotal = Math.round(totalAmount / 1.1);
+    const tax = totalAmount - subtotal;
+
     return {
       id: row.id,
       companyId: row.companyId,
@@ -59,10 +82,12 @@ export class InvoiceService {
       currency: row.currency,
       issueDate: row.issueDate,
       dueDate: row.dueDate,
-      totalAmount: row.totalAmount,
-      total: row.totalAmount,
+      totalAmount,
+      total: totalAmount,
+      subtotal,
+      tax,
       paidAmount: row.paidAmount,
-      balance: row.totalAmount - row.paidAmount,
+      balance: totalAmount - row.paidAmount,
       memo: row.memo,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -76,7 +101,7 @@ export class InvoiceService {
       where: { companyId },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
       include: {
-        store: { select: { id: true, name: true } },
+        store: { select: { name: true } },
       },
     });
 
@@ -84,7 +109,7 @@ export class InvoiceService {
       ok: true,
       domain: 'invoices',
       action: 'list',
-      items: items.map((x: any) => this.mapInvoice(x)),
+      items: items.map((x) => this.mapInvoice(x)),
       message: 'invoices loaded',
     };
   }
@@ -99,7 +124,7 @@ export class InvoiceService {
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
       include: {
-        store: { select: { id: true, name: true } },
+        store: { select: { name: true } },
       },
     });
 
@@ -107,7 +132,7 @@ export class InvoiceService {
       ok: true,
       domain: 'invoices',
       action: 'unpaid',
-      items: items.map((x: any) => this.mapInvoice(x)),
+      items: items.map((x) => this.mapInvoice(x)),
       message: 'unpaid invoices loaded',
     };
   }
@@ -122,7 +147,7 @@ export class InvoiceService {
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
-        store: { select: { id: true, name: true } },
+        store: { select: { name: true } },
       },
     });
 
@@ -130,7 +155,7 @@ export class InvoiceService {
       ok: true,
       domain: 'invoices',
       action: 'history',
-      items: items.map((x: any) => this.mapInvoice(x)),
+      items: items.map((x) => this.mapInvoice(x)),
       message: 'invoice history loaded',
     };
   }
@@ -156,14 +181,23 @@ export class InvoiceService {
     const issueDate = payload.issueDate ? new Date(payload.issueDate) : new Date();
     const dueDate = payload.dueDate ? new Date(payload.dueDate) : issueDate;
 
-    const totalAmount = Math.round(Number(payload.totalAmount ?? payload.total ?? 0));
-    if (!Number.isFinite(totalAmount) || totalAmount < 0) {
-      throw new Error('totalAmount must be >= 0.');
+    const subtotal = Math.round(Number(payload.subtotal ?? 0));
+    const tax = Math.round(Number(payload.tax ?? 0));
+
+    if (!Number.isFinite(subtotal) || subtotal < 0) {
+      throw new Error('subtotal must be >= 0.');
     }
+    if (!Number.isFinite(tax) || tax < 0) {
+      throw new Error('tax must be >= 0.');
+    }
+
+    const totalAmount = subtotal + tax;
 
     const invoiceNo =
       String(payload.invoiceNo || payload.invoiceNumber || '').trim() ||
-      `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-6)}`;
+      `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now()
+        .toString()
+        .slice(-6)}`;
 
     const item = await this.prisma.invoice.create({
       data: {
@@ -180,7 +214,7 @@ export class InvoiceService {
         memo: payload.memo ? String(payload.memo) : null,
       },
       include: {
-        store: { select: { id: true, name: true } },
+        store: { select: { name: true } },
       },
     });
 

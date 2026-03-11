@@ -2,15 +2,15 @@ import type { DashboardHomeData } from "./types";
 
 export const dashboardHomeMock: DashboardHomeData = {
   filters: {
-    range: "thisMonth",
+    range: "30d",
     storeId: "all",
     refreshedAt: new Date().toISOString(),
   },
 
   kpiPrimary: [
-    { key: "revenue", label: "今月収入", value: "¥1,250,000", deltaText: "+12.4% vs 先月", trend: "up", tone: "profit" },
-    { key: "expense", label: "今月支出", value: "¥830,000", deltaText: "-5.2% vs 先月", trend: "up", tone: "warning" },
-    { key: "profit", label: "今月利益", value: "¥420,000", deltaText: "+18.1% vs 先月", trend: "up", tone: "profit" },
+    { key: "revenue", label: "今月収入", value: "¥1,250,000", deltaText: "+12.4% vs 前期", trend: "up", tone: "profit" },
+    { key: "expense", label: "今月支出", value: "¥830,000", deltaText: "-5.2% vs 前期", trend: "down", tone: "warning" },
+    { key: "profit", label: "今月利益", value: "¥420,000", deltaText: "+18.1% vs 前期", trend: "up", tone: "profit" },
     { key: "cash", label: "総資金", value: "¥2,950,000", deltaText: "+6.8%", trend: "up", tone: "info" },
     { key: "tax", label: "消費税概算", value: "¥85,000", subLabel: "今期見込み", tone: "default" },
   ],
@@ -110,7 +110,7 @@ export const dashboardHomeMock: DashboardHomeData = {
       { label: "Outstanding Payments", score: 70 },
     ],
     insights: [
-      { id: "i1", title: "今月の利益率は先月より 4.2% 改善しています", tone: "good" },
+      { id: "i1", title: "今月の利益率は先月より改善しています", tone: "good" },
       { id: "i2", title: "Amazon JP 店舗の広告費が高止まりしています", tone: "warning" },
       { id: "i3", title: "未入金が増加しているため、回収確認を推奨します", tone: "warning" },
     ],
@@ -125,9 +125,9 @@ export const dashboardHomeMock: DashboardHomeData = {
   ],
 
   quickActions: [
-    { key: "addIncome", label: "収入を追加", subLabel: "現金・売上", href: "/ja/app/transactions/income", icon: "plus" },
-    { key: "addExpense", label: "支出を追加", subLabel: "経費・運営費", href: "/ja/app/transactions/expense", icon: "minus" },
-    { key: "transfer", label: "資金移動を記録", subLabel: "口座間移動", href: "/ja/app/funds/transfer", icon: "arrow" },
+    { key: "addIncome", label: "収入を追加", subLabel: "現金・売上", href: "/ja/app/income", icon: "plus" },
+    { key: "addExpense", label: "支出を追加", subLabel: "経費・運営費", href: "/ja/app/expenses", icon: "minus" },
+    { key: "transfer", label: "資金移動を記録", subLabel: "口座間移動", href: "/ja/app/fund-transfer", icon: "arrow" },
     { key: "invoice", label: "請求書を作成", subLabel: "新規請求", href: "/ja/app/invoices", icon: "file" },
     { key: "import", label: "データをインポート", subLabel: "CSV / 明細", href: "/ja/app/data/import", icon: "upload" },
     { key: "reports", label: "レポートを見る", subLabel: "利益 / CF", href: "/ja/app/reports/profit", icon: "chart" },

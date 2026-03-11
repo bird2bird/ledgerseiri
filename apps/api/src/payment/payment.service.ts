@@ -42,6 +42,9 @@ export class PaymentService {
             id: true,
             invoiceNo: true,
             customerName: true,
+            totalAmount: true,
+            paidAmount: true,
+            status: true,
           },
         },
         account: {
@@ -54,13 +57,16 @@ export class PaymentService {
       ok: true,
       domain: 'payments',
       action: 'list',
-      items: items.map((p: any) => ({
+      items: items.map((p) => ({
         id: p.id,
         companyId: p.companyId,
         invoiceId: p.invoiceId,
         invoiceNo: p.invoice?.invoiceNo ?? null,
         invoiceNumber: p.invoice?.invoiceNo ?? null,
         customerName: p.invoice?.customerName ?? null,
+        invoiceStatus: p.invoice?.status ?? null,
+        invoiceTotalAmount: p.invoice?.totalAmount ?? null,
+        invoicePaidAmount: p.invoice?.paidAmount ?? null,
         accountId: p.accountId,
         accountName: p.account?.name ?? null,
         amount: p.amount,
@@ -84,21 +90,29 @@ export class PaymentService {
   async create(payload: CreatePaymentPayload) {
     const companyId = await this.resolveCompanyId(payload?.companyId);
 
-    const invoiceId = String(payload.invoiceId || '').trim();
+    const invoiceId = String(payload?.invoiceId || '').trim();
     if (!invoiceId) {
       throw new Error('invoiceId is required.');
     }
 
-    const amount = Math.round(Number(payload.amount ?? 0));
+    const amount = Math.round(Number(payload?.amount ?? 0));
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error('amount must be greater than 0.');
     }
+
+    const receivedAt = payload?.receivedAt ? new Date(payload.receivedAt) : new Date();
+    const currency = String(payload?.currency || 'JPY').trim() || 'JPY';
+    const memo = payload?.memo ? String(payload.memo) : null;
+    const accountId = payload?.accountId || null;
 
     const invoice = await this.prisma.invoice.findUnique({
       where: { id: invoiceId },
       select: {
         id: true,
         companyId: true,
+        storeId: true,
+        invoiceNo: true,
+        currency: true,
         totalAmount: true,
         paidAmount: true,
       },
@@ -107,38 +121,97 @@ export class PaymentService {
     if (!invoice) {
       throw new Error('invoice not found.');
     }
+
     if (invoice.companyId !== companyId) {
       throw new Error('invoice does not belong to current company.');
     }
 
-    const item = await this.prisma.paymentReceipt.create({
-      data: {
-        companyId,
-        invoiceId,
-        accountId: payload.accountId || null,
-        amount,
-        currency: String(payload.currency || 'JPY').trim() || 'JPY',
-        receivedAt: payload.receivedAt ? new Date(payload.receivedAt) : new Date(),
-        memo: payload.memo ? String(payload.memo) : null,
-      },
-    });
-
     const newPaid = invoice.paidAmount + amount;
-    const nextStatus = newPaid >= invoice.totalAmount ? 'PAID' : 'PARTIALLY_PAID';
 
-    await this.prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        paidAmount: newPaid,
-        status: nextStatus,
-      },
+    let nextStatus: 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' = 'ISSUED';
+    if (newPaid <= 0) {
+      nextStatus = 'ISSUED';
+    } else if (newPaid < invoice.totalAmount) {
+      nextStatus = 'PARTIALLY_PAID';
+    } else {
+      nextStatus = 'PAID';
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.paymentReceipt.create({
+        data: {
+          companyId,
+          invoiceId,
+          accountId,
+          amount,
+          currency,
+          receivedAt,
+          memo,
+        },
+        include: {
+          invoice: {
+            select: {
+              id: true,
+              invoiceNo: true,
+              customerName: true,
+              totalAmount: true,
+              paidAmount: true,
+              status: true,
+            },
+          },
+          account: {
+            select: { id: true, name: true },
+          },
+        },
+      });
+
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          paidAmount: newPaid,
+          status: nextStatus,
+        },
+      });
+
+      await tx.transaction.create({
+        data: {
+          companyId,
+          storeId: invoice.storeId!,
+          accountId,
+          categoryId: null,
+          type: 'SALE',
+          direction: 'INCOME',
+          sourceType: 'INVOICE_PAYMENT',
+          amount,
+          currency,
+          occurredAt: receivedAt,
+          externalRef: invoice.invoiceNo,
+          memo: memo ?? `Invoice payment ${invoice.invoiceNo}`,
+        },
+      });
+
+      return payment;
     });
 
     return {
       ok: true,
       domain: 'payments',
       action: 'create',
-      item,
+      item: {
+        id: result.id,
+        companyId: result.companyId,
+        invoiceId: result.invoiceId,
+        invoiceNo: result.invoice?.invoiceNo ?? null,
+        invoiceNumber: result.invoice?.invoiceNo ?? null,
+        customerName: result.invoice?.customerName ?? null,
+        accountId: result.accountId,
+        accountName: result.account?.name ?? null,
+        amount: result.amount,
+        currency: result.currency,
+        receivedAt: result.receivedAt,
+        memo: result.memo,
+        createdAt: result.createdAt,
+      },
       message: 'payment created',
     };
   }

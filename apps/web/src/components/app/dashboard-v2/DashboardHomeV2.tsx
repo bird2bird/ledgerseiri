@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
-import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
 import type { DashboardHomeData, DashboardRange, QuickActionItem, PlanCode } from "@/components/app/dashboard-v2/types";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
@@ -92,10 +91,73 @@ function getQuickActionsByFeatures(
   });
 }
 
+function createEmptyDashboardData(): DashboardHomeData {
+  return {
+    filters: {
+      range: "30d",
+      storeId: "all",
+      refreshedAt: new Date().toISOString(),
+    },
+
+    kpiPrimary: [
+      { key: "revenue", label: "今月収入", value: "¥0", deltaText: "-", trend: "neutral", tone: "profit" },
+      { key: "expense", label: "今月支出", value: "¥0", deltaText: "-", trend: "neutral", tone: "warning" },
+      { key: "profit", label: "今月利益", value: "¥0", deltaText: "-", trend: "neutral", tone: "profit" },
+      { key: "cash", label: "総資金", value: "¥0", deltaText: "-", trend: "neutral", tone: "info" },
+      { key: "tax", label: "消費税概算", value: "¥0", subLabel: "今期見込み", tone: "default" },
+    ],
+
+    kpiSecondary: [
+      { key: "invoice", label: "未入金", value: "¥0", subLabel: "0件", tone: "warning" },
+      { key: "inventory", label: "在庫金額", value: "¥0", subLabel: "全店舗合計", tone: "default" },
+      { key: "stockAlert", label: "在庫アラート", value: "0件", subLabel: "補充が必要", tone: "danger" },
+      { key: "runway", label: "資金余力", value: "0.0ヶ月", subLabel: "現在の支出ペース", tone: "info" },
+    ],
+
+    revenueProfitTrend: [],
+    cashBalances: [],
+    expenseBreakdown: [],
+    cashFlowTrend: [],
+
+    taxSummary: {
+      outputTax: 0,
+      inputTax: 0,
+      estimatedTaxPayable: 0,
+      periodLabel: "当期",
+      note: "実データ",
+    },
+
+    alerts: [],
+
+    businessHealth: {
+      score: 0,
+      status: "attention",
+      dimensions: [],
+      insights: [],
+    },
+
+    recentTransactions: [],
+
+    quickActions: [
+      { key: "addIncome", label: "収入を追加", subLabel: "現金・売上", href: "/ja/app/income", icon: "plus" },
+      { key: "addExpense", label: "支出を追加", subLabel: "経費・運営費", href: "/ja/app/expenses", icon: "minus" },
+      { key: "transfer", label: "資金移動を記録", subLabel: "口座間移動", href: "/ja/app/fund-transfer", icon: "arrow" },
+      { key: "invoice", label: "請求書を作成", subLabel: "新規請求", href: "/ja/app/invoices", icon: "file" },
+      { key: "import", label: "データをインポート", subLabel: "CSV / 明細", href: "/ja/app/data/import", icon: "upload" },
+      { key: "reports", label: "レポートを見る", subLabel: "利益 / CF", href: "/ja/app/reports/profit", icon: "chart" },
+    ],
+  };
+}
+
+function trendRangeLabel(range: DashboardRange): "30D" | "90D" | "12M" {
+  if (range === "90d") return "90D";
+  if (range === "12m") return "12M";
+  return "30D";
+}
+
 export function DashboardHomeV2() {
   const params = useParams<{ lang: string }>();
   const currentLang = normalizeLang(params?.lang) as Lang;
-
 
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -109,9 +171,9 @@ export function DashboardHomeV2() {
       locale: currentLang,
     },
     subscription: {
-      planCode: "starter",
-      status: "active",
-      source: "mock-default",
+      planCode: "starter" as const,
+      status: "active" as const,
+      source: "mock-default" as const,
       limits: {
         maxStores: 1,
         invoiceStorageMb: 200,
@@ -121,81 +183,33 @@ export function DashboardHomeV2() {
       },
     },
   };
+
   const { workspace, subscription, features, limits, can } = useWorkspaceContext(effectiveCtx);
 
-  const [dashboardData, setDashboardData] = useState<DashboardHomeData>(dashboardHomeMock);
-  const data = dashboardData;
-
-  const [range, setRange] = useState<DashboardRange>(dashboardHomeMock.filters.range);
-  const [storeId, setStoreId] = useState<string>(dashboardHomeMock.filters.storeId);
-
+  const [dashboardData, setDashboardData] = useState<DashboardHomeData>(createEmptyDashboardData());
+  const [range, setRange] = useState<DashboardRange>("30d");
+  const [storeId, setStoreId] = useState<string>("all");
 
   const loadDashboardSummary = useCallback(async () => {
-      try {
-        setDashboardLoading(true);
-        setDashboardError(null);
+    try {
+      setDashboardLoading(true);
+      setDashboardError(null);
 
-        const summary = await fetchDashboardSummary({
-          storeId,
-          range,
-          locale: currentLang,
-        });
+      const next = await fetchDashboardSummary({
+        storeId,
+        range,
+        locale: currentLang,
+      });
 
-        setDashboardData((prev) => {
-          const base = prev ?? dashboardHomeMock;
-
-          const nextPrimary = base.kpiPrimary.map((item) => {
-            if (item.key === "revenue") {
-              return { ...item, value: `¥${summary.revenue.toLocaleString("ja-JP")}` };
-            }
-            if (item.key === "expense") {
-              return { ...item, value: `¥${summary.expense.toLocaleString("ja-JP")}` };
-            }
-            if (item.key === "profit") {
-              return { ...item, value: `¥${summary.profit.toLocaleString("ja-JP")}` };
-            }
-            if (item.key === "cash") {
-              return { ...item, value: `¥${summary.cash.toLocaleString("ja-JP")}` };
-            }
-            return item;
-          });
-
-          const cashBalances =
-            base.cashBalances && base.cashBalances.length > 0
-              ? (() => {
-                  const originalTotal = base.cashBalances.reduce((sum, item) => sum + item.balance, 0);
-                  if (originalTotal <= 0) return base.cashBalances;
-
-                  let remaining = summary.cash;
-                  return base.cashBalances.map((item, index) => {
-                    if (index === base.cashBalances.length - 1) {
-                      return { ...item, balance: Math.max(0, remaining) };
-                    }
-                    const scaled = Math.round((item.balance / originalTotal) * summary.cash);
-                    remaining -= scaled;
-                    return { ...item, balance: Math.max(0, scaled) };
-                  });
-                })()
-              : base.cashBalances;
-
-          return {
-            ...base,
-            filters: {
-              ...base.filters,
-              range,
-              storeId,
-              refreshedAt: new Date().toISOString(),
-            },
-            kpiPrimary: nextPrimary,
-            cashBalances,
-          };
-        });
-      } catch (e: any) {
-        setDashboardError(e?.message ?? String(e));
-      } finally {
-        setDashboardLoading(false);
-      }
-    }, [storeId, range, currentLang]);
+      setDashboardData(next);
+      setRange(next.filters.range);
+      setStoreId(next.filters.storeId);
+    } catch (e: any) {
+      setDashboardError(e?.message ?? String(e));
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [storeId, range, currentLang]);
 
   useEffect(() => {
     loadDashboardSummary();
@@ -208,17 +222,17 @@ export function DashboardHomeV2() {
     { id: "physical", name: "実店舗" },
   ];
 
-  const totalCash = data.cashBalances.reduce((sum, item) => sum + item.balance, 0);
+  const totalCash = dashboardData.cashBalances.reduce((sum, item) => sum + item.balance, 0);
 
   const quickActions = useMemo(
     () =>
-      getQuickActionsByFeatures(data.quickActions, {
+      getQuickActionsByFeatures(dashboardData.quickActions, {
         fundTransfer: can("fundTransfer"),
         invoiceManagement: can("invoiceManagement"),
         advancedExport: can("advancedExport"),
         invoiceUpload: can("invoiceUpload"),
       }),
-    [data.quickActions, can]
+    [dashboardData.quickActions, can]
   );
 
   return (
@@ -265,8 +279,8 @@ export function DashboardHomeV2() {
       ) : null}
 
       <DashboardHeader
-        userName={workspace.displayName}
-        subtitle="今日の経営状況を確認しましょう"
+        userName={workspace.displayName || "User"}
+        subtitle={workspace.companyName || "LedgerSeiri operating dashboard"}
         range={range}
         storeId={storeId}
         storeOptions={storeOptions}
@@ -275,53 +289,51 @@ export function DashboardHomeV2() {
         onRefresh={loadDashboardSummary}
       />
 
-      <KpiRowPrimary items={data.kpiPrimary} />
-      <KpiRowSecondary items={data.kpiSecondary} />
+      <KpiRowPrimary items={dashboardData.kpiPrimary} />
+      <KpiRowSecondary items={dashboardData.kpiSecondary} />
 
-      <div className="grid grid-cols-12 gap-5 xl:gap-6">
-        <div className="col-span-12 xl:col-span-8">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+        <div>
           <RevenueProfitTrendCard
-            points={data.revenueProfitTrend}
-            rangeLabel="30D"
+            points={dashboardData.revenueProfitTrend}
+            rangeLabel={trendRangeLabel(range)}
           />
         </div>
-        <div className="col-span-12 xl:col-span-4">
-          <CashBalanceCard totalCash={totalCash} items={data.cashBalances} />
+        <div>
+          <CashBalanceCard totalCash={totalCash} items={dashboardData.cashBalances} />
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-5 xl:gap-6">
-        <div className="col-span-12 lg:col-span-6 xl:col-span-4">
-          <ExpenseBreakdownCard items={data.expenseBreakdown} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="xl:col-span-1">
+          <ExpenseBreakdownCard items={dashboardData.expenseBreakdown} />
         </div>
-        <div className="col-span-12 lg:col-span-6 xl:col-span-4">
-          <CashFlowTrendCard points={data.cashFlowTrend} />
+        <div className="xl:col-span-1">
+          <CashFlowTrendCard points={dashboardData.cashFlowTrend} />
         </div>
-        <div className="col-span-12 xl:col-span-4">
-          <TaxSummaryCard data={data.taxSummary} />
+        <div className="xl:col-span-1">
+          <TaxSummaryCard data={dashboardData.taxSummary} />
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-5 xl:gap-6">
-        <div className="col-span-12 xl:col-span-4">
-          <AlertsTasksCard items={data.alerts} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div>
+          <AlertsTasksCard items={dashboardData.alerts} />
         </div>
-        <div className="col-span-12 xl:col-span-8">
-          {features.aiInsights ? (
-            <BusinessHealthCard data={data.businessHealth} />
+        <div>
+          {subscription.planCode === "starter" ? (
+            <BusinessHealthLockedCard planCode="starter" />
           ) : (
-            <BusinessHealthLockedCard
-              planCode={subscription.planCode === "starter" ? "starter" : "standard"}
-            />
+            <BusinessHealthCard data={dashboardData.businessHealth} />
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-5 xl:gap-6">
-        <div className="col-span-12 xl:col-span-8">
-          <RecentTransactionsCard items={data.recentTransactions} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div>
+          <RecentTransactionsCard items={dashboardData.recentTransactions} />
         </div>
-        <div className="col-span-12 xl:col-span-4">
+        <div>
           <QuickActionsCard items={quickActions} />
         </div>
       </div>
