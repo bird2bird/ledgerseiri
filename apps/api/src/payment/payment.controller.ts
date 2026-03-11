@@ -17,6 +17,6 @@ export class PaymentController {
 
   @Post()
   create(@Body() body: unknown) {
-    return this.service.create(body);
+    return this.service.create((body || {}) as any);
   }
 }

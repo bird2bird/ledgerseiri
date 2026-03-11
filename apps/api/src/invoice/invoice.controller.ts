@@ -17,28 +17,16 @@ export class InvoiceController {
 
   @Get('unpaid')
   unpaid() {
-    return {
-      ok: true,
-      domain: 'invoices',
-      action: 'unpaid',
-      items: [],
-      message: 'invoice unpaid skeleton ready',
-    };
+    return this.service.unpaid();
   }
 
   @Get('history')
   history() {
-    return {
-      ok: true,
-      domain: 'invoices',
-      action: 'history',
-      items: [],
-      message: 'invoice history skeleton ready',
-    };
+    return this.service.history();
   }
 
   @Post()
   create(@Body() body: unknown) {
-    return this.service.create(body);
+    return this.service.create((body || {}) as any);
   }
 }
