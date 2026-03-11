@@ -1,40 +1,50 @@
 # Dashboard Design
 
-Generated at: 2026-02-23T20:41:41+08:00
+## Status
+Post-Step33E accepted baseline
 
-## 0. Goal
-- Provide management-grade KPI overview for cross-border e-commerce accounting.
+## Purpose
+Dashboard home is the management summary page driven by real business data.
 
-## 1. Data sources (current)
-Backend routes: see `docs/_generated/api-methods.md`
+## Current Data Source
+Backend:
+- GET /dashboard
+- GET /dashboard/summary
 
-### Candidate endpoints
-- /dashboard (from dashboard controller)
+Frontend:
+- apps/web/src/core/dashboard/api.ts
+- apps/web/src/components/app/dashboard-v2/*
 
-## 2. KPI Definition (v0)
-> 先定义口径，后端实现只要对齐口径即可。
+## Current KPI Contract
+### Primary KPI
+- revenue
+- expense
+- profit
+- cash
+- estimatedTax
 
-### Revenue
-- Gross Sales (sum of SALE)
-- Refunds (sum of REFUND)
-- Net Sales = Gross - Refunds
+### Secondary KPI
+- unpaidAmount
+- inventoryValue
+- inventoryAlertCount
+- runwayMonths
 
-### Cost
-- FBA Fee (sum of FBA_FEE)
-- Ads (sum of AD)
+## Current Sections
+- Revenue / Profit Trend
+- Cash Balance by Account
+- Expense Breakdown
+- Cash Flow Trend
+- Tax Summary
+- Alerts
+- Business Health
+- Recent Transactions
+- Quick Actions
 
-### Profit
-- Operating Profit (simple) = Net Sales - FBA Fee - Ads - Other
+## Current Known Constraints
+- inventoryValue may fall back to 0 when InventoryBalance table is not available
+- dashboard frontend still contains migration compatibility logic and should be simplified in next step
 
-## 3. Time windows
-- Daily (last 7/30)
-- Monthly (current month vs last month)
-- Fiscal month start: Company.fiscalMonthStart
-
-## 4. Drill-down (planned)
-- Click KPI -> filtered transaction list
-
-## 5. Open decisions
-- [ ] Currency: multi-currency support policy
-- [ ] Store segmentation: per store vs consolidated
-
+## To Be Updated Next
+- exact frontend contract
+- exact backend response schema
+- mapping table: backend field -> frontend component prop

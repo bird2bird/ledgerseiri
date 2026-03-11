@@ -172,3 +172,7 @@ No silent behavioral changes allowed.
 ---
 
 End of Index
+
+## Freeze / Milestone Notes
+- [34-step33e-freeze-summary.md](./34-step33e-freeze-summary.md)
+- [07-dashboard-design.md](./07-dashboard-design.md)
