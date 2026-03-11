@@ -81,22 +81,6 @@ export const dashboardHomeMock: DashboardHomeData = {
       description: "回収確認を推奨します。",
       href: "/ja/app/invoices/unpaid",
     },
-    {
-      id: "al3",
-      type: "expense",
-      severity: "critical",
-      title: "広告費が先月比 22% 増加しました",
-      description: "費用対効果の確認が必要です。",
-      href: "/ja/app/reports/expense",
-    },
-    {
-      id: "al4",
-      type: "tax",
-      severity: "info",
-      title: "消費税見込みは ¥85,000 です",
-      description: "正式申告前の参考値です。",
-      href: "/ja/app/tax/summary",
-    },
   ],
 
   businessHealth: {
@@ -111,17 +95,16 @@ export const dashboardHomeMock: DashboardHomeData = {
     ],
     insights: [
       { id: "i1", title: "今月の利益率は先月より改善しています", tone: "good" },
-      { id: "i2", title: "Amazon JP 店舗の広告費が高止まりしています", tone: "warning" },
-      { id: "i3", title: "未入金が増加しているため、回収確認を推奨します", tone: "warning" },
+      { id: "i2", title: "広告費の高止まりを監視してください", tone: "warning" },
+      { id: "i3", title: "未入金の回収確認を推奨します", tone: "warning" },
     ],
   },
 
   recentTransactions: [
-    { id: "t1", date: "2026-03-06", type: "収入", category: "店舗注文", amount: 125000, account: "Amazon 売上金", store: "Amazon JP", memo: "3月前半売上" },
-    { id: "t2", date: "2026-03-06", type: "支出", category: "広告費", amount: -28000, account: "三井住友銀行", store: "Amazon JP", memo: "CPC 調整" },
-    { id: "t3", date: "2026-03-05", type: "支出", category: "物流", amount: -14500, account: "三井住友銀行", store: "全店舗", memo: null },
-    { id: "t4", date: "2026-03-04", type: "収入", category: "現金収入", amount: 18000, account: "会社現金", store: "実店舗", memo: "店頭販売" },
-    { id: "t5", date: "2026-03-03", type: "支出", category: "会社運営費", amount: -22000, account: "Stripe", store: "全店舗", memo: "SaaS 利用料" },
+    { id: "t1", date: "2026/3/6", type: "収入", category: "店舗注文", amount: 125000, account: "Amazon 売上金", store: "Amazon JP", memo: "3月前半売上" },
+    { id: "t2", date: "2026/3/6", type: "支出", category: "広告費", amount: -28000, account: "三井住友銀行", store: "Amazon JP", memo: "CPC 調整" },
+    { id: "t3", date: "2026/3/5", type: "支出", category: "物流", amount: -14500, account: "三井住友銀行", store: "全店舗", memo: null },
+    { id: "t4", date: "2026/3/4", type: "収入", category: "現金収入", amount: 18000, account: "会社現金", store: "実店舗", memo: "店頭販売" },
   ],
 
   quickActions: [

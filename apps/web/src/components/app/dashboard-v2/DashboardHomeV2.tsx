@@ -4,11 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-
 import type { DashboardHomeData, DashboardRange, QuickActionItem, PlanCode } from "@/components/app/dashboard-v2/types";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { fetchDashboardSummary } from "@/core/dashboard/api";
+import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
 import { KpiRowPrimary } from "@/components/app/dashboard-v2/KpiRowPrimary";
@@ -73,15 +73,6 @@ function getQuickActionsByFeatures(
       };
     }
 
-    if (item.key === "export" && !features.advancedExport) {
-      return {
-        ...item,
-        locked: true,
-        requiredPlan: "standard",
-        upgradeHint: "Standard 以上で高度なデータエクスポートを利用できます。",
-      };
-    }
-
     return {
       ...item,
       locked: false,
@@ -91,65 +82,8 @@ function getQuickActionsByFeatures(
   });
 }
 
-function createEmptyDashboardData(): DashboardHomeData {
-  return {
-    filters: {
-      range: "30d",
-      storeId: "all",
-      refreshedAt: new Date().toISOString(),
-    },
-
-    kpiPrimary: [
-      { key: "revenue", label: "今月収入", value: "¥0", deltaText: "-", trend: "neutral", tone: "profit" },
-      { key: "expense", label: "今月支出", value: "¥0", deltaText: "-", trend: "neutral", tone: "warning" },
-      { key: "profit", label: "今月利益", value: "¥0", deltaText: "-", trend: "neutral", tone: "profit" },
-      { key: "cash", label: "総資金", value: "¥0", deltaText: "-", trend: "neutral", tone: "info" },
-      { key: "tax", label: "消費税概算", value: "¥0", subLabel: "今期見込み", tone: "default" },
-    ],
-
-    kpiSecondary: [
-      { key: "invoice", label: "未入金", value: "¥0", subLabel: "0件", tone: "warning" },
-      { key: "inventory", label: "在庫金額", value: "¥0", subLabel: "全店舗合計", tone: "default" },
-      { key: "stockAlert", label: "在庫アラート", value: "0件", subLabel: "補充が必要", tone: "danger" },
-      { key: "runway", label: "資金余力", value: "0.0ヶ月", subLabel: "現在の支出ペース", tone: "info" },
-    ],
-
-    revenueProfitTrend: [],
-    cashBalances: [],
-    expenseBreakdown: [],
-    cashFlowTrend: [],
-
-    taxSummary: {
-      outputTax: 0,
-      inputTax: 0,
-      estimatedTaxPayable: 0,
-      periodLabel: "当期",
-      note: "実データ",
-    },
-
-    alerts: [],
-
-    businessHealth: {
-      score: 0,
-      status: "attention",
-      dimensions: [],
-      insights: [],
-    },
-
-    recentTransactions: [],
-
-    quickActions: [
-      { key: "addIncome", label: "収入を追加", subLabel: "現金・売上", href: "/ja/app/income", icon: "plus" },
-      { key: "addExpense", label: "支出を追加", subLabel: "経費・運営費", href: "/ja/app/expenses", icon: "minus" },
-      { key: "transfer", label: "資金移動を記録", subLabel: "口座間移動", href: "/ja/app/fund-transfer", icon: "arrow" },
-      { key: "invoice", label: "請求書を作成", subLabel: "新規請求", href: "/ja/app/invoices", icon: "file" },
-      { key: "import", label: "データをインポート", subLabel: "CSV / 明細", href: "/ja/app/data/import", icon: "upload" },
-      { key: "reports", label: "レポートを見る", subLabel: "利益 / CF", href: "/ja/app/reports/profit", icon: "chart" },
-    ],
-  };
-}
-
-function trendRangeLabel(range: DashboardRange): "30D" | "90D" | "12M" {
+function rangeBadgeLabel(range: DashboardRange): "7D" | "30D" | "90D" | "12M" {
+  if (range === "7d") return "7D";
   if (range === "90d") return "90D";
   if (range === "12m") return "12M";
   return "30D";
@@ -171,7 +105,7 @@ export function DashboardHomeV2() {
       locale: currentLang,
     },
     subscription: {
-      planCode: "starter" as const,
+      planCode: "starter" as PlanCode,
       status: "active" as const,
       source: "mock-default" as const,
       limits: {
@@ -186,9 +120,17 @@ export function DashboardHomeV2() {
 
   const { workspace, subscription, features, limits, can } = useWorkspaceContext(effectiveCtx);
 
-  const [dashboardData, setDashboardData] = useState<DashboardHomeData>(createEmptyDashboardData());
   const [range, setRange] = useState<DashboardRange>("30d");
   const [storeId, setStoreId] = useState<string>("all");
+  const [dashboardData, setDashboardData] = useState<DashboardHomeData>({
+    ...dashboardHomeMock,
+    filters: {
+      ...dashboardHomeMock.filters,
+      range: "30d",
+      storeId: "all",
+      refreshedAt: new Date().toISOString(),
+    },
+  });
 
   const loadDashboardSummary = useCallback(async () => {
     try {
@@ -202,8 +144,6 @@ export function DashboardHomeV2() {
       });
 
       setDashboardData(next);
-      setRange(next.filters.range);
-      setStoreId(next.filters.storeId);
     } catch (e: any) {
       setDashboardError(e?.message ?? String(e));
     } finally {
@@ -280,7 +220,7 @@ export function DashboardHomeV2() {
 
       <DashboardHeader
         userName={workspace.displayName || "User"}
-        subtitle={workspace.companyName || "LedgerSeiri operating dashboard"}
+        subtitle="収支、請求、回収、資金状況をひとつの画面で確認できます。"
         range={range}
         storeId={storeId}
         storeOptions={storeOptions}
@@ -292,50 +232,35 @@ export function DashboardHomeV2() {
       <KpiRowPrimary items={dashboardData.kpiPrimary} />
       <KpiRowSecondary items={dashboardData.kpiSecondary} />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.9fr]">
-        <div>
-          <RevenueProfitTrendCard
-            points={dashboardData.revenueProfitTrend}
-            rangeLabel={trendRangeLabel(range)}
-          />
-        </div>
-        <div>
-          <CashBalanceCard totalCash={totalCash} items={dashboardData.cashBalances} />
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <RevenueProfitTrendCard
+          points={dashboardData.revenueProfitTrend}
+          rangeLabel={rangeBadgeLabel(range)}
+        />
+        <CashBalanceCard totalCash={totalCash} items={dashboardData.cashBalances} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-1">
-          <ExpenseBreakdownCard items={dashboardData.expenseBreakdown} />
-        </div>
-        <div className="xl:col-span-1">
-          <CashFlowTrendCard points={dashboardData.cashFlowTrend} />
-        </div>
-        <div className="xl:col-span-1">
-          <TaxSummaryCard data={dashboardData.taxSummary} />
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr_1fr]">
+        <ExpenseBreakdownCard items={dashboardData.expenseBreakdown} />
+        <CashFlowTrendCard points={dashboardData.cashFlowTrend} />
+        <TaxSummaryCard data={dashboardData.taxSummary} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <div>
-          <AlertsTasksCard items={dashboardData.alerts} />
-        </div>
-        <div>
-          {subscription.planCode === "starter" ? (
-            <BusinessHealthLockedCard planCode="starter" />
-          ) : (
-            <BusinessHealthCard data={dashboardData.businessHealth} />
-          )}
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+        <AlertsTasksCard items={dashboardData.alerts} />
+
+        {subscription.planCode === "starter" ? (
+          <BusinessHealthLockedCard planCode="starter" />
+        ) : subscription.planCode === "standard" ? (
+          <BusinessHealthLockedCard planCode="standard" />
+        ) : (
+          <BusinessHealthCard data={dashboardData.businessHealth} />
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div>
-          <RecentTransactionsCard items={dashboardData.recentTransactions} />
-        </div>
-        <div>
-          <QuickActionsCard items={quickActions} />
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+        <RecentTransactionsCard items={dashboardData.recentTransactions} />
+        <QuickActionsCard items={quickActions} />
       </div>
     </div>
   );

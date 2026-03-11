@@ -1,50 +1,51 @@
-# Dashboard Design
+# 07-dashboard-design
 
-## Status
-Post-Step33E accepted baseline
+## Current state after Step 34B
 
-## Purpose
-Dashboard home is the management summary page driven by real business data.
+Dashboard home is now normalized to a single frontend contract:
 
-## Current Data Source
-Backend:
-- GET /dashboard
-- GET /dashboard/summary
+- Range enum: `7d | 30d | 90d | 12m`
+- Frontend fetch route: `/dashboard/summary`
+- Frontend no longer mutates API payload shape inside `DashboardHomeV2`
+- Mapping layer is consolidated in `apps/web/src/core/dashboard/api.ts`
+- Mock data is updated to the same contract as production data
 
-Frontend:
-- apps/web/src/core/dashboard/api.ts
-- apps/web/src/components/app/dashboard-v2/*
+## Render blocks
 
-## Current KPI Contract
-### Primary KPI
-- revenue
-- expense
-- profit
-- cash
-- estimatedTax
+1. Header
+2. KPI primary row
+3. KPI secondary row
+4. Revenue / Profit trend
+5. Cash balance by account
+6. Expense breakdown
+7. Cash flow trend
+8. Tax summary
+9. Alerts / tasks
+10. Business health
+11. Recent transactions
+12. Quick actions
 
-### Secondary KPI
-- unpaidAmount
-- inventoryValue
-- inventoryAlertCount
-- runwayMonths
+## Backend payload sections consumed
 
-## Current Sections
-- Revenue / Profit Trend
-- Cash Balance by Account
-- Expense Breakdown
-- Cash Flow Trend
-- Tax Summary
-- Alerts
-- Business Health
-- Recent Transactions
-- Quick Actions
+- `summary`
+- `filters`
+- `revenueProfitTrend`
+- `cashFlowTrend`
+- `cashBalances`
+- `expenseBreakdown`
+- `taxSummary`
+- `alerts`
+- `businessHealth`
+- `recentTransactions`
 
-## Current Known Constraints
-- inventoryValue may fall back to 0 when InventoryBalance table is not available
-- dashboard frontend still contains migration compatibility logic and should be simplified in next step
+## Known assumptions
 
-## To Be Updated Next
-- exact frontend contract
-- exact backend response schema
-- mapping table: backend field -> frontend component prop
+- Inventory table may be absent; backend safely falls back to zero inventory values
+- Cash balance account type from backend uppercase enum is normalized in frontend
+- `businessHealth.headline/summary` may be converted into a fallback insight when detailed insights are absent
+
+## Next cleanup direction
+
+- Remove stale mock-only UI wording that is no longer needed
+- Add dedicated smoke test for dashboard render consistency
+- Optionally align store filter options with live workspace store list

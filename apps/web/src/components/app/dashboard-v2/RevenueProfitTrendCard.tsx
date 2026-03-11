@@ -25,14 +25,11 @@ export function RevenueProfitTrendCard({
   rangeLabel,
 }: {
   points: RevenueProfitPoint[];
-  rangeLabel: "30D" | "90D" | "12M";
+  rangeLabel: "7D" | "30D" | "90D" | "12M";
 }) {
   const width = 100;
   const height = 40;
-  const max = Math.max(
-    1,
-    ...points.flatMap((p) => [p.revenue, p.profit])
-  );
+  const max = Math.max(1, ...points.flatMap((p) => [p.revenue, p.profit]));
 
   const revenuePts = points.map((p, i) => ({
     x: points.length === 1 ? 0 : (i / (points.length - 1)) * width,
