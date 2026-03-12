@@ -184,6 +184,9 @@ export class DashboardController {
         unpaidInvoices,
         historyInvoiceCount,
         inventoryBalances,
+        summaryTotals,
+        expenseRows,
+        bucketRows,
       ] = await Promise.all([
         this.dashboardService.loadTransactions(txWhere),
 
@@ -198,18 +201,17 @@ export class DashboardController {
         this.dashboardService.countHistoryInvoices(companyId, normalizedStoreId),
 
         this.dashboardService.loadInventoryBalancesSafe(companyId),
+
+        this.dashboardService.loadSummaryTotals(txWhere),
+
+        this.dashboardService.loadExpenseBreakdown(txWhere),
+
+        this.dashboardService.loadDailyBuckets(txWhere),
       ]);
 
-    const revenue = transactions
-      .filter((x) => x.direction === 'INCOME')
-      .reduce((sum, x) => sum + safeNumber(x.amount), 0);
-
-    const expense = transactions
-      .filter((x) => x.direction === 'EXPENSE')
-      .reduce((sum, x) => sum + safeNumber(x.amount), 0);
-
-    const profit = revenue - expense;
-
+      const revenue = safeNumber(summaryTotals.revenue);
+      const expense = safeNumber(summaryTotals.expense);
+      const profit = safeNumber(summaryTotals.profit);
     const cashBalances = accounts.map((a) => {
       const income = a.transactions
         .filter((t) => t.direction === 'INCOME')
@@ -256,47 +258,40 @@ export class DashboardController {
     const runwayMonths =
       expense > 0 ? Number((cash / Math.max(expense, 1)).toFixed(1)) : 0;
 
-    const buckets: Record<string, { revenue: number; expense: number }> = {};
-    for (let i = 0; i < days; i++) {
-      const d = addDays(from, i);
-      buckets[yyyyMmDd(d)] = { revenue: 0, expense: 0 };
-    }
+      const buckets: Record<string, { revenue: number; expense: number }> = {};
+      for (let i = 0; i < days; i++) {
+        const d = addDays(from, i);
+        buckets[yyyyMmDd(d)] = { revenue: 0, expense: 0 };
+      }
 
-    for (const t of transactions) {
-      const key = yyyyMmDd(new Date(t.occurredAt));
-      if (!buckets[key]) continue;
-      if (t.direction === 'INCOME') buckets[key].revenue += safeNumber(t.amount);
-      if (t.direction === 'EXPENSE') buckets[key].expense += safeNumber(t.amount);
-    }
+      for (const t of bucketRows) {
+        const key = yyyyMmDd(new Date(t.occurredAt));
+        if (!buckets[key]) continue;
+        if (t.direction === 'INCOME') buckets[key].revenue += safeNumber(t.amount);
+        if (t.direction === 'EXPENSE') buckets[key].expense += safeNumber(t.amount);
+      }
 
-    const revenueProfitTrend = Object.entries(buckets).map(([k, v]) => ({
-      label: shortLabel(new Date(k)),
-      revenue: v.revenue,
-      profit: v.revenue - v.expense,
-    }));
+      const revenueProfitTrend = Object.entries(buckets).map(([k, v]) => ({
+        label: shortLabel(new Date(k)),
+        revenue: v.revenue,
+        profit: v.revenue - v.expense,
+      }));
 
-    const cashFlowTrend = Object.entries(buckets).map(([k, v]) => ({
-      label: shortLabel(new Date(k)),
-      income: v.revenue,
-      expense: v.expense,
-      net: v.revenue - v.expense,
-    }));
+      const cashFlowTrend = Object.entries(buckets).map(([k, v]) => ({
+        label: shortLabel(new Date(k)),
+        income: v.revenue,
+        expense: v.expense,
+        net: v.revenue - v.expense,
+      }));
 
-    const expenseMap: Record<string, number> = {};
-    for (const t of transactions.filter((x) => x.direction === 'EXPENSE')) {
-      const key = t.category?.name || t.type || 'OTHER';
-      expenseMap[key] = (expenseMap[key] || 0) + safeNumber(t.amount);
-    }
-
-    const expenseBreakdown = Object.entries(expenseMap)
-      .map(([label, amount]) => ({
-        label,
-        amount,
-        share: expense > 0 ? Number(((amount / expense) * 100).toFixed(0)) : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6);
-
+      const expenseBreakdown = expenseRows
+        .map((x) => ({
+          label: x.label,
+          amount: safeNumber(x.amount),
+          share: expense > 0 ? Number(((safeNumber(x.amount) / expense) * 100).toFixed(0)) : 0,
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 6);
     const alerts = [
       ...(unpaidCount > 0
         ? [
