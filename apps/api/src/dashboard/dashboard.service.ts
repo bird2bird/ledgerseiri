@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import type { DashboardAccountBalanceRow, DashboardDailyBucketRow, DashboardExpenseBreakdownRow, DashboardInventorySummaryRow, DashboardSummaryTotalsRow, DashboardUnpaidSummaryRow } from './dashboard.types';
 
 @Injectable()
 export class DashboardService {
@@ -34,7 +35,7 @@ export class DashboardService {
     });
   }
 
-  async loadUnpaidSummary(companyId: string, normalizedStoreId?: string | null) {
+  async loadUnpaidSummary(companyId: string, normalizedStoreId?: string | null): Promise<DashboardUnpaidSummaryRow> {
     const rows = await this.prisma.invoice.findMany({
       where: {
         companyId,
@@ -58,7 +59,7 @@ export class DashboardService {
     };
   }
 
-  async loadAccountBalanceRows(companyId: string, normalizedStoreId?: string | null) {
+  async loadAccountBalanceRows(companyId: string, normalizedStoreId?: string | null): Promise<DashboardAccountBalanceRow[]> {
     const accounts = await this.prisma.account.findMany({
       where: {
         companyId,
@@ -167,7 +168,7 @@ export class DashboardService {
     });
   }
 
-  async loadSummaryTotals(txWhere: any) {
+  async loadSummaryTotals(txWhere: any): Promise<DashboardSummaryTotalsRow> {
     const [incomeAgg, expenseAgg] = await Promise.all([
       this.prisma.transaction.aggregate({
         where: {
@@ -198,7 +199,7 @@ export class DashboardService {
     };
   }
 
-  async loadExpenseBreakdown(txWhere: any) {
+  async loadExpenseBreakdown(txWhere: any): Promise<DashboardExpenseBreakdownRow[]> {
     const rows = await this.prisma.transaction.groupBy({
       by: ['categoryId', 'type'],
       where: {
@@ -239,7 +240,7 @@ export class DashboardService {
     }));
   }
 
-  async loadDailyBuckets(txWhere: any) {
+  async loadDailyBuckets(txWhere: any): Promise<DashboardDailyBucketRow[]> {
     const rows = await this.prisma.transaction.findMany({
       where: txWhere,
       select: {
@@ -257,7 +258,7 @@ export class DashboardService {
     }));
   }
 
-  async loadInventorySummary(companyId: string) {
+  async loadInventorySummary(companyId: string): Promise<DashboardInventorySummaryRow> {
     try {
       const rows = await this.prisma.inventoryBalance.findMany({
         where: { companyId },

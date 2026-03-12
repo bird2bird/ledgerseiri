@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { DashboardService } from './dashboard.service';
 import { clearExpiredDashboardCache as clearSharedDashboardCache, getCachedDashboard as getSharedCachedDashboard, getDashboardCacheKey as getSharedDashboardCacheKey, setCachedDashboard as setSharedDashboardCache } from './dashboard-cache';
+import type { DashboardAccountBalanceRow, DashboardDailyBucketRow, DashboardExpenseBreakdownRow, DashboardRecentTransactionItem, DashboardSummaryResponse } from './dashboard.types';
 
 type RangeCode = '7d' | '30d' | '90d' | '12m';
 type MaybeStoreId = string | undefined;
@@ -110,7 +111,7 @@ export class DashboardController {
     @Query('range') rangeInput?: string,
     @Query('storeId') storeId?: string,
     @Query('locale') locale?: string,
-  ) {
+  ) : Promise<DashboardSummaryResponse> {
     return this.summary(rangeInput, storeId, locale);
   }
 
@@ -119,7 +120,7 @@ export class DashboardController {
     @Query('range') rangeInput?: string,
     @Query('storeId') storeId?: string,
     @Query('locale') _locale?: string,
-  ) {
+  ) : Promise<DashboardSummaryResponse> {
       clearSharedDashboardCache();
       const cacheKey = getSharedDashboardCacheKey(rangeInput || '30d', storeId, _locale);
       const cached = getSharedCachedDashboard(cacheKey);
@@ -171,7 +172,7 @@ export class DashboardController {
       const revenue = safeNumber(summaryTotals.revenue);
       const expense = safeNumber(summaryTotals.expense);
       const profit = safeNumber(summaryTotals.profit);
-    const cashBalances = accountBalanceRows.map((a) => ({
+    const cashBalances = accountBalanceRows.map((a: DashboardAccountBalanceRow) => ({
       id: a.id,
       name: a.name,
       type: a.type,
@@ -198,7 +199,7 @@ export class DashboardController {
         buckets[yyyyMmDd(d)] = { revenue: 0, expense: 0 };
       }
 
-      for (const t of bucketRows) {
+      for (const t of bucketRows as DashboardDailyBucketRow[]) {
         const key = yyyyMmDd(new Date(t.occurredAt));
         if (!buckets[key]) continue;
         if (t.direction === 'INCOME') buckets[key].revenue += safeNumber(t.amount);
@@ -219,7 +220,7 @@ export class DashboardController {
       }));
 
       const expenseBreakdown = expenseRows
-        .map((x) => ({
+        .map((x: DashboardExpenseBreakdownRow) => ({
           label: x.label,
           amount: safeNumber(x.amount),
           share: expense > 0 ? Number(((safeNumber(x.amount) / expense) * 100).toFixed(0)) : 0,
@@ -305,7 +306,7 @@ export class DashboardController {
       },
       alerts,
       businessHealth,
-      recentTransactions: recentTransactions.map((x) => ({
+      recentTransactions: recentTransactions.map((x): DashboardRecentTransactionItem => ({
         id: x.id,
         occurredAt: x.occurredAt,
         amount: x.amount,
