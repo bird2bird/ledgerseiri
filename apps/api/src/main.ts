@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { bindDashboardCacheInvalidationMiddleware } from './dashboard/dashboard-cache';
 
 // --- session/csrf deps (require-style to avoid TS namespace-call issues) ---
 const cookieParser = require('cookie-parser');
@@ -9,6 +10,7 @@ const { Pool } = require('pg');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  bindDashboardCacheInvalidationMiddleware(app);
   (app.getHttpAdapter().getInstance() as any).set('trust proxy', 1);
   app.use(cookieParser());
 

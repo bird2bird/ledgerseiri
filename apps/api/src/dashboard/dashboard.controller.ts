@@ -1,5 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { DashboardService } from './dashboard.service';
+import { clearExpiredDashboardCache as clearSharedDashboardCache, getCachedDashboard as getSharedCachedDashboard, getDashboardCacheKey as getSharedDashboardCacheKey, setCachedDashboard as setSharedDashboardCache } from './dashboard-cache';
 
 type RangeCode = '7d' | '30d' | '90d' | '12m';
 type MaybeStoreId = string | undefined;
@@ -53,7 +55,28 @@ function safeNumber(v: unknown): number {
 
 @Controller()
 export class DashboardController {
-  constructor(private readonly prisma: PrismaService) {}
+  // Legacy local cache fields retained only for compatibility; active cache is delegated to dashboard-cache.ts
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dashboardService: DashboardService,
+  ) {}
+
+  private getDashboardCacheKey(range: string, storeId?: string, locale?: string) {
+    return getSharedDashboardCacheKey(range, storeId, locale);
+  }
+
+  private getCachedDashboard(key: string) {
+    return getSharedCachedDashboard(key);
+  }
+
+  private setCachedDashboard(key: string, data: any) {
+    setSharedDashboardCache(key, data);
+  }
+
+  private clearExpiredDashboardCache() {
+    clearSharedDashboardCache();
+  }
 
   private async resolveCompanyId() {
     const company = await this.prisma.company.findFirst({
@@ -135,6 +158,12 @@ export class DashboardController {
     @Query('storeId') storeId?: string,
     @Query('locale') _locale?: string,
   ) {
+      this.clearExpiredDashboardCache();
+      const cacheKey = this.getDashboardCacheKey(rangeInput || '30d', storeId, _locale);
+      const cached = this.getCachedDashboard(cacheKey);
+      if (cached) {
+        return cached;
+      }
     const companyId = await this.resolveCompanyId();
     const range = parseRange(rangeInput);
     const days = rangeDays(range);
@@ -147,96 +176,29 @@ export class DashboardController {
     const txWhere = this.makeTxWhere(companyId, from, to, normalizedStoreId || undefined);
     const invoiceWhere = this.makeInvoiceWhere(companyId, from, to, normalizedStoreId || undefined);
 
-    const [
-      transactions,
-      recentTransactions,
-      accounts,
-      invoicesInRange,
-      unpaidInvoices,
-      historyInvoices,
-      inventoryBalances,
-    ] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where: txWhere,
-        orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }],
-        include: {
-          store: { select: { id: true, name: true } },
-          account: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-        },
-      }),
+      const [
+        transactions,
+        recentTransactions,
+        accounts,
+        issuedInvoiceCount,
+        unpaidInvoices,
+        historyInvoiceCount,
+        inventoryBalances,
+      ] = await Promise.all([
+        this.dashboardService.loadTransactions(txWhere),
 
-      this.prisma.transaction.findMany({
-        where: txWhere,
-        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
-        take: 8,
-        include: {
-          store: { select: { id: true, name: true } },
-          account: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-        },
-      }),
+        this.dashboardService.loadRecentTransactions(txWhere),
 
-      this.prisma.account.findMany({
-        where: {
-          companyId,
-          ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
-        },
-        orderBy: [{ createdAt: 'asc' }],
-        include: {
-          transactions: {
-            where: { companyId },
-            select: {
-              id: true,
-              amount: true,
-              direction: true,
-            },
-          },
-          transfersIn: {
-            where: { companyId },
-            select: { id: true, amount: true },
-          },
-          transfersOut: {
-            where: { companyId },
-            select: { id: true, amount: true },
-          },
-        },
-      }),
+        this.dashboardService.loadAccounts(companyId, normalizedStoreId),
 
-      this.prisma.invoice.findMany({
-        where: invoiceWhere,
-        orderBy: [{ issueDate: 'asc' }, { createdAt: 'asc' }],
-        include: {
-          store: { select: { id: true, name: true } },
-        },
-      }),
+        this.dashboardService.countIssuedInvoices(invoiceWhere),
 
-      this.prisma.invoice.findMany({
-        where: {
-          companyId,
-          status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
-          ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
-        },
-        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
-        include: {
-          store: { select: { id: true, name: true } },
-        },
-      }),
+        this.dashboardService.loadUnpaidInvoices(companyId, normalizedStoreId),
 
-      this.prisma.invoice.findMany({
-        where: {
-          companyId,
-          paidAmount: { gt: 0 },
-          ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
-        },
-        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-        include: {
-          store: { select: { id: true, name: true } },
-        },
-      }),
+        this.dashboardService.countHistoryInvoices(companyId, normalizedStoreId),
 
-      this.loadInventoryBalancesSafe(companyId),
-    ]);
+        this.dashboardService.loadInventoryBalancesSafe(companyId),
+      ]);
 
     const revenue = transactions
       .filter((x) => x.direction === 'INCOME')
@@ -429,9 +391,9 @@ export class DashboardController {
         categoryName: x.category?.name ?? null,
       })),
       invoiceStats: {
-        issuedCount: invoicesInRange.length,
+        issuedCount: issuedInvoiceCount,
         unpaidCount,
-        historyCount: historyInvoices.length,
+        historyCount: historyInvoiceCount,
       },
     };
   }

@@ -144,7 +144,8 @@ function monthKey(d: Date): string {
 }
 
 @UseGuards(JwtAuthGuard)
-@Controller('dashboard')
+// Legacy compatibility route. Main production dashboard route is handled by DashboardController.
+@Controller('dashboard-legacy')
 export class DashboardApiController {
   constructor(private readonly prisma: PrismaService) {}
 

@@ -157,9 +157,9 @@ export function DashboardHomeV2() {
 
   const storeOptions = [
     { id: "all", name: "全店舗" },
-    { id: "amazon-jp", name: "Amazon JP" },
-    { id: "shopify", name: "Shopify" },
-    { id: "physical", name: "実店舗" },
+    { id: "amazon-jp", name: "Amazon JP (mock)" },
+    { id: "shopify", name: "Shopify (mock)" },
+    { id: "physical", name: "実店舗 (mock)" },
   ];
 
   const totalCash = dashboardData.cashBalances.reduce((sum, item) => sum + item.balance, 0);
