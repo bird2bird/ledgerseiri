@@ -5,22 +5,6 @@ import { PrismaService } from '../prisma.service';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async loadTransactions(txWhere: any) {
-    return this.prisma.transaction.findMany({
-      where: txWhere,
-      orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }],
-      select: {
-        id: true,
-        type: true,
-        direction: true,
-        amount: true,
-        occurredAt: true,
-        createdAt: true,
-        category: { select: { id: true, name: true } },
-      },
-    });
-  }
-
   async loadRecentTransactions(txWhere: any) {
     return this.prisma.transaction.findMany({
       where: txWhere,
@@ -34,53 +18,9 @@ export class DashboardService {
     });
   }
 
-  async loadAccounts(companyId: string, normalizedStoreId?: string | null) {
-    return this.prisma.account.findMany({
-      where: {
-        companyId,
-        ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
-      },
-      orderBy: [{ createdAt: 'asc' }],
-      include: {
-        transactions: {
-          where: { companyId },
-          select: {
-            id: true,
-            amount: true,
-            direction: true,
-          },
-        },
-        transfersIn: {
-          where: { companyId },
-          select: { id: true, amount: true },
-        },
-        transfersOut: {
-          where: { companyId },
-          select: { id: true, amount: true },
-        },
-      },
-    });
-  }
-
   async countIssuedInvoices(invoiceWhere: any) {
     return this.prisma.invoice.count({
       where: invoiceWhere,
-    });
-  }
-
-  async loadUnpaidInvoices(companyId: string, normalizedStoreId?: string | null) {
-    return this.prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
-        ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
-      },
-      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        totalAmount: true,
-        paidAmount: true,
-      },
     });
   }
 
@@ -94,6 +34,138 @@ export class DashboardService {
     });
   }
 
+  async loadUnpaidSummary(companyId: string, normalizedStoreId?: string | null) {
+    const rows = await this.prisma.invoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
+        ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
+      },
+      select: {
+        totalAmount: true,
+        paidAmount: true,
+      },
+    });
+
+    const unpaidAmount = rows.reduce(
+      (sum, x) => sum + (Number(x.totalAmount ?? 0) - Number(x.paidAmount ?? 0)),
+      0,
+    );
+
+    return {
+      unpaidAmount,
+      unpaidCount: rows.length,
+    };
+  }
+
+  async loadAccountBalanceRows(companyId: string, normalizedStoreId?: string | null) {
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        companyId,
+        ...(normalizedStoreId ? { storeId: normalizedStoreId } : {}),
+      },
+      orderBy: [{ createdAt: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        openingBalance: true,
+      },
+    });
+
+    const accountIds = accounts.map((a) => a.id);
+    if (!accountIds.length) {
+      return [];
+    }
+
+    const [incomeAgg, expenseAgg, transferInAgg, transferOutAgg] = await Promise.all([
+      this.prisma.transaction.groupBy({
+        by: ['accountId'],
+        where: {
+          companyId,
+          accountId: { in: accountIds },
+          direction: 'INCOME',
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+      this.prisma.transaction.groupBy({
+        by: ['accountId'],
+        where: {
+          companyId,
+          accountId: { in: accountIds },
+          direction: 'EXPENSE',
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+      this.prisma.fundTransfer.groupBy({
+        by: ['toAccountId'],
+        where: {
+          companyId,
+          toAccountId: { in: accountIds },
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+      this.prisma.fundTransfer.groupBy({
+        by: ['fromAccountId'],
+        where: {
+          companyId,
+          fromAccountId: { in: accountIds },
+        },
+        _sum: {
+          amount: true,
+        },
+      }),
+    ]);
+
+    const incomeMap = new Map(
+      incomeAgg
+        .filter((x) => x.accountId)
+        .map((x) => [x.accountId as string, Number(x._sum.amount ?? 0)])
+    );
+
+    const expenseMap = new Map(
+      expenseAgg
+        .filter((x) => x.accountId)
+        .map((x) => [x.accountId as string, Number(x._sum.amount ?? 0)])
+    );
+
+    const transferInMap = new Map(
+      transferInAgg
+        .filter((x) => x.toAccountId)
+        .map((x) => [x.toAccountId as string, Number(x._sum.amount ?? 0)])
+    );
+
+    const transferOutMap = new Map(
+      transferOutAgg
+        .filter((x) => x.fromAccountId)
+        .map((x) => [x.fromAccountId as string, Number(x._sum.amount ?? 0)])
+    );
+
+    return accounts.map((a) => {
+      const income = incomeMap.get(a.id) ?? 0;
+      const expense = expenseMap.get(a.id) ?? 0;
+      const transferIn = transferInMap.get(a.id) ?? 0;
+      const transferOut = transferOutMap.get(a.id) ?? 0;
+
+      return {
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        balance:
+          Number(a.openingBalance ?? 0) +
+          income -
+          expense +
+          transferIn -
+          transferOut,
+      };
+    });
+  }
 
   async loadSummaryTotals(txWhere: any) {
     const [incomeAgg, expenseAgg] = await Promise.all([
@@ -185,20 +257,35 @@ export class DashboardService {
     }));
   }
 
-  async loadInventoryBalancesSafe(companyId: string) {
+  async loadInventorySummary(companyId: string) {
     try {
-      return await this.prisma.inventoryBalance.findMany({
+      const rows = await this.prisma.inventoryBalance.findMany({
         where: { companyId },
-        include: {
+        select: {
+          quantity: true,
+          alertLevel: true,
           sku: {
             select: {
-              id: true,
-              name: true,
               costAmount: true,
             },
           },
         },
       });
+
+      const inventoryValue = rows.reduce((sum, x) => {
+        const qty = Number(x.quantity ?? 0);
+        const cost = Number(x.sku?.costAmount ?? 0);
+        return sum + qty * cost;
+      }, 0);
+
+      const inventoryAlertCount = rows.filter((x) => {
+        return Number(x.quantity ?? 0) <= Number(x.alertLevel ?? 0);
+      }).length;
+
+      return {
+        inventoryValue,
+        inventoryAlertCount,
+      };
     } catch (e: any) {
       const msg = String(e?.message || '');
       if (
@@ -207,9 +294,13 @@ export class DashboardService {
         msg.includes('relation') ||
         msg.includes('does not exist')
       ) {
-        return [];
+        return {
+          inventoryValue: 0,
+          inventoryAlertCount: 0,
+        };
       }
       throw e;
     }
   }
+
 }

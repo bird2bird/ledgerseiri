@@ -62,23 +62,7 @@ export class DashboardController {
     private readonly dashboardService: DashboardService,
   ) {}
 
-  private getDashboardCacheKey(range: string, storeId?: string, locale?: string) {
-    return getSharedDashboardCacheKey(range, storeId, locale);
-  }
-
-  private getCachedDashboard(key: string) {
-    return getSharedCachedDashboard(key);
-  }
-
-  private setCachedDashboard(key: string, data: any) {
-    setSharedDashboardCache(key, data);
-  }
-
-  private clearExpiredDashboardCache() {
-    clearSharedDashboardCache();
-  }
-
-  private async resolveCompanyId() {
+          private async resolveCompanyId() {
     const company = await this.prisma.company.findFirst({
       orderBy: { createdAt: 'asc' },
       select: { id: true },
@@ -121,28 +105,6 @@ export class DashboardController {
     };
   }
 
-  private async loadInventoryBalancesSafe(companyId: string): Promise<any[]> {
-    try {
-      return await this.prisma.inventoryBalance.findMany({
-        where: { companyId },
-        include: {
-          sku: {
-            select: {
-              id: true,
-              name: true,
-              costAmount: true,
-            },
-          },
-        },
-      });
-    } catch (e: any) {
-      if (e?.code === 'P2021') {
-        return [];
-      }
-      throw e;
-    }
-  }
-
   @Get('dashboard')
   async dashboard(
     @Query('range') rangeInput?: string,
@@ -158,9 +120,9 @@ export class DashboardController {
     @Query('storeId') storeId?: string,
     @Query('locale') _locale?: string,
   ) {
-      this.clearExpiredDashboardCache();
-      const cacheKey = this.getDashboardCacheKey(rangeInput || '30d', storeId, _locale);
-      const cached = this.getCachedDashboard(cacheKey);
+      clearSharedDashboardCache();
+      const cacheKey = getSharedDashboardCacheKey(rangeInput || '30d', storeId, _locale);
+      const cached = getSharedCachedDashboard(cacheKey);
       if (cached) {
         return cached;
       }
@@ -177,30 +139,27 @@ export class DashboardController {
     const invoiceWhere = this.makeInvoiceWhere(companyId, from, to, normalizedStoreId || undefined);
 
       const [
-        transactions,
         recentTransactions,
-        accounts,
+        accountBalanceRows,
         issuedInvoiceCount,
-        unpaidInvoices,
+        unpaidSummary,
         historyInvoiceCount,
-        inventoryBalances,
+        inventorySummary,
         summaryTotals,
         expenseRows,
         bucketRows,
       ] = await Promise.all([
-        this.dashboardService.loadTransactions(txWhere),
-
         this.dashboardService.loadRecentTransactions(txWhere),
 
-        this.dashboardService.loadAccounts(companyId, normalizedStoreId),
+        this.dashboardService.loadAccountBalanceRows(companyId, normalizedStoreId),
 
         this.dashboardService.countIssuedInvoices(invoiceWhere),
 
-        this.dashboardService.loadUnpaidInvoices(companyId, normalizedStoreId),
+        this.dashboardService.loadUnpaidSummary(companyId, normalizedStoreId),
 
         this.dashboardService.countHistoryInvoices(companyId, normalizedStoreId),
 
-        this.dashboardService.loadInventoryBalancesSafe(companyId),
+        this.dashboardService.loadInventorySummary(companyId),
 
         this.dashboardService.loadSummaryTotals(txWhere),
 
@@ -212,46 +171,21 @@ export class DashboardController {
       const revenue = safeNumber(summaryTotals.revenue);
       const expense = safeNumber(summaryTotals.expense);
       const profit = safeNumber(summaryTotals.profit);
-    const cashBalances = accounts.map((a) => {
-      const income = a.transactions
-        .filter((t) => t.direction === 'INCOME')
-        .reduce((sum, t) => sum + safeNumber(t.amount), 0);
-
-      const expenseAmt = a.transactions
-        .filter((t) => t.direction === 'EXPENSE')
-        .reduce((sum, t) => sum + safeNumber(t.amount), 0);
-
-      const transferIn = a.transfersIn.reduce((sum, t) => sum + safeNumber(t.amount), 0);
-      const transferOut = a.transfersOut.reduce((sum, t) => sum + safeNumber(t.amount), 0);
-
-      const balance =
-        safeNumber(a.openingBalance) + income - expenseAmt + transferIn - transferOut;
-
-      return {
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        balance,
-      };
-    });
+    const cashBalances = accountBalanceRows.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      balance: safeNumber(a.balance),
+    }));
 
     const cash = cashBalances.reduce((sum, x) => sum + safeNumber(x.balance), 0);
 
-    const unpaidAmount = unpaidInvoices.reduce(
-      (sum, x) => sum + (safeNumber(x.totalAmount) - safeNumber(x.paidAmount)),
-      0,
-    );
-    const unpaidCount = unpaidInvoices.length;
+    const unpaidAmount = safeNumber(unpaidSummary.unpaidAmount);
+    const unpaidCount = safeNumber(unpaidSummary.unpaidCount);
 
-    const inventoryValue = inventoryBalances.reduce((sum, x) => {
-      const qty = safeNumber(x.quantity);
-      const cost = safeNumber(x.sku?.costAmount);
-      return sum + qty * cost;
-    }, 0);
+    const inventoryValue = safeNumber(inventorySummary.inventoryValue);
 
-    const inventoryAlertCount = inventoryBalances.filter((x) => {
-      return safeNumber(x.quantity) <= safeNumber(x.alertLevel);
-    }).length;
+    const inventoryAlertCount = safeNumber(inventorySummary.inventoryAlertCount);
 
     const estimatedTax = Math.max(0, Math.round(revenue * 0.1));
 
