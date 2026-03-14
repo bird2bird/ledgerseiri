@@ -1,230 +1,260 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { CrudPageShell } from "@/components/crud/CrudPageShell";
-import { FilterBar, FilterInput, FilterSelect } from "@/components/crud/FilterBar";
-import { DataTable, type DataTableColumn } from "@/components/crud/DataTable";
-import { RowActions } from "@/components/crud/RowActions";
-import { ImportButton } from "@/components/crud/ImportButton";
-import { ExportButton } from "@/components/crud/ExportButton";
-import { CreateEditDrawer } from "@/components/crud/CreateEditDrawer";
-import { DeleteConfirmDialog } from "@/components/crud/DeleteConfirmDialog";
-import { ErrorState } from "@/components/crud/ErrorState";
-import { EmptyState } from "@/components/crud/EmptyState";
-import { createAccount, listAccounts, type AccountItem } from "@/core/funds/api";
+import Link from "next/link";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  createAccountsContext,
+  fetchAccountsPageData,
+  normalizeAccountViewParam,
+  normalizeBalanceSortParam,
+  type AccountRow,
+  type AccountView,
+  type BalanceSort,
+} from "@/core/accounts/accounts";
+import {
+  buildDrilldownHref,
+  cloneSearchParams,
+  isDashboardSource,
+  readBaseDrilldownQuery,
+  setOrDeleteQueryParam,
+} from "@/core/drilldown/query-contract";
 
-function yen(v: number) {
-  return `¥${v.toLocaleString("ja-JP")}`;
+const VIEW_ITEMS: AccountView[] = ["all", "bank", "cash", "platform", "payment"];
+const SORT_ITEMS: BalanceSort[] = ["balance_desc", "balance_asc", "name_asc"];
+
+const VIEW_LABELS: Record<AccountView, string> = {
+  all: "すべて",
+  bank: "銀行",
+  cash: "現金",
+  platform: "プラットフォーム",
+  payment: "決済",
+};
+
+const SORT_LABELS: Record<BalanceSort, string> = {
+  balance_desc: "残高↓",
+  balance_asc: "残高↑",
+  name_asc: "名称A-Z",
+};
+
+function fmtJPY(v: number) {
+  return `¥${Number(v || 0).toLocaleString("ja-JP")}`;
 }
 
 export default function Page() {
-  const [rows, setRows] = useState<AccountItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const params = useParams<{ lang: string }>();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const rawFrom = searchParams.get("from");
+  const rawStoreId = searchParams.get("storeId");
+  const rawRange = searchParams.get("range");
+  const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
 
-  const [name, setName] = useState("");
-  const [type, setType] = useState("BANK");
-  const [currency, setCurrency] = useState("JPY");
-  const [openingBalance, setOpeningBalance] = useState("0");
+  const view = normalizeAccountViewParam(searchParams.get("view"));
+  const sort = normalizeBalanceSortParam(searchParams.get("sort"));
+  const isDashboard = isDashboardSource(from);
 
-  async function load() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await listAccounts();
-      setRows(data.items);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [rows, setRows] = useState<AccountRow[]>([]);
+  const [adapterNote, setAdapterNote] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    load();
-  }, []);
+    let mounted = true;
+    setLoading(true);
 
-  async function submitCreate() {
-    try {
-      await createAccount({
-        name,
-        type,
-        currency,
-        openingBalance: Number(openingBalance || 0),
+    const ctx = createAccountsContext({
+      from,
+      storeId,
+      range,
+      view,
+      sort,
+    });
+
+    fetchAccountsPageData(view, sort, ctx)
+      .then((res) => {
+        if (!mounted) return;
+        setRows(res.rows);
+        setAdapterNote(res.meta.note);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
       });
-      setDrawerOpen(false);
-      setName("");
-      setType("BANK");
-      setCurrency("JPY");
-      setOpeningBalance("0");
-      await load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
-    }
-  }
 
-  const columns: DataTableColumn<AccountItem>[] = useMemo(
-    () => [
-      {
-        key: "name",
-        title: "口座名",
-        render: (r) => <div className="font-medium text-slate-900">{r.name}</div>,
-      },
-      { key: "type", title: "種別", render: (r) => r.type },
-      { key: "currency", title: "通貨", render: (r) => r.currency },
-      {
-        key: "openingBalance",
-        title: "開始残高",
-        render: (r) => yen(r.openingBalance),
-        className: "whitespace-nowrap",
-      },
-      {
-        key: "store",
-        title: "店舗",
-        render: (r) => r.storeName ?? "-",
-      },
-      {
-        key: "status",
-        title: "状態",
-        render: (r) => (r.isActive ? "有効" : "無効"),
-      },
-      {
-        key: "actions",
-        title: "操作",
-        render: () => (
-          <RowActions
-            onEdit={() => alert("編集は Step 32A-2 以降で接続します")}
-            onDelete={() => setDeleteOpen(true)}
-          />
-        ),
-        className: "whitespace-nowrap",
-      },
-    ],
-    []
+    return () => {
+      mounted = false;
+    };
+  }, [from, storeId, range, view, sort]);
+
+  const totalBalance = useMemo(
+    () => rows.reduce((sum, row) => sum + row.balance, 0),
+    [rows]
   );
 
+  function updateView(next: AccountView) {
+    const qs = cloneSearchParams(searchParams);
+    setOrDeleteQueryParam(qs, "view", next, "all");
+    router.replace(buildDrilldownHref(pathname, qs));
+  }
+
+  function updateSort(next: BalanceSort) {
+    const qs = cloneSearchParams(searchParams);
+    setOrDeleteQueryParam(qs, "sort", next, "balance_desc");
+    router.replace(buildDrilldownHref(pathname, qs));
+  }
+
   return (
-    <>
-      <CrudPageShell
-        title="口座一覧"
-        description="銀行口座・現金・電子ウォレットを統一管理します。"
-        actions={
-          <>
-            <ImportButton onClick={() => alert("Step 33 で接続します")} />
-            <ExportButton onClick={() => alert("Step 33 で接続します")} />
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              新規口座
-            </button>
-          </>
-        }
-        filters={
-          <FilterBar>
-            <FilterInput placeholder="口座名で検索（Step 32A-2 で接続）" />
-            <FilterSelect defaultValue="">
-              <option value="">すべての種別</option>
-              <option value="BANK">BANK</option>
-              <option value="CASH">CASH</option>
-              <option value="EWALLET">EWALLET</option>
-              <option value="PAYMENT_GATEWAY">PAYMENT_GATEWAY</option>
-            </FilterSelect>
-          </FilterBar>
-        }
-      >
-        {error ? (
-          <ErrorState description={error} />
-        ) : loading ? (
-          <div className="text-sm text-slate-500">読み込み中...</div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            title="口座がまだありません"
-            description="最初の口座を作成してください。"
-            action={
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-2xl font-semibold text-slate-900">口座一覧</div>
+            <div className="mt-2 text-sm text-slate-500">
+              Step40B: accounts 页面与 dashboard cash drill-down round-trip contract 对齐。
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isDashboard ? (
+              <Link
+                href={`/${params?.lang ?? "ja"}/app`}
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                口座を作成
-              </button>
-            }
-          />
-        ) : (
-          <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
-        )}
-      </CrudPageShell>
+                Dashboard に戻る
+              </Link>
+            ) : null}
 
-      <CreateEditDrawer open={drawerOpen} title="口座作成" onClose={() => setDrawerOpen(false)}>
-        <div className="space-y-4">
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">口座名</div>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">種別</div>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
+            <Link
+              href={`/${params?.lang ?? "ja"}/app/account-balances?from=${from}&storeId=${storeId}&range=${range}&view=${view}&sort=${sort}`}
+              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              <option value="BANK">BANK</option>
-              <option value="CASH">CASH</option>
-              <option value="EWALLET">EWALLET</option>
-              <option value="PAYMENT_GATEWAY">PAYMENT_GATEWAY</option>
-              <option value="OTHER">OTHER</option>
-            </select>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">通貨</div>
-            <input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">開始残高</div>
-            <input
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={submitCreate}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              保存
-            </button>
+              口座残高へ
+            </Link>
           </div>
         </div>
-      </CreateEditDrawer>
 
-      <DeleteConfirmDialog
-        open={deleteOpen}
-        description="削除 API は Step 32A-2 で接続します。"
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={() => {
-          setDeleteOpen(false);
-          alert("削除は Step 32A-2 で接続します");
-        }}
-      />
-    </>
+        <div className="mt-4 grid gap-3 sm:grid-cols-5">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Source</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawFrom ?? from}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Store</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawStoreId ?? storeId}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Range</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawRange ?? range}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">View</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{VIEW_LABELS[view]}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Sort</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{SORT_LABELS[sort]}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="text-lg font-semibold text-slate-900">Filters</div>
+
+          <div className="mt-4">
+            <div className="text-sm font-medium text-slate-700">View</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {VIEW_ITEMS.map((item) => {
+                const active = view === item;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => updateView(item)}
+                    className={
+                      active
+                        ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                        : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    }
+                  >
+                    {VIEW_LABELS[item]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="text-sm font-medium text-slate-700">Sort</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SORT_ITEMS.map((item) => {
+                const active = sort === item;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => updateSort(item)}
+                    className={
+                      active
+                        ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                        : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    }
+                  >
+                    {SORT_LABELS[item]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Visible Accounts</div>
+            <div className="mt-2 text-3xl font-semibold text-slate-900">{rows.length}</div>
+            <div className="mt-4 text-sm text-slate-500">Total Balance</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{fmtJPY(totalBalance)}</div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="text-lg font-semibold text-slate-900">Accounts</div>
+          <div className="mt-1 text-sm text-slate-500">query → state → context → accounts adapter → rows</div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="grid grid-cols-[1.2fr_120px_140px_120px_150px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+              <div>Name</div>
+              <div>Type</div>
+              <div className="text-right">Balance</div>
+              <div>Status</div>
+              <div>Updated</div>
+            </div>
+
+            {loading ? (
+              <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
+            ) : rows.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
+            ) : (
+              rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-[1.2fr_120px_140px_120px_150px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
+                >
+                  <div>
+                    <div className="font-medium text-slate-900">{row.name}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.institution ?? "-"}</div>
+                  </div>
+                  <div className="text-slate-600">{VIEW_LABELS[row.type]}</div>
+                  <div className="text-right font-medium text-slate-900">{fmtJPY(row.balance)}</div>
+                  <div className="text-slate-600">{row.status}</div>
+                  <div className="text-slate-600">{row.lastUpdated}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

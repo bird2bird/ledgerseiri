@@ -132,11 +132,13 @@ export function getTaxSummaryHref(lang?: string): string {
 }
 
 export function getCashBalancesOverviewHref(lang?: string): string {
-  return buildDashboardTargetHref("cash", lang);
+  const l = normalizeLang(lang);
+  return `/${l}/app/account-balances?from=dashboard&view=all&sort=balance_desc`;
 }
 
 export function getCashBalanceItemHref(lang?: string): string {
-  return buildDashboardTargetHref("cash", lang);
+  const l = normalizeLang(lang);
+  return `/${l}/app/account-balances?from=dashboard&view=all&sort=balance_desc`;
 }
 
 export function getRecentTransactionsOverviewHref(lang?: string): string {
