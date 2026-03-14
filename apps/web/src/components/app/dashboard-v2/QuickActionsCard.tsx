@@ -1,15 +1,13 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
+import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { QuickActionItem } from "./types";
+import { getQuickActionHref } from "./dashboard-linking";
 
-function cls(...a: (string | false | null | undefined)[]) {
-  return a.filter(Boolean).join(" ");
-}
-
-function iconFor(icon: string) {
+function iconGlyph(icon: QuickActionItem["icon"]) {
   switch (icon) {
     case "plus":
       return "+";
@@ -22,34 +20,10 @@ function iconFor(icon: string) {
     case "upload":
       return "↑";
     case "chart":
-      return "↗";
+      return "◧";
     default:
       return "•";
   }
-}
-
-function LockBadge({ level }: { level?: "standard" | "premium" }) {
-  const text = level === "premium" ? "🔒 Pro" : "🔒 Std+";
-  const tone =
-    level === "premium"
-      ? "border-violet-200 bg-violet-50 text-violet-700"
-      : "border-sky-200 bg-sky-50 text-sky-700";
-
-  return (
-    <span
-      className={cls(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-none",
-        tone
-      )}
-    >
-      {text}
-    </span>
-  );
-}
-
-function billingHref(level?: "standard" | "premium") {
-  if (level === "premium") return "/ja/app/billing/change?target=premium";
-  return "/ja/app/billing/change?target=standard";
 }
 
 export function QuickActionsCard({
@@ -57,91 +31,66 @@ export function QuickActionsCard({
 }: {
   items: QuickActionItem[];
 }) {
+  const params = useParams<{ lang: string }>();
+  const lang = params?.lang;
+
   return (
     <DashboardSectionCard
       title="Quick Actions"
-      subtitle="よく使う操作"
+      subtitle="よく使う操作へのショートカット"
       className="h-full"
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {items.map((item) => {
-          const common = cls(
-            "group rounded-2xl border p-4 transition",
-            item.locked
-              ? "border-dashed border-slate-200 bg-slate-50 text-slate-400 hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)]"
-              : "border-black/5 bg-white hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)]"
-          );
-
-          const content = (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div
-                  className={cls(
-                    "flex h-10 w-10 items-center justify-center rounded-2xl text-base font-semibold",
-                    item.locked
-                      ? "bg-slate-200 text-slate-400"
-                      : "bg-slate-100 text-slate-700"
-                  )}
-                >
-                  {iconFor(item.icon)}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {item.locked ? <LockBadge level={item.requiredPlan} /> : null}
-                  <div
-                    className={cls(
-                      "transition",
-                      item.locked
-                        ? "text-slate-300"
-                        : "text-slate-300 group-hover:text-slate-500"
-                    )}
-                  >
-                    →
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={cls(
-                  "mt-4 text-sm font-medium",
-                  item.locked ? "text-slate-500" : "text-slate-900"
-                )}
-              >
-                {item.label}
-              </div>
-
-              <div
-                className={cls(
-                  "mt-1 text-[12px]",
-                  item.locked ? "text-slate-400" : "text-slate-500"
-                )}
-              >
-                {item.locked && item.upgradeHint ? item.upgradeHint : item.subLabel}
-              </div>
-            </>
-          );
+          const href = getQuickActionHref(item.href, lang);
 
           if (item.locked) {
             return (
-              <Link
+              <div
                 key={item.key}
-                href={billingHref(item.requiredPlan)}
-                className={common}
-                title={item.upgradeHint || "Upgrade required"}
+                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 opacity-95"
               >
-                {content}
-              </Link>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700">
+                    {iconGlyph(item.icon)}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-slate-900">{item.label}</div>
+                    <div className="mt-1 text-[12px] text-slate-600">{item.subLabel}</div>
+                    {item.upgradeHint ? (
+                      <div className="mt-2 text-[12px] leading-5 text-amber-800">
+                        {item.upgradeHint}
+                      </div>
+                    ) : null}
+                    {item.requiredPlan ? (
+                      <div className="mt-2 inline-flex rounded-full border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800">
+                        Requires {item.requiredPlan}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             );
           }
 
           return (
-            <a
+            <Link
               key={item.key}
-              href={item.href}
-              className={common}
+              href={href}
+              className="group block rounded-2xl border border-black/5 bg-white p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] focus:outline-none focus:ring-2 focus:ring-slate-300"
             >
-              {content}
-            </a>
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-700">
+                  {iconGlyph(item.icon)}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-slate-900">{item.label}</div>
+                  <div className="mt-1 text-[12px] text-slate-500">{item.subLabel}</div>
+                </div>
+              </div>
+            </Link>
           );
         })}
       </div>

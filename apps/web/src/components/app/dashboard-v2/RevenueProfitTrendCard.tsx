@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { RevenueProfitPoint } from "./types";
+import { getRevenueProfitTrendOverviewHref } from "./dashboard-linking";
 
 function fmtJPY(n: number) {
   try {
@@ -16,115 +19,77 @@ function fmtJPY(n: number) {
   }
 }
 
-function polyline(points: Array<{ x: number; y: number }>) {
-  return points.map((p) => `${p.x},${p.y}`).join(" ");
-}
-
 export function RevenueProfitTrendCard({
   points,
   rangeLabel,
 }: {
   points: RevenueProfitPoint[];
-  rangeLabel: "7D" | "30D" | "90D" | "12M";
+  rangeLabel?: string;
 }) {
-  const width = 100;
-  const height = 40;
-  const max = Math.max(1, ...points.flatMap((p) => [p.revenue, p.profit]));
+  const params = useParams<{ lang: string }>();
+  const href = getRevenueProfitTrendOverviewHref(params?.lang);
 
-  const revenuePts = points.map((p, i) => ({
-    x: points.length === 1 ? 0 : (i / (points.length - 1)) * width,
-    y: height - (p.revenue / max) * (height - 4) - 2,
-  }));
-
-  const profitPts = points.map((p, i) => ({
-    x: points.length === 1 ? 0 : (i / (points.length - 1)) * width,
-    y: height - (p.profit / max) * (height - 4) - 2,
-  }));
-
-  const totalRevenue = points.reduce((s, p) => s + p.revenue, 0);
-  const totalProfit = points.reduce((s, p) => s + p.profit, 0);
-  const margin = Math.round((totalProfit / Math.max(1, totalRevenue)) * 100);
+  const maxValue = Math.max(
+    1,
+    ...points.flatMap((p) => [Math.max(0, p.revenue), Math.max(0, p.profit)])
+  );
 
   return (
     <DashboardSectionCard
-      title="Revenue / Profit Trend"
-      subtitle="売上と利益の推移"
+      title="Revenue & Profit Trend"
+      subtitle={rangeLabel ? `期間: ${rangeLabel}` : "収益推移"}
       action={
-        <span className="ls-badge px-2.5 py-1 text-[11px] font-medium text-slate-700">
-          {rangeLabel}
-        </span>
+        <Link
+          href={href}
+          className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
+        >
+          すべて見る
+        </Link>
       }
       className="h-full"
     >
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-black/5 bg-white p-4">
-          <div className="flex items-center gap-4 text-[12px]">
-            <div className="inline-flex items-center gap-2 text-slate-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--ls-primary)]" />
+      <Link
+        href={href}
+        className="block rounded-2xl transition hover:bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-slate-300"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-7 gap-3">
+            {points.map((p) => {
+              const revenueH = Math.max(6, Math.round((p.revenue / maxValue) * 160));
+              const profitH = Math.max(4, Math.round((Math.max(0, p.profit) / maxValue) * 160));
+
+              return (
+                <div key={p.label} className="flex min-w-0 flex-col items-center gap-2">
+                  <div className="flex h-44 items-end gap-1">
+                    <div
+                      className="w-3 rounded-t-md bg-slate-300"
+                      style={{ height: `${revenueH}px` }}
+                      title={`Revenue ${fmtJPY(p.revenue)}`}
+                    />
+                    <div
+                      className="w-3 rounded-t-md bg-slate-900"
+                      style={{ height: `${profitH}px` }}
+                      title={`Profit ${fmtJPY(p.profit)}`}
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-500">{p.label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-4 text-[12px] text-slate-500">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-300" />
               Revenue
-            </div>
-            <div className="inline-flex items-center gap-2 text-slate-600">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-900" />
               Profit
-            </div>
-          </div>
-
-          <div className="mt-4 h-56 w-full">
-            <svg viewBox="0 0 100 40" className="h-full w-full">
-              <polyline
-                points={polyline(revenuePts)}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-[color:var(--ls-primary)]"
-              />
-              <polyline
-                points={polyline(profitPts)}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-emerald-500"
-              />
-            </svg>
-          </div>
-
-          <div className="mt-3 grid grid-cols-3 gap-3 text-[12px] text-slate-500">
-            {points.slice(-3).map((p) => (
-              <div key={p.label} className="rounded-xl bg-slate-50 px-3 py-2">
-                <div>{p.label}</div>
-                <div className="mt-1 font-medium text-slate-800">{fmtJPY(p.revenue)}</div>
-              </div>
-            ))}
+            </span>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          <div className="rounded-2xl border border-black/5 bg-slate-50 p-4">
-            <div className="text-[12px] text-slate-500">Total Revenue</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
-              {fmtJPY(totalRevenue)}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-black/5 bg-slate-50 p-4">
-            <div className="text-[12px] text-slate-500">Total Profit</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
-              {fmtJPY(totalProfit)}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-black/5 bg-slate-50 p-4">
-            <div className="text-[12px] text-slate-500">Profit Margin</div>
-            <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">
-              {margin}%
-            </div>
-          </div>
-        </div>
-      </div>
+      </Link>
     </DashboardSectionCard>
   );
 }

@@ -1,17 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { BusinessHealthData } from "./types";
+import {
+  getBusinessHealthInsightHref,
+  getBusinessHealthOverviewHref,
+} from "./dashboard-linking";
 
 function statusTone(status: BusinessHealthData["status"]) {
   switch (status) {
     case "good":
-      return "text-emerald-600 bg-emerald-50 border-emerald-200";
-    case "attention":
-      return "text-amber-700 bg-amber-50 border-amber-200";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "risk":
+      return "border-rose-200 bg-rose-50 text-rose-700";
     default:
-      return "text-rose-700 bg-rose-50 border-rose-200";
+      return "border-amber-200 bg-amber-50 text-amber-700";
   }
 }
 
@@ -19,17 +25,11 @@ function statusLabel(status: BusinessHealthData["status"]) {
   switch (status) {
     case "good":
       return "Good";
-    case "attention":
-      return "Attention";
-    default:
+    case "risk":
       return "Risk";
+    default:
+      return "Attention";
   }
-}
-
-function insightTone(tone?: "default" | "warning" | "good") {
-  if (tone === "warning") return "border-amber-200 bg-amber-50";
-  if (tone === "good") return "border-emerald-200 bg-emerald-50";
-  return "border-black/5 bg-white";
 }
 
 export function BusinessHealthCard({
@@ -37,67 +37,86 @@ export function BusinessHealthCard({
 }: {
   data: BusinessHealthData;
 }) {
+  const params = useParams<{ lang: string }>();
+  const lang = params?.lang;
+  const overviewHref = getBusinessHealthOverviewHref(lang);
+
   return (
     <DashboardSectionCard
-      title="AI Insights / Business Health"
-      subtitle="経営状態の要約"
+      title="Business Health"
+      subtitle="経営状態のスコアと示唆"
+      action={
+        <Link
+          href={overviewHref}
+          className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
+        >
+          詳細を見る
+        </Link>
+      }
       className="h-full"
     >
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-2xl border border-black/5 bg-slate-50 p-5">
-          <div className="text-[12px] text-slate-500">Business Health Score</div>
-
-          <div className="mt-3 flex items-end gap-2">
-            <div className="text-5xl font-semibold tracking-tight text-slate-900 tabular-nums">
-              {data.score}
-            </div>
-            <div className="pb-1 text-sm text-slate-500">/ 100</div>
-          </div>
-
-          <div className="mt-3">
-            <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusTone(
-                data.status
-              )}`}
-            >
-              {statusLabel(data.status)}
-            </span>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {data.dimensions.map((d) => (
-              <div key={d.label}>
-                <div className="mb-1 flex items-center justify-between text-[12px] text-slate-500">
-                  <span>{d.label}</span>
-                  <span className="tabular-nums text-slate-700">{d.score}</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-200">
-                  <div
-                    className="h-2 rounded-full bg-[color:var(--ls-primary)]"
-                    style={{ width: `${Math.max(0, Math.min(100, d.score))}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white p-4">
+        <div>
+          <div className="text-[12px] font-medium text-slate-500">Health Score</div>
+          <div className="mt-2 text-[40px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums">
+            {data.score}
           </div>
         </div>
 
-        <div className="space-y-3">
-          {data.insights.map((it) => (
-            <div
-              key={it.id}
-              className={`rounded-2xl border p-4 ${insightTone(it.tone)}`}
-            >
-              <div className="text-sm font-medium text-slate-900">{it.title}</div>
-              {it.detail ? (
-                <div className="mt-1 text-[12px] leading-5 text-slate-500">
-                  {it.detail}
-                </div>
-              ) : null}
+        <span
+          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${statusTone(
+            data.status
+          )}`}
+        >
+          {statusLabel(data.status)}
+        </span>
+      </div>
+
+      {!!data.dimensions?.length ? (
+        <div className="mt-4 space-y-3">
+          {data.dimensions.map((item) => (
+            <div key={item.label} className="space-y-2">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-600">{item.label}</span>
+                <span className="font-medium tabular-nums text-slate-900">{item.score}</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100">
+                <div
+                  className="h-2 rounded-full bg-slate-900 transition-all"
+                  style={{ width: `${Math.max(0, Math.min(100, item.score))}%` }}
+                />
+              </div>
             </div>
           ))}
         </div>
-      </div>
+      ) : null}
+
+      {!!data.insights?.length ? (
+        <div className="mt-5 space-y-3">
+          {data.insights.map((item) => {
+            const href = getBusinessHealthInsightHref(item.title, lang);
+            const toneClass =
+              item.tone === "good"
+                ? "border-emerald-200 bg-emerald-50"
+                : item.tone === "warning"
+                ? "border-amber-200 bg-amber-50"
+                : "border-black/5 bg-white";
+
+            return (
+              <Link
+                key={item.id}
+                href={href}
+                className={`block rounded-2xl border p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] focus:outline-none focus:ring-2 focus:ring-slate-300 ${toneClass}`}
+              >
+                <div className="text-sm font-medium text-slate-900">{item.title}</div>
+                {item.detail ? (
+                  <div className="mt-1 text-[12px] leading-5 text-slate-600">{item.detail}</div>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
     </DashboardSectionCard>
   );
 }

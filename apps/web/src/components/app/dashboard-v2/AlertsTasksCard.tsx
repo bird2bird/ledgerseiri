@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { DashboardAlert } from "./types";
+import { getAlertsOverviewHref } from "./dashboard-linking";
 
 function severityTone(severity: DashboardAlert["severity"]) {
   switch (severity) {
@@ -26,28 +29,42 @@ function severityLabel(severity: DashboardAlert["severity"]) {
   }
 }
 
+function normalizeDashboardLang(lang?: string): "ja" | "en" | "zh-CN" | "zh-TW" {
+  if (lang === "en") return "en";
+  if (lang === "zh-CN") return "zh-CN";
+  if (lang === "zh-TW") return "zh-TW";
+  return "ja";
+}
+
 export function AlertsTasksCard({
   items,
 }: {
   items: DashboardAlert[];
 }) {
+  const params = useParams<{ lang: string }>();
+  const lang = normalizeDashboardLang(params?.lang);
+  const overviewHref = getAlertsOverviewHref(lang);
+
   return (
     <DashboardSectionCard
       title="Alerts & Tasks"
       subtitle="対応が必要な項目"
       action={
-        <button className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium">
+        <Link
+          href={overviewHref}
+          className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
+        >
           すべて見る
-        </button>
+        </Link>
       }
       className="h-full"
     >
       <div className="space-y-3">
         {items.map((item) => (
-          <a
+          <Link
             key={item.id}
             href={item.href}
-            className="block rounded-2xl border border-black/5 bg-white p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)]"
+            className="group block rounded-2xl border border-black/5 bg-white p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] focus:outline-none focus:ring-2 focus:ring-slate-300"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -69,7 +86,7 @@ export function AlertsTasksCard({
                 {severityLabel(item.severity)}
               </span>
             </div>
-          </a>
+          </Link>
         ))}
       </div>
     </DashboardSectionCard>

@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { CashFlowPoint } from "./types";
+import { getCashFlowTrendOverviewHref } from "./dashboard-linking";
 
 function fmtJPY(n: number) {
   try {
@@ -21,61 +24,73 @@ export function CashFlowTrendCard({
 }: {
   points: CashFlowPoint[];
 }) {
-  const max = Math.max(
+  const params = useParams<{ lang: string }>();
+  const href = getCashFlowTrendOverviewHref(params?.lang);
+
+  const maxValue = Math.max(
     1,
-    ...points.flatMap((p) => [p.cashIn, p.cashOut, Math.abs(p.netCash)])
+    ...points.flatMap((p) => [Math.max(0, p.cashIn), Math.max(0, p.cashOut)])
   );
 
   return (
     <DashboardSectionCard
       title="Cash Flow Trend"
-      subtitle="入金・出金・純キャッシュフロー"
+      subtitle="入出金推移"
+      action={
+        <Link
+          href={href}
+          className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
+        >
+          すべて見る
+        </Link>
+      }
       className="h-full"
     >
-      <div className="space-y-4">
-        {points.map((p) => {
-          const inW = (p.cashIn / max) * 100;
-          const outW = (p.cashOut / max) * 100;
-          return (
-            <div key={p.label} className="rounded-2xl border border-black/5 bg-white p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-slate-900">{p.label}</div>
-                <div className="text-[12px] text-slate-500 tabular-nums">
+      <Link
+        href={href}
+        className="block rounded-2xl transition hover:bg-slate-50/60 focus:outline-none focus:ring-2 focus:ring-slate-300"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-6 gap-3">
+            {points.map((p) => {
+              const inH = Math.max(6, Math.round((p.cashIn / maxValue) * 160));
+              const outH = Math.max(6, Math.round((p.cashOut / maxValue) * 160));
+
+              return (
+                <div key={p.label} className="flex min-w-0 flex-col items-center gap-2">
+                  <div className="flex h-44 items-end gap-1">
+                    <div
+                      className="w-3 rounded-t-md bg-slate-900"
+                      style={{ height: `${inH}px` }}
+                      title={`Cash In ${fmtJPY(p.cashIn)}`}
+                    />
+                    <div
+                      className="w-3 rounded-t-md bg-slate-300"
+                      style={{ height: `${outH}px` }}
+                      title={`Cash Out ${fmtJPY(p.cashOut)}`}
+                    />
+                  </div>
+                  <div className="text-[11px] text-slate-500">{p.label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2">
+            {points.slice(-3).map((p) => (
+              <div
+                key={`${p.label}-summary`}
+                className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-[12px]"
+              >
+                <span className="text-slate-500">{p.label}</span>
+                <span className="font-medium tabular-nums text-slate-900">
                   Net {fmtJPY(p.netCash)}
-                </div>
+                </span>
               </div>
-
-              <div className="mt-3 space-y-2">
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-[12px] text-slate-500">
-                    <span>Cash In</span>
-                    <span className="tabular-nums">{fmtJPY(p.cashIn)}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full bg-[color:var(--ls-primary)]"
-                      style={{ width: `${inW}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-[12px] text-slate-500">
-                    <span>Cash Out</span>
-                    <span className="tabular-nums">{fmtJPY(p.cashOut)}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full bg-amber-400"
-                      style={{ width: `${outW}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
+      </Link>
     </DashboardSectionCard>
   );
 }

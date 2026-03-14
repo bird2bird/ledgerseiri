@@ -90,6 +90,7 @@ export type RecentTransactionItem = {
   account: string;
   store: string;
   memo?: string | null;
+  href?: string;
 };
 
 export type QuickActionItem = {

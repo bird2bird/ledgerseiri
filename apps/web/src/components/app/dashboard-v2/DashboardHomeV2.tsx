@@ -9,6 +9,7 @@ import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { fetchDashboardSummary } from "@/core/dashboard/api";
 import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
+import { getQuickActionHref } from "@/components/app/dashboard-v2/dashboard-linking";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
 import { KpiRowPrimary } from "@/components/app/dashboard-v2/KpiRowPrimary";
@@ -43,12 +44,18 @@ function getQuickActionsByFeatures(
     invoiceManagement: boolean;
     advancedExport: boolean;
     invoiceUpload: boolean;
-  }
+  },
+  lang: string
 ): QuickActionItem[] {
   return items.map((item) => {
+    const normalized = {
+      ...item,
+      href: getQuickActionHref(item.href, lang),
+    };
+
     if (item.key === "transfer" && !features.fundTransfer) {
       return {
-        ...item,
+        ...normalized,
         locked: true,
         requiredPlan: "standard",
         upgradeHint: "Standard 以上で資金移動を利用できます。",
@@ -57,7 +64,7 @@ function getQuickActionsByFeatures(
 
     if (item.key === "invoice" && !features.invoiceManagement) {
       return {
-        ...item,
+        ...normalized,
         locked: true,
         requiredPlan: "standard",
         upgradeHint: "Standard 以上で請求管理を利用できます。",
@@ -66,7 +73,7 @@ function getQuickActionsByFeatures(
 
     if (item.key === "import" && !features.invoiceUpload) {
       return {
-        ...item,
+        ...normalized,
         locked: true,
         requiredPlan: "standard",
         upgradeHint: "上位プランでデータインポートを利用できます。",
@@ -74,7 +81,7 @@ function getQuickActionsByFeatures(
     }
 
     return {
-      ...item,
+      ...normalized,
       locked: false,
       requiredPlan: undefined,
       upgradeHint: undefined,
@@ -166,13 +173,17 @@ export function DashboardHomeV2() {
 
   const quickActions = useMemo(
     () =>
-      getQuickActionsByFeatures(dashboardData.quickActions, {
-        fundTransfer: can("fundTransfer"),
-        invoiceManagement: can("invoiceManagement"),
-        advancedExport: can("advancedExport"),
-        invoiceUpload: can("invoiceUpload"),
-      }),
-    [dashboardData.quickActions, can]
+      getQuickActionsByFeatures(
+        dashboardData.quickActions,
+        {
+          fundTransfer: can("fundTransfer"),
+          invoiceManagement: can("invoiceManagement"),
+          advancedExport: can("advancedExport"),
+          invoiceUpload: can("invoiceUpload"),
+        },
+        currentLang
+      ),
+    [dashboardData.quickActions, can, currentLang]
   );
 
   return (

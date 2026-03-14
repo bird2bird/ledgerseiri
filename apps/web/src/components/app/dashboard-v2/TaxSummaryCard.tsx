@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { TaxSummaryData } from "./types";
+import { getTaxSummaryHref } from "./dashboard-linking";
 
 function fmtJPY(n: number) {
   try {
@@ -40,26 +43,37 @@ export function TaxSummaryCard({
 }: {
   data: TaxSummaryData;
 }) {
+  const params = useParams<{ lang: string }>();
+  const href = getTaxSummaryHref(params?.lang);
+
   return (
     <DashboardSectionCard
       title="Tax Summary"
       subtitle={data.periodLabel}
       action={
-        <span className="ls-badge px-2.5 py-1 text-[11px] font-medium text-slate-700">
+        <Link
+          href={href}
+          className="ls-badge px-2.5 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100"
+        >
           {data.note}
-        </span>
+        </Link>
       }
       className="h-full"
     >
-      <div className="space-y-3">
-        <TaxLine label="売上消費税" value={fmtJPY(data.outputTax)} />
-        <TaxLine label="仕入消費税" value={fmtJPY(data.inputTax)} />
-        <TaxLine label="差額（概算）" value={fmtJPY(data.estimatedTaxPayable)} strong />
-      </div>
+      <Link
+        href={href}
+        className="block rounded-2xl transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] focus:outline-none focus:ring-2 focus:ring-slate-300"
+      >
+        <div className="space-y-3">
+          <TaxLine label="売上消費税" value={fmtJPY(data.outputTax)} />
+          <TaxLine label="仕入消費税" value={fmtJPY(data.inputTax)} />
+          <TaxLine label="差額（概算）" value={fmtJPY(data.estimatedTaxPayable)} strong />
+        </div>
 
-      <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
-        参考値です。正式な申告前に税理士または会計データで確認してください。
-      </div>
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+          参考値です。正式な申告前に税理士または会計データで確認してください。
+        </div>
+      </Link>
     </DashboardSectionCard>
   );
 }

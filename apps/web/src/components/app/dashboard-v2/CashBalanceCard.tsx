@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
+import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { AccountBalanceItem } from "./types";
+import { getCashBalanceItemHref, getCashBalancesOverviewHref } from "./dashboard-linking";
 
 function fmtJPY(n: number) {
   try {
@@ -16,18 +19,18 @@ function fmtJPY(n: number) {
   }
 }
 
-function accountBadge(type: AccountBalanceItem["accountType"]) {
+function typeLabel(type: AccountBalanceItem["accountType"]) {
   switch (type) {
     case "bank":
-      return "銀行";
+      return "Bank";
     case "cash":
-      return "現金";
+      return "Cash";
     case "platform":
-      return "平台";
+      return "Platform";
     case "payment":
-      return "決済";
+      return "Payment";
     default:
-      return type;
+      return "Account";
   }
 }
 
@@ -38,57 +41,58 @@ export function CashBalanceCard({
   totalCash: number;
   items: AccountBalanceItem[];
 }) {
+  const params = useParams<{ lang: string }>();
+  const lang = params?.lang;
+  const overviewHref = getCashBalancesOverviewHref(lang);
+
   return (
     <DashboardSectionCard
-      title="Cash Balance by Account"
-      subtitle="口座別資金残高"
+      title="Cash Balances"
+      subtitle="口座別の資金残高"
+      action={
+        <Link
+          href={overviewHref}
+          className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
+        >
+          すべて見る
+        </Link>
+      }
       className="h-full"
     >
-      <div className="rounded-2xl border border-black/5 bg-slate-50 p-4">
-        <div className="text-[12px] text-slate-500">総資金</div>
-        <div className="mt-2 text-[28px] font-semibold tracking-tight text-slate-900 tabular-nums">
+      <div className="rounded-2xl border border-black/5 bg-slate-50 px-4 py-4">
+        <div className="text-[12px] font-medium text-slate-500">Total Cash</div>
+        <div className="mt-2 text-[32px] font-semibold leading-none tracking-tight text-slate-900 tabular-nums">
           {fmtJPY(totalCash)}
-        </div>
-
-        <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-200">
-          {items.map((it) => (
-            <div
-              key={it.accountId}
-              className="h-3 bg-[color:var(--ls-primary)] odd:opacity-90 even:opacity-70"
-              style={{ width: `${it.sharePct}%` }}
-              title={`${it.accountName}: ${it.sharePct}%`}
-            />
-          ))}
         </div>
       </div>
 
       <div className="mt-4 space-y-3">
-        {items.map((it) => (
-          <div
-            key={it.accountId}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-black/5 bg-white px-4 py-3"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="truncate text-sm font-medium text-slate-900">
-                  {it.accountName}
+        {items.map((item) => {
+          const href = getCashBalanceItemHref(lang);
+          return (
+            <Link
+              key={item.accountId}
+              href={href}
+              className="block rounded-2xl border border-black/5 bg-white p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-slate-900">{item.accountName}</div>
+                  <div className="mt-1 text-[12px] text-slate-500">
+                    {typeLabel(item.accountType)} · {item.sharePct}%
+                  </div>
                 </div>
-                <span className="ls-badge px-2 py-0.5 text-[11px] text-slate-600">
-                  {accountBadge(it.accountType)}
-                </span>
-              </div>
-              <div className="mt-1 text-[12px] text-slate-500">
-                Share {it.sharePct}%
-              </div>
-            </div>
 
-            <div className="shrink-0 text-right">
-              <div className="text-sm font-semibold text-slate-900 tabular-nums">
-                {fmtJPY(it.balance)}
+                <div className="shrink-0 text-right">
+                  <div className="text-sm font-semibold text-slate-900 tabular-nums">
+                    {fmtJPY(item.balance)}
+                  </div>
+                  <div className="mt-1 text-[12px] text-slate-500">{item.currency}</div>
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </DashboardSectionCard>
   );
