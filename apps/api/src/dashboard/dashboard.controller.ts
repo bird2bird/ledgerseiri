@@ -167,16 +167,6 @@ export class DashboardController {
 
 
 
-  private buildTrendBuckets(
-    from: Date,
-    days: number,
-    bucketRows: DashboardDailyBucketRow[],
-  ): DashboardTrendBucketMap {
-    const buckets: DashboardTrendBucketMap = this.buildTrendBuckets(from, days, bucketRows);
-
-    return buckets;
-  }
-
   private deriveTrendBuckets(
     from: Date,
     days: number,
@@ -334,105 +324,90 @@ export class DashboardController {
 
 
   private buildBusinessHealth(params: {
-    revenue: number;
-    profit: number;
-    unpaidCount: number;
-    unpaidAmount: number;
-    inventoryAlertCount: number;
-    cash: number;
-  }): DashboardBusinessHealth {
-    const { revenue, profit, unpaidCount, unpaidAmount, inventoryAlertCount, cash } = params;
+      revenue: number;
+      profit: number;
+      unpaidCount: number;
+      unpaidAmount: number;
+      inventoryAlertCount: number;
+      cash: number;
+    }): DashboardBusinessHealth {
+      const { revenue, profit, unpaidCount, unpaidAmount, inventoryAlertCount, cash } = params;
 
-    return {
-      score:
-        revenue <= 0
-          ? 50
-          : Math.max(
-              35,
-              Math.min(
-                95,
-                Math.round(
-                  60 +
-                    (profit > 0 ? 12 : -12) +
-                    (unpaidCount === 0 ? 8 : -6) +
-                    (inventoryAlertCount === 0 ? 5 : -4),
+      return {
+        score:
+          revenue <= 0
+            ? 50
+            : Math.max(
+                35,
+                Math.min(
+                  95,
+                  Math.round(
+                    60 +
+                      (profit > 0 ? 12 : -12) +
+                      (unpaidCount === 0 ? 8 : -6) +
+                      (inventoryAlertCount === 0 ? 5 : -4),
+                  ),
                 ),
               ),
-            ),
-      status: profit > 0 ? 'good' : 'attention',
-      headline: profit > 0 ? '利益は黒字です' : '収支の見直しが必要です',
-      summary: `売上 ¥${revenue.toLocaleString()} / 利益 ¥${profit.toLocaleString()} / 未入金 ¥${unpaidAmount.toLocaleString()}`,
-      items: [
-        { label: 'Revenue', value: `¥${revenue.toLocaleString()}` },
-        { label: 'Profit', value: `¥${profit.toLocaleString()}` },
-        { label: 'Unpaid', value: `¥${unpaidAmount.toLocaleString()}` },
-        { label: 'Cash', value: `¥${cash.toLocaleString()}` },
-      ],
-    };
-  }
+        status: profit > 0 ? 'good' : 'attention',
+        headline: profit > 0 ? '利益は黒字です' : '収支の見直しが必要です',
+        summary: `売上 ¥${revenue.toLocaleString()} / 利益 ¥${profit.toLocaleString()} / 未入金 ¥${unpaidAmount.toLocaleString()}`,
+        items: [
+          { label: 'Revenue', value: `¥${revenue.toLocaleString()}` },
+          { label: 'Profit', value: `¥${profit.toLocaleString()}` },
+          { label: 'Unpaid', value: `¥${unpaidAmount.toLocaleString()}` },
+          { label: 'Cash', value: `¥${cash.toLocaleString()}` },
+        ],
+      };
+    }
 
-  @Get('dashboard')
-  async dashboard(
-    @Query('range') rangeInput?: string,
-    @Query('storeId') storeId?: string,
-    @Query('locale') locale?: string,
-  ) : Promise<DashboardSummaryResponse> {
-    return this.summary(rangeInput, storeId, locale);
-  }
-
-  @Get('dashboard/summary')
-  async summary(
-    @Query('range') rangeInput?: string,
-    @Query('storeId') storeId?: string,
-    @Query('locale') _locale?: string,
-  ) : Promise<DashboardSummaryResponse> {
-      clearSharedDashboardCache();
-      const cacheKey = getSharedDashboardCacheKey(rangeInput || '30d', storeId, _locale);
-      const cached: DashboardSummaryResponse | null = getSharedCachedDashboard(cacheKey);
-      if (cached) {
-        return cached;
-      }
-    const companyId = await this.resolveCompanyId();
-    const range = parseRange(rangeInput);
-    const days = rangeDays(range);
-
-    const today = new Date();
-    const to = endOfDay(today);
-    const from = startOfDay(addDays(today, -(days - 1)));
-    const normalizedStoreId = this.normalizeStoreId(storeId);
-
-    const txWhere: DashboardTxWhere = this.makeTxWhere(companyId, from, to, normalizedStoreId || undefined);
-    const invoiceWhere: DashboardInvoiceWhere = this.makeInvoiceWhere(companyId, from, to, normalizedStoreId || undefined);
-
-      const [
-        recentTransactions,
+    private deriveSummaryPresentation(params: {
+      from: Date;
+      days: number;
+      accountBalanceRows: DashboardAccountBalanceRow[];
+      summaryTotals: {
+        revenue: number;
+        expense: number;
+        profit: number;
+      };
+      unpaidSummary: {
+        unpaidAmount: number;
+        unpaidCount: number;
+      };
+      inventorySummary: {
+        inventoryValue: number;
+        inventoryAlertCount: number;
+      };
+      expenseRows: DashboardExpenseBreakdownRow[];
+      bucketRows: DashboardDailyBucketRow[];
+    }): {
+      cashBalances: DashboardCashBalanceItem[];
+      revenue: number;
+      expense: number;
+      profit: number;
+      cash: number;
+      estimatedTax: number;
+      unpaidAmount: number;
+      unpaidCount: number;
+      inventoryValue: number;
+      inventoryAlertCount: number;
+      runwayMonths: number;
+      revenueProfitTrend: DashboardTrendPoint[];
+      cashFlowTrend: DashboardTrendPoint[];
+      expenseBreakdown: DashboardExpenseBreakdownItem[];
+      alerts: DashboardAlertItem[];
+      businessHealth: DashboardBusinessHealth;
+    } {
+      const {
+        from,
+        days,
         accountBalanceRows,
-        issuedInvoiceCount,
-        unpaidSummary,
-        historyInvoiceCount,
-        inventorySummary,
         summaryTotals,
+        unpaidSummary,
+        inventorySummary,
         expenseRows,
         bucketRows,
-      ] = await Promise.all([
-        this.dashboardService.loadRecentTransactions(txWhere),
-
-        this.dashboardService.loadAccountBalanceRows(companyId, normalizedStoreId),
-
-        this.dashboardService.countIssuedInvoices(invoiceWhere),
-
-        this.dashboardService.loadUnpaidSummary(companyId, normalizedStoreId),
-
-        this.dashboardService.countHistoryInvoices(companyId, normalizedStoreId),
-
-        this.dashboardService.loadInventorySummary(companyId),
-
-        this.dashboardService.loadSummaryTotals(txWhere),
-
-        this.dashboardService.loadExpenseBreakdown(txWhere),
-
-        this.dashboardService.loadDailyBuckets(txWhere),
-      ]);
+      } = params;
 
       const cashBalances: DashboardCashBalanceItem[] = this.buildCashBalances(accountBalanceRows);
 
@@ -461,77 +436,378 @@ export class DashboardController {
       );
 
       const revenueProfitTrend: DashboardTrendPoint[] = this.buildRevenueProfitTrend(buckets);
-
       const cashFlowTrend: DashboardTrendPoint[] = this.buildCashFlowTrend(buckets);
-
       const expenseBreakdown: DashboardExpenseBreakdownItem[] = this.buildExpenseBreakdown(expenseRows, expense);
-    const alerts: DashboardAlertItem[] = this.buildAlerts({
-      unpaidCount,
-      unpaidAmount,
-      inventoryAlertCount,
-    });
 
-    const businessHealth: DashboardBusinessHealth = this.buildBusinessHealth({
-      revenue,
-      profit,
-      unpaidCount,
-      unpaidAmount,
-      inventoryAlertCount,
-      cash,
-    });
+      const alerts: DashboardAlertItem[] = this.buildAlerts({
+        unpaidCount,
+        unpaidAmount,
+        inventoryAlertCount,
+      });
 
-    const taxSummary: DashboardTaxSummary = {
-      estimatedTax,
-      note: 'current-period estimate',
-    };
+      const businessHealth: DashboardBusinessHealth = this.buildBusinessHealth({
+        revenue,
+        profit,
+        unpaidCount,
+        unpaidAmount,
+        inventoryAlertCount,
+        cash,
+      });
 
-    const invoiceStats: DashboardInvoiceStats = {
-      issuedCount: issuedInvoiceCount,
-      unpaidCount,
-      historyCount: historyInvoiceCount,
-    };
+      return {
+        cashBalances,
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+        revenueProfitTrend,
+        cashFlowTrend,
+        expenseBreakdown,
+        alerts,
+        businessHealth,
+      };
+    }
 
-    const summaryCards: DashboardSummaryCards = this.buildSummaryCards({
-      revenue,
-      expense,
-      profit,
-      cash,
-      estimatedTax,
-      unpaidAmount,
-      unpaidCount,
-      inventoryValue,
-      inventoryAlertCount,
-      runwayMonths,
-    });
+    private async resolveSummaryQueryContext(params: {
+      rangeInput?: string;
+      storeId?: string;
+    }): Promise<{
+      companyId: string;
+      range: string;
+      days: number;
+      from: Date;
+      to: Date;
+      normalizedStoreId: string | null;
+      txWhere: DashboardTxWhere;
+      invoiceWhere: DashboardInvoiceWhere;
+    }> {
+      const { rangeInput, storeId } = params;
 
-    const filters: DashboardFilters = this.buildFilters(
-      range,
-      normalizedStoreId,
-      from,
-      to,
-    );
+      const companyId = await this.resolveCompanyId();
+      const range = parseRange(rangeInput);
+      const days = rangeDays(range);
 
-    const recentTransactionItems: DashboardRecentTransactionItem[] =
-      recentTransactions.map((x: DashboardRecentTransactionRow): DashboardRecentTransactionItem =>
-        this.mapRecentTransaction(x),
+      const today = new Date();
+      const to = endOfDay(today);
+      const from = startOfDay(addDays(today, -(days - 1)));
+      const normalizedStoreId = this.normalizeStoreId(storeId);
+
+      const txWhere: DashboardTxWhere = this.makeTxWhere(
+        companyId,
+        from,
+        to,
+        normalizedStoreId || undefined,
       );
 
-    const response: DashboardSummaryResponse = {
-      summary: summaryCards,
-      filters,
-      revenueProfitTrend,
-      cashFlowTrend,
-      cashBalances,
-      expenseBreakdown,
-      taxSummary,
-      alerts,
-      businessHealth,
-      recentTransactions: recentTransactionItems,
-      invoiceStats,
-    };
+      const invoiceWhere: DashboardInvoiceWhere = this.makeInvoiceWhere(
+        companyId,
+        from,
+        to,
+        normalizedStoreId || undefined,
+      );
 
-    setSharedDashboardCache(cacheKey, response);
+      return {
+        companyId,
+        range,
+        days,
+        from,
+        to,
+        normalizedStoreId,
+        txWhere,
+        invoiceWhere,
+      };
+    }
 
-    return response;
+    private assembleSummaryResponse(params: {
+      range: string;
+      normalizedStoreId: string | null;
+      from: Date;
+      to: Date;
+      issuedInvoiceCount: number;
+      historyInvoiceCount: number;
+      recentTransactions: DashboardRecentTransactionRow[];
+      revenueProfitTrend: DashboardTrendPoint[];
+      cashFlowTrend: DashboardTrendPoint[];
+      cashBalances: DashboardCashBalanceItem[];
+      expenseBreakdown: DashboardExpenseBreakdownItem[];
+      alerts: DashboardAlertItem[];
+      businessHealth: DashboardBusinessHealth;
+      revenue: number;
+      expense: number;
+      profit: number;
+      cash: number;
+      estimatedTax: number;
+      unpaidAmount: number;
+      unpaidCount: number;
+      inventoryValue: number;
+      inventoryAlertCount: number;
+      runwayMonths: number;
+    }): DashboardSummaryResponse {
+      const {
+        range,
+        normalizedStoreId,
+        from,
+        to,
+        issuedInvoiceCount,
+        historyInvoiceCount,
+        recentTransactions,
+        revenueProfitTrend,
+        cashFlowTrend,
+        cashBalances,
+        expenseBreakdown,
+        alerts,
+        businessHealth,
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+      } = params;
+
+      const taxSummary: DashboardTaxSummary = {
+        estimatedTax,
+        note: 'current-period estimate',
+      };
+
+      const invoiceStats: DashboardInvoiceStats = {
+        issuedCount: issuedInvoiceCount,
+        unpaidCount,
+        historyCount: historyInvoiceCount,
+      };
+
+      const summaryCards: DashboardSummaryCards = this.buildSummaryCards({
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+      });
+
+      const filters: DashboardFilters = this.buildFilters(
+        range,
+        normalizedStoreId,
+        from,
+        to,
+      );
+
+      const recentTransactionItems: DashboardRecentTransactionItem[] =
+        recentTransactions.map((x: DashboardRecentTransactionRow): DashboardRecentTransactionItem =>
+          this.mapRecentTransaction(x),
+        );
+
+      return {
+        summary: summaryCards,
+        filters,
+        revenueProfitTrend,
+        cashFlowTrend,
+        cashBalances,
+        expenseBreakdown,
+        taxSummary,
+        alerts,
+        businessHealth,
+        recentTransactions: recentTransactionItems,
+        invoiceStats,
+      };
+    }
+
+    private async loadSummaryDependencies(params: {
+      companyId: string;
+      normalizedStoreId: string | null;
+      txWhere: DashboardTxWhere;
+      invoiceWhere: DashboardInvoiceWhere;
+    }): Promise<{
+      recentTransactions: DashboardRecentTransactionRow[];
+      accountBalanceRows: DashboardAccountBalanceRow[];
+      issuedInvoiceCount: number;
+      unpaidSummary: {
+        unpaidAmount: number;
+        unpaidCount: number;
+      };
+      historyInvoiceCount: number;
+      inventorySummary: {
+        inventoryValue: number;
+        inventoryAlertCount: number;
+      };
+      summaryTotals: {
+        revenue: number;
+        expense: number;
+        profit: number;
+      };
+      expenseRows: DashboardExpenseBreakdownRow[];
+      bucketRows: DashboardDailyBucketRow[];
+    }> {
+      const {
+        companyId,
+        normalizedStoreId,
+        txWhere,
+        invoiceWhere,
+      } = params;
+
+      const [
+        recentTransactions,
+        accountBalanceRows,
+        issuedInvoiceCount,
+        unpaidSummary,
+        historyInvoiceCount,
+        inventorySummary,
+        summaryTotals,
+        expenseRows,
+        bucketRows,
+      ] = await Promise.all([
+        this.dashboardService.loadRecentTransactions(txWhere),
+        this.dashboardService.loadAccountBalanceRows(companyId, normalizedStoreId),
+        this.dashboardService.countIssuedInvoices(invoiceWhere),
+        this.dashboardService.loadUnpaidSummary(companyId, normalizedStoreId),
+        this.dashboardService.countHistoryInvoices(companyId, normalizedStoreId),
+        this.dashboardService.loadInventorySummary(companyId),
+        this.dashboardService.loadSummaryTotals(txWhere),
+        this.dashboardService.loadExpenseBreakdown(txWhere),
+        this.dashboardService.loadDailyBuckets(txWhere),
+      ]);
+
+      return {
+        recentTransactions,
+        accountBalanceRows,
+        issuedInvoiceCount,
+        unpaidSummary,
+        historyInvoiceCount,
+        inventorySummary,
+        summaryTotals,
+        expenseRows,
+        bucketRows,
+      };
+    }
+
+    @Get('dashboard')
+    async dashboard(
+      @Query('range') rangeInput?: string,
+      @Query('storeId') storeId?: string,
+      @Query('locale') locale?: string,
+    ): Promise<DashboardSummaryResponse> {
+      return this.summary(rangeInput, storeId, locale);
+    }
+
+    @Get('dashboard/summary')
+    async summary(
+      @Query('range') rangeInput?: string,
+      @Query('storeId') storeId?: string,
+      @Query('locale') _locale?: string,
+    ): Promise<DashboardSummaryResponse> {
+      clearSharedDashboardCache();
+
+      const cacheKey = getSharedDashboardCacheKey(rangeInput || '30d', storeId, _locale);
+      const cached: DashboardSummaryResponse | null = getSharedCachedDashboard(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // Stage 1: resolve query context
+      const queryContext = await this.resolveSummaryQueryContext({
+        rangeInput,
+        storeId,
+      });
+
+      const {
+        companyId,
+        range,
+        days,
+        from,
+        to,
+        normalizedStoreId,
+        txWhere,
+        invoiceWhere,
+      } = queryContext;
+
+      // Stage 2: load dependencies
+      const dependencies = await this.loadSummaryDependencies({
+        companyId,
+        normalizedStoreId,
+        txWhere,
+        invoiceWhere,
+      });
+
+      const {
+        recentTransactions,
+        issuedInvoiceCount,
+        historyInvoiceCount,
+      } = dependencies;
+
+      // Stage 3: derive presentation data
+      const presentation = this.deriveSummaryPresentation({
+        from,
+        days,
+        accountBalanceRows: dependencies.accountBalanceRows,
+        summaryTotals: dependencies.summaryTotals,
+        unpaidSummary: dependencies.unpaidSummary,
+        inventorySummary: dependencies.inventorySummary,
+        expenseRows: dependencies.expenseRows,
+        bucketRows: dependencies.bucketRows,
+      });
+
+      const {
+        cashBalances,
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+        revenueProfitTrend,
+        cashFlowTrend,
+        expenseBreakdown,
+        alerts,
+        businessHealth,
+      } = presentation;
+
+      // Stage 4: assemble response
+      const response: DashboardSummaryResponse = this.assembleSummaryResponse({
+        range,
+        normalizedStoreId,
+        from,
+        to,
+        issuedInvoiceCount,
+        historyInvoiceCount,
+        recentTransactions,
+        revenueProfitTrend,
+        cashFlowTrend,
+        cashBalances,
+        expenseBreakdown,
+        alerts,
+        businessHealth,
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+      });
+
+      setSharedDashboardCache(cacheKey, response);
+
+      return response;
+    }
   }
-}
