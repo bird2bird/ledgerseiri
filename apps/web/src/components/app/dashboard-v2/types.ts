@@ -18,6 +18,7 @@ export type KpiCardData = {
   trend?: TrendDirection;
   subLabel?: string;
   tone?: "default" | "profit" | "warning" | "danger" | "info";
+  href?: string;
 };
 
 export type AccountBalanceItem = {

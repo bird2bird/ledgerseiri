@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
 import type { KpiCardData } from "./types";
 
@@ -68,9 +69,9 @@ function iconGlyph(key: string) {
   }
 }
 
-export function KpiCard({
+function KpiCardBody({
   data,
-  dense = false,
+  dense,
 }: {
   data: KpiCardData;
   dense?: boolean;
@@ -78,58 +79,84 @@ export function KpiCard({
   const tone = toneClasses(data.tone);
 
   return (
-    <section
-      className={cls(
-        "ls-card-solid h-full overflow-hidden",
-        dense ? "p-4" : "p-5"
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <div
-              className={cls(
-                "flex shrink-0 items-center justify-center rounded-2xl font-semibold",
-                dense ? "h-10 w-10 text-sm" : "h-11 w-11 text-base",
-                tone.iconWrap
-              )}
-            >
-              {iconGlyph(data.key)}
-            </div>
-
-            <div className="min-w-0">
-              <div className="text-[12px] font-medium text-slate-500">
-                {data.label}
-              </div>
-
-              <div
-                className={cls(
-                  "mt-2 font-semibold tracking-tight text-slate-900 tabular-nums",
-                  dense ? "text-[30px] leading-none" : "text-[40px] leading-none"
-                )}
-              >
-                {data.value}
-              </div>
-            </div>
-          </div>
-
-          {data.subLabel ? (
-            <div className="mt-4 text-[12px] text-slate-500">{data.subLabel}</div>
-          ) : null}
-        </div>
-
-        {data.deltaText ? (
-          <span
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          <div
             className={cls(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium",
-              tone.badge
+              "flex shrink-0 items-center justify-center rounded-2xl font-semibold",
+              dense ? "h-10 w-10 text-sm" : "h-11 w-11 text-base",
+              tone.iconWrap
             )}
           >
-            <span>{trendGlyph(data.trend)}</span>
-            <span>{data.deltaText}</span>
-          </span>
+            {iconGlyph(data.key)}
+          </div>
+
+          <div className="min-w-0">
+            <div className="text-[12px] font-medium text-slate-500">
+              {data.label}
+            </div>
+
+            <div
+              className={cls(
+                "mt-2 font-semibold tracking-tight text-slate-900 tabular-nums",
+                dense ? "text-[30px] leading-none" : "text-[40px] leading-none"
+              )}
+            >
+              {data.value}
+            </div>
+          </div>
+        </div>
+
+        {data.subLabel ? (
+          <div className="mt-4 text-[12px] text-slate-500">{data.subLabel}</div>
         ) : null}
       </div>
+
+      {data.deltaText ? (
+        <span
+          className={cls(
+            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            tone.badge
+          )}
+        >
+          <span>{trendGlyph(data.trend)}</span>
+          <span>{data.deltaText}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+export function KpiCard({
+  data,
+  dense = false,
+}: {
+  data: KpiCardData;
+  dense?: boolean;
+}) {
+  const baseClass = cls(
+    "ls-card-solid h-full overflow-hidden",
+    dense ? "p-4" : "p-5"
+  );
+
+  if (data.href) {
+    return (
+      <Link
+        href={data.href}
+        className={cls(
+          baseClass,
+          "group block transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)] cursor-pointer"
+        )}
+      >
+        <KpiCardBody data={data} dense={dense} />
+      </Link>
+    );
+  }
+
+  return (
+    <section className={baseClass}>
+      <KpiCardBody data={data} dense={dense} />
     </section>
   );
 }

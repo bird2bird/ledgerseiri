@@ -9,6 +9,7 @@ import type {
   RevenueProfitPoint,
   CashFlowPoint,
 } from "@/components/app/dashboard-v2/types";
+import { getAlertHref, getSummaryCardHref } from "@/components/app/dashboard-v2/dashboard-linking";
 
 type FetchDashboardSummaryArgs = {
   token?: string | null;
@@ -145,6 +146,7 @@ export async function fetchDashboardSummary(args: FetchDashboardSummaryArgs = {}
   const range = normalizeRange(filters.range ?? args.range);
   const storeId = String(filters.storeId ?? args.storeId ?? "all");
   const totalCash = toNum(summary.cash);
+  const uiLang = args.locale ?? "ja";
 
   const cashBalances: AccountBalanceItem[] = asArray<any>(raw?.cashBalances).map((x: any) => ({
     accountId: String(x.id ?? ""),
@@ -174,14 +176,27 @@ export async function fetchDashboardSummary(args: FetchDashboardSummaryArgs = {}
     pct: toNum(x.share ?? x.pct),
   }));
 
-  const alerts: DashboardAlert[] = asArray<any>(raw?.alerts).map((x: any, idx: number) => ({
-    id: String(x.id ?? x.key ?? `alert-${idx}`),
-    type: x.key === "unpaid" ? "invoice" : "expense",
-    severity: x.level === "critical" ? "critical" : x.level === "warning" ? "warning" : "info",
-    title: String(x.title ?? "Alert"),
-    description: x.description ? String(x.description) : undefined,
-    href: x.key === "unpaid" ? "/ja/app/invoices/unpaid" : "/ja/app",
-  }));
+  const alerts: DashboardAlert[] = asArray<any>(raw?.alerts).map((x: any, idx: number) => {
+    const alertType: DashboardAlert["type"] =
+      x.key === "unpaid"
+        ? "invoice"
+        : x.key === "inventory" || x.key === "inventoryAlert"
+        ? "inventory"
+        : x.key === "tax"
+        ? "tax"
+        : x.key === "cash"
+        ? "cash"
+        : "expense";
+
+    return {
+      id: String(x.id ?? x.key ?? `alert-${idx}`),
+      type: alertType,
+      severity: x.level === "critical" ? "critical" : x.level === "warning" ? "warning" : "info",
+      title: String(x.title ?? "Alert"),
+      description: x.description ? String(x.description) : undefined,
+      href: getAlertHref(x.key, alertType, uiLang) ?? `/${uiLang}/app`,
+    };
+  });
 
   const rawBusiness = raw?.businessHealth ?? {};
   const dimensions = asArray<any>(rawBusiness.dimensions).map((x: any) => ({
@@ -229,6 +244,21 @@ export async function fetchDashboardSummary(args: FetchDashboardSummaryArgs = {}
     memo: x.memo ? String(x.memo) : null,
   }));
 
+  const kpiPrimary = [
+    { key: "revenue", label: "今月収入", value: money(toNum(summary.revenue)), deltaText: "-", trend: "neutral" as const, tone: "profit" as const, href: getSummaryCardHref("revenue", uiLang) ?? undefined },
+    { key: "expense", label: "今月支出", value: money(toNum(summary.expense)), deltaText: "-", trend: "neutral" as const, tone: "warning" as const, href: getSummaryCardHref("expense", uiLang) ?? undefined },
+    { key: "profit", label: "今月利益", value: money(toNum(summary.profit)), deltaText: "-", trend: "neutral" as const, tone: "profit" as const, href: getSummaryCardHref("profit", uiLang) ?? undefined },
+    { key: "cash", label: "総資金", value: money(toNum(summary.cash)), deltaText: "-", trend: "neutral" as const, tone: "info" as const, href: getSummaryCardHref("cash", uiLang) ?? undefined },
+    { key: "tax", label: "消費税概算", value: money(toNum(summary.estimatedTax)), subLabel: "今期見込み", tone: "default" as const, href: getSummaryCardHref("tax", uiLang) ?? undefined },
+  ];
+
+  const kpiSecondary = [
+    { key: "invoice", label: "未入金", value: money(toNum(summary.unpaidAmount)), subLabel: `${toNum(summary.unpaidCount)}件`, tone: "warning" as const, href: getSummaryCardHref("invoice", uiLang) ?? undefined },
+    { key: "inventory", label: "在庫金額", value: money(toNum(summary.inventoryValue)), subLabel: "全店舗合計", tone: "default" as const, href: getSummaryCardHref("inventory", uiLang) ?? undefined },
+    { key: "stockAlert", label: "在庫アラート", value: `${toNum(summary.inventoryAlertCount)}件`, subLabel: "補充が必要", tone: "danger" as const, href: getSummaryCardHref("stockAlert", uiLang) ?? undefined },
+    { key: "runway", label: "資金余力", value: `${toNum(summary.runwayMonths).toFixed(1)}ヶ月`, subLabel: "現在の支出ペース", tone: "info" as const, href: getSummaryCardHref("runway", uiLang) ?? undefined },
+  ];
+
   return {
     filters: {
       range,
@@ -236,20 +266,8 @@ export async function fetchDashboardSummary(args: FetchDashboardSummaryArgs = {}
       refreshedAt: new Date().toISOString(),
     },
 
-    kpiPrimary: [
-      { key: "revenue", label: "今月収入", value: money(toNum(summary.revenue)), deltaText: "-", trend: "neutral", tone: "profit" },
-      { key: "expense", label: "今月支出", value: money(toNum(summary.expense)), deltaText: "-", trend: "neutral", tone: "warning" },
-      { key: "profit", label: "今月利益", value: money(toNum(summary.profit)), deltaText: "-", trend: "neutral", tone: "profit" },
-      { key: "cash", label: "総資金", value: money(toNum(summary.cash)), deltaText: "-", trend: "neutral", tone: "info" },
-      { key: "tax", label: "消費税概算", value: money(toNum(summary.estimatedTax)), subLabel: "今期見込み", tone: "default" },
-    ],
-
-    kpiSecondary: [
-      { key: "invoice", label: "未入金", value: money(toNum(summary.unpaidAmount)), subLabel: `${toNum(summary.unpaidCount)}件`, tone: "warning" },
-      { key: "inventory", label: "在庫金額", value: money(toNum(summary.inventoryValue)), subLabel: "全店舗合計", tone: "default" },
-      { key: "stockAlert", label: "在庫アラート", value: `${toNum(summary.inventoryAlertCount)}件`, subLabel: "補充が必要", tone: "danger" },
-      { key: "runway", label: "資金余力", value: `${toNum(summary.runwayMonths).toFixed(1)}ヶ月`, subLabel: "現在の支出ペース", tone: "info" },
-    ],
+    kpiPrimary,
+    kpiSecondary,
 
     revenueProfitTrend,
     cashBalances,
