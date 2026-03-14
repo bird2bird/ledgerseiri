@@ -177,6 +177,28 @@ export class DashboardController {
     return buckets;
   }
 
+  private deriveTrendBuckets(
+    from: Date,
+    days: number,
+    bucketRows: DashboardDailyBucketRow[],
+  ): DashboardTrendBucketMap {
+    const buckets: DashboardTrendBucketMap = {};
+
+    for (let i = 0; i < days; i++) {
+      const d = addDays(from, i);
+      buckets[yyyyMmDd(d)] = { revenue: 0, expense: 0 };
+    }
+
+    for (const t of bucketRows) {
+      const key = yyyyMmDd(new Date(t.occurredAt));
+      if (!buckets[key]) continue;
+      if (t.direction === 'INCOME') buckets[key].revenue += safeNumber(t.amount);
+      if (t.direction === 'EXPENSE') buckets[key].expense += safeNumber(t.amount);
+    }
+
+    return buckets;
+  }
+
   private buildRevenueProfitTrend(
     buckets: DashboardTrendBucketMap,
   ): DashboardTrendPoint[] {
@@ -432,18 +454,11 @@ export class DashboardController {
         inventorySummary,
       });
 
-      const buckets: DashboardTrendBucketMap = {};
-      for (let i = 0; i < days; i++) {
-        const d = addDays(from, i);
-        buckets[yyyyMmDd(d)] = { revenue: 0, expense: 0 };
-      }
-
-      for (const t of bucketRows) {
-        const key = yyyyMmDd(new Date(t.occurredAt));
-        if (!buckets[key]) continue;
-        if (t.direction === 'INCOME') buckets[key].revenue += safeNumber(t.amount);
-        if (t.direction === 'EXPENSE') buckets[key].expense += safeNumber(t.amount);
-      }
+      const buckets: DashboardTrendBucketMap = this.deriveTrendBuckets(
+        from,
+        days,
+        bucketRows,
+      );
 
       const revenueProfitTrend: DashboardTrendPoint[] = this.buildRevenueProfitTrend(buckets);
 
