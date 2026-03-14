@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import type { DashboardAccountBalanceRow, DashboardDailyBucketRow, DashboardExpenseBreakdownRow, DashboardInventorySummaryRow, DashboardSummaryTotalsRow, DashboardUnpaidSummaryRow } from './dashboard.types';
+import type { DashboardAccountBalanceRow, DashboardDailyBucketRow, DashboardExpenseBreakdownRow, DashboardInventorySummaryRow, DashboardInvoiceWhere, DashboardRecentTransactionRow, DashboardSummaryTotalsRow, DashboardTxWhere, DashboardUnpaidSummaryRow } from './dashboard.types';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async loadRecentTransactions(txWhere: any) {
+  async loadRecentTransactions(txWhere: DashboardTxWhere): Promise<DashboardRecentTransactionRow[]> {
     return this.prisma.transaction.findMany({
       where: txWhere,
       orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
@@ -19,7 +19,7 @@ export class DashboardService {
     });
   }
 
-  async countIssuedInvoices(invoiceWhere: any) {
+  async countIssuedInvoices(invoiceWhere: DashboardInvoiceWhere): Promise<number> {
     return this.prisma.invoice.count({
       where: invoiceWhere,
     });
@@ -168,7 +168,7 @@ export class DashboardService {
     });
   }
 
-  async loadSummaryTotals(txWhere: any): Promise<DashboardSummaryTotalsRow> {
+  async loadSummaryTotals(txWhere: DashboardTxWhere): Promise<DashboardSummaryTotalsRow> {
     const [incomeAgg, expenseAgg] = await Promise.all([
       this.prisma.transaction.aggregate({
         where: {
@@ -199,7 +199,7 @@ export class DashboardService {
     };
   }
 
-  async loadExpenseBreakdown(txWhere: any): Promise<DashboardExpenseBreakdownRow[]> {
+  async loadExpenseBreakdown(txWhere: DashboardTxWhere): Promise<DashboardExpenseBreakdownRow[]> {
     const rows = await this.prisma.transaction.groupBy({
       by: ['categoryId', 'type'],
       where: {
@@ -240,7 +240,7 @@ export class DashboardService {
     }));
   }
 
-  async loadDailyBuckets(txWhere: any): Promise<DashboardDailyBucketRow[]> {
+  async loadDailyBuckets(txWhere: DashboardTxWhere): Promise<DashboardDailyBucketRow[]> {
     const rows = await this.prisma.transaction.findMany({
       where: txWhere,
       select: {

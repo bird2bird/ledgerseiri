@@ -83,6 +83,12 @@ export interface DashboardRecentTransactionItem {
   categoryName: string | null;
 }
 
+export interface DashboardInvoiceStats {
+  issuedCount: number;
+  historyCount: number;
+  unpaidCount: number;
+}
+
 export interface DashboardSummaryResponse {
   summary: DashboardSummaryCards;
   filters: DashboardFilters;
@@ -94,11 +100,26 @@ export interface DashboardSummaryResponse {
   alerts: DashboardAlertItem[];
   businessHealth: DashboardBusinessHealth;
   recentTransactions: DashboardRecentTransactionItem[];
-  invoiceStats: {
-    issuedCount: number;
-    historyCount: number;
-    unpaidCount: number;
-  };
+  invoiceStats: DashboardInvoiceStats;
+}
+
+export type DashboardTxWhere = import('@prisma/client').Prisma.TransactionWhereInput;
+export type DashboardInvoiceWhere = import('@prisma/client').Prisma.InvoiceWhereInput;
+export type DashboardTrendBucketMap = Record<string, { revenue: number; expense: number }>;
+
+export interface DashboardRecentTransactionRow {
+  id: string;
+  occurredAt: Date;
+  amount: number;
+  currency: string;
+  direction: string | null;
+  type: string;
+  sourceType?: string | null;
+  externalRef?: string | null;
+  memo: string | null;
+  store?: { id: string; name: string } | null;
+  account?: { id: string; name: string } | null;
+  category?: { id: string; name: string } | null;
 }
 
 export interface DashboardSummaryTotalsRow {

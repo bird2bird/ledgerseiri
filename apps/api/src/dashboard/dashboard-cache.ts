@@ -1,3 +1,4 @@
+import type { DashboardSummaryResponse } from './dashboard.types';
 import type { INestApplication } from '@nestjs/common';
 
 type DashboardCacheEntry = {
@@ -8,7 +9,7 @@ type DashboardCacheEntry = {
 const DASHBOARD_CACHE_TTL_MS = 30_000;
 const dashboardCache = new Map<string, DashboardCacheEntry>();
 
-export function getDashboardCacheKey(range: string, storeId?: string, locale?: string) {
+export function getDashboardCacheKey(range: string, storeId?: string, locale?: string): string {
   return JSON.stringify({
     range: range || '30d',
     storeId: storeId || 'all',
@@ -16,7 +17,7 @@ export function getDashboardCacheKey(range: string, storeId?: string, locale?: s
   });
 }
 
-export function getCachedDashboard(key: string) {
+export function getCachedDashboard(key: string): DashboardSummaryResponse | null {
   const hit = dashboardCache.get(key);
   if (!hit) return null;
   if (Date.now() > hit.expiresAt) {
@@ -26,14 +27,14 @@ export function getCachedDashboard(key: string) {
   return hit.data;
 }
 
-export function setCachedDashboard(key: string, data: any) {
+export function setCachedDashboard(key: string, data: DashboardSummaryResponse): void {
   dashboardCache.set(key, {
     expiresAt: Date.now() + DASHBOARD_CACHE_TTL_MS,
     data,
   });
 }
 
-export function clearExpiredDashboardCache() {
+export function clearExpiredDashboardCache(): void {
   const now = Date.now();
   for (const [k, v] of dashboardCache.entries()) {
     if (now > v.expiresAt) dashboardCache.delete(k);
