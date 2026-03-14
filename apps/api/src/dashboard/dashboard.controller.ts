@@ -223,6 +223,64 @@ export class DashboardController {
     }));
   }
 
+  private deriveSummaryMetrics(params: {
+    summaryTotals: {
+      revenue: unknown;
+      expense: unknown;
+      profit: unknown;
+    };
+    cashBalances: DashboardCashBalanceItem[];
+    unpaidSummary: {
+      unpaidAmount: unknown;
+      unpaidCount: unknown;
+    };
+    inventorySummary: {
+      inventoryValue: unknown;
+      inventoryAlertCount: unknown;
+    };
+  }): {
+    revenue: number;
+    expense: number;
+    profit: number;
+    cash: number;
+    estimatedTax: number;
+    unpaidAmount: number;
+    unpaidCount: number;
+    inventoryValue: number;
+    inventoryAlertCount: number;
+    runwayMonths: number;
+  } {
+    const { summaryTotals, cashBalances, unpaidSummary, inventorySummary } = params;
+
+    const revenue = safeNumber(summaryTotals.revenue);
+    const expense = safeNumber(summaryTotals.expense);
+    const profit = safeNumber(summaryTotals.profit);
+    const cash = cashBalances.reduce((sum, x) => sum + safeNumber(x.balance), 0);
+
+    const unpaidAmount = safeNumber(unpaidSummary.unpaidAmount);
+    const unpaidCount = safeNumber(unpaidSummary.unpaidCount);
+
+    const inventoryValue = safeNumber(inventorySummary.inventoryValue);
+    const inventoryAlertCount = safeNumber(inventorySummary.inventoryAlertCount);
+
+    const estimatedTax = Math.max(0, Math.round(revenue * 0.1));
+    const runwayMonths =
+      expense > 0 ? Number((cash / Math.max(expense, 1)).toFixed(1)) : 0;
+
+    return {
+      revenue,
+      expense,
+      profit,
+      cash,
+      estimatedTax,
+      unpaidAmount,
+      unpaidCount,
+      inventoryValue,
+      inventoryAlertCount,
+      runwayMonths,
+    };
+  }
+
   private buildAlerts(params: {
     unpaidCount: number;
     unpaidAmount: number;
@@ -354,24 +412,25 @@ export class DashboardController {
         this.dashboardService.loadDailyBuckets(txWhere),
       ]);
 
-      const revenue = safeNumber(summaryTotals.revenue);
-      const expense = safeNumber(summaryTotals.expense);
-      const profit = safeNumber(summaryTotals.profit);
       const cashBalances: DashboardCashBalanceItem[] = this.buildCashBalances(accountBalanceRows);
 
-    const cash = cashBalances.reduce((sum, x) => sum + safeNumber(x.balance), 0);
-
-    const unpaidAmount = safeNumber(unpaidSummary.unpaidAmount);
-    const unpaidCount = safeNumber(unpaidSummary.unpaidCount);
-
-    const inventoryValue = safeNumber(inventorySummary.inventoryValue);
-
-    const inventoryAlertCount = safeNumber(inventorySummary.inventoryAlertCount);
-
-    const estimatedTax = Math.max(0, Math.round(revenue * 0.1));
-
-    const runwayMonths =
-      expense > 0 ? Number((cash / Math.max(expense, 1)).toFixed(1)) : 0;
+      const {
+        revenue,
+        expense,
+        profit,
+        cash,
+        estimatedTax,
+        unpaidAmount,
+        unpaidCount,
+        inventoryValue,
+        inventoryAlertCount,
+        runwayMonths,
+      } = this.deriveSummaryMetrics({
+        summaryTotals,
+        cashBalances,
+        unpaidSummary,
+        inventorySummary,
+      });
 
       const buckets: DashboardTrendBucketMap = {};
       for (let i = 0; i < days; i++) {
