@@ -1,226 +1,151 @@
 "use client";
 
+import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
-import { CrudPageShell } from "@/components/crud/CrudPageShell";
-import { FilterBar } from "@/components/crud/FilterBar";
-import { DataTable, type DataTableColumn } from "@/components/crud/DataTable";
-import { CreateEditDrawer } from "@/components/crud/CreateEditDrawer";
-import { EmptyState } from "@/components/crud/EmptyState";
-import { ErrorState } from "@/components/crud/ErrorState";
-import {
-  createTransaction,
-  listTransactionCategories,
-  listTransactions,
-  type TransactionCategoryItem,
-  type TransactionItem,
-} from "@/core/transactions/api";
-import { listAccounts, type AccountItem } from "@/core/funds/api";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { fetchExpensesDrilldown, type ExpenseCategory, type ExpenseRow } from "@/core/drilldown/target-pages";
 
-function yen(v: number) {
-  return `¥${v.toLocaleString("ja-JP")}`;
+const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  all: "すべて",
+  advertising: "広告費",
+  logistics: "物流費",
+  payroll: "給与",
+  other: "その他",
+};
+
+function pageTitle(category: ExpenseCategory) {
+  if (category === "all") return "支出管理";
+  return `支出管理 · ${CATEGORY_LABELS[category]}`;
+}
+
+function fmtJPY(value: number) {
+  return `¥${value.toLocaleString("ja-JP")}`;
 }
 
 export default function Page() {
-  const [rows, setRows] = useState<TransactionItem[]>([]);
-  const [categories, setCategories] = useState<TransactionCategoryItem[]>([]);
-  const [accounts, setAccounts] = useState<AccountItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [categoryId, setCategoryId] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [amount, setAmount] = useState("0");
-  const [currency, setCurrency] = useState("JPY");
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
-  const [memo, setMemo] = useState("");
+  const from = searchParams.get("from");
+  const rawCategory = searchParams.get("category") ?? "all";
+  const category = (["all", "advertising", "logistics", "payroll", "other"].includes(rawCategory)
+    ? rawCategory
+    : "all") as ExpenseCategory;
+  const isDashboard = from === "dashboard";
 
-  async function load() {
-    try {
-      setLoading(true);
-      setError(null);
-      const [tx, cat, acc] = await Promise.all([
-        listTransactions("EXPENSE"),
-        listTransactionCategories("EXPENSE"),
-        listAccounts(),
-      ]);
-      setRows(tx.items);
-      setCategories(cat.items);
-      setAccounts(acc.items);
-      if (cat.items[0]) setCategoryId((v) => v || cat.items[0].id);
-      if (acc.items[0]) setAccountId((v) => v || acc.items[0].id);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [rows, setRows] = useState<ExpenseRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    load();
-  }, []);
-
-  async function submitCreate() {
-    try {
-      await createTransaction({
-        accountId: accountId || null,
-        categoryId: categoryId || null,
-        type: "OTHER",
-        direction: "EXPENSE",
-        amount: Number(amount || 0),
-        currency,
-        occurredAt: new Date(occurredAt).toISOString(),
-        memo,
+    let active = true;
+    setLoading(true);
+    fetchExpensesDrilldown(category)
+      .then((res) => {
+        if (!active) return;
+        setRows(res.rows);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-      setDrawerOpen(false);
-      setAmount("0");
-      setMemo("");
-      await load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
-    }
+    return () => {
+      active = false;
+    };
+  }, [category]);
+
+  const total = useMemo(() => rows.reduce((sum, x) => sum + x.amount, 0), [rows]);
+
+  function updateCategory(next: ExpenseCategory) {
+    const qs = new URLSearchParams(searchParams.toString());
+    if (next === "all") qs.delete("category");
+    else qs.set("category", next);
+    router.replace(`${pathname}?${qs.toString()}`);
   }
 
-  const columns: DataTableColumn<TransactionItem>[] = useMemo(
-    () => [
-      { key: "occurredAt", title: "日付", render: (r) => new Date(r.occurredAt).toLocaleString("ja-JP") },
-      { key: "category", title: "カテゴリ", render: (r) => r.categoryName ?? "-" },
-      { key: "account", title: "口座", render: (r) => r.accountName ?? "-" },
-      { key: "store", title: "店舗", render: (r) => r.storeName ?? "-" },
-      {
-        key: "amount",
-        title: "金額",
-        render: (r) => <div className="font-semibold text-rose-700">{yen(r.amount)}</div>,
-      },
-      { key: "memo", title: "メモ", render: (r) => r.memo ?? "-" },
-    ],
-    []
-  );
-
   return (
-    <>
-      <CrudPageShell
-        title="支出"
-        description="広告費・運営費・その他支出を記録します。"
-        actions={
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-          >
-            新規支出
-          </button>
-        }
-        filters={
-          <FilterBar>
-            <div className="text-sm text-slate-500">支出一覧（最新順）</div>
-          </FilterBar>
-        }
-      >
-        {error ? (
-          <ErrorState description={error} />
-        ) : loading ? (
-          <div className="text-sm text-slate-500">読み込み中...</div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            title="支出データがありません"
-            description="最初の支出を登録してください。"
-            action={
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-black/5 bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-2xl font-semibold text-slate-900">{pageTitle(category)}</div>
+            <div className="mt-2 text-sm text-slate-500">
+              Step39C: page state 已切换到 adapter fetch 层，下一步可替换为真实 API。
+            </div>
+          </div>
+
+          {isDashboard ? (
+            <Link
+              href={`/${params?.lang ?? "ja"}/app`}
+              className="inline-flex rounded-xl border border-black/10 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Dashboard に戻る
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(["all", "advertising", "logistics", "payroll", "other"] as ExpenseCategory[]).map((item) => {
+            const active = category === item;
+            return (
               <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
+                key={item}
+                onClick={() => updateCategory(item)}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                  active
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-black/10 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                支出を作成
+                {CATEGORY_LABELS[item]}
               </button>
-            }
-          />
-        ) : (
-          <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
-        )}
-      </CrudPageShell>
+            );
+          })}
+        </div>
+      </div>
 
-      <CreateEditDrawer open={drawerOpen} title="新規支出" onClose={() => setDrawerOpen(false)}>
-        <div className="space-y-4">
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">カテゴリ</div>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">口座</div>
-            <select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            >
-              <option value="">未設定</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">金額</div>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">通貨</div>
-            <input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">日付</div>
-            <input
-              type="datetime-local"
-              value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">メモ</div>
-            <input
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={submitCreate}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              保存
-            </button>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-2xl border border-black/5 bg-white p-6">
+          <div className="text-sm text-slate-500">Current Filter</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">{CATEGORY_LABELS[category]}</div>
+          <div className="mt-3 text-4xl font-semibold tracking-tight text-slate-900">{fmtJPY(total)}</div>
+          <div className="mt-2 text-sm text-slate-500">
+            data source: target-pages adapter mock
           </div>
         </div>
-      </CreateEditDrawer>
-    </>
+
+        <div className="rounded-2xl border border-black/5 bg-white p-6">
+          <div className="text-lg font-semibold text-slate-900">Expense Rows</div>
+          <div className="mt-1 text-sm text-slate-500">query → state → adapter fetch → rendered rows</div>
+
+          <div className="mt-4 space-y-3">
+            {loading ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                loading...
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                no rows
+              </div>
+            ) : (
+              rows.map((row) => (
+                <div key={row.id} className="rounded-xl border border-black/5 bg-white px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">{row.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{CATEGORY_LABELS[row.category]}</div>
+                      <div className="mt-1 text-xs text-slate-500">{row.date} · {row.account}</div>
+                    </div>
+                    <div className="text-sm font-semibold tabular-nums text-slate-900">
+                      {fmtJPY(row.amount)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
