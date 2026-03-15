@@ -4,12 +4,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  createDrilldownContext,
-  fetchExpensesDrilldown,
+  createTransactionsContext,
+  fetchExpensesPageData,
   normalizeExpenseCategoryParam,
   type ExpenseCategory,
   type ExpenseRow,
-} from "@/core/drilldown/target-pages";
+} from "@/core/transactions/transactions";
+import {
+  createTransaction,
+  listTransactionCategories,
+  type TransactionCategoryItem,
+} from "@/core/transactions/api";
+import { listAccounts, type AccountItem } from "@/core/funds/api";
+import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
+import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
+import {
+  buildTransactionsActionHref,
+  clearTransactionsActionHref,
+  readTransactionsActionMode,
+} from "@/core/transactions/action-mode";
 import {
   buildDrilldownHref,
   cloneSearchParams,
@@ -41,62 +54,161 @@ function fmtJPY(value: number) {
   }).format(value);
 }
 
+function nowLocalInputValue() {
+  return new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
+}
+
 export default function Page() {
   const params = useParams<{ lang: string }>();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const lang = params?.lang ?? "ja";
+
   const rawFrom = searchParams.get("from");
   const rawStoreId = searchParams.get("storeId");
   const rawRange = searchParams.get("range");
+  const action = readTransactionsActionMode(searchParams);
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
-  void rawFrom;
-  void rawStoreId;
-  void rawRange;
+
   const category = normalizeExpenseCategoryParam(searchParams.get("category"));
   const isDashboard = isDashboardSource(from);
 
   const [rows, setRows] = useState<ExpenseRow[]>([]);
+  const [selectedRowId, setSelectedRowId] = useState("");
+  const selectedRow = useMemo(
+    () => rows.find((row) => row.id === selectedRowId) ?? null,
+    [rows, selectedRowId]
+  );
   const [adapterNote, setAdapterNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [accounts, setAccounts] = useState<AccountItem[]>([]);
+  const [txCategories, setTxCategories] = useState<TransactionCategoryItem[]>([]);
+  const [formLoading, setFormLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [panelError, setPanelError] = useState("");
+
+  const [accountId, setAccountId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [occurredAt, setOccurredAt] = useState(nowLocalInputValue());
+  const [memo, setMemo] = useState("");
+
+  async function loadRows() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const ctx = createTransactionsContext({
+        from,
+        storeId,
+        range,
+        category,
+      });
+
+      const res = await fetchExpensesPageData(category, ctx);
+      setRows(res.rows);
+      setAdapterNote(res.meta.note ?? "");
+    } catch (e: unknown) {
+      setRows([]);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
+    void loadRows();
+  }, [from, storeId, range, category]);
+
+  useEffect(() => {
+    if (action !== "create") return;
+
     let mounted = true;
-    setLoading(true);
+    setFormLoading(true);
+    setPanelError("");
 
-    const ctx = createDrilldownContext({
-      from,
-      storeId,
-      range,
-      category,
-    });
-
-    fetchExpensesDrilldown(category, ctx)
-      .then((res) => {
+    Promise.all([listAccounts(), listTransactionCategories("EXPENSE")])
+      .then(([accountsRes, categoriesRes]) => {
         if (!mounted) return;
-        setRows(res.rows);
-        setAdapterNote(res.meta.note ?? "");
+        setAccounts(accountsRes.items ?? []);
+        setTxCategories(categoriesRes.items ?? []);
+
+        if ((accountsRes.items ?? []).length > 0) {
+          setAccountId((v) => v || accountsRes.items[0].id);
+        }
+        if ((categoriesRes.items ?? []).length > 0) {
+          setCategoryId((v) => v || categoriesRes.items[0].id);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!mounted) return;
+        setPanelError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (mounted) setFormLoading(false);
       });
 
     return () => {
       mounted = false;
     };
-  }, [from, storeId, range, category]);
+  }, [action]);
 
-  const totalAmount = useMemo(
-    () => rows.reduce((sum, row) => sum + row.amount, 0),
-    [rows]
-  );
+  const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + row.amount, 0), [rows]);
 
   function updateCategory(next: ExpenseCategory) {
     const qs = cloneSearchParams(searchParams);
     setOrDeleteQueryParam(qs, "category", next, "all");
     router.replace(buildDrilldownHref(pathname, qs));
   }
+
+  function buildCurrentPageActionHref(nextAction: string) {
+    return buildTransactionsActionHref(pathname, searchParams, nextAction);
+  }
+
+  function clearActionMode() {
+    router.replace(clearTransactionsActionHref(pathname, searchParams));
+  }
+
+  async function submitCreate() {
+    try {
+      setSubmitLoading(true);
+      setPanelError("");
+
+      await createTransaction({
+        accountId: accountId || null,
+        categoryId: categoryId || null,
+        type: "EXPENSE_MANUAL",
+        direction: "EXPENSE",
+        amount: Number(amount || 0),
+        currency: "JPY",
+        occurredAt: new Date(occurredAt).toISOString(),
+        memo,
+      });
+
+      setAmount("");
+      setMemo("");
+      setOccurredAt(nowLocalInputValue());
+      clearActionMode();
+      await loadRows();
+    } catch (e: unknown) {
+      setPanelError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitLoading(false);
+    }
+  }
+
+  const sidebarActions = [
+    { label: "新規支出", href: buildCurrentPageActionHref("create") },
+    { label: "CSV取込", href: buildCurrentPageActionHref("import") },
+    { label: "編集", href: buildCurrentPageActionHref("edit"), disabled: !selectedRowId },
+    { label: "カテゴリ設定", href: buildCurrentPageActionHref("category-settings") },
+  ];
 
   return (
     <div className="space-y-6">
@@ -105,13 +217,13 @@ export default function Page() {
           <div>
             <div className="text-2xl font-semibold text-slate-900">{pageTitle(category)}</div>
             <div className="mt-2 text-sm text-slate-500">
-              Step39E: base drilldown query 统一由 query-contract 解析。
+              支出データの確認、絞り込み、カテゴリ運用を一つの画面で管理します。
             </div>
           </div>
 
           {isDashboard ? (
             <Link
-              href={`/${params?.lang ?? "ja"}/app`}
+              href={`/${lang}/app`}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Dashboard に戻る
@@ -119,17 +231,21 @@ export default function Page() {
           ) : null}
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Source</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawFrom ?? from}</div>
+          </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Store</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{storeId}</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawStoreId ?? storeId}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Range</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{range}</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawRange ?? range}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Current Category</div>
+            <div className="text-sm text-slate-500">Category</div>
             <div className="mt-2 text-lg font-semibold text-slate-900">{CATEGORY_LABELS[category]}</div>
           </div>
         </div>
@@ -147,11 +263,11 @@ export default function Page() {
                 key={item}
                 type="button"
                 onClick={() => updateCategory(item)}
-                className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                className={
                   active
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
+                    ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                    : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                }
               >
                 {CATEGORY_LABELS[item]}
               </button>
@@ -160,46 +276,195 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-lg font-semibold text-slate-900">Expense Rows</div>
-            <div className="mt-1 text-sm text-slate-500">query → normalized base query → adapter → render</div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-slate-500">Total</div>
-            <div className="mt-1 text-xl font-semibold text-slate-900">{fmtJPY(totalAmount)}</div>
-          </div>
-        </div>
-
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="grid grid-cols-[120px_1fr_140px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-            <div>Date</div>
-            <div>Label</div>
-            <div>Category</div>
-            <div className="text-right">Amount</div>
-          </div>
-
-          {loading ? (
-            <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
-          ) : rows.length === 0 ? (
-            <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
+      {action === "create" ? (
+        <TransactionsInlineActionPanel title="新規支出を登録" description="既存の /api/transactions contract を使って手動支出を追加します。" onClose={clearActionMode}>
+          {formLoading ? (
+            <div className="text-sm text-slate-500">loading...</div>
           ) : (
-            rows.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-[120px_1fr_140px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
-              >
-                <div className="text-slate-600">{row.date}</div>
+            <div className="space-y-4">
+              {panelError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{panelError}</div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <div className="font-medium text-slate-900">{row.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">{row.account}</div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">口座</div>
+                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm">
+                    <option value="">未選択</option>
+                    {accounts.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div className="text-slate-600">{CATEGORY_LABELS[row.category]}</div>
-                <div className="text-right font-medium text-slate-900">{fmtJPY(row.amount)}</div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">カテゴリ</div>
+                  <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm">
+                    <option value="">未選択</option>
+                    {txCategories.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">金額</div>
+                  <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm" />
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">発生日</div>
+                  <input type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm" />
+                </div>
               </div>
-            ))
+
+              <div>
+                <div className="mb-1 text-sm font-medium text-slate-700">メモ</div>
+                <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} className="w-full rounded-[14px] border border-black/8 bg-white px-3 py-3 text-sm" />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={clearActionMode} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                  キャンセル
+                </button>
+                <button type="button" onClick={submitCreate} disabled={submitLoading} className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+                  {submitLoading ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
           )}
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      {action === "import" ? (
+        <TransactionsInlineActionPanel title="支出データを取込" description="次段階で import center と接続します。" onClose={clearActionMode}>
+          <div className="text-sm text-slate-600">
+            CSV 取込導線は action mode に統合済みです。次段階で
+            <span className="mx-1 font-medium">/app/data/import?module=expenses</span>
+            への導線整理を行います。
+          </div>
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      {action === "edit" ? (
+          <TransactionsInlineActionPanel title="支出データを編集" description="選択中の支出行を確認し、次段階で編集フォームへ接続します。" onClose={clearActionMode}>
+            {selectedRow ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">編集対象プレビュー</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Label</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Amount</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Category</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{CATEGORY_LABELS[selectedRow.category]}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Account</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Store</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Memo</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  次段階では、この選択行を初期値として edit form に接続します。
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-600">編集するには、先に一覧から 1 行選択してください。</div>
+            )}
+          </TransactionsInlineActionPanel>
+        ) : null}
+
+        {action === "category-settings" ? (
+        <TransactionsInlineActionPanel title="カテゴリ設定" description="支出カテゴリ運用への導線です。" onClose={clearActionMode}>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/${lang}/app/settings/categories`} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              カテゴリ設定を開く
+            </Link>
+            <Link href={`/${lang}/app/data/import?module=expenses`} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              取込設定を確認
+            </Link>
+          </div>
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <TransactionsPageSidebar metricLabel="Visible Expense" metricValue={fmtJPY(totalAmount)} rowsCount={rows.length} actionItems={sidebarActions} />
+
+        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="text-lg font-semibold text-slate-900">Expense Rows</div>
+          <div className="mt-1 text-sm text-slate-500">query → state → context → adapter → render</div>
+
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-medium text-slate-900">Selected Row</div>
+              {selectedRow ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">ID</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.id}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Date</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Label</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Category</div><div className="mt-1 text-sm font-medium text-slate-900">{CATEGORY_LABELS[selectedRow.category]}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Account</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Store</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Amount</div><div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Memo</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div></div>
+                </div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-500">行を選択すると、ここに支出明細の要約が表示されます。</div>
+              )}
+            </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+              <div>Date</div>
+              <div>Label</div>
+              <div>Category</div>
+              <div>Account</div>
+              <div className="text-right">Amount</div>
+            </div>
+
+            {loading ? (
+              <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
+            ) : error ? (
+              <div className="px-4 py-8 text-sm text-rose-600">{error}</div>
+            ) : rows.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
+            ) : (
+              rows.map((row) => (
+                  <div
+                    key={row.id}
+                    onClick={() => setSelectedRowId(row.id)}
+                     className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                      selectedRowId === row.id
+                        ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                        : ""
+                    }`}
+>
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="font-medium text-slate-900">{row.label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store}</div>
+                  </div>
+                  <div className="text-slate-600">{CATEGORY_LABELS[row.category]}</div>
+                  <div className="text-slate-600">{row.account}</div>
+                  <div className="text-right font-medium text-slate-900">{fmtJPY(row.amount)}</div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

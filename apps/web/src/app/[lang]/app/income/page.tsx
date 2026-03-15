@@ -1,226 +1,473 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { CrudPageShell } from "@/components/crud/CrudPageShell";
-import { FilterBar } from "@/components/crud/FilterBar";
-import { DataTable, type DataTableColumn } from "@/components/crud/DataTable";
-import { CreateEditDrawer } from "@/components/crud/CreateEditDrawer";
-import { EmptyState } from "@/components/crud/EmptyState";
-import { ErrorState } from "@/components/crud/ErrorState";
+import Link from "next/link";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  createTransactionsContext,
+  fetchIncomePageData,
+  normalizeIncomeCategoryParam,
+  type IncomeCategory,
+  type IncomeRow,
+} from "@/core/transactions/transactions";
 import {
   createTransaction,
   listTransactionCategories,
-  listTransactions,
   type TransactionCategoryItem,
-  type TransactionItem,
 } from "@/core/transactions/api";
 import { listAccounts, type AccountItem } from "@/core/funds/api";
+import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
+import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
+import {
+  buildTransactionsActionHref,
+  clearTransactionsActionHref,
+  readTransactionsActionMode,
+} from "@/core/transactions/action-mode";
+import {
+  buildDrilldownHref,
+  cloneSearchParams,
+  isDashboardSource,
+  readBaseDrilldownQuery,
+  setOrDeleteQueryParam,
+} from "@/core/drilldown/query-contract";
 
-function yen(v: number) {
-  return `¥${v.toLocaleString("ja-JP")}`;
+const CATEGORY_ITEMS: IncomeCategory[] = ["all", "store-order", "cash", "other"];
+
+const CATEGORY_LABELS: Record<IncomeCategory, string> = {
+  all: "すべて",
+  "store-order": "店舗注文",
+  cash: "現金収入",
+  other: "その他収入",
+};
+
+function fmtJPY(value: number) {
+  return `¥${value.toLocaleString("ja-JP")}`;
+}
+
+function pageTitle(category: IncomeCategory) {
+  if (category === "all") return "収入管理";
+  return `収入管理 · ${CATEGORY_LABELS[category]}`;
+}
+
+function nowLocalInputValue() {
+  return new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 }
 
 export default function Page() {
-  const [rows, setRows] = useState<TransactionItem[]>([]);
-  const [categories, setCategories] = useState<TransactionCategoryItem[]>([]);
-  const [accounts, setAccounts] = useState<AccountItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const params = useParams<{ lang: string }>();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [categoryId, setCategoryId] = useState("");
+  const lang = params?.lang ?? "ja";
+
+  const rawFrom = searchParams.get("from");
+  const rawStoreId = searchParams.get("storeId");
+  const rawRange = searchParams.get("range");
+  const action = readTransactionsActionMode(searchParams);
+  const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
+
+  const category = normalizeIncomeCategoryParam(searchParams.get("category"));
+  const isDashboard = isDashboardSource(from);
+
+  const [rows, setRows] = useState<IncomeRow[]>([]);
+  const [selectedRowId, setSelectedRowId] = useState("");
+  const selectedRow = useMemo(
+    () => rows.find((row) => row.id === selectedRowId) ?? null,
+    [rows, selectedRowId]
+  );
+  const [adapterNote, setAdapterNote] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [accounts, setAccounts] = useState<AccountItem[]>([]);
+  const [txCategories, setTxCategories] = useState<TransactionCategoryItem[]>([]);
+  const [formLoading, setFormLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [panelError, setPanelError] = useState("");
+
   const [accountId, setAccountId] = useState("");
-  const [amount, setAmount] = useState("0");
-  const [currency, setCurrency] = useState("JPY");
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [categoryId, setCategoryId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [occurredAt, setOccurredAt] = useState(nowLocalInputValue());
   const [memo, setMemo] = useState("");
 
-  async function load() {
+  async function loadRows() {
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setError(null);
-      const [tx, cat, acc] = await Promise.all([
-        listTransactions("INCOME"),
-        listTransactionCategories("INCOME"),
-        listAccounts(),
-      ]);
-      setRows(tx.items);
-      setCategories(cat.items);
-      setAccounts(acc.items);
-      if (cat.items[0]) setCategoryId((v) => v || cat.items[0].id);
-      if (acc.items[0]) setAccountId((v) => v || acc.items[0].id);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+      const ctx = createTransactionsContext({
+        from,
+        storeId,
+        range,
+        category,
+      });
+
+      const res = await fetchIncomePageData(category, ctx);
+      setRows(res.rows);
+      setAdapterNote(res.meta.note ?? "");
+    } catch (e: unknown) {
+      setRows([]);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
-  }, []);
+    void loadRows();
+  }, [from, storeId, range, category]);
+
+  useEffect(() => {
+    if (action !== "create") return;
+
+    let mounted = true;
+    setFormLoading(true);
+    setPanelError("");
+
+    Promise.all([listAccounts(), listTransactionCategories("INCOME")])
+      .then(([accountsRes, categoriesRes]) => {
+        if (!mounted) return;
+        setAccounts(accountsRes.items ?? []);
+        setTxCategories(categoriesRes.items ?? []);
+
+        if ((accountsRes.items ?? []).length > 0) {
+          setAccountId((v) => v || accountsRes.items[0].id);
+        }
+        if ((categoriesRes.items ?? []).length > 0) {
+          setCategoryId((v) => v || categoriesRes.items[0].id);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!mounted) return;
+        setPanelError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (mounted) setFormLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [action]);
+
+  const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + row.amount, 0), [rows]);
+
+  function updateCategory(next: IncomeCategory) {
+    const qs = cloneSearchParams(searchParams);
+    setOrDeleteQueryParam(qs, "category", next, "all");
+    router.replace(buildDrilldownHref(pathname, qs));
+  }
+
+  function buildCurrentPageActionHref(nextAction: string) {
+    return buildTransactionsActionHref(pathname, searchParams, nextAction);
+  }
+
+  function clearActionMode() {
+    router.replace(clearTransactionsActionHref(pathname, searchParams));
+  }
 
   async function submitCreate() {
     try {
+      setSubmitLoading(true);
+      setPanelError("");
+
       await createTransaction({
         accountId: accountId || null,
         categoryId: categoryId || null,
-        type: "SALE",
+        type: "INCOME_MANUAL",
         direction: "INCOME",
         amount: Number(amount || 0),
-        currency,
+        currency: "JPY",
         occurredAt: new Date(occurredAt).toISOString(),
         memo,
       });
-      setDrawerOpen(false);
-      setAmount("0");
+
+      setAmount("");
       setMemo("");
-      await load();
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+      setOccurredAt(nowLocalInputValue());
+      clearActionMode();
+      await loadRows();
+    } catch (e: unknown) {
+      setPanelError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitLoading(false);
     }
   }
 
-  const columns: DataTableColumn<TransactionItem>[] = useMemo(
-    () => [
-      { key: "occurredAt", title: "日付", render: (r) => new Date(r.occurredAt).toLocaleString("ja-JP") },
-      { key: "category", title: "カテゴリ", render: (r) => r.categoryName ?? "-" },
-      { key: "account", title: "口座", render: (r) => r.accountName ?? "-" },
-      { key: "store", title: "店舗", render: (r) => r.storeName ?? "-" },
-      {
-        key: "amount",
-        title: "金額",
-        render: (r) => <div className="font-semibold text-emerald-700">{yen(r.amount)}</div>,
-      },
-      { key: "memo", title: "メモ", render: (r) => r.memo ?? "-" },
-    ],
-    []
-  );
+  const sidebarActions = [
+    { label: "新規収入", href: buildCurrentPageActionHref("create") },
+    { label: "CSV取込", href: buildCurrentPageActionHref("import") },
+    { label: "編集", href: buildCurrentPageActionHref("edit"), disabled: !selectedRowId },
+    { label: "店舗紐付け", href: buildCurrentPageActionHref("link-store") },
+  ];
 
   return (
-    <>
-      <CrudPageShell
-        title="収入"
-        description="売上・その他収入を記録します。"
-        actions={
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-          >
-            新規収入
-          </button>
-        }
-        filters={
-          <FilterBar>
-            <div className="text-sm text-slate-500">収入一覧（最新順）</div>
-          </FilterBar>
-        }
-      >
-        {error ? (
-          <ErrorState description={error} />
-        ) : loading ? (
-          <div className="text-sm text-slate-500">読み込み中...</div>
-        ) : rows.length === 0 ? (
-          <EmptyState
-            title="収入データがありません"
-            description="最初の収入を登録してください。"
-            action={
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-              >
-                収入を作成
-              </button>
-            }
-          />
-        ) : (
-          <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
-        )}
-      </CrudPageShell>
-
-      <CreateEditDrawer open={drawerOpen} title="新規収入" onClose={() => setDrawerOpen(false)}>
-        <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">カテゴリ</div>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
+            <div className="text-2xl font-semibold text-slate-900">{pageTitle(category)}</div>
+            <div className="mt-2 text-sm text-slate-500">
+              収入データの確認、絞り込み、登録アクションを一つの画面で管理します。
+            </div>
+          </div>
+
+          {isDashboard ? (
+            <Link
+              href={`/${lang}/app`}
+              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              Dashboard に戻る
+            </Link>
+          ) : null}
+        </div>
 
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">口座</div>
-            <select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            >
-              <option value="">未設定</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Source</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawFrom ?? from}</div>
           </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">金額</div>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Store</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawStoreId ?? storeId}</div>
           </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">通貨</div>
-            <input
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Range</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{rawRange ?? range}</div>
           </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">日付</div>
-            <input
-              type="datetime-local"
-              value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm font-medium text-slate-700">メモ</div>
-            <input
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              className="h-10 w-full rounded-[14px] border border-black/8 px-3 text-sm"
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={submitCreate}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              保存
-            </button>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="text-sm text-slate-500">Category</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{CATEGORY_LABELS[category]}</div>
           </div>
         </div>
-      </CreateEditDrawer>
-    </>
+
+        <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+      </div>
+
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+        <div className="text-lg font-semibold text-slate-900">Category Filters</div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {CATEGORY_ITEMS.map((item) => {
+            const active = category === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => updateCategory(item)}
+                className={
+                  active
+                    ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                    : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                }
+              >
+                {CATEGORY_LABELS[item]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {action === "create" ? (
+        <TransactionsInlineActionPanel
+          title="新規収入を登録"
+          description="既存の /api/transactions contract を使って手動収入を追加します。"
+          onClose={clearActionMode}
+        >
+          {formLoading ? (
+            <div className="text-sm text-slate-500">loading...</div>
+          ) : (
+            <div className="space-y-4">
+              {panelError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {panelError}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">口座</div>
+                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm">
+                    <option value="">未選択</option>
+                    {accounts.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">カテゴリ</div>
+                  <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm">
+                    <option value="">未選択</option>
+                    {txCategories.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">金額</div>
+                  <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm" />
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">発生日</div>
+                  <input type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm" />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 text-sm font-medium text-slate-700">メモ</div>
+                <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} className="w-full rounded-[14px] border border-black/8 bg-white px-3 py-3 text-sm" />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={clearActionMode} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                  キャンセル
+                </button>
+                <button type="button" onClick={submitCreate} disabled={submitLoading} className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60">
+                  {submitLoading ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
+          )}
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      {action === "import" ? (
+        <TransactionsInlineActionPanel title="収入データを取込" description="次段階で import center と接続します。現在は導線のみ確立しています。" onClose={clearActionMode}>
+          <div className="text-sm text-slate-600">
+            CSV 取込導線は Step41G でページ内 action mode と接続済みです。次段階で
+            <span className="mx-1 font-medium">/app/data/import?module=income</span>
+            との導線統一を進めます。
+          </div>
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      {action === "edit" ? (
+          <TransactionsInlineActionPanel title="収入データを编辑" description="選択中の収入行を確認し、次段階で編集フォームへ接続します。" onClose={clearActionMode}>
+            {selectedRow ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-medium text-slate-900">編集対象プレビュー</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Label</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Amount</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Category</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{CATEGORY_LABELS[selectedRow.category]}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Account</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Store</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-500">Memo</div>
+                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-sm text-slate-600">
+                  次段階では、この選択行を初期値として edit form に接続します。
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-600">編集するには、先に一覧から 1 行選択してください。</div>
+            )}
+          </TransactionsInlineActionPanel>
+        ) : null}
+
+        {action === "link-store" ? (
+        <TransactionsInlineActionPanel title="店舗紐付け" description="収入データと店舗設定を連携するための導線です。" onClose={clearActionMode}>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/${lang}/app/settings/stores`} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              店舗設定を開く
+            </Link>
+            <Link href={`/${lang}/app/data/import?module=income`} className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+              取込設定を確認
+            </Link>
+          </div>
+        </TransactionsInlineActionPanel>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <TransactionsPageSidebar metricLabel="Visible Income" metricValue={fmtJPY(totalAmount)} rowsCount={rows.length} actionItems={sidebarActions} />
+
+        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+          <div className="text-lg font-semibold text-slate-900">Income Rows</div>
+          <div className="mt-1 text-sm text-slate-500">query → state → context → adapter → render</div>
+
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-medium text-slate-900">Selected Row</div>
+              {selectedRow ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">ID</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.id}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Date</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Label</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Category</div><div className="mt-1 text-sm font-medium text-slate-900">{CATEGORY_LABELS[selectedRow.category]}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Account</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Store</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Amount</div><div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div></div>
+                  <div><div className="text-xs uppercase tracking-wide text-slate-500">Memo</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div></div>
+                </div>
+              ) : (
+                <div className="mt-2 text-sm text-slate-500">行を選択すると、ここに収入明細の要約が表示されます。</div>
+              )}
+            </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+              <div>Date</div>
+              <div>Label</div>
+              <div>Category</div>
+              <div>Account</div>
+              <div className="text-right">Amount</div>
+            </div>
+
+            {loading ? (
+              <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
+            ) : error ? (
+              <div className="px-4 py-8 text-sm text-rose-600">{error}</div>
+            ) : rows.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
+            ) : (
+              rows.map((row) => (
+                  <div
+                    key={row.id}
+                    onClick={() => setSelectedRowId(row.id)}
+                     className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                      selectedRowId === row.id
+                        ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                        : ""
+                    }`}
+>
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="font-medium text-slate-900">{row.label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store}</div>
+                  </div>
+                  <div className="text-slate-600">{CATEGORY_LABELS[row.category]}</div>
+                  <div className="text-slate-600">{row.account}</div>
+                  <div className="text-right font-medium text-slate-900">{fmtJPY(row.amount)}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
