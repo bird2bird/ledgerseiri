@@ -238,6 +238,42 @@ export function getBusinessHealthLockedHref(lang?: string): string {
   return `/${l}/app/billing/change`;
 }
 
+
+
+export function getAccountsPageHref(
+  lang?: string,
+  params?: { from?: string; storeId?: string; range?: string; view?: string; sort?: string }
+): string {
+  const l = normalizeLang(lang)
+  const qs = new URLSearchParams()
+
+  if (params?.from) qs.set("from", params.from)
+  if (params?.storeId) qs.set("storeId", params.storeId)
+  if (params?.range) qs.set("range", params.range)
+  if (params?.view) qs.set("view", params.view)
+  if (params?.sort) qs.set("sort", params.sort)
+
+  const q = qs.toString()
+  return q ? `/${l}/app/accounts?${q}` : `/${l}/app/accounts`
+}
+
+export function getAccountBalancesPageHref(
+  lang?: string,
+  params?: { from?: string; storeId?: string; range?: string; view?: string; sort?: string }
+): string {
+  const l = normalizeLang(lang)
+  const qs = new URLSearchParams()
+
+  if (params?.from) qs.set("from", params.from)
+  if (params?.storeId) qs.set("storeId", params.storeId)
+  if (params?.range) qs.set("range", params.range)
+  if (params?.view) qs.set("view", params.view)
+  if (params?.sort) qs.set("sort", params.sort)
+
+  const q = qs.toString()
+  return q ? `/${l}/app/account-balances?${q}` : `/${l}/app/account-balances`
+}
+
 export const DASHBOARD_LINKING_AUDIT = {
   businessHealth: [
     "getBusinessHealthOverviewHref",
@@ -275,6 +311,10 @@ export const DASHBOARD_LINKING_AUDIT = {
   ],
   quickActions: [
     "getQuickActionHref",
+  ],
+  accounts: [
+    "getAccountsPageHref",
+    "getAccountBalancesPageHref",
   ],
 } as const;
 

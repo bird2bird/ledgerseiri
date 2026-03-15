@@ -1,104 +1,62 @@
 export type AccountView = "all" | "bank" | "cash" | "platform" | "payment";
 export type BalanceSort = "balance_desc" | "balance_asc" | "name_asc";
 
-export type AccountsSource = "dashboard" | "page" | "other";
+export type AccountsSource = "dashboard" | "page" | "unknown";
 
-export type AccountsContext = {
-  from: AccountsSource;
-  storeId: string;
-  range: string;
-  view: AccountView;
-  sort: BalanceSort;
+export type AccountsQueryContext = {
+  source: AccountsSource;
+  from?: string | null;
+  storeId?: string | null;
+  range?: string | null;
+  view?: string | null;
+  sort?: string | null;
 };
 
 export type AccountRow = {
   id: string;
   name: string;
   type: Exclude<AccountView, "all">;
-  institution?: string;
-  currency: "JPY" | "USD";
-  status: "active" | "inactive";
   balance: number;
-  lastUpdated: string;
+  status: "active" | "inactive";
+  updatedAt: string;
 };
 
 export type AccountBalanceRow = {
   id: string;
   name: string;
   type: Exclude<AccountView, "all">;
-  currency: "JPY" | "USD";
   balance: number;
-  sharePct: number;
-  status: "healthy" | "warning";
+  status: "active" | "inactive";
+  ratioPct: number;
 };
 
 export type AccountsEnvelope<T> = {
   rows: T[];
   meta: {
-    from: AccountsSource;
-    storeId: string;
-    range: string;
-    view: AccountView;
-    sort: BalanceSort;
-    adapterMode: "mock-context-aware";
-    note: string;
+    source: AccountsSource;
+    from?: string | null;
+    storeId?: string | null;
+    range?: string | null;
+    activeView: AccountView;
+    activeSort: BalanceSort;
+    adapterMode: "mock-roundtrip-aware";
+    note?: string;
   };
 };
 
 const ACCOUNT_ROWS: AccountRow[] = [
-  {
-    id: "acc-bank-001",
-    name: "三井住友銀行",
-    type: "bank",
-    institution: "SMBC",
-    currency: "JPY",
-    status: "active",
-    balance: 820000,
-    lastUpdated: "2026-03-14 09:12",
-  },
-  {
-    id: "acc-bank-002",
-    name: "楽天銀行",
-    type: "bank",
-    institution: "Rakuten",
-    currency: "JPY",
-    status: "active",
-    balance: 315000,
-    lastUpdated: "2026-03-14 09:12",
-  },
-  {
-    id: "acc-cash-001",
-    name: "会社現金",
-    type: "cash",
-    currency: "JPY",
-    status: "active",
-    balance: 68000,
-    lastUpdated: "2026-03-14 08:40",
-  },
-  {
-    id: "acc-platform-001",
-    name: "Amazon 売上金",
-    type: "platform",
-    currency: "JPY",
-    status: "active",
-    balance: 540000,
-    lastUpdated: "2026-03-14 07:30",
-  },
-  {
-    id: "acc-payment-001",
-    name: "Stripe",
-    type: "payment",
-    currency: "JPY",
-    status: "active",
-    balance: 126000,
-    lastUpdated: "2026-03-14 06:55",
-  },
+  { id: "a1", name: "三井住友銀行", type: "bank", balance: 1200000, status: "active", updatedAt: "2026-03-14 09:20" },
+  { id: "a2", name: "楽天銀行", type: "bank", balance: 420000, status: "active", updatedAt: "2026-03-14 09:18" },
+  { id: "a3", name: "会社現金", type: "cash", balance: 180000, status: "active", updatedAt: "2026-03-14 09:10" },
+  { id: "a4", name: "Amazon 売上金", type: "platform", balance: 850000, status: "active", updatedAt: "2026-03-14 08:50" },
+  { id: "a5", name: "Stripe", type: "payment", balance: 520000, status: "active", updatedAt: "2026-03-14 08:30" },
+  { id: "a6", name: "旧口座", type: "bank", balance: 0, status: "inactive", updatedAt: "2026-03-01 12:00" },
 ];
 
-function normalizeAccountsSource(v?: string | null): AccountsSource {
+function normalizeSource(v?: string | null): AccountsSource {
   if (v === "dashboard") return "dashboard";
   if (v === "page") return "page";
-  return "other";
+  return "unknown";
 }
 
 export function normalizeAccountViewParam(v?: string | null): AccountView {
@@ -113,43 +71,50 @@ export function normalizeBalanceSortParam(v?: string | null): BalanceSort {
     : "balance_desc") as BalanceSort;
 }
 
-export function createAccountsContext(input: Partial<AccountsContext>): AccountsContext {
+export function createAccountsContext(
+  input: Partial<AccountsQueryContext>
+): AccountsQueryContext {
   return {
-    from: normalizeAccountsSource(input.from),
-    storeId: String(input.storeId ?? "all"),
-    range: String(input.range ?? "30d"),
-    view: normalizeAccountViewParam(input.view),
-    sort: normalizeBalanceSortParam(input.sort),
+    source: normalizeSource(input.from ?? input.source),
+    from: input.from ?? null,
+    storeId: input.storeId ?? null,
+    range: input.range ?? null,
+    view: input.view ?? null,
+    sort: input.sort ?? null,
   };
 }
 
 function applyView(rows: AccountRow[], view: AccountView): AccountRow[] {
-  if (view === "all") return rows;
-  return rows.filter((row) => row.type === view);
+  return rows.filter((row) => view === "all" || row.type === view);
 }
 
 function applySort(rows: AccountRow[], sort: BalanceSort): AccountRow[] {
-  const next = [...rows];
+  const cloned = [...rows];
   if (sort === "balance_asc") {
-    next.sort((a, b) => a.balance - b.balance);
-    return next;
+    return cloned.sort((a, b) => a.balance - b.balance);
   }
   if (sort === "name_asc") {
-    next.sort((a, b) => a.name.localeCompare(b.name, "ja"));
-    return next;
+    return cloned.sort((a, b) => a.name.localeCompare(b.name, "ja"));
   }
-  next.sort((a, b) => b.balance - a.balance);
-  return next;
+  return cloned.sort((a, b) => b.balance - a.balance);
 }
 
-function buildMeta<T>(ctx: AccountsContext, note: string): AccountsEnvelope<T>["meta"] {
+function buildMeta<T extends AccountRow | AccountBalanceRow>(
+  rows: T[],
+  view: AccountView,
+  sort: BalanceSort,
+  ctx: AccountsQueryContext,
+  note: string
+): AccountsEnvelope<T>["meta"] {
+  void rows;
   return {
-    from: ctx.from,
-    storeId: ctx.storeId,
-    range: ctx.range,
-    view: ctx.view,
-    sort: ctx.sort,
-    adapterMode: "mock-context-aware",
+    source: ctx.source,
+    from: ctx.from ?? null,
+    storeId: ctx.storeId ?? null,
+    range: ctx.range ?? null,
+    activeView: view,
+    activeSort: sort,
+    adapterMode: "mock-roundtrip-aware",
     note,
   };
 }
@@ -157,14 +122,18 @@ function buildMeta<T>(ctx: AccountsContext, note: string): AccountsEnvelope<T>["
 export async function fetchAccountsPageData(
   view: AccountView,
   sort: BalanceSort,
-  ctx: AccountsContext
+  ctx: AccountsQueryContext
 ): Promise<AccountsEnvelope<AccountRow>> {
   const rows = applySort(applyView(ACCOUNT_ROWS, view), sort);
+
   return {
     rows,
     meta: buildMeta(
+      rows,
+      view,
+      sort,
       ctx,
-      "Step40B: accounts page 已具备 dashboard round-trip query contract，可直接替换为真实 Accounts API。"
+      "Step40C: accounts page 已具备 round-trip query / context / adapter 联动骨架。"
     ),
   };
 }
@@ -172,26 +141,28 @@ export async function fetchAccountsPageData(
 export async function fetchAccountBalancesPageData(
   view: AccountView,
   sort: BalanceSort,
-  ctx: AccountsContext
+  ctx: AccountsQueryContext
 ): Promise<AccountsEnvelope<AccountBalanceRow>> {
-  const accountRows = applySort(applyView(ACCOUNT_ROWS, view), sort);
-  const total = accountRows.reduce((sum, row) => sum + row.balance, 0);
+  const visible = applySort(applyView(ACCOUNT_ROWS, view), sort);
+  const total = visible.reduce((sum, row) => sum + row.balance, 0);
 
-  const rows: AccountBalanceRow[] = accountRows.map((row) => ({
+  const rows: AccountBalanceRow[] = visible.map((row) => ({
     id: row.id,
     name: row.name,
     type: row.type,
-    currency: row.currency,
     balance: row.balance,
-    sharePct: total > 0 ? Math.round((row.balance / total) * 100) : 0,
-    status: row.balance < 100000 ? "warning" : "healthy",
+    status: row.status,
+    ratioPct: total > 0 ? Math.round((row.balance / total) * 100) : 0,
   }));
 
   return {
     rows,
     meta: buildMeta(
+      rows,
+      view,
+      sort,
       ctx,
-      "Step40B: balances page 已共享 accounts view/sort/store/range contract，后续可并入真实余额接口。"
+      "Step40C: account-balances page 已具备 round-trip query / context / adapter 联动骨架。"
     ),
   };
 }
