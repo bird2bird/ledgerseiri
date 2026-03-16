@@ -12,7 +12,19 @@ import {
 } from "@/core/transactions/transactions";
 import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
 import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
-import { TransactionsActionPreviewCard } from "@/components/app/transactions/TransactionsActionPreviewCard";
+import {
+  buildBulkPostWorkflowProps,
+  buildFlaggedWorkflowProps,
+} from "@/core/transactions/journals-action-workflow";
+import {
+  renderBulkPostActionPanel,
+  renderFlaggedActionPanel,
+} from "@/core/transactions/journals-action-render";
+import {
+  executeBulkPostShellAction,
+  executeFlaggedReviewShellAction,
+} from "@/core/transactions/journals-action-handlers";
+import { useJournalsActionShellState } from "@/core/transactions/use-journals-action-shell-state";
 import {
   buildTransactionsActionHref,
   clearTransactionsActionHref,
@@ -63,6 +75,21 @@ export default function Page() {
     [rows, selectedRowId]
   );
   const [adapterNote, setAdapterNote] = useState("");
+  const {
+    bulkPostUiMessage,
+    setBulkPostUiMessage,
+    bulkPostUiTone,
+    setBulkPostUiTone,
+    bulkPostLoading,
+    setBulkPostLoading,
+    flaggedUiMessage,
+    setFlaggedUiMessage,
+    flaggedUiTone,
+    setFlaggedUiTone,
+    flaggedLoading,
+    setFlaggedLoading,
+    resetAllActionShellState,
+  } = useJournalsActionShellState();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -106,7 +133,24 @@ export default function Page() {
   }
 
   function clearActionMode() {
+    resetAllActionShellState();
     router.replace(clearTransactionsActionHref(pathname, searchParams));
+  }
+
+  async function handleBulkPostExecute() {
+    await executeBulkPostShellAction({
+      hasSelection: !!selectedRow,
+      setMessage: setBulkPostUiMessage,
+      setTone: setBulkPostUiTone,
+      setLoading: setBulkPostLoading,
+    });
+  }
+  async function handleFlaggedReviewExecute() {
+    await executeFlaggedReviewShellAction({
+      setMessage: setFlaggedUiMessage,
+      setTone: setFlaggedUiTone,
+      setLoading: setFlaggedLoading,
+    });
   }
 
   function buildFlaggedHref() {
@@ -122,6 +166,37 @@ export default function Page() {
     { label: "一括転記", href: buildCurrentPageActionHref("bulk-post"), disabled: !selectedRowId },
     { label: "要確認一覧", href: buildFlaggedHref() },
   ];
+
+  const bulkPostWorkflowProps = selectedRow
+    ? buildBulkPostWorkflowProps({
+        row: selectedRow,
+        tabLabels: TAB_LABELS,
+        fmtJPY,
+        bulkPostUiMessage,
+        bulkPostUiTone,
+        bulkPostLoading,
+        onExecute: () => {
+          void handleBulkPostExecute();
+        },
+        onSecondary: clearActionMode,
+      })
+    : null;
+
+  const flaggedWorkflowProps = buildFlaggedWorkflowProps({
+    tab,
+    rowsCount: rows.length,
+    selectedEntryNo: selectedRow ? selectedRow.entryNo : null,
+    rangeLabel: rawRange ?? range,
+    tabLabels: TAB_LABELS,
+    flaggedUiMessage,
+    flaggedUiTone,
+    flaggedLoading,
+    onExecute: () => {
+      void handleFlaggedReviewExecute();
+    },
+    onSecondary: clearActionMode,
+  });
+
 
   return (
     <div className="space-y-6">
@@ -204,32 +279,20 @@ export default function Page() {
 
       {action === "bulk-post" ? (
           <TransactionsInlineActionPanel title="一括転記" description="選択中の仕訳を対象に、次段階で実際の bulk post action へ接続します。" onClose={clearActionMode}>
-            {selectedRow ? (
-              <div className="space-y-4">
-                  <TransactionsActionPreviewCard
-                    title="転記対象プレビュー"
-                    items={[
-                      { label: "Entry No", value: selectedRow.entryNo },
-                      { label: "Status", value: TAB_LABELS[selectedRow.status] },
-                      { label: "Summary", value: selectedRow.summary, fullWidth: true },
-                      { label: "Amount", value: fmtJPY(selectedRow.amount) },
-                    ]}
-                  />
-                <div className="text-sm text-slate-600">
-                  次段階では、ここから journal API へ接続して bulk-post を実行します。
-                </div>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-600">一括転記を行うには、先に一覧から 1 行選択してください。</div>
-            )}
+            {renderBulkPostActionPanel({
+              selectedRow,
+              bulkPostWorkflowProps: bulkPostWorkflowProps!,
+            })}
           </TransactionsInlineActionPanel>
         ) : null}
 
         {action === "flagged" ? (
-        <TransactionsInlineActionPanel title="要確認仕訳" description="tab=flagged と action mode を同時に固定しています。" onClose={clearActionMode}>
-          <div className="text-sm text-slate-600">現在の一覧はすでに flagged 絞り込みと整合しています。次段階で dedicated review action を追加します。</div>
-        </TransactionsInlineActionPanel>
-      ) : null}
+          <TransactionsInlineActionPanel title="要確認仕訳" description="flagged 絞り込み一覧を対象に、review action shell を標準化します。" onClose={clearActionMode}>
+            {renderFlaggedActionPanel({
+              flaggedWorkflowProps,
+            })}
+          </TransactionsInlineActionPanel>
+        ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <TransactionsPageSidebar metricLabel="Visible Amount" metricValue={fmtJPY(totalAmount)} rowsCount={rows.length} actionItems={sidebarActions} />
