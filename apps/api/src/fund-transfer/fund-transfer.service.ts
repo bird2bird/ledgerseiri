@@ -122,4 +122,76 @@ export class FundTransferService {
       message: 'fund transfer created',
     };
   }
+
+  async update(
+    id: string,
+    input: {
+      amount?: number | string | null;
+      memo?: string | null;
+    },
+  ) {
+    const existing = await this.prisma.fundTransfer.findUnique({
+      where: { id },
+      include: {
+        fromAccount: { select: { id: true, name: true } },
+        toAccount: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!existing) {
+      throw new Error('FundTransfer not found');
+    }
+
+    const nextAmountRaw = input?.amount;
+    const hasAmount =
+      nextAmountRaw !== undefined &&
+      nextAmountRaw !== null &&
+      String(nextAmountRaw).trim() !== '';
+
+    const parsedAmount = hasAmount ? Number(nextAmountRaw) : Number(existing.amount ?? 0);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      throw new Error('amount must be greater than 0.');
+    }
+
+    const nextMemo =
+      input?.memo === undefined
+        ? existing.memo
+        : input.memo === null
+          ? null
+          : String(input.memo);
+
+    const transfer = await this.prisma.fundTransfer.update({
+      where: { id },
+      data: {
+        amount: Math.round(Math.abs(parsedAmount)),
+        memo: nextMemo,
+      },
+      include: {
+        fromAccount: { select: { id: true, name: true } },
+        toAccount: { select: { id: true, name: true } },
+      },
+    });
+
+    return {
+      ok: true,
+      domain: 'fund-transfer',
+      action: 'update',
+      item: {
+        id: transfer.id,
+        companyId: transfer.companyId,
+        fromAccountId: transfer.fromAccountId,
+        fromAccountName: transfer.fromAccount.name,
+        toAccountId: transfer.toAccountId,
+        toAccountName: transfer.toAccount.name,
+        amount: transfer.amount,
+        currency: transfer.currency,
+        occurredAt: transfer.occurredAt,
+        memo: transfer.memo,
+        createdAt: transfer.createdAt,
+      },
+      message: 'fund transfer updated',
+    };
+  }
+
 }

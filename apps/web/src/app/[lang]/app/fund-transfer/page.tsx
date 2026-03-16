@@ -10,9 +10,17 @@ import {
   type TransferRow,
   type TransferStatus,
 } from "@/core/transactions/transactions";
-import { createFundTransfer, listAccounts, type AccountItem } from "@/core/funds/api";
+import { createFundTransfer, listAccounts, updateFundTransfer,
+    type AccountItem } from "@/core/funds/api";
 import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
 import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
+import { TransactionsEditFeedback } from "@/components/app/transactions/TransactionsEditFeedback";
+import { TransactionsEditActions } from "@/components/app/transactions/TransactionsEditActions";
+import { TransactionsEditAmountField } from "@/components/app/transactions/TransactionsEditAmountField";
+import { TransactionsEditMemoField } from "@/components/app/transactions/TransactionsEditMemoField";
+import { TransactionsEditInfoStack } from "@/components/app/transactions/TransactionsEditInfoStack";
+import { TransactionsEditPreviewCard } from "@/components/app/transactions/TransactionsEditPreviewCard";
+import { TransactionsReadonlyMetaGrid } from "@/components/app/transactions/TransactionsReadonlyMetaGrid";
 import {
   buildTransactionsActionHref,
   clearTransactionsActionHref,
@@ -81,6 +89,11 @@ export default function Page() {
   const [amount, setAmount] = useState("");
   const [occurredAt, setOccurredAt] = useState(nowLocalInputValue());
   const [memo, setMemo] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+  const [editUiError, setEditUiError] = useState("");
+  const [editUiMessage, setEditUiMessage] = useState("");
+  const [editSaveLoading, setEditSaveLoading] = useState(false);
 
   async function loadRows() {
     setLoading(true);
@@ -140,6 +153,24 @@ export default function Page() {
     };
   }, [action]);
 
+  useEffect(() => {
+    if (action !== "edit" || !selectedRow) return;
+    setEditAmount(String(selectedRow.amount ?? ""));
+    setEditMemo(selectedRow.memo ?? "");
+    setEditUiError("");
+    setEditUiMessage("");
+    setEditSaveLoading(false);
+  }, [action, selectedRow]);
+
+  const editAmountNumber = Number(editAmount || 0);
+  const editAmountValid = Number.isFinite(editAmountNumber) && editAmountNumber > 0;
+  const editMemoTooLong = editMemo.length > 500;
+  const editDirty = !!selectedRow && (
+    String(editAmount) !== String(selectedRow.amount ?? "") ||
+    String(editMemo) !== String(selectedRow.memo ?? "")
+  );
+  const editCanSave = !!selectedRow && editAmountValid && !editMemoTooLong && editDirty;
+
   const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + row.amount, 0), [rows]);
 
   function updateStatus(next: TransferStatus) {
@@ -182,9 +213,58 @@ export default function Page() {
     }
   }
 
+  async function handleEditSave() {
+    setEditUiError("");
+    setEditUiMessage("");
+
+    if (!selectedRow) {
+      setEditUiError("編集対象が選択されていません。");
+      return;
+    }
+    if (!editAmountValid) {
+      setEditUiError("金額は 0 より大きい数値を入力してください。");
+      return;
+    }
+    if (editMemoTooLong) {
+      setEditUiError("メモは 500 文字以内で入力してください。");
+      return;
+    }
+    if (!editDirty) {
+      setEditUiError("変更内容がありません。");
+      return;
+    }
+
+    try {
+      setEditSaveLoading(true);
+
+      await updateFundTransfer(selectedRow.id, {
+        amount: Number(editAmount),
+        memo: editMemo,
+      });
+
+      const preservedId = selectedRow.id;
+      await loadRows();
+      setSelectedRowId(preservedId);
+
+      setEditAmount(String(Number(editAmount)));
+      setEditMemo(editMemo);
+      setEditUiError("");
+      setEditUiMessage("保存しました。");
+      setTimeout(() => {
+        setEditUiMessage("");
+      }, 2000);
+    } catch (e: unknown) {
+      setEditUiMessage("");
+      setEditUiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditSaveLoading(false);
+    }
+  }
+
   const sidebarActions = [
     { label: "新規振替", href: buildCurrentPageActionHref("create") },
     { label: "CSV取込", href: buildCurrentPageActionHref("import") },
+    { label: "編集", href: buildCurrentPageActionHref("edit"), disabled: !selectedRowId },
     { label: "再同期", href: buildCurrentPageActionHref("resync"), disabled: !selectedRowId },
     { label: "明細確認", href: buildCurrentPageActionHref("details") },
   ];
@@ -320,7 +400,92 @@ export default function Page() {
         </TransactionsInlineActionPanel>
       ) : null}
 
-      {action === "resync" ? (
+              {action === "edit" ? (
+            <TransactionsInlineActionPanel title="振替データを編集" description="選択中の行を初期値として、real save 接続済みの編集フォームを確認できます。" onClose={clearActionMode}>
+            {selectedRow ? (
+              <div className="space-y-4">
+                <TransactionsEditInfoStack
+                  preview={(
+                                      <TransactionsEditPreviewCard
+                                        title="編集対象プレビュー"
+                                        items={[
+                                          { label: "Date", value: selectedRow.date },
+                                          { label: "Status", value: STATUS_LABELS[selectedRow.status] },
+                                          { label: "From", value: selectedRow.fromAccount },
+                                          { label: "To", value: selectedRow.toAccount },
+                                          { label: "Amount", value: fmtJPY(selectedRow.amount) },
+                                          { label: "Memo", value: selectedRow.memo || "-" },
+                                        ]}
+                                      />
+                  )}
+                  meta={(
+                                      <TransactionsReadonlyMetaGrid
+                                        items={[
+                                          { label: "Date", value: selectedRow.date },
+                                          { label: "Status", value: STATUS_LABELS[selectedRow.status] },
+                                          { label: "From", value: selectedRow.fromAccount },
+                                          { label: "To", value: selectedRow.toAccount },
+                                        ]}
+                                      />
+                  )}
+                />
+
+
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <TransactionsEditAmountField
+                        value={editAmount}
+                        onChange={(value) => {
+                          setEditAmount(value);
+                          setEditUiError("");
+                          setEditUiMessage("");
+                        }}
+                        invalid={!editAmountValid}
+                      />
+                    </div>
+
+                    <div>
+                      <TransactionsEditMemoField
+                        value={editMemo}
+                        onChange={(value) => {
+                          setEditMemo(value);
+                          setEditUiError("");
+                          setEditUiMessage("");
+                        }}
+                        tooLong={editMemoTooLong}
+                        maxLength={500}
+                      />
+                    </div>
+                </div>
+
+                <TransactionsEditFeedback
+                  dirty={editDirty}
+                  error={editUiError}
+                  message={editUiMessage}
+                  banner="Step41N-C: real save 接続済み。保存中状態・成功メッセージ自動クリア・再同期 UX を追加しています。"
+                />
+
+                <TransactionsEditActions
+                  onReset={() => {
+                    setEditAmount(String(selectedRow.amount ?? ""));
+                    setEditMemo(selectedRow.memo ?? "");
+                    setEditUiError("");
+                    setEditUiMessage("");
+                  }}
+                  onSave={handleEditSave}
+                  resetDisabled={editSaveLoading}
+                  saveDisabled={!editCanSave || editSaveLoading}
+                  saveLoading={editSaveLoading}
+                />
+              </div>
+            ) : (
+              <div className="text-sm text-slate-600">編集するには、先に一覧から 1 行選択してください。</div>
+            )}
+          </TransactionsInlineActionPanel>
+        ) : null}
+
+{action === "resync" ? (
           <TransactionsInlineActionPanel title="再同期" description="選択中の振替行を対象として、次段階で再同期処理へ接続します。" onClose={clearActionMode}>
             {selectedRow ? (
               <div className="space-y-4">

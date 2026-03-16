@@ -85,6 +85,23 @@ export async function listFundTransfers() {
   );
 }
 
+export async function updateFundTransfer(
+  id: string,
+  payload: {
+    amount?: number;
+    memo?: string | null;
+  }
+) {
+  return readJson<{ ok: boolean; item: FundTransferItem; message: string }>(
+    await fetch(`/api/fund-transfer/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
+
 export async function createFundTransfer(payload: {
   fromAccountId: string;
   toAccountId: string;

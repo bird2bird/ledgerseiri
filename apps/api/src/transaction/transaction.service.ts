@@ -250,4 +250,87 @@ export class TransactionService {
       message: 'transaction created',
     };
   }
+
+  async update(
+    id: string,
+    input: {
+      amount?: number | string | null;
+      memo?: string | null;
+    },
+  ) {
+    const existing = await this.prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        account: true,
+        category: true,
+        store: true,
+      },
+    });
+
+    if (!existing) {
+      throw new Error('Transaction not found');
+    }
+
+    const nextAmountRaw = input?.amount;
+    const hasAmount =
+      nextAmountRaw !== undefined &&
+      nextAmountRaw !== null &&
+      String(nextAmountRaw).trim() !== '';
+
+    const parsedAmount = hasAmount ? Number(nextAmountRaw) : Number(existing.amount ?? 0);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      throw new Error('amount must be a positive number');
+    }
+
+    const normalizedAmount =
+      existing.direction === 'EXPENSE'
+        ? -Math.abs(parsedAmount)
+        : Math.abs(parsedAmount);
+
+    const nextMemo =
+      input?.memo === undefined
+        ? existing.memo
+        : input.memo === null
+          ? null
+          : String(input.memo);
+
+    const item = await this.prisma.transaction.update({
+      where: { id },
+      data: {
+        amount: normalizedAmount,
+        memo: nextMemo,
+      },
+      include: {
+        account: true,
+        category: true,
+        store: true,
+      },
+    });
+
+    return {
+      ok: true,
+      item: {
+        id: item.id,
+        companyId: item.companyId ?? null,
+        storeId: item.storeId,
+        storeName: item.store?.name ?? null,
+        accountId: item.accountId ?? null,
+        accountName: item.account?.name ?? null,
+        categoryId: item.categoryId ?? null,
+        categoryName: item.category?.name ?? null,
+        type: item.type,
+        direction: item.direction ?? null,
+        sourceType: item.sourceType,
+        amount: Number(item.amount ?? 0),
+        currency: item.currency,
+        occurredAt: item.occurredAt instanceof Date ? item.occurredAt.toISOString() : String(item.occurredAt),
+        externalRef: item.externalRef ?? null,
+        memo: item.memo ?? null,
+        createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt),
+      },
+      message: 'updated',
+    };
+  }
+
 }

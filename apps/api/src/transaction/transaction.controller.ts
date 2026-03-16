@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 
 @Controller()
@@ -13,6 +13,11 @@ export class TransactionController {
   @Post('api/transactions')
   create(@Body() body: unknown) {
     return this.service.create((body || {}) as any);
+  }
+
+  @Patch('api/transactions/:id')
+  update(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.update(id, (body || {}) as any);
   }
 
   @Get('api/transaction-categories')
@@ -38,5 +43,10 @@ export class TransactionController {
   @Post('transaction')
   legacyCreate(@Body() body: unknown) {
     return this.service.create((body || {}) as any);
+  }
+
+  @Patch('transaction/:id')
+  legacyUpdate(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.update(id, (body || {}) as any);
   }
 }

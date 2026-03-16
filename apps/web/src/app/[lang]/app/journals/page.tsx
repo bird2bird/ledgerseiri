@@ -12,6 +12,7 @@ import {
 } from "@/core/transactions/transactions";
 import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
 import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
+import { TransactionsActionPreviewCard } from "@/components/app/transactions/TransactionsActionPreviewCard";
 import {
   buildTransactionsActionHref,
   clearTransactionsActionHref,
@@ -205,27 +206,15 @@ export default function Page() {
           <TransactionsInlineActionPanel title="一括転記" description="選択中の仕訳を対象に、次段階で実際の bulk post action へ接続します。" onClose={clearActionMode}>
             {selectedRow ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">転記対象プレビュー</div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Entry No</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.entryNo}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Status</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{TAB_LABELS[selectedRow.status]}</div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Summary</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.summary}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Amount</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div>
-                    </div>
-                  </div>
-                </div>
+                  <TransactionsActionPreviewCard
+                    title="転記対象プレビュー"
+                    items={[
+                      { label: "Entry No", value: selectedRow.entryNo },
+                      { label: "Status", value: TAB_LABELS[selectedRow.status] },
+                      { label: "Summary", value: selectedRow.summary, fullWidth: true },
+                      { label: "Amount", value: fmtJPY(selectedRow.amount) },
+                    ]}
+                  />
                 <div className="text-sm text-slate-600">
                   次段階では、ここから journal API へ接続して bulk-post を実行します。
                 </div>

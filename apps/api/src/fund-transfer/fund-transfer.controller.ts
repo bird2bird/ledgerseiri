@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { FundTransferService } from './fund-transfer.service';
 
 @Controller('api/fund-transfer')
@@ -9,6 +9,12 @@ export class FundTransferController {
   list() {
     return this.service.list();
   }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.update(id, (body || {}) as any);
+  }
+
 
   @Get('meta')
   meta() {

@@ -13,11 +13,20 @@ import {
 import {
   createTransaction,
   listTransactionCategories,
-  type TransactionCategoryItem,
+  updateTransaction,
+    type TransactionCategoryItem,
 } from "@/core/transactions/api";
 import { listAccounts, type AccountItem } from "@/core/funds/api";
 import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
 import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
+import { TransactionsEditFeedback } from "@/components/app/transactions/TransactionsEditFeedback";
+import { TransactionsEditActions } from "@/components/app/transactions/TransactionsEditActions";
+import { TransactionsEditAmountField } from "@/components/app/transactions/TransactionsEditAmountField";
+import { TransactionsEditMemoField } from "@/components/app/transactions/TransactionsEditMemoField";
+import { TransactionsEditInfoStack } from "@/components/app/transactions/TransactionsEditInfoStack";
+import { TransactionsStandardEditBodyShell } from "@/components/app/transactions/TransactionsStandardEditBodyShell";
+import { TransactionsEditPreviewCard } from "@/components/app/transactions/TransactionsEditPreviewCard";
+import { TransactionsReadonlyMetaGrid } from "@/components/app/transactions/TransactionsReadonlyMetaGrid";
 import {
   buildTransactionsActionHref,
   clearTransactionsActionHref,
@@ -93,6 +102,11 @@ export default function Page() {
   const [amount, setAmount] = useState("");
   const [occurredAt, setOccurredAt] = useState(nowLocalInputValue());
   const [memo, setMemo] = useState("");
+    const [editAmount, setEditAmount] = useState("");
+    const [editMemo, setEditMemo] = useState("");
+    const [editUiError, setEditUiError] = useState("");
+    const [editUiMessage, setEditUiMessage] = useState("");
+    const [editSaveLoading, setEditSaveLoading] = useState(false);
 
   async function loadRows() {
     setLoading(true);
@@ -154,7 +168,73 @@ export default function Page() {
     };
   }, [action]);
 
-  const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + row.amount, 0), [rows]);
+      useEffect(() => {
+      if (action !== "edit" || !selectedRow) return;
+      setEditAmount(String(selectedRow.amount ?? ""));
+      setEditMemo(selectedRow.memo ?? "");
+      setEditUiError("");
+      setEditUiMessage("");
+      setEditSaveLoading(false);
+    }, [action, selectedRow]);
+
+    const editAmountNumber = Number(editAmount || 0);
+    const editAmountValid = Number.isFinite(editAmountNumber) && editAmountNumber > 0;
+    const editMemoTooLong = editMemo.length > 500;
+    const editDirty = !!selectedRow && (
+      String(editAmount) !== String(selectedRow.amount ?? "") ||
+      String(editMemo) !== String(selectedRow.memo ?? "")
+    );
+    const editCanSave = !!selectedRow && editAmountValid && !editMemoTooLong && editDirty;
+
+    async function handleEditSave() {
+      setEditUiError("");
+      setEditUiMessage("");
+
+      if (!selectedRow) {
+        setEditUiError("編集対象が選択されていません。");
+        return;
+      }
+      if (!editAmountValid) {
+        setEditUiError("金額は 0 より大きい数値を入力してください。");
+        return;
+      }
+      if (editMemoTooLong) {
+        setEditUiError("メモは 500 文字以内で入力してください。");
+        return;
+      }
+      if (!editDirty) {
+        setEditUiError("変更内容がありません。");
+        return;
+      }
+
+      try {
+        setEditSaveLoading(true);
+
+        await updateTransaction(selectedRow.id, {
+          amount: Number(editAmount),
+          memo: editMemo,
+        });
+
+        const preservedId = selectedRow.id;
+        await loadRows();
+        setSelectedRowId(preservedId);
+
+        setEditAmount(String(Number(editAmount)));
+        setEditMemo(editMemo);
+        setEditUiError("");
+        setEditUiMessage("保存しました。");
+        setTimeout(() => {
+          setEditUiMessage("");
+        }, 2000);
+      } catch (e: unknown) {
+        setEditUiMessage("");
+        setEditUiError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setEditSaveLoading(false);
+      }
+    }
+
+const totalAmount = useMemo(() => rows.reduce((sum, row) => sum + row.amount, 0), [rows]);
 
   function updateCategory(next: IncomeCategory) {
     const qs = cloneSearchParams(searchParams);
@@ -348,42 +428,97 @@ export default function Page() {
       ) : null}
 
       {action === "edit" ? (
-          <TransactionsInlineActionPanel title="収入データを编辑" description="選択中の収入行を確認し、次段階で編集フォームへ接続します。" onClose={clearActionMode}>
+          <TransactionsInlineActionPanel title="収入データを编辑" description="選択中の行を初期値として、編集フォーム skeleton を確認できます。" onClose={clearActionMode}>
             {selectedRow ? (
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-medium text-slate-900">編集対象プレビュー</div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Label</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                <TransactionsStandardEditBodyShell
+                  info={(
+                    <TransactionsEditInfoStack
+                      preview={(
+                                        <TransactionsEditPreviewCard
+                                          title="編集対象プレビュー"
+                                          items={[
+                                            { label: "Date", value: selectedRow.date },
+                                            { label: "Label", value: selectedRow.label },
+                                            { label: "Category", value: CATEGORY_LABELS[selectedRow.category] },
+                                            { label: "Account", value: selectedRow.account },
+                                            { label: "Store", value: selectedRow.store },
+                                            { label: "Amount", value: fmtJPY(selectedRow.amount) },
+                                          ]}
+                                        />
+                      )}
+                      meta={(
+                                        <TransactionsReadonlyMetaGrid
+                                          items={[
+                                            { label: "Date", value: selectedRow.date },
+                                            { label: "Category", value: CATEGORY_LABELS[selectedRow.category] },
+                                            { label: "Account", value: selectedRow.account },
+                                            { label: "Store", value: selectedRow.store },
+                                          ]}
+                                        />
+                      )}
+                    />
+                  )}
+                  primaryFields={(
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <TransactionsEditAmountField
+                          value={editAmount}
+                          onChange={(value) => {
+                            setEditAmount(value);
+                            setEditUiError("");
+                            setEditUiMessage("");
+                          }}
+                          invalid={!editAmountValid}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 text-sm font-medium text-slate-700">ラベル</div>
+                        <input
+                          value={selectedRow.label}
+                          readOnly
+                          className="h-11 w-full rounded-[14px] border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600"
+                        />
+                      </div>
                     </div>
+                  )}
+                  memoField={(
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Amount</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{fmtJPY(selectedRow.amount)}</div>
+                      <TransactionsEditMemoField
+                        value={editMemo}
+                        onChange={(value) => {
+                          setEditMemo(value);
+                          setEditUiError("");
+                          setEditUiMessage("");
+                        }}
+                        tooLong={editMemoTooLong}
+                        maxLength={500}
+                      />
                     </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Category</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{CATEGORY_LABELS[selectedRow.category]}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Account</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Store</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-500">Memo</div>
-                      <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-sm text-slate-600">
-                  次段階では、この選択行を初期値として edit form に接続します。
-                </div>
-              </div>
+                  )}
+                  feedback={(
+                    <TransactionsEditFeedback
+                      dirty={editDirty}
+                      error={editUiError}
+                      message={editUiMessage}
+                      banner="Step41M-C: real save 接続済み。保存中状態・成功メッセージ自動クリア・再同期 UX を追加しています。"
+                    />
+                  )}
+                  actions={(
+                    <TransactionsEditActions
+                      onReset={() => {
+                        setEditAmount(String(selectedRow.amount ?? ""));
+                        setEditMemo(selectedRow.memo ?? "");
+                        setEditUiError("");
+                        setEditUiMessage("");
+                      }}
+                      onSave={handleEditSave}
+                      resetDisabled={editSaveLoading}
+                      saveDisabled={!editCanSave || editSaveLoading}
+                      saveLoading={editSaveLoading}
+                    />
+                  )}
+                />
             ) : (
               <div className="text-sm text-slate-600">編集するには、先に一覧から 1 行選択してください。</div>
             )}

@@ -70,6 +70,23 @@ export async function createTransaction(payload: {
   );
 }
 
+
+export async function updateTransaction(
+  id: string,
+  payload: {
+    amount?: number;
+    memo?: string | null;
+  }
+) {
+  return readJson<{ ok: boolean; item: TransactionItem; message: string }>(
+    await fetch(`/api/transactions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  );
+}
+
 export async function getDashboardSummary() {
   return readJson<{
     ok: boolean;
