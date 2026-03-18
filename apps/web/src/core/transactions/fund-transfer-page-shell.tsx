@@ -20,6 +20,8 @@ import {
   getFundTransferPageTitle,
   formatFundTransferJPY,
 } from "@/core/transactions/fund-transfer-page-constants";
+import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
+import { renderTransactionsListTable } from "@/core/transactions/transactions-list-shared";
 
 export function renderFundTransferPageShell(args: {
   lang: string;
@@ -504,62 +506,62 @@ export function renderFundTransferPageShell(args: {
             query → state → context → adapter → render
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Selected Row</div>
-            {selectedRow ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">ID</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.id}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Date</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">From</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.fromAccount}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">To</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.toAccount}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Status</div><div className="mt-1 text-sm font-medium text-slate-900">{FUND_TRANSFER_STATUS_LABELS[selectedRow.status]}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Amount</div><div className="mt-1 text-sm font-medium text-slate-900">{formatFundTransferJPY(selectedRow.amount)}</div></div>
-                <div className="sm:col-span-2"><div className="text-xs uppercase tracking-wide text-slate-500">Memo</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div></div>
-              </div>
-            ) : (
-              <div className="mt-2 text-sm text-slate-500">
-                行を選択すると、ここに振替明細の要約が表示されます。
-              </div>
-            )}
-          </div>
+          {renderTransactionsSelectedSummary({
+            title: "Selected Row",
+            selected: !!selectedRow,
+            emptyMessage: "行を選択すると、ここに振替明細の要約が表示されます。",
+            items: selectedRow
+              ? [
+                  { label: "ID", value: selectedRow.id },
+                  { label: "Date", value: selectedRow.date },
+                  { label: "From", value: selectedRow.fromAccount },
+                  { label: "To", value: selectedRow.toAccount },
+                  {
+                    label: "Status",
+                    value: FUND_TRANSFER_STATUS_LABELS[selectedRow.status],
+                  },
+                  {
+                    label: "Amount",
+                    value: formatFundTransferJPY(selectedRow.amount),
+                  },
+                  { label: "Memo", value: selectedRow.memo || "-" },
+                ]
+              : [],
+          })}
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[120px_1fr_1fr_120px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-              <div>Date</div>
-              <div>From</div>
-              <div>To</div>
-              <div className="text-right">Amount</div>
-              <div>Status</div>
-            </div>
-
-            {loading ? (
-              <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
-            ) : error ? (
-              <div className="px-4 py-8 text-sm text-rose-600">{error}</div>
-            ) : rows.length === 0 ? (
-              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
-            ) : (
-              rows.map((row) => (
-                <div
-                  key={row.id}
-                  onClick={() => onSelectRow(row.id)}
-                  className={`grid grid-cols-[120px_1fr_1fr_120px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
-                    selectedRowId === row.id
-                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                      : ""
-                  }`}
-                >
-                  <div className="text-slate-600">{row.date}</div>
-                  <div className="text-slate-600">{row.fromAccount}</div>
-                  <div className="text-slate-600">{row.toAccount}</div>
-                  <div className="text-right font-medium text-slate-900">
-                    {formatFundTransferJPY(row.amount)}
-                  </div>
-                  <div className="text-slate-600">{FUND_TRANSFER_STATUS_LABELS[row.status]}</div>
+          {renderTransactionsListTable({
+            columns: (
+              <div className="grid grid-cols-[120px_1fr_1fr_120px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                <div>Date</div>
+                <div>From</div>
+                <div>To</div>
+                <div className="text-right">Amount</div>
+                <div>Status</div>
+              </div>
+            ),
+            loading,
+            error,
+            isEmpty: rows.length === 0,
+            rows: rows.map((row) => (
+              <div
+                key={row.id}
+                onClick={() => onSelectRow(row.id)}
+                className={`grid grid-cols-[120px_1fr_1fr_120px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                  selectedRowId === row.id
+                    ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                    : ""
+                }`}
+              >
+                <div className="text-slate-600">{row.date}</div>
+                <div className="text-slate-600">{row.fromAccount}</div>
+                <div className="text-slate-600">{row.toAccount}</div>
+                <div className="text-right font-medium text-slate-900">
+                  {formatFundTransferJPY(row.amount)}
                 </div>
-              ))
-            )}
-          </div>
+                <div className="text-slate-600">{FUND_TRANSFER_STATUS_LABELS[row.status]}</div>
+              </div>
+            )),
+          })}
         </div>
       </div>
     </div>

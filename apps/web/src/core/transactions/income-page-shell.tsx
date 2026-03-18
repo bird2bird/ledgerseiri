@@ -8,14 +8,9 @@ import type { AccountItem } from "@/core/funds/api";
 import type { TransactionCategoryItem } from "@/core/transactions/api";
 import { TransactionsPageSidebar } from "@/components/app/transactions/TransactionsPageSidebar";
 import { TransactionsInlineActionPanel } from "@/components/app/transactions/TransactionsInlineActionPanel";
-import { TransactionsEditFeedback } from "@/components/app/transactions/TransactionsEditFeedback";
-import { TransactionsEditActions } from "@/components/app/transactions/TransactionsEditActions";
-import { TransactionsEditAmountField } from "@/components/app/transactions/TransactionsEditAmountField";
-import { TransactionsEditMemoField } from "@/components/app/transactions/TransactionsEditMemoField";
-import { TransactionsEditInfoStack } from "@/components/app/transactions/TransactionsEditInfoStack";
-import { TransactionsStandardEditBodyShell } from "@/components/app/transactions/TransactionsStandardEditBodyShell";
-import { TransactionsEditPreviewCard } from "@/components/app/transactions/TransactionsEditPreviewCard";
-import { TransactionsReadonlyMetaGrid } from "@/components/app/transactions/TransactionsReadonlyMetaGrid";
+import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
+import { renderSharedTransactionEditForm } from "@/core/transactions/transactions-edit-form-shared";
+import { renderTransactionsListTable } from "@/core/transactions/transactions-list-shared";
 import {
   INCOME_CATEGORY_ITEMS,
   INCOME_CATEGORY_LABELS,
@@ -349,103 +344,64 @@ export function renderIncomePageShell(args: {
           onClose={clearActionMode}
         >
           {selectedRow ? (
-            <TransactionsStandardEditBodyShell
-              info={
-                <TransactionsEditInfoStack
-                  preview={
-                    <TransactionsEditPreviewCard
-                      title="編集対象プレビュー"
-                      items={[
-                        { label: "Date", value: selectedRow.date },
-                        { label: "Label", value: selectedRow.label },
-                        {
-                          label: "Category",
-                          value: INCOME_CATEGORY_LABELS[selectedRow.category],
-                        },
-                        { label: "Account", value: selectedRow.account },
-                        { label: "Store", value: selectedRow.store },
-                        { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
-                      ]}
-                    />
-                  }
-                  meta={
-                    <TransactionsReadonlyMetaGrid
-                      items={[
-                        { label: "Date", value: selectedRow.date },
-                        {
-                          label: "Category",
-                          value: INCOME_CATEGORY_LABELS[selectedRow.category],
-                        },
-                        { label: "Account", value: selectedRow.account },
-                        { label: "Store", value: selectedRow.store },
-                      ]}
-                    />
-                  }
-                />
-              }
-              primaryFields={
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <TransactionsEditAmountField
-                      value={editAmount}
-                      onChange={(value) => {
-                        setEditAmount(value);
-                        setEditUiError("");
-                        setEditUiMessage("");
-                      }}
-                      invalid={!editAmountValid}
-                    />
-                  </div>
+            renderSharedTransactionEditForm({
+              previewItems: [
+                { label: "Date", value: selectedRow.date },
+                { label: "Label", value: selectedRow.label },
+                {
+                  label: "Category",
+                  value: INCOME_CATEGORY_LABELS[selectedRow.category],
+                },
+                { label: "Account", value: selectedRow.account },
+                { label: "Store", value: selectedRow.store },
+                { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+              ],
+              metaItems: [
+                { label: "Date", value: selectedRow.date },
+                {
+                  label: "Category",
+                  value: INCOME_CATEGORY_LABELS[selectedRow.category],
+                },
+                { label: "Account", value: selectedRow.account },
+                { label: "Store", value: selectedRow.store },
+              ],
+              readonlyLabelValue: selectedRow.label,
 
-                  <div>
-                    <div className="mb-1 text-sm font-medium text-slate-700">ラベル</div>
-                    <input
-                      value={selectedRow.label}
-                      readOnly
-                      className="h-11 w-full rounded-[14px] border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600"
-                    />
-                  </div>
-                </div>
-              }
-              memoField={
-                <div>
-                  <TransactionsEditMemoField
-                    value={editMemo}
-                    onChange={(value) => {
-                      setEditMemo(value);
-                      setEditUiError("");
-                      setEditUiMessage("");
-                    }}
-                    tooLong={editMemoTooLong}
-                    maxLength={500}
-                  />
-                </div>
-              }
-              feedback={
-                <TransactionsEditFeedback
-                  dirty={editDirty}
-                  error={editUiError}
-                  message={editUiMessage}
-                  banner="Step41M-C: real save 接続済み。保存中状態・成功メッセージ自動クリア・再同期 UX を追加しています。"
-                />
-              }
-              actions={
-                <TransactionsEditActions
-                  onReset={() => {
-                    setEditAmount(String(selectedRow.amount ?? ""));
-                    setEditMemo(selectedRow.memo ?? "");
-                    setEditUiError("");
-                    setEditUiMessage("");
-                  }}
-                  onSave={() => {
-                    void handleEditSave();
-                  }}
-                  resetDisabled={editSaveLoading}
-                  saveDisabled={!editCanSave || editSaveLoading}
-                  saveLoading={editSaveLoading}
-                />
-              }
-            />
+              editAmount,
+              onEditAmountChange: (value) => {
+                setEditAmount(value);
+                setEditUiError("");
+                setEditUiMessage("");
+              },
+              editAmountInvalid: !editAmountValid,
+
+              editMemo,
+              onEditMemoChange: (value) => {
+                setEditMemo(value);
+                setEditUiError("");
+                setEditUiMessage("");
+              },
+              editMemoTooLong,
+              memoMaxLength: 500,
+
+              dirty: editDirty,
+              error: editUiError,
+              message: editUiMessage,
+              banner: "Step41M-C: real save 接続済み。保存中状態・成功メッセージ自動クリア・再同期 UX を追加しています。",
+
+              onReset: () => {
+                setEditAmount(String(selectedRow.amount ?? ""));
+                setEditMemo(selectedRow.memo ?? "");
+                setEditUiError("");
+                setEditUiMessage("");
+              },
+              onSave: () => {
+                void handleEditSave();
+              },
+              resetDisabled: editSaveLoading,
+              saveDisabled: !editCanSave || editSaveLoading,
+              saveLoading: editSaveLoading,
+            })
           ) : (
             <div className="text-sm text-slate-600">
               編集するには、先に一覧から 1 行選択してください。
@@ -491,66 +447,63 @@ export function renderIncomePageShell(args: {
             query → state → context → adapter → render
           </div>
 
-          <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Selected Row</div>
-            {selectedRow ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">ID</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.id}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Date</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Label</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Category</div><div className="mt-1 text-sm font-medium text-slate-900">{INCOME_CATEGORY_LABELS[selectedRow.category]}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Account</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Store</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Amount</div><div className="mt-1 text-sm font-medium text-slate-900">{formatIncomeJPY(selectedRow.amount)}</div></div>
-                <div><div className="text-xs uppercase tracking-wide text-slate-500">Memo</div><div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.memo || "-"}</div></div>
-              </div>
-            ) : (
-              <div className="mt-2 text-sm text-slate-500">
-                行を選択すると、ここに収入明細の要約が表示されます。
-              </div>
-            )}
-          </div>
+          {renderTransactionsSelectedSummary({
+            title: "Selected Row",
+            selected: !!selectedRow,
+            emptyMessage: "行を選択すると、ここに収入明細の要約が表示されます。",
+            items: selectedRow
+              ? [
+                  { label: "ID", value: selectedRow.id },
+                  { label: "Date", value: selectedRow.date },
+                  { label: "Label", value: selectedRow.label },
+                  {
+                    label: "Category",
+                    value: INCOME_CATEGORY_LABELS[selectedRow.category],
+                  },
+                  { label: "Account", value: selectedRow.account },
+                  { label: "Store", value: selectedRow.store },
+                  { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+                  { label: "Memo", value: selectedRow.memo || "-" },
+                ]
+              : [],
+          })}
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-              <div>Date</div>
-              <div>Label</div>
-              <div>Category</div>
-              <div>Account</div>
-              <div className="text-right">Amount</div>
-            </div>
-
-            {loading ? (
-              <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
-            ) : error ? (
-              <div className="px-4 py-8 text-sm text-rose-600">{error}</div>
-            ) : rows.length === 0 ? (
-              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
-            ) : (
-              rows.map((row) => (
-                <div
-                  key={row.id}
-                  onClick={() => onSelectRow(row.id)}
-                  className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
-                    selectedRowId === row.id
-                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                      : ""
-                  }`}
-                >
-                  <div className="text-slate-600">{row.date}</div>
-                  <div>
-                    <div className="font-medium text-slate-900">{row.label}</div>
-                    <div className="mt-1 text-xs text-slate-500">{row.store}</div>
-                  </div>
-                  <div className="text-slate-600">{INCOME_CATEGORY_LABELS[row.category]}</div>
-                  <div className="text-slate-600">{row.account}</div>
-                  <div className="text-right font-medium text-slate-900">
-                    {formatIncomeJPY(row.amount)}
-                  </div>
+          {renderTransactionsListTable({
+            columns: (
+              <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                <div>Date</div>
+                <div>Label</div>
+                <div>Category</div>
+                <div>Account</div>
+                <div className="text-right">Amount</div>
+              </div>
+            ),
+            loading,
+            error,
+            isEmpty: rows.length === 0,
+            rows: rows.map((row) => (
+              <div
+                key={row.id}
+                onClick={() => onSelectRow(row.id)}
+                className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                  selectedRowId === row.id
+                    ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                    : ""
+                }`}
+              >
+                <div className="text-slate-600">{row.date}</div>
+                <div>
+                  <div className="font-medium text-slate-900">{row.label}</div>
+                  <div className="mt-1 text-xs text-slate-500">{row.store}</div>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="text-slate-600">{INCOME_CATEGORY_LABELS[row.category]}</div>
+                <div className="text-slate-600">{row.account}</div>
+                <div className="text-right font-medium text-slate-900">
+                  {formatIncomeJPY(row.amount)}
+                </div>
+              </div>
+            )),
+          })}
         </div>
       </div>
     </div>
