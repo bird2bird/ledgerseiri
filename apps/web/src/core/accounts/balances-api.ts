@@ -8,6 +8,10 @@ export type AccountBalanceItem = {
   currency: string;
   storeId?: string | null;
   openingBalance: number;
+  incomeTotal: number;
+  expenseTotal: number;
+  inboundTransferTotal: number;
+  outboundTransferTotal: number;
   currentBalance: number;
   isActive: boolean;
   createdAt?: string | null;

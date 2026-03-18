@@ -15,6 +15,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { TransactionCategoryModule } from './transaction-category/transaction-category.module';
 import { FundTransferModule } from './fund-transfer/fund-transfer.module';
 import { AccountsModule } from './accounts/accounts.module';
+import { ReportsModule } from './reports/reports.module';
 import { AccountModule } from './account/account.module';
 import { BillingModule } from './billing/billing.module';
 
@@ -29,6 +30,7 @@ import { BillingModule } from './billing/billing.module';
       AccountModule,
       FundTransferModule,
     AccountsModule,
+    ReportsModule,
       TransactionCategoryModule,
       CatalogModule,
       InventoryModule,

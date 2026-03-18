@@ -49,7 +49,7 @@ export default function AccountBalancesPage() {
           <div>
             <div className="text-2xl font-semibold text-slate-900">口座残高</div>
             <div className="mt-2 text-sm text-slate-500">
-              口座ごとの基準残高を一覧表示します。Phase2 では opening balance を current balance baseline として表示します。
+              opening balance・収入・支出・資金移動を集計し、現在残高を表示します。
             </div>
           </div>
 
@@ -62,7 +62,7 @@ export default function AccountBalancesPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-4">
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
             <div className="text-sm text-slate-500">Visible Balance Total</div>
@@ -95,22 +95,47 @@ export default function AccountBalancesPage() {
                     {selectedRow.isActive ? "YES" : "NO"}
                   </div>
                 </div>
+
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Opening Balance</div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Opening</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
                     {fmtJPY(selectedRow.openingBalance)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-slate-500">Current Balance</div>
-                  <div className="mt-1 text-sm font-medium text-slate-900">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Income</div>
+                  <div className="mt-1 text-sm font-medium text-emerald-700">
+                    + {fmtJPY(selectedRow.incomeTotal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Expense</div>
+                  <div className="mt-1 text-sm font-medium text-rose-700">
+                    - {fmtJPY(selectedRow.expenseTotal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Inbound Transfer</div>
+                  <div className="mt-1 text-sm font-medium text-emerald-700">
+                    + {fmtJPY(selectedRow.inboundTransferTotal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Outbound Transfer</div>
+                  <div className="mt-1 text-sm font-medium text-rose-700">
+                    - {fmtJPY(selectedRow.outboundTransferTotal)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Current</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
                     {fmtJPY(selectedRow.currentBalance)}
                   </div>
                 </div>
               </div>
             ) : (
               <div className="mt-2 text-sm text-slate-500">
-                口座を選択すると、ここに残高の詳細が表示されます。
+                口座を選択すると、ここに残高構成の詳細が表示されます。
               </div>
             )}
           </div>
@@ -118,10 +143,10 @@ export default function AccountBalancesPage() {
 
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
           <div className="text-lg font-semibold text-slate-900">Account Balance Rows</div>
-          <div className="mt-1 text-sm text-slate-500">accounts → balances baseline</div>
+          <div className="mt-1 text-sm text-slate-500">opening + income - expense ± transfer</div>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[1.2fr_120px_100px_140px_140px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+            <div className="grid grid-cols-[1.1fr_110px_100px_130px_130px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
               <div>Name</div>
               <div>Type</div>
               <div>Currency</div>
@@ -141,7 +166,7 @@ export default function AccountBalancesPage() {
                 <div
                   key={row.id}
                   onClick={() => setSelectedRowId(row.id)}
-                  className={`grid cursor-pointer grid-cols-[1.2fr_120px_100px_140px_140px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                  className={`grid cursor-pointer grid-cols-[1.1fr_110px_100px_130px_130px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
                     selectedRowId === row.id
                       ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
                       : ""
@@ -150,10 +175,8 @@ export default function AccountBalancesPage() {
                   <div className="font-medium text-slate-900">{row.name}</div>
                   <div className="text-slate-600">{row.type}</div>
                   <div className="text-slate-600">{row.currency}</div>
-                  <div className="text-right font-medium text-slate-900">
-                    {fmtJPY(row.openingBalance)}
-                  </div>
-                  <div className="text-right font-medium text-slate-900">
+                  <div className="text-right text-slate-600">{fmtJPY(row.openingBalance)}</div>
+                  <div className="text-right font-semibold text-slate-900">
                     {fmtJPY(row.currentBalance)}
                   </div>
                   <div className="text-slate-600">{row.isActive ? "YES" : "NO"}</div>

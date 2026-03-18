@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -24,6 +25,10 @@ import { BusinessHealthCard } from "@/components/app/dashboard-v2/BusinessHealth
 import { BusinessHealthLockedCard } from "@/components/app/dashboard-v2/BusinessHealthLockedCard";
 import { RecentTransactionsCard } from "@/components/app/dashboard-v2/RecentTransactionsCard";
 import { QuickActionsCard } from "@/components/app/dashboard-v2/QuickActionsCard";
+
+function formatBalanceJPY(value: number) {
+  return `¥${Number(value || 0).toLocaleString("ja-JP")}`;
+}
 
 function planBadgeClass(planCode: PlanCode) {
   if (planCode === "starter") return "border-slate-200 bg-slate-50 text-slate-700";
@@ -97,6 +102,7 @@ function rangeBadgeLabel(range: DashboardRange): "7D" | "30D" | "90D" | "12M" {
 }
 
 export function DashboardHomeV2() {
+  const data = arguments[0]?.data ?? arguments[0] ?? {};
   const params = useParams<{ lang: string }>();
   const currentLang = normalizeLang(params?.lang) as Lang;
 
@@ -240,7 +246,28 @@ export function DashboardHomeV2() {
         onRefresh={loadDashboardSummary}
       />
 
-      <KpiRowPrimary items={dashboardData.kpiPrimary} />
+      
+      <div className="mb-4">
+        <Link
+          href="/ja/app/account-balances"
+          className="block rounded-3xl border border-black/5 bg-white p-5 shadow-sm transition hover:bg-slate-50"
+        >
+          <div className="text-sm text-slate-500">Total Balance</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">
+            {formatBalanceJPY((data as any)?.balances?.totalCurrentBalance ?? 0)}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+            <span>Active Accounts</span>
+            <span>{(data as any)?.balances?.activeAccounts ?? 0}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+            <span>Accounts Count</span>
+            <span>{(data as any)?.balances?.accountsCount ?? 0}</span>
+          </div>
+        </Link>
+      </div>
+
+<KpiRowPrimary items={dashboardData.kpiPrimary} />
       <KpiRowSecondary items={dashboardData.kpiSecondary} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">

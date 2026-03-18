@@ -82,30 +82,126 @@ export class AccountsService {
   async listBalances() {
     const companyId = await this.resolveCompanyId();
 
-    const items = await this.prisma.account.findMany({
-      where: { companyId },
-      orderBy: [{ createdAt: 'asc' }],
-    });
+    const [accounts, transactions, fundTransfers] = await Promise.all([
+      this.prisma.account.findMany({
+        where: { companyId },
+        orderBy: [{ createdAt: 'asc' }],
+      }),
+      this.prisma.transaction.findMany({
+        where: {
+          companyId,
+          accountId: { not: null },
+        },
+        select: {
+          accountId: true,
+          direction: true,
+          amount: true,
+        },
+      }),
+      this.prisma.fundTransfer.findMany({
+        where: { companyId },
+        select: {
+          fromAccountId: true,
+          toAccountId: true,
+          amount: true,
+        },
+      }),
+    ]);
+
+    const txAgg = new Map<
+      string,
+      { incomeTotal: number; expenseTotal: number }
+    >();
+
+    for (const tx of transactions) {
+      const accountId = tx.accountId;
+      if (!accountId) continue;
+
+      const prev = txAgg.get(accountId) ?? {
+        incomeTotal: 0,
+        expenseTotal: 0,
+      };
+
+      const amount = Number(tx.amount ?? 0);
+
+      if (tx.direction === 'INCOME') {
+        prev.incomeTotal += Math.abs(amount);
+      } else if (tx.direction === 'EXPENSE') {
+        prev.expenseTotal += Math.abs(amount);
+      }
+
+      txAgg.set(accountId, prev);
+    }
+
+    const transferAgg = new Map<
+      string,
+      { inboundTransferTotal: number; outboundTransferTotal: number }
+    >();
+
+    for (const ft of fundTransfers) {
+      const amount = Math.abs(Number(ft.amount ?? 0));
+
+      if (ft.toAccountId) {
+        const prevTo = transferAgg.get(ft.toAccountId) ?? {
+          inboundTransferTotal: 0,
+          outboundTransferTotal: 0,
+        };
+        prevTo.inboundTransferTotal += amount;
+        transferAgg.set(ft.toAccountId, prevTo);
+      }
+
+      if (ft.fromAccountId) {
+        const prevFrom = transferAgg.get(ft.fromAccountId) ?? {
+          inboundTransferTotal: 0,
+          outboundTransferTotal: 0,
+        };
+        prevFrom.outboundTransferTotal += amount;
+        transferAgg.set(ft.fromAccountId, prevFrom);
+      }
+    }
 
     return {
       ok: true,
       domain: 'account-balances',
       action: 'list',
-      items: items.map((a) => ({
-        id: a.id,
-        companyId: a.companyId,
-        name: a.name,
-        type: a.type,
-        currency: a.currency,
-        storeId: a.storeId ?? null,
-        openingBalance: Number(a.openingBalance ?? 0),
-        currentBalance: Number(a.openingBalance ?? 0),
-        isActive: Boolean(a.isActive),
-        createdAt:
-          a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt),
-        updatedAt:
-          a.updatedAt instanceof Date ? a.updatedAt.toISOString() : String(a.updatedAt),
-      })),
+      items: accounts.map((a) => {
+        const openingBalance = Number(a.openingBalance ?? 0);
+        const tx = txAgg.get(a.id) ?? {
+          incomeTotal: 0,
+          expenseTotal: 0,
+        };
+        const tf = transferAgg.get(a.id) ?? {
+          inboundTransferTotal: 0,
+          outboundTransferTotal: 0,
+        };
+
+        const currentBalance =
+          openingBalance +
+          tx.incomeTotal -
+          tx.expenseTotal +
+          tf.inboundTransferTotal -
+          tf.outboundTransferTotal;
+
+        return {
+          id: a.id,
+          companyId: a.companyId,
+          name: a.name,
+          type: a.type,
+          currency: a.currency,
+          storeId: a.storeId ?? null,
+          openingBalance,
+          incomeTotal: tx.incomeTotal,
+          expenseTotal: tx.expenseTotal,
+          inboundTransferTotal: tf.inboundTransferTotal,
+          outboundTransferTotal: tf.outboundTransferTotal,
+          currentBalance,
+          isActive: Boolean(a.isActive),
+          createdAt:
+            a.createdAt instanceof Date ? a.createdAt.toISOString() : String(a.createdAt),
+          updatedAt:
+            a.updatedAt instanceof Date ? a.updatedAt.toISOString() : String(a.updatedAt),
+        };
+      }),
       message: 'account balances loaded',
     };
   }

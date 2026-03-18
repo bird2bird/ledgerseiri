@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PrismaService } from '../prisma.service';
+import { AccountsService } from '../accounts/accounts.service';
 
 type DashboardRange = 'thisMonth' | 'lastMonth' | 'thisYear' | 'custom';
 
@@ -147,7 +148,9 @@ function monthKey(d: Date): string {
 // Legacy compatibility route. Main production dashboard route is handled by DashboardController.
 @Controller('dashboard-legacy')
 export class DashboardApiController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,
+    private readonly accountsService: AccountsService
+  ) {}
 
   private async getUserCompanyId(req: any): Promise<string | null> {
     const userId = req?.user?.userId;
@@ -541,7 +544,16 @@ export class DashboardApiController {
     const businessHealthStatus =
       businessHealthScore >= 75 ? 'good' : businessHealthScore >= 50 ? 'attention' : 'risk';
 
-    return {
+        const balancesRes = await this.accountsService.listBalances();
+    const balancesItems = balancesRes.items ?? [];
+    const totalCurrentBalance = balancesItems.reduce(
+      (sum, item) => sum + Number(item.currentBalance ?? 0),
+      0,
+    );
+    const activeAccounts = balancesItems.filter((item) => !!item.isActive).length;
+    const accountsCount = balancesItems.length;
+
+return {
       filters: {
         range: resolvedRange,
         storeId: selectedStoreId,
@@ -643,6 +655,11 @@ export class DashboardApiController {
         note: 'transaction 集計ベース（暫定）',
       },
 
+      balances: {
+        totalCurrentBalance,
+        activeAccounts,
+        accountsCount,
+      },
       alerts,
 
       businessHealth: {

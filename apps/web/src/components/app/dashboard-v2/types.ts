@@ -117,4 +117,9 @@ export type DashboardHomeData = {
   businessHealth: BusinessHealthData;
   recentTransactions: RecentTransactionItem[];
   quickActions: QuickActionItem[];
+  balances?: {
+    totalCurrentBalance: number;
+    activeAccounts: number;
+    accountsCount: number;
+  };
 };
