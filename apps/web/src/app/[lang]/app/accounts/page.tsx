@@ -1,131 +1,126 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  createAccountsContext,
-  fetchAccountsPageData,
-  normalizeAccountViewParam,
-  normalizeBalanceSortParam,
-  type AccountRow,
-  type AccountView,
-  type BalanceSort,
-} from "@/core/accounts/accounts";
-import {
-  buildDrilldownHref,
-  cloneSearchParams,
-  isDashboardSource,
-  readBaseDrilldownQuery,
-  setOrDeleteQueryParam,
-} from "@/core/drilldown/query-contract";
-import { getAccountBalancesPageHref } from "@/components/app/dashboard-v2/dashboard-linking";
+import { createAccount, listAccounts, updateAccount, type AccountItem } from "@/core/accounts/api";
 
-const VIEW_ITEMS: AccountView[] = ["all", "bank", "cash", "platform", "payment"];
-const SORT_ITEMS: BalanceSort[] = ["balance_desc", "balance_asc", "name_asc"];
+const ACCOUNT_TYPE_ITEMS = ["BANK", "CASH", "EC_WALLET", "CARD", "OTHER"] as const;
 
-const VIEW_LABELS: Record<AccountView, string> = {
-  all: "すべて",
-  bank: "銀行",
-  cash: "現金",
-  platform: "プラットフォーム",
-  payment: "決済",
-};
-
-const SORT_LABELS: Record<BalanceSort, string> = {
-  balance_desc: "残高 ↓",
-  balance_asc: "残高 ↑",
-  name_asc: "名前 A-Z",
-};
-
-function fmtJPY(n: number) {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function statusTone(status: "active" | "inactive") {
-  return status === "active"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-slate-200 bg-slate-50 text-slate-600";
-}
-
-export default function Page() {
-  const params = useParams<{ lang: string }>();
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const rawFrom = searchParams.get("from");
-  const rawStoreId = searchParams.get("storeId");
-  const rawRange = searchParams.get("range");
-  const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
-
-  const view = normalizeAccountViewParam(searchParams.get("view"));
-  const sort = normalizeBalanceSortParam(searchParams.get("sort"));
-  const isDashboard = isDashboardSource(from);
-
-  const [rows, setRows] = useState<AccountRow[]>([]);
-  const [adapterNote, setAdapterNote] = useState("");
+export default function AccountsPage() {
+  const [rows, setRows] = useState<AccountItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedRowId, setSelectedRowId] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createName, setCreateName] = useState("");
+  const [createType, setCreateType] = useState<string>("BANK");
+  const [createCurrency, setCreateCurrency] = useState("JPY");
+
+  const [editName, setEditName] = useState("");
+  const [editType, setEditType] = useState("");
+  const [editCurrency, setEditCurrency] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editMessage, setEditMessage] = useState("");
+
+  const selectedRow = useMemo(
+    () => rows.find((row) => row.id === selectedRowId) ?? null,
+    [rows, selectedRowId]
+  );
+
+  async function loadRows() {
     setLoading(true);
-
-    const ctx = createAccountsContext({
-      from,
-      storeId,
-      range,
-      view,
-      sort,
-    });
-
-    fetchAccountsPageData(view, sort, ctx)
-      .then((res) => {
-        if (!mounted) return;
-        setRows(res.rows);
-        setAdapterNote(res.meta.note ?? "");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [from, storeId, range, view, sort]);
-
-  const totalBalance = useMemo(
-    () => rows.reduce((sum, row) => sum + row.balance, 0),
-    [rows]
-  );
-
-  const activeCount = useMemo(
-    () => rows.filter((row) => row.status === "active").length,
-    [rows]
-  );
-
-  const balancesHref = getAccountBalancesPageHref(params?.lang, {
-    from,
-    storeId,
-    range,
-    view,
-    sort,
-  });
-
-  function updateView(next: AccountView) {
-    const qs = cloneSearchParams(searchParams);
-    setOrDeleteQueryParam(qs, "view", next, "all");
-    router.replace(buildDrilldownHref(pathname, qs));
+    setError("");
+    try {
+      const res = await listAccounts();
+      setRows(res.items ?? []);
+    } catch (e: unknown) {
+      setRows([]);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function updateSort(next: BalanceSort) {
-    const qs = cloneSearchParams(searchParams);
-    setOrDeleteQueryParam(qs, "sort", next, "balance_desc");
-    router.replace(buildDrilldownHref(pathname, qs));
+  useEffect(() => {
+    void loadRows();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRow) return;
+    setEditName(selectedRow.name ?? "");
+    setEditType(selectedRow.type ?? "BANK");
+    setEditCurrency(selectedRow.currency ?? "JPY");
+    setEditError("");
+    setEditMessage("");
+    setEditLoading(false);
+  }, [selectedRow]);
+
+  async function handleCreate() {
+    setCreateError("");
+
+    const name = createName.trim();
+    if (!name) {
+      setCreateError("口座名を入力してください。");
+      return;
+    }
+
+    try {
+      setCreateLoading(true);
+      const res = await createAccount({
+        name,
+        type: createType,
+        currency: createCurrency,
+      });
+
+      setCreateOpen(false);
+      setCreateName("");
+      setCreateType("BANK");
+      setCreateCurrency("JPY");
+
+      await loadRows();
+      setSelectedRowId(res.item.id);
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreateLoading(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!selectedRow) {
+      setEditError("編集対象が選択されていません。");
+      return;
+    }
+
+    const name = editName.trim();
+    if (!name) {
+      setEditError("口座名を入力してください。");
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      setEditError("");
+      setEditMessage("");
+
+      await updateAccount(selectedRow.id, {
+        name,
+        type: editType,
+        currency: editCurrency,
+      });
+
+      await loadRows();
+      setSelectedRowId(selectedRow.id);
+      setEditMessage("保存しました。");
+      setTimeout(() => setEditMessage(""), 2000);
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditLoading(false);
+    }
   }
 
   return (
@@ -135,190 +130,253 @@ export default function Page() {
           <div>
             <div className="text-2xl font-semibold text-slate-900">口座一覧</div>
             <div className="mt-2 text-sm text-slate-500">
-              Step40D: accounts page 加入 round-trip 审计可见性与页面级动作骨架。
+              銀行口座・現金・ECウォレットなどの会計口座を一覧管理します。
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isDashboard ? (
-              <Link
-                href={`/${params?.lang ?? "ja"}/app`}
-                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              >
-                Dashboard に戻る
-              </Link>
-            ) : null}
-
-            <Link
-              href={balancesHref}
-              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              口座残高へ
-            </Link>
-          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen((v) => !v)}
+            className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            {createOpen ? "閉じる" : "新規口座"}
+          </button>
         </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-5">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">From</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{rawFrom ?? from}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Store</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{rawStoreId ?? storeId}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Range</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{rawRange ?? range}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">View</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{VIEW_LABELS[view]}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Sort</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{SORT_LABELS[sort]}</div>
-          </div>
-        </div>
-
-        <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-            <div className="text-lg font-semibold text-slate-900">Filters</div>
+      {createOpen ? (
+        <div className="rounded-3xl border border-blue-100 bg-blue-50/60 p-6 shadow-sm">
+          <div className="text-lg font-semibold text-slate-900">新規口座を作成</div>
+          <div className="mt-1 text-sm text-slate-600">
+            Accounts baseline API を使って新規口座を追加します。
+          </div>
 
-            <div className="mt-4">
-              <div className="text-sm font-medium text-slate-700">View</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {VIEW_ITEMS.map((item) => {
-                  const active = view === item;
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => updateView(item)}
-                      className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {VIEW_LABELS[item]}
-                    </button>
-                  );
-                })}
-              </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-sm font-medium text-slate-700">口座名</div>
+              <input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+              />
             </div>
 
-            <div className="mt-6">
-              <div className="text-sm font-medium text-slate-700">Sort</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {SORT_ITEMS.map((item) => {
-                  const active = sort === item;
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => updateSort(item)}
-                      className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                        active
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {SORT_LABELS[item]}
-                    </button>
-                  );
-                })}
-              </div>
+            <div>
+              <div className="mb-1 text-sm font-medium text-slate-700">口座種別</div>
+              <select
+                value={createType}
+                onChange={(e) => setCreateType(e.target.value)}
+                className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+              >
+                {ACCOUNT_TYPE_ITEMS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="mt-8 rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Visible Accounts</div>
-              <div className="mt-2 text-3xl font-semibold text-slate-900">{rows.length}</div>
-              <div className="mt-4 text-sm text-slate-500">Active Accounts</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">{activeCount}</div>
-              <div className="mt-4 text-sm text-slate-500">Total Balance</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">{fmtJPY(totalBalance)}</div>
+            <div>
+              <div className="mb-1 text-sm font-medium text-slate-700">通貨</div>
+              <input
+                value={createCurrency}
+                onChange={(e) => setCreateCurrency(e.target.value)}
+                className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+              />
             </div>
           </div>
 
-          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-            <div className="text-lg font-semibold text-slate-900">Page Actions</div>
-            <div className="mt-1 text-sm text-slate-500">
-              Step40D scaffolding only. 真实提交/写入将在后续 Step40E 以后接入。
+          {createError ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {createError}
             </div>
+          ) : null}
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <button className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:bg-slate-50">
-                <div className="text-sm font-medium text-slate-900">新規口座</div>
-                <div className="mt-1 text-xs text-slate-500">口座追加フォームの入口</div>
-              </button>
-              <button className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:bg-slate-50">
-                <div className="text-sm font-medium text-slate-900">CSV 取込</div>
-                <div className="mt-1 text-xs text-slate-500">将来の bulk import 導線</div>
-              </button>
-              <Link
-                href={balancesHref}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
-              >
-                <div className="text-sm font-medium text-slate-900">残高画面へ</div>
-                <div className="mt-1 text-xs text-slate-500">round-trip query を保持</div>
-              </Link>
-            </div>
+          <div className="mt-5 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCreate()}
+              disabled={createLoading}
+              className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {createLoading ? "保存中..." : "保存"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="text-sm text-slate-500">Accounts</div>
+            <div className="mt-2 text-3xl font-semibold text-slate-900">{rows.length}</div>
+          </div>
+
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="text-sm font-medium text-slate-900">Selected Account</div>
+            {selectedRow ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Name</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.name}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Type</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.type}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Currency</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.currency}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-500">Created</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">
+                    {selectedRow.createdAt || "-"}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-slate-500">
+                口座を選択すると、ここに詳細が表示されます。
+              </div>
+            )}
           </div>
         </div>
 
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-semibold text-slate-900">Accounts</div>
-              <div className="mt-1 text-sm text-slate-500">query → state → context → accounts adapter → rows</div>
-            </div>
-            <div className="text-xs text-slate-500">row-level action scaffolding enabled</div>
-          </div>
+          <div className="text-lg font-semibold text-slate-900">Accounts</div>
+          <div className="mt-1 text-sm text-slate-500">list → select → edit baseline</div>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-            <div className="grid grid-cols-[1.2fr_120px_140px_120px_150px_170px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+            <div className="grid grid-cols-[1.4fr_120px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
               <div>Name</div>
               <div>Type</div>
-              <div className="text-right">Balance</div>
-              <div>Status</div>
-              <div>Updated</div>
-              <div>Actions</div>
+              <div>Currency</div>
             </div>
 
             {loading ? (
               <div className="px-4 py-8 text-sm text-slate-500">loading...</div>
+            ) : error ? (
+              <div className="px-4 py-8 text-sm text-rose-600">{error}</div>
             ) : rows.length === 0 ? (
-              <div className="px-4 py-8 text-sm text-slate-500">no rows</div>
+              <div className="px-4 py-8 text-sm text-slate-500">no accounts</div>
             ) : (
               rows.map((row) => (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[1.2fr_120px_140px_120px_150px_170px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
+                  onClick={() => setSelectedRowId(row.id)}
+                  className={`grid cursor-pointer grid-cols-[1.4fr_120px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                    selectedRowId === row.id
+                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                      : ""
+                  }`}
                 >
                   <div className="font-medium text-slate-900">{row.name}</div>
-                  <div className="text-slate-600">{VIEW_LABELS[row.type]}</div>
-                  <div className="text-right font-medium text-slate-900">{fmtJPY(row.balance)}</div>
-                  <div>
-                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusTone(row.status)}`}>
-                      {row.status}
-                    </span>
-                  </div>
-                  <div className="text-slate-600">{row.updatedAt}</div>
-                  <div className="flex flex-wrap gap-2">
-                    <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
-                      編集
-                    </button>
-                    <button className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
-                      残高調整
-                    </button>
-                  </div>
+                  <div className="text-slate-600">{row.type}</div>
+                  <div className="text-slate-600">{row.currency}</div>
                 </div>
               ))
             )}
           </div>
+
+          {selectedRow ? (
+            <div className="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-medium text-slate-900">口座を編集</div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">口座名</div>
+                  <input
+                    value={editName}
+                    onChange={(e) => {
+                      setEditName(e.target.value);
+                      setEditError("");
+                      setEditMessage("");
+                    }}
+                    className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">口座種別</div>
+                  <select
+                    value={editType}
+                    onChange={(e) => {
+                      setEditType(e.target.value);
+                      setEditError("");
+                      setEditMessage("");
+                    }}
+                    className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+                  >
+                    {ACCOUNT_TYPE_ITEMS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="mb-1 text-sm font-medium text-slate-700">通貨</div>
+                  <input
+                    value={editCurrency}
+                    onChange={(e) => {
+                      setEditCurrency(e.target.value);
+                      setEditError("");
+                      setEditMessage("");
+                    }}
+                    className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+                  />
+                </div>
+              </div>
+
+              {editError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {editError}
+                </div>
+              ) : null}
+
+              {editMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {editMessage}
+                </div>
+              ) : null}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedRow) return;
+                    setEditName(selectedRow.name ?? "");
+                    setEditType(selectedRow.type ?? "BANK");
+                    setEditCurrency(selectedRow.currency ?? "JPY");
+                    setEditError("");
+                    setEditMessage("");
+                  }}
+                  disabled={editLoading}
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  リセット
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEdit()}
+                  disabled={editLoading}
+                  className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {editLoading ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

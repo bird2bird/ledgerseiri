@@ -14,6 +14,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { TransactionCategoryModule } from './transaction-category/transaction-category.module';
 import { FundTransferModule } from './fund-transfer/fund-transfer.module';
+import { AccountsModule } from './accounts/accounts.module';
 import { AccountModule } from './account/account.module';
 import { BillingModule } from './billing/billing.module';
 
@@ -27,6 +28,7 @@ import { BillingModule } from './billing/billing.module';
       DashboardModule,
       AccountModule,
       FundTransferModule,
+    AccountsModule,
       TransactionCategoryModule,
       CatalogModule,
       InventoryModule,
