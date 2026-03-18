@@ -31,6 +31,35 @@ function resolveRange(range?: ReportRange) {
   }
 }
 
+function expenseTypeLabel(type: string) {
+  switch (type) {
+    case 'AD':
+      return '広告費';
+    case 'FBA_FEE':
+      return 'FBA手数料';
+    case 'REFUND':
+      return '返金';
+    case 'SALARY':
+      return '給与';
+    case 'PURCHASE':
+      return '仕入';
+    case 'LOGISTICS':
+      return '物流';
+    case 'STORE_OPS':
+      return '店舗運営費';
+    case 'COMPANY_OPS':
+      return '会社運営費';
+    case 'OTHER_EXPENSE':
+      return 'その他支出';
+    case 'TAX':
+      return '税金';
+    case 'EXPENSE':
+      return '支出';
+    default:
+      return type || 'その他';
+  }
+}
+
 function dayKey(d: Date | string) {
   return new Date(d).toISOString().slice(0, 10);
 }
@@ -50,6 +79,310 @@ export class ReportsService {
     }
 
     return company.id;
+  }
+
+
+
+  async getIncomeReport(range?: ReportRange) {
+    const companyId = await this.resolveCompanyId();
+    const resolved = resolveRange(range);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        direction: 'INCOME',
+        occurredAt: {
+          gte: resolved.start,
+          lt: resolved.end,
+        },
+      },
+      select: {
+        id: true,
+        occurredAt: true,
+        amount: true,
+        type: true,
+        memo: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ occurredAt: 'asc' }],
+    });
+
+    let totalIncome = 0;
+
+    const trendMap = new Map<
+      string,
+      {
+        date: string;
+        amount: number;
+        count: number;
+      }
+    >();
+
+    const breakdownMap = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        amount: number;
+        count: number;
+      }
+    >();
+
+    for (const tx of transactions) {
+      const amount = Math.abs(Number(tx.amount ?? 0));
+      totalIncome += amount;
+
+      const date = dayKey(tx.occurredAt);
+      const trendRow = trendMap.get(date) ?? {
+        date,
+        amount: 0,
+        count: 0,
+      };
+      trendRow.amount += amount;
+      trendRow.count += 1;
+      trendMap.set(date, trendRow);
+
+      const rawLabel =
+        tx.category?.name?.trim() ||
+        String(tx.type || '').trim() ||
+        'その他収入';
+
+      const breakdownKey = rawLabel;
+      const breakdownRow = breakdownMap.get(breakdownKey) ?? {
+        key: breakdownKey,
+        label: rawLabel,
+        amount: 0,
+        count: 0,
+      };
+      breakdownRow.amount += amount;
+      breakdownRow.count += 1;
+      breakdownMap.set(breakdownKey, breakdownRow);
+    }
+
+    const trend = Array.from(trendMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    const breakdown = Array.from(breakdownMap.values()).sort(
+      (a, b) => b.amount - a.amount,
+    );
+
+    const activeDays = trend.length;
+    const rowsCount = transactions.length;
+    const averagePerRow = rowsCount > 0 ? totalIncome / rowsCount : 0;
+
+    return {
+      ok: true,
+      domain: 'reports',
+      action: 'income',
+      filters: {
+        range: range ?? 'thisMonth',
+        label: resolved.label,
+        start: resolved.start.toISOString(),
+        end: resolved.end.toISOString(),
+      },
+      summary: {
+        totalIncome,
+        rowsCount,
+        averagePerRow,
+        activeDays,
+      },
+      trend,
+      breakdown,
+      message: 'income report loaded',
+    };
+  }
+
+  async getExpenseReport(range?: ReportRange) {
+    const companyId = await this.resolveCompanyId();
+    const resolved = resolveRange(range);
+
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        direction: 'EXPENSE',
+        occurredAt: {
+          gte: resolved.start,
+          lt: resolved.end,
+        },
+      },
+      select: {
+        id: true,
+        occurredAt: true,
+        amount: true,
+        type: true,
+        memo: true,
+      },
+      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const totalExpense = rows.reduce(
+      (sum, row) => sum + Math.abs(Number(row.amount ?? 0)),
+      0,
+    );
+
+    const rowsCount = rows.length;
+    const averagePerRow = rowsCount > 0 ? totalExpense / rowsCount : 0;
+    const activeDays = new Set(rows.map((row) => dayKey(row.occurredAt))).size;
+
+    const categoryMap = new Map<string, number>();
+    const trendMap = new Map<string, { date: string; amount: number; count: number }>();
+
+    for (const row of rows) {
+      const amount = Math.abs(Number(row.amount ?? 0));
+      const category = expenseTypeLabel(String(row.type ?? ''));
+      categoryMap.set(category, (categoryMap.get(category) ?? 0) + amount);
+
+      const date = dayKey(row.occurredAt);
+      const trendRow = trendMap.get(date) ?? { date, amount: 0, count: 0 };
+      trendRow.amount += amount;
+      trendRow.count += 1;
+      trendMap.set(date, trendRow);
+    }
+
+    const breakdown = Array.from(categoryMap.entries())
+      .map(([category, amount]) => ({
+        category,
+        amount,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const trend = Array.from(trendMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    const recentItems = rows.slice(0, 20).map((row) => ({
+      id: row.id,
+      date: dayKey(row.occurredAt),
+      type: expenseTypeLabel(String(row.type ?? '')),
+      amount: Math.abs(Number(row.amount ?? 0)),
+      memo: row.memo ?? null,
+    }));
+
+    return {
+      ok: true,
+      domain: 'reports',
+      action: 'expense',
+      filters: {
+        range: range ?? 'thisMonth',
+        label: resolved.label,
+        start: resolved.start.toISOString(),
+        end: resolved.end.toISOString(),
+      },
+      summary: {
+        totalExpense,
+        rowsCount,
+        averagePerRow,
+        activeDays,
+      },
+      breakdown,
+      trend,
+      recentItems,
+      message: 'expense report loaded',
+    };
+  }
+
+
+  async getProfitReport(range?: ReportRange) {
+    const companyId = await this.resolveCompanyId();
+    const resolved = resolveRange(range);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        occurredAt: {
+          gte: resolved.start,
+          lt: resolved.end,
+        },
+      },
+      select: {
+        id: true,
+        occurredAt: true,
+        direction: true,
+        amount: true,
+        type: true,
+      },
+      orderBy: [{ occurredAt: 'asc' }],
+    });
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const trendMap = new Map<
+      string,
+      {
+        date: string;
+        income: number;
+        expense: number;
+        profit: number;
+      }
+    >();
+
+    const expenseTypeMap = new Map<string, number>();
+
+    for (const tx of transactions) {
+      const amount = Math.abs(Number(tx.amount ?? 0));
+      const date = dayKey(tx.occurredAt);
+      const row = trendMap.get(date) ?? {
+        date,
+        income: 0,
+        expense: 0,
+        profit: 0,
+      };
+
+      if (tx.direction === 'INCOME') {
+        totalIncome += amount;
+        row.income += amount;
+      } else if (tx.direction === 'EXPENSE') {
+        totalExpense += amount;
+        row.expense += amount;
+        const key = String(tx.type || 'OTHER');
+        expenseTypeMap.set(key, (expenseTypeMap.get(key) ?? 0) + amount);
+      }
+
+      row.profit = row.income - row.expense;
+      trendMap.set(date, row);
+    }
+
+    const trend = Array.from(trendMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    const breakdown = Array.from(expenseTypeMap.entries())
+      .map(([type, amount]) => ({
+        type,
+        amount,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const grossProfit = totalIncome - totalExpense;
+    const marginPct = totalIncome > 0 ? Number(((grossProfit / totalIncome) * 100).toFixed(1)) : 0;
+
+    return {
+      ok: true,
+      domain: 'reports',
+      action: 'profit',
+      filters: {
+        range: range ?? 'thisMonth',
+        label: resolved.label,
+        start: resolved.start.toISOString(),
+        end: resolved.end.toISOString(),
+      },
+      summary: {
+        totalIncome,
+        totalExpense,
+        grossProfit,
+        marginPct,
+      },
+      breakdown,
+      trend,
+      message: 'profit report loaded',
+    };
   }
 
   async getCashflowReport(range?: ReportRange) {
