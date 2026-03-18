@@ -1,10 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  normalizeJournalTabParam,
-  type JournalTab,
-} from "@/core/transactions/transactions";
+import { normalizeJournalTabParam } from "@/core/transactions/transactions";
 import {
   JOURNALS_TAB_ITEMS,
   JOURNALS_TAB_LABELS,
@@ -70,8 +67,6 @@ export default function Page() {
   } = useJournalsActionShellState();
   const {
     updateTab,
-    clearActionMode,
-    sidebarActions,
     actionPanelProps,
   } = useJournalsPageOrchestration({
     pathname,
