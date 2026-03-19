@@ -7,58 +7,31 @@ export class JobController {
 
   @Get('api/import-jobs')
   listImportJobs() {
-    return {
-      ...this.service.list(),
-      domain: 'import-jobs',
-    };
+    return this.service.listImportJobs();
   }
 
   @Get('api/import-jobs/meta')
   importMeta() {
-    return {
-      ...this.service.getMeta(),
-      domain: 'import-jobs',
-    };
+    return this.service.getImportMeta();
   }
 
   @Post('api/import-jobs')
   createImportJob(@Body() body: unknown) {
-    return {
-      ...this.service.create(body),
-      domain: 'import-jobs',
-    };
+    return this.service.createImportJob(body);
   }
 
   @Get('api/export-jobs')
   listExportJobs() {
-    return {
-      ok: true,
-      domain: 'export-jobs',
-      action: 'list',
-      items: [],
-      message: 'export-jobs list skeleton ready',
-    };
+    return this.service.listExportJobs();
   }
 
   @Get('api/export-jobs/meta')
   exportMeta() {
-    return {
-      ok: true,
-      domain: 'export-jobs',
-      status: 'skeleton',
-      message: 'export-jobs service is ready for Step 31/32 implementation',
-    };
+    return this.service.getExportMeta();
   }
 
   @Post('api/export-jobs')
   createExportJob(@Body() body: unknown) {
-    return {
-      ok: true,
-      domain: 'export-jobs',
-      action: 'create',
-      payload: body,
-      mode: 'stub',
-      message: 'export-jobs create stub',
-    };
+    return this.service.createExportJob(body);
   }
 }
