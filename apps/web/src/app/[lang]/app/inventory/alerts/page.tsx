@@ -1,21 +1,49 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  createDrilldownContext,
-  fetchInventoryAlertsDrilldown,
-  normalizeAlertSeverityParam,
-  type AlertSeverity,
-  type InventoryAlertRow,
-} from "@/core/drilldown/target-pages";
 import {
   buildDrilldownHref,
   cloneSearchParams,
   readBaseDrilldownQuery,
   setOrDeleteQueryParam,
 } from "@/core/drilldown/query-contract";
+
+type AlertSeverity = "all" | "info" | "warning" | "critical";
+
+type InventoryBalanceRow = {
+  id: string;
+  skuId: string;
+  sku: string;
+  name: string;
+  store: string;
+  storeId?: string | null;
+  quantity: number;
+  reservedQty: number;
+  availableQty: number;
+  alertLevel: number;
+  stockStatus: string;
+  isActive: boolean;
+  updatedAt: string;
+};
+
+type InventoryAlertRow = {
+  id: string;
+  sku: string;
+  title: string;
+  severity: Exclude<AlertSeverity, "all">;
+  stock: number;
+};
+
+type InventoryListResponse = {
+  ok: boolean;
+  domain: string;
+  action: string;
+  items: InventoryBalanceRow[];
+  total?: number;
+  message?: string;
+};
 
 const SEVERITY_ITEMS: AlertSeverity[] = ["all", "info", "warning", "critical"];
 
@@ -25,6 +53,12 @@ const LABELS: Record<AlertSeverity, string> = {
   warning: "Warning",
   critical: "Critical",
 };
+
+function normalizeAlertSeverityParam(v?: string | null): AlertSeverity {
+  return (["all", "info", "warning", "critical"].includes(String(v))
+    ? v
+    : "all") as AlertSeverity;
+}
 
 function toneClass(severity: Exclude<AlertSeverity, "all">) {
   switch (severity) {
@@ -37,19 +71,25 @@ function toneClass(severity: Exclude<AlertSeverity, "all">) {
   }
 }
 
+function mapStockStatusToSeverity(stockStatus: string): Exclude<AlertSeverity, "all"> | null {
+  if (stockStatus === "欠品") return "critical";
+  if (stockStatus === "要補充") return "warning";
+  return null;
+}
+
+function buildAlertTitle(row: InventoryBalanceRow) {
+  if (row.stockStatus === "欠品") return "在庫切れです";
+  if (row.stockStatus === "要補充") return "安全在庫を下回っています";
+  return "在庫状況を確認してください";
+}
+
 export default function Page() {
   const params = useParams<{ lang: string }>();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const rawFrom = searchParams.get("from");
-  const rawStoreId = searchParams.get("storeId");
-  const rawRange = searchParams.get("range");
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
-  void rawFrom;
-  void rawStoreId;
-  void rawRange;
   const source = searchParams.get("source");
   const severity = normalizeAlertSeverityParam(searchParams.get("severity"));
   const isDashboard = from === "dashboard";
@@ -57,23 +97,60 @@ export default function Page() {
   const [rows, setRows] = useState<InventoryAlertRow[]>([]);
   const [adapterNote, setAdapterNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setError("");
 
-    const ctx = createDrilldownContext({
-      from,
-      storeId,
-      range,
-      severity,
-    });
-
-    fetchInventoryAlertsDrilldown(severity, ctx)
+    fetch("/api/inventory/balances", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`inventory alerts source failed: ${res.status}`);
+        }
+        return (await res.json()) as InventoryListResponse;
+      })
       .then((res) => {
         if (!mounted) return;
-        setRows(res.rows);
-        setAdapterNote(res.meta.note ?? "");
+
+        const allRows = Array.isArray(res.items) ? res.items : [];
+
+        const mapped = allRows
+          .filter((row) => {
+            if (storeId && storeId !== "all" && row.storeId !== storeId) return false;
+            return row.stockStatus === "欠品" || row.stockStatus === "要補充";
+          })
+          .map((row) => {
+            const sev = mapStockStatusToSeverity(row.stockStatus);
+            if (!sev) return null;
+            return {
+              id: row.id,
+              sku: row.sku,
+              title: buildAlertTitle(row),
+              severity: sev,
+              stock: row.availableQty,
+            } as InventoryAlertRow;
+          })
+          .filter(Boolean) as InventoryAlertRow[];
+
+        const filtered =
+          severity === "all"
+            ? mapped
+            : mapped.filter((row) => row.severity === severity);
+
+        setRows(filtered);
+        setAdapterNote("Step43-C: inventory alerts now use real inventory balance source.");
+      })
+      .catch((e: unknown) => {
+        if (!mounted) return;
+        setRows([]);
+        setError(e instanceof Error ? e.message : String(e));
+        setAdapterNote("");
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -83,6 +160,18 @@ export default function Page() {
       mounted = false;
     };
   }, [from, storeId, range, source, severity]);
+
+  const summary = useMemo(() => {
+    const critical = rows.filter((row) => row.severity === "critical").length;
+    const warning = rows.filter((row) => row.severity === "warning").length;
+    const info = rows.filter((row) => row.severity === "info").length;
+    return {
+      total: rows.length,
+      critical,
+      warning,
+      info,
+    };
+  }, [rows]);
 
   function updateSeverity(next: AlertSeverity) {
     const qs = cloneSearchParams(searchParams);
@@ -97,7 +186,7 @@ export default function Page() {
           <div>
             <div className="text-2xl font-semibold text-slate-900">在庫アラート</div>
             <div className="mt-2 text-sm text-slate-500">
-              Step39E: base drilldown query 与 inventory-specific query 分层处理。
+              InventoryBalance の実データから欠品・要補充を抽出します。
             </div>
           </div>
 
@@ -130,7 +219,28 @@ export default function Page() {
           </div>
         </div>
 
-        <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+        <div className="mt-4 text-sm text-slate-500">
+          {error ? error : adapterNote}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Total Alerts</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{summary.total}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="text-sm text-slate-500">Info</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{summary.info}</div>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="text-sm text-amber-700">Warning</div>
+          <div className="mt-2 text-2xl font-semibold text-amber-900">{summary.warning}</div>
+        </div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <div className="text-sm text-rose-700">Critical</div>
+          <div className="mt-2 text-2xl font-semibold text-rose-900">{summary.critical}</div>
+        </div>
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
@@ -158,7 +268,7 @@ export default function Page() {
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Alert Rows</div>
-        <div className="mt-1 text-sm text-slate-500">query → normalized base query → adapter → render</div>
+        <div className="mt-1 text-sm text-slate-500">real inventory source → severity mapping → render</div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
           <div className="grid grid-cols-[140px_1fr_100px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
