@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { DashboardSectionCard } from "./DashboardSectionCard";
 import type { BusinessHealthData } from "./types";
 import {
-  getBusinessHealthInsightHref,
+  getBusinessHealthInsightHref, getAiInsightsHref,
   getBusinessHealthOverviewHref,
 } from "./dashboard-linking";
 
@@ -38,6 +38,7 @@ export function BusinessHealthCard({
   data: BusinessHealthData;
 }) {
   const params = useParams<{ lang: string }>();
+  const aiInsightsHref = getAiInsightsHref(params?.lang);
   const lang = params?.lang;
   const overviewHref = getBusinessHealthOverviewHref(lang);
 
@@ -117,6 +118,15 @@ export function BusinessHealthCard({
           })}
         </div>
       ) : null}
+    
+      <div className="mt-4 flex justify-end">
+        <Link
+          href={aiInsightsHref}
+          className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+        >
+          AI Insights
+        </Link>
+      </div>
     </DashboardSectionCard>
   );
 }

@@ -11,7 +11,8 @@ export type DashboardLinkTarget =
   | "stockAlert"
   | "runway"
   | "invoiceIssued"
-  | "invoiceHistory";
+  | "invoiceHistory"
+  | "aiInsights";
 
 function normalizeLang(lang?: string): DashboardLang {
   if (lang === "en") return "en";
@@ -236,6 +237,10 @@ export function getBusinessHealthOverviewHref(lang?: string): string {
 export function getBusinessHealthLockedHref(lang?: string): string {
   const l = normalizeLang(lang);
   return `/${l}/app/billing/change`;
+}
+
+export function getAiInsightsHref(lang?: string): string {
+  return buildDashboardTargetHref("aiInsights", lang);
 }
 
 
