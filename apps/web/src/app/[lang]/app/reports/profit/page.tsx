@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ReportPageShared } from "@/core/reports/report-page-shared";
+import { buildDetailReportHref } from "@/core/reports/detail-query-contract";
 import {
   buildReportExportHref,
   buildReportStoreOptions,
@@ -80,19 +81,47 @@ export default function ProfitReportPage() {
         storeId,
       }),
       summaryCards: [
-        { key: "totalIncome", label: "Total Income", value: fmtJPY(summary.totalIncome ?? 0), tone: "info" },
-        { key: "totalExpense", label: "Total Expense", value: fmtJPY(summary.totalExpense ?? 0), tone: "danger" },
+        { key: "totalIncome", label: "Total Income", value: fmtJPY(summary.totalIncome ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "profit",
+      metric: "totalIncome",
+      range,
+      storeId,
+    }),
+ tone: "info" },
+        { key: "totalExpense", label: "Total Expense", value: fmtJPY(summary.totalExpense ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "profit",
+      metric: "totalExpense",
+      range,
+      storeId,
+    }),
+ tone: "danger" },
         {
           key: "grossProfit",
           label: "Gross Profit",
           value: fmtJPY(summary.grossProfit ?? 0),
           tone: (summary.grossProfit ?? 0) >= 0 ? "profit" : "danger",
+          detailHref: buildDetailReportHref({
+            lang,
+            kind: "profit",
+            metric: "grossProfit",
+            range,
+            storeId,
+          }),
         },
         {
           key: "marginPct",
           label: "Margin",
           value: fmtPct(Number(summary.marginPct ?? 0)),
           tone: Number(summary.marginPct ?? 0) >= 0 ? "warning" : "danger",
+          detailHref: buildDetailReportHref({
+            lang,
+            kind: "profit",
+            metric: "marginPct",
+            range,
+            storeId,
+          }),
         },
       ],
       breakdownItems: breakdown.map((item: any) => ({

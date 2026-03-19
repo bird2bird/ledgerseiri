@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ReportPageShared } from "@/core/reports/report-page-shared";
+import { buildDetailReportHref } from "@/core/reports/detail-query-contract";
 import {
   buildReportExportHref,
   buildReportStoreOptions,
@@ -79,10 +80,38 @@ export default function ExpenseReportPage() {
         storeId,
       }),
       summaryCards: [
-        { key: "totalExpense", label: "Total Expense", value: fmtJPY(summary.totalExpense ?? 0), tone: "danger" },
-        { key: "rowsCount", label: "Rows", value: String(summary.rowsCount ?? 0), tone: "info" },
-        { key: "averagePerRow", label: "Avg / Row", value: fmtJPY(summary.averagePerRow ?? 0), tone: "default" },
-        { key: "activeDays", label: "Active Days", value: String(summary.activeDays ?? 0), tone: "warning" },
+        { key: "totalExpense", label: "Total Expense", value: fmtJPY(summary.totalExpense ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "expense",
+      metric: "totalExpense",
+      range,
+      storeId,
+    }),
+ tone: "danger" },
+        { key: "rowsCount", label: "Rows", value: String(summary.rowsCount ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "expense",
+      metric: "rowsCount",
+      range,
+      storeId,
+    }),
+ tone: "info" },
+        { key: "averagePerRow", label: "Avg / Row", value: fmtJPY(summary.averagePerRow ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "expense",
+      metric: "averagePerRow",
+      range,
+      storeId,
+    }),
+ tone: "default" },
+        { key: "activeDays", label: "Active Days", value: String(summary.activeDays ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "expense",
+      metric: "activeDays",
+      range,
+      storeId,
+    }),
+ tone: "warning" },
       ],
       breakdownItems: breakdown.map((item: any) => ({
         key: String(item.key ?? item.label ?? Math.random()),

@@ -13,6 +13,7 @@ export type ReportSummaryCardVm = {
   value: string;
   subValue?: string;
   tone?: ReportSummaryCardTone;
+  detailHref?: string;
 };
 
 export type ReportBreakdownItemVm = {

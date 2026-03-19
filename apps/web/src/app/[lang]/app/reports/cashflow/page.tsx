@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ReportPageShared } from "@/core/reports/report-page-shared";
+import { buildDetailReportHref } from "@/core/reports/detail-query-contract";
 import {
   buildReportExportHref,
   buildReportStoreOptions,
@@ -79,15 +80,43 @@ export default function CashflowReportPage() {
         storeId,
       }),
       summaryCards: [
-        { key: "cashIn", label: "Cash In", value: fmtJPY(summary.cashIn ?? 0), tone: "info" },
-        { key: "cashOut", label: "Cash Out", value: fmtJPY(summary.cashOut ?? 0), tone: "danger" },
-        { key: "netCash", label: "Net Cash", value: fmtJPY(summary.netCash ?? 0), tone: (summary.netCash ?? 0) >= 0 ? "profit" : "danger" },
+        { key: "cashIn", label: "Cash In", value: fmtJPY(summary.cashIn ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "cashflow",
+      metric: "cashIn",
+      range,
+      storeId,
+    }),
+ tone: "info" },
+        { key: "cashOut", label: "Cash Out", value: fmtJPY(summary.cashOut ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "cashflow",
+      metric: "cashOut",
+      range,
+      storeId,
+    }),
+ tone: "danger" },
+        { key: "netCash", label: "Net Cash", value: fmtJPY(summary.netCash ?? 0),    detailHref: buildDetailReportHref({
+      lang,
+      kind: "cashflow",
+      metric: "netCash",
+      range,
+      storeId,
+    }),
+ tone: (summary.netCash ?? 0) >= 0 ? "profit" : "danger" },
         {
           key: "transfers",
           label: "Transfers",
           value: fmtJPY((summary.inboundTransfers ?? 0) + (summary.outboundTransfers ?? 0)),
           subValue: `IN ${fmtJPY(summary.inboundTransfers ?? 0)} / OUT ${fmtJPY(summary.outboundTransfers ?? 0)}`,
           tone: "warning",
+          detailHref: buildDetailReportHref({
+            lang,
+            kind: "cashflow",
+            metric: "transfers",
+            range,
+            storeId,
+          }),
         },
       ],
       breakdownItems: breakdown.map((item: any) => ({

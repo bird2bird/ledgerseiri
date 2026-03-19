@@ -103,6 +103,16 @@ export function ReportPageShared(props: {
             <div className="text-sm opacity-80">{item.label}</div>
             <div className="mt-2 text-2xl font-semibold">{item.value}</div>
             {item.subValue ? <div className="mt-2 text-xs opacity-80">{item.subValue}</div> : null}
+              {item.detailHref ? (
+                <div className="mt-4">
+                  <Link
+                    href={item.detailHref}
+                    className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    明細を見る
+                  </Link>
+                </div>
+              ) : null}
           </div>
         ))}
       </div>
