@@ -20,6 +20,8 @@ function menuGlyph(key: string): string {
       return "□";
     case "reports":
       return "◫";
+      case "ai-insights":
+        return "✦";
     case "tax-summary":
       return "%";
     case "data-management":
@@ -157,6 +159,7 @@ type Dict = {
   expenseAnalysis: string;
   profitAnalysis: string;
   cashflow: string;
+    aiInsights: string;
   consumptionTaxEstimate: string;
   dataImport: string;
   dataExport: string;
@@ -210,6 +213,7 @@ const DICT: Record<Lang, Dict> = {
     expenseAnalysis: "支出分析",
     profitAnalysis: "利益分析",
     cashflow: "キャッシュフロー",
+      aiInsights: "AI Insights",
     consumptionTaxEstimate: "消費税（概算）",
     dataImport: "データインポート",
     dataExport: "データエクスポート",
@@ -261,6 +265,7 @@ const DICT: Record<Lang, Dict> = {
     expenseAnalysis: "Expense Analysis",
     profitAnalysis: "Profit Analysis",
     cashflow: "Cash Flow",
+      aiInsights: "AI Insights",
     consumptionTaxEstimate: "Consumption Tax",
     dataImport: "Data Import",
     dataExport: "Data Export",
@@ -312,6 +317,7 @@ const DICT: Record<Lang, Dict> = {
     expenseAnalysis: "支出分析",
     profitAnalysis: "利润分析",
     cashflow: "现金流",
+      aiInsights: "AI 洞察",
     consumptionTaxEstimate: "消费税（估算）",
     dataImport: "数据导入",
     dataExport: "数据导出",
@@ -363,6 +369,7 @@ const DICT: Record<Lang, Dict> = {
     expenseAnalysis: "支出分析",
     profitAnalysis: "利潤分析",
     cashflow: "現金流",
+      aiInsights: "AI 洞察",
     consumptionTaxEstimate: "消費稅（估算）",
     dataImport: "資料匯入",
     dataExport: "資料匯出",
@@ -500,6 +507,13 @@ export function DashboardSidebar() {
           "standard"
         ),
         leaf("cashflow", t.cashflow, "/app/reports/cashflow"),
+          leaf(
+            "ai-insights",
+            t.aiInsights,
+            "/app/ai-insights",
+            !features.aiInsights,
+            "premium"
+          ),
       ]),
 
       group("tax-summary", t.taxSummary, [

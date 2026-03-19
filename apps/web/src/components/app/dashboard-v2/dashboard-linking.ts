@@ -50,6 +50,9 @@ export function buildDashboardTargetHref(
       return `/${l}/app/invoices`;
     case "invoiceHistory":
       return `/${l}/app/invoices/history`;
+      case "aiInsights":
+        return `/${l}/app/ai-insights`;
+
     default:
       return `/${l}/app`;
   }
@@ -321,5 +324,8 @@ export const DASHBOARD_LINKING_AUDIT = {
     "getAccountsPageHref",
     "getAccountBalancesPageHref",
   ],
+    ai: [
+      "getAiInsightsHref",
+    ],
 } as const;
 
