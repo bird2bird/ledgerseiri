@@ -1,43 +1,12 @@
 import Link from "next/link";
 import React from "react";
 import type { ExportJobItem, ImportJobItem, MetaSummary } from "@/core/jobs";
-
-function cls(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
-}
-
-function fmtDate(value?: string | null) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function text(value?: string | null, fallback = "-") {
-  const v = String(value ?? "").trim();
-  return v || fallback;
-}
-
-function statusTone(status?: string | null) {
-  switch (String(status ?? "").toUpperCase()) {
-    case "SUCCEEDED":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "FAILED":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    case "PROCESSING":
-      return "border-sky-200 bg-sky-50 text-sky-700";
-    case "PENDING":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    default:
-      return "border-slate-200 bg-slate-50 text-slate-600";
-  }
-}
+import {
+  cls,
+  fmtDate,
+  statusTone,
+  text,
+} from "./amazon-reconciliation-shared";
 
 type Mode = "import" | "export";
 
