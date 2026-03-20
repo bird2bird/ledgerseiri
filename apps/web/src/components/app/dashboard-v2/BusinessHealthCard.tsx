@@ -48,10 +48,10 @@ export function BusinessHealthCard({
       subtitle="経営状態のスコアと示唆"
       action={
         <Link
-          href={overviewHref}
+          href={aiInsightsHref}
           className="ls-btn ls-btn-ghost px-3 py-1.5 text-sm font-medium"
         >
-          詳細を見る
+          AI Insights
         </Link>
       }
       className="h-full"
