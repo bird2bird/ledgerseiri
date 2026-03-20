@@ -7,6 +7,7 @@ import {
   statusTone,
   text,
 } from "./amazon-reconciliation-shared";
+import { JobsStatusSummaryGrid } from "@/components/app/jobs/JobsStatusSummaryGrid";
 
 type Mode = "import" | "export";
 
@@ -43,32 +44,7 @@ export function AmazonReconciliationJobSummaryCard(props: {
         </Link>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-medium text-slate-500">PENDING</div>
-          <div className="mt-2 text-lg font-semibold text-slate-900">
-            {Number(props.summary?.pending ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-medium text-slate-500">PROCESSING</div>
-          <div className="mt-2 text-lg font-semibold text-slate-900">
-            {Number(props.summary?.processing ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-medium text-slate-500">SUCCEEDED</div>
-          <div className="mt-2 text-lg font-semibold text-slate-900">
-            {Number(props.summary?.succeeded ?? 0)}
-          </div>
-        </div>
-        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-          <div className="text-[11px] font-medium text-slate-500">FAILED</div>
-          <div className="mt-2 text-lg font-semibold text-slate-900">
-            {Number(props.summary?.failed ?? 0)}
-          </div>
-        </div>
-      </div>
+      <JobsStatusSummaryGrid summary={props.summary} />
 
       <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200">
         <div className="grid grid-cols-[1.1fr_120px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">

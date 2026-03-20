@@ -1,5 +1,6 @@
 import React from "react";
 import type { ExportMetaResponse } from "@/core/jobs";
+import { JobsMetaListSection } from "./JobsMetaListSection";
 
 export function ExportJobsMetaSummaryCard(props: {
   meta: ExportMetaResponse | null;
@@ -10,49 +11,17 @@ export function ExportJobsMetaSummaryCard(props: {
       <div className="mt-1 text-[12px] text-slate-500">/api/export-jobs/meta</div>
 
       <div className="mt-5 space-y-5">
-        <div>
-          <div className="text-[11px] font-medium text-slate-500">Formats</div>
-          <div className="mt-3 space-y-2">
-            {(props.meta?.formats ?? []).filter((x) => x.value).length === 0 ? (
-              <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-                no data
-              </div>
-            ) : (
-              (props.meta?.formats ?? [])
-                .filter((x) => x.value)
-                .map((item) => (
-                  <div
-                    key={item.value}
-                    className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                  >
-                    {item.label}
-                  </div>
-                ))
-            )}
-          </div>
-        </div>
+        <JobsMetaListSection
+          title="Formats"
+          items={props.meta?.formats}
+          emptyText="no data"
+        />
 
-        <div>
-          <div className="text-[11px] font-medium text-slate-500">Domains</div>
-          <div className="mt-3 space-y-2">
-            {(props.meta?.domains ?? []).filter((x) => x.value).length === 0 ? (
-              <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
-                no data
-              </div>
-            ) : (
-              (props.meta?.domains ?? [])
-                .filter((x) => x.value)
-                .map((item) => (
-                  <div
-                    key={item.value}
-                    className="rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-                  >
-                    {item.label}
-                  </div>
-                ))
-            )}
-          </div>
-        </div>
+        <JobsMetaListSection
+          title="Domains"
+          items={props.meta?.domains}
+          emptyText="no data"
+        />
 
         <div className="rounded-[22px] border border-dashed border-[color:var(--ls-primary)]/35 bg-[color:var(--ls-primary)]/5 p-4">
           <div className="text-sm font-medium text-slate-900">Next Step</div>
