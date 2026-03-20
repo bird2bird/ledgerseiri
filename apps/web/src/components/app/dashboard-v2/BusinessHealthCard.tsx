@@ -119,13 +119,26 @@ export function BusinessHealthCard({
         </div>
       ) : null}
     
-      <div className="mt-4 flex justify-end">
-        <Link
-          href={aiInsightsHref}
-          className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
-        >
-          AI Insights
-        </Link>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="text-xs text-slate-500">
+          AI 分析で経営状態の要点をまとめて確認できます。
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href={overviewHref}
+            className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-medium"
+          >
+            利益レポート
+          </Link>
+
+          <Link
+            href={aiInsightsHref}
+            className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+          >
+            AI Insights
+          </Link>
+        </div>
       </div>
     </DashboardSectionCard>
   );

@@ -11,16 +11,16 @@ type PlanCode = "starter" | "standard" | "premium";
 function lockedMessage(planCode: PlanCode) {
   if (planCode === "starter") {
     return {
-      title: "Business Health は Standard 以上で利用できます",
-      detail: "利益率・資金余力・未入金・在庫健全性などを統合的に分析します。",
-      cta: "プランをアップグレード",
+      title: "Business Health は Standard 以上、AI Insights は Premium で利用できます",
+      detail: "まずは Business Health を解放し、Premium では AI Insights による要約と示唆を確認できます。",
+      cta: "プランを確認",
     };
   }
 
   if (planCode === "standard") {
     return {
-      title: "Business Health 詳細分析は Premium で解放されます",
-      detail: "より高度な経営インサイトとスコアリングを確認できます。",
+      title: "AI Insights を含む詳細分析は Premium で解放されます",
+      detail: "Premium では Business Health に加え、AI Insights から経営要約・注意点・次の打ち手を確認できます。",
       cta: "Premium を確認",
     };
   }

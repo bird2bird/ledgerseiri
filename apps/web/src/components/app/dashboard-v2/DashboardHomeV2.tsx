@@ -10,7 +10,7 @@ import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { fetchDashboardSummary } from "@/core/dashboard/api";
 import { dashboardHomeMock } from "@/components/app/dashboard-v2/mock";
-import { getQuickActionHref } from "@/components/app/dashboard-v2/dashboard-linking";
+import { getAiInsightsHref, getBusinessHealthLockedHref, getQuickActionHref } from "@/components/app/dashboard-v2/dashboard-linking";
 
 import { DashboardHeader } from "@/components/app/dashboard-v2/DashboardHeader";
 import { KpiRowPrimary } from "@/components/app/dashboard-v2/KpiRowPrimary";
@@ -192,6 +192,9 @@ export function DashboardHomeV2() {
     [dashboardData.quickActions, can, currentLang]
   );
 
+  const aiInsightsHref = getAiInsightsHref(currentLang);
+  const aiUpgradeHref = getBusinessHealthLockedHref(currentLang);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -285,7 +288,32 @@ export function DashboardHomeV2() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
-        <AlertsTasksCard items={dashboardData.alerts} />
+          <div className="mb-3 flex items-center justify-between rounded-2xl border border-black/5 bg-white px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Business Health / AI Insights</div>
+              <div className="mt-1 text-xs text-slate-500">
+                ダッシュボードから経営状態の確認と AI 分析へ移動できます。
+              </div>
+            </div>
+
+            {can("aiInsights") ? (
+              <Link
+                href={aiInsightsHref}
+                className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+              >
+                AI Insights を開く
+              </Link>
+            ) : (
+              <Link
+                href={aiUpgradeHref}
+                className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+              >
+                Premium で解放
+              </Link>
+            )}
+          </div>
+
+          <AlertsTasksCard items={dashboardData.alerts} />
 
         {subscription.planCode === "starter" ? (
           <BusinessHealthLockedCard planCode="starter" />
