@@ -1,21 +1,32 @@
 import { loadJobsSnapshot } from "@/core/jobs";
+import {
+  createFallbackMatchingBaselineSummary,
+  deriveMatchingBaselineSummary,
+} from "./matching";
 import type { AmazonReconciliationSnapshot } from "./types";
 
 export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconciliationSnapshot> {
-  const snapshot = await loadJobsSnapshot();
+  const jobs = await loadJobsSnapshot();
 
-  const importSummary = snapshot.importMeta?.summary ?? null;
-  const exportSummary = snapshot.exportMeta?.summary ?? null;
+  const importItems = jobs.importItems;
+  const exportItems = jobs.exportItems;
+  const importSummary = jobs.importMeta?.summary ?? null;
+  const exportSummary = jobs.exportMeta?.summary ?? null;
 
-  const totalFailed =
-    Number(importSummary?.failed ?? 0) +
-    Number(exportSummary?.failed ?? 0);
-
-  return {
-    importItems: snapshot.importItems,
-    exportItems: snapshot.exportItems,
+  const matching = deriveMatchingBaselineSummary({
+    importItems,
+    exportItems,
     importSummary,
     exportSummary,
-    totalFailed,
+  });
+
+  return {
+    importItems,
+    exportItems,
+    importSummary,
+    exportSummary,
+    matching: matching ?? createFallbackMatchingBaselineSummary(),
   };
 }
+
+export { createFallbackMatchingBaselineSummary, deriveMatchingBaselineSummary };

@@ -57,7 +57,8 @@ export default function AmazonReconciliationPage() {
   const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
-  const totalFailed = Number(snapshot?.totalFailed ?? 0);
+  const matching = snapshot!.matching;
+  const totalFailed = Number(snapshot?.matching?.totalFailedJobs ?? 0);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -80,13 +81,13 @@ export default function AmazonReconciliationPage() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <AmazonReconciliationStatCard
           title="Import Jobs"
-          value={Number(importSummary?.total ?? importItems.length)}
+          value={Number(importSummary?.total ?? snapshot?.importItems.length ?? 0)}
           helper="import job total"
           tone="primary"
         />
         <AmazonReconciliationStatCard
           title="Export Jobs"
-          value={Number(exportSummary?.total ?? exportItems.length)}
+          value={Number(exportSummary?.total ?? snapshot?.exportItems.length ?? 0)}
           helper="export job total"
           tone="success"
         />
@@ -120,7 +121,7 @@ export default function AmazonReconciliationPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <AmazonReconciliationReadinessCard />
+        <AmazonReconciliationReadinessCard matching={matching} />
         <AmazonReconciliationQuickActionsCard lang={lang} />
       </section>
     </main>
