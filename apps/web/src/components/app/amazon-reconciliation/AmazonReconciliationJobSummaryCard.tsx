@@ -1,0 +1,148 @@
+import Link from "next/link";
+import React from "react";
+import type { ExportJobItem, ImportJobItem, MetaSummary } from "@/core/jobs";
+
+function cls(...xs: Array<string | false | null | undefined>) {
+  return xs.filter(Boolean).join(" ");
+}
+
+function fmtDate(value?: string | null) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function text(value?: string | null, fallback = "-") {
+  const v = String(value ?? "").trim();
+  return v || fallback;
+}
+
+function statusTone(status?: string | null) {
+  switch (String(status ?? "").toUpperCase()) {
+    case "SUCCEEDED":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "FAILED":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "PROCESSING":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+    case "PENDING":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+}
+
+type Mode = "import" | "export";
+
+export function AmazonReconciliationJobSummaryCard(props: {
+  mode: Mode;
+  lang: string;
+  summary: MetaSummary | null;
+  items: ImportJobItem[] | ExportJobItem[];
+}) {
+  const isImport = props.mode === "import";
+
+  const title = isImport ? "Import Job Summary" : "Export Job Summary";
+  const endpoint = isImport
+    ? "/api/import-jobs + /api/import-jobs/meta"
+    : "/api/export-jobs + /api/export-jobs/meta";
+  const ctaHref = isImport ? `/${props.lang}/app/data/import` : `/${props.lang}/app/data/export`;
+  const ctaLabel = isImport ? "Import Page" : "Export Page";
+  const emptyText = isImport ? "import jobs はまだありません" : "export jobs はまだありません";
+  const firstColHeader = isImport ? "Filename / Domain" : "Format / Domain";
+
+  return (
+    <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          <div className="mt-1 text-[12px] text-slate-500">{endpoint}</div>
+        </div>
+
+        <Link
+          href={ctaHref}
+          className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+        >
+          {ctaLabel}
+        </Link>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-medium text-slate-500">PENDING</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">
+            {Number(props.summary?.pending ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-medium text-slate-500">PROCESSING</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">
+            {Number(props.summary?.processing ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-medium text-slate-500">SUCCEEDED</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">
+            {Number(props.summary?.succeeded ?? 0)}
+          </div>
+        </div>
+        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-medium text-slate-500">FAILED</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">
+            {Number(props.summary?.failed ?? 0)}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200">
+        <div className="grid grid-cols-[1.1fr_120px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+          <div>{firstColHeader}</div>
+          <div>Status</div>
+          <div>Created</div>
+        </div>
+
+        {props.items.length === 0 ? (
+          <div className="px-4 py-8 text-sm text-slate-500">{emptyText}</div>
+        ) : (
+          props.items.map((item) => {
+            const primary = isImport
+              ? text((item as ImportJobItem).filename)
+              : text((item as ExportJobItem).format, "unknown");
+
+            return (
+              <div
+                key={item.id}
+                className="grid grid-cols-[1.1fr_120px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
+              >
+                <div>
+                  <div className="font-medium text-slate-900">{primary}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    domain: {text(item.domain, "unknown")}
+                  </div>
+                </div>
+                <div>
+                  <span
+                    className={cls(
+                      "inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium",
+                      statusTone(item.status)
+                    )}
+                  >
+                    {text(item.status)}
+                  </span>
+                </div>
+                <div className="text-slate-600">{fmtDate(item.createdAt)}</div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
