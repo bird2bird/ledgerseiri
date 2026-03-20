@@ -30,6 +30,21 @@ export function formatLabel(value?: string | null) {
   return v ? v.toUpperCase() : "-";
 }
 
+export function text(value?: string | null, fallback = "-") {
+  const v = String(value ?? "").trim();
+  return v || fallback;
+}
+
+type JobLikeWithCreatedAt = {
+  createdAt?: string | null;
+};
+
+export function selectRecentJobs<T extends JobLikeWithCreatedAt>(items: T[], limit = 8): T[] {
+  return [...items]
+    .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))
+    .slice(0, limit);
+}
+
 export function JobsMetricCard(props: {
   label: string;
   value: string | number;
