@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { useWorkspaceGate } from "@/hooks/useWorkspaceGate";
+import { UpgradePromptCard } from "@/components/app/dashboard-v2/UpgradePromptCard";
 
 type WorkspaceContextResponse = {
   workspace?: {
@@ -174,10 +175,27 @@ export default function AiInsightsPage() {
   const [profitReport, setProfitReport] = useState<ReportSummaryResponse | null>(null);
   const [cashflowReport, setCashflowReport] = useState<ReportSummaryResponse | null>(null);
 
+  const planCode =
+    workspaceCtx?.subscription?.planCode?.toLowerCase?.() ||
+    gate.planCode ||
+    "starter";
+
+  const aiEnabled =
+    workspaceCtx?.subscription?.entitlements?.aiInsights === true ||
+    gate.can("aiInsights");
+
   useEffect(() => {
     let mounted = true;
 
     async function load() {
+      if (!aiEnabled) {
+        if (mounted) {
+          setLoading(false);
+          setError("");
+        }
+        return;
+      }
+
       setLoading(true);
       setError("");
 
@@ -244,180 +262,156 @@ export default function AiInsightsPage() {
     }
 
     void load();
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [aiEnabled]);
 
-  const planCode =
-    workspaceCtx?.subscription?.planCode?.toLowerCase?.() ||
-    gate.planCode ||
-    "starter";
-
-  const aiEnabled =
-    planCode === "premium" &&
-    (workspaceCtx?.subscription?.entitlements?.aiInsights === true || gate.can("aiInsights"));
+  const workspaceName =
+    workspaceCtx?.workspace?.displayName ||
+    gate.workspace?.displayName ||
+    "Workspace";
 
   const summary = dashboard?.summary ?? {};
-  const businessHealth = dashboard?.businessHealth ?? {};
-  const usageSummary = usage?.usage ?? {};
-  const util = usage?.utilization ?? {};
-  const limits = usage?.effectiveLimits ?? {};
+  const health = dashboard?.businessHealth ?? {};
+  const usageData = usage?.usage ?? {};
+  const utilization = usage?.utilization ?? {};
+  const effectiveLimits = usage?.effectiveLimits ?? gate.limits ?? {};
 
-  const derivedInsights = useMemo(() => {
-    const revenue = Number(summary.revenue ?? 0);
-    const expense = Number(summary.expense ?? 0);
-    const profit = Number(summary.profit ?? 0);
-    const cash = Number(summary.cash ?? 0);
-    const unpaid = Number(summary.unpaidAmount ?? 0);
-    const tax = Number(summary.estimatedTax ?? 0);
-    const runway = Number(summary.runwayMonths ?? 0);
-    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+  const generatedInsights = useMemo(() => {
+    const rows: Array<{ title: string; detail: string; tone?: "default" | "good" | "watch" }> =
+      [];
 
-    const rows = [];
+    const marginPct = Number(profitReport?.summary?.marginPct ?? 0);
+    const unpaidAmount = Number(summary.unpaidAmount ?? 0);
+    const runwayMonths = Number(summary.runwayMonths ?? 0);
+    const aiChatUsed = Number(usageData.aiChatUsedMonthly ?? 0);
+    const aiChatLimit = Number(effectiveLimits.aiChatMonthly ?? 0);
 
-    rows.push({
-      title: "利益率インサイト",
-      detail:
-        margin >= 20
-          ? `利益率は ${margin.toFixed(1)}% で高水準です。現在は売上拡大よりも、回収速度と継続再現性の管理が重要です。`
-          : `利益率は ${margin.toFixed(1)}% です。販促費・物流費・固定費の見直し余地があります。`,
-      tone: margin >= 20 ? "good" : "watch",
-    });
+    if (marginPct >= 20) {
+      rows.push({
+        title: "利益率は良好です",
+        detail: `現在の粗利率は ${marginPct.toFixed(1)}% です。利益構造は安定しています。`,
+        tone: "good",
+      });
+    } else {
+      rows.push({
+        title: "利益率の監視が必要です",
+        detail: `現在の粗利率は ${marginPct.toFixed(1)}% です。費用内訳の見直し候補を確認してください。`,
+        tone: "watch",
+      });
+    }
 
-    rows.push({
-      title: "未入金リスク",
-      detail:
-        unpaid > 0
-          ? `未入金残高は ${fmtJPY(unpaid)} です。利益が出ていても、実資金の遅延要因になるため請求回収の優先度を上げるべきです。`
-          : "現時点で未入金残高は目立っておらず、請求回収のボトルネックは小さい状態です。",
-      tone: unpaid > 0 ? "watch" : "good",
-    });
+    if (unpaidAmount > 0) {
+      rows.push({
+        title: "未入金の回収を優先してください",
+        detail: `未回収金額は ${fmtJPY(unpaidAmount)} です。キャッシュ化の優先度が高い状態です。`,
+        tone: "watch",
+      });
+    }
 
-    rows.push({
-      title: "税負担の見込み",
-      detail:
-        tax > 0
-          ? `概算税額は ${fmtJPY(tax)} です。利益増加に対して納税資金の先取り確保が必要です。`
-          : "現時点の概算税額は限定的です。",
-      tone: tax > 0 ? "default" : "good",
-    });
+    if (runwayMonths >= 6) {
+      rows.push({
+        title: "資金余力は確保されています",
+        detail: `現在のランウェイは約 ${runwayMonths} ヶ月です。短期の資金繰り余力があります。`,
+        tone: "good",
+      });
+    } else {
+      rows.push({
+        title: "資金余力を確認してください",
+        detail: `現在のランウェイは約 ${runwayMonths} ヶ月です。現金残高と固定費の再確認が必要です。`,
+        tone: "watch",
+      });
+    }
 
-    rows.push({
-      title: "資金余力",
-      detail:
-        runway >= 12
-          ? `Runway は ${runway.toFixed(1)} ヶ月で、短期の資金耐性は十分です。`
-          : `Runway は ${runway.toFixed(1)} ヶ月です。固定費と出金構造の再点検が必要です。`,
-      tone: runway >= 12 ? "good" : "watch",
-    });
-
-    rows.push({
-      title: "AI利用余地",
-      detail:
-        limits.aiChatMonthly && limits.aiChatMonthly > 0
-          ? `今月の AI Chat 使用量は ${usageSummary.aiChatUsedMonthly ?? 0} / ${limits.aiChatMonthly} です。`
-          : "現在プランでは AI Chat 月次枠はありません。",
-      tone:
-        limits.aiChatMonthly && limits.aiChatMonthly > 0
-          ? "default"
-          : "watch",
-    });
+    if (aiChatLimit > 0) {
+      rows.push({
+        title: "AI 利用枠の状況",
+        detail: `今月の AI Chat 使用量は ${aiChatUsed}/${aiChatLimit}（${pct(utilization.aiChatPct)}）です。`,
+        tone: "default",
+      });
+    }
 
     return rows;
-  }, [summary, usageSummary, limits]);
+  }, [profitReport, summary.unpaidAmount, summary.runwayMonths, usageData.aiChatUsedMonthly, effectiveLimits.aiChatMonthly, utilization.aiChatPct]);
 
   if (loading) {
     return <LoadingCard text="AI Insights を読み込み中..." />;
   }
 
-  if (error) {
-    return (
-      <main className="space-y-6">
-        <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6">
-          <div className="text-sm font-semibold text-rose-700">AI Insights の取得に失敗しました</div>
-          <div className="mt-2 break-all text-sm text-rose-600">{error}</div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              href={`/${lang}/app`}
-              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              Dashboard に戻る
-            </Link>
-            <Link
-              href={`/${lang}/app/billing/change`}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              プランを見る
-            </Link>
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   if (!aiEnabled) {
+    const currentPlanLabel =
+      planCode === "premium" ? "Premium" : planCode === "standard" ? "Standard" : "Starter";
+
     return (
       <main className="space-y-6">
-        <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-          <div className="inline-flex rounded-full bg-white/12 px-3 py-1 text-[11px] font-medium text-white/90">
-            AI Insights
-          </div>
+        <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#111827_0%,#1f2937_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
+            <div>
+              <div className="inline-flex rounded-full bg-white/12 px-3 py-1 text-[11px] font-medium text-white/90">
+                AI Insights
+              </div>
 
-          <h1 className="mt-5 text-[34px] font-semibold tracking-tight">AI Insights</h1>
-          <div className="mt-3 max-w-3xl text-sm leading-6 text-white/80">
-            Dashboard・Reports・Usage を横断して経営インサイトを提示する premium 機能です。
+              <h1 className="mt-5 text-[34px] font-semibold tracking-tight">AI Insights</h1>
+
+              <div className="mt-2 text-sm text-white/80">
+                利益率、未入金、資金余力、AI 利用枠をもとに経営判断の示唆を提示します。
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                  current plan: {currentPlanLabel}
+                </span>
+                <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                  workspace: {workspaceName}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
+                <div className="text-[11px] font-medium text-slate-500">Required Plan</div>
+                <div className="mt-2 text-lg font-semibold">Premium</div>
+                <div className="mt-1 text-xs text-slate-500">AI Insights / AI Chat / AI OCR</div>
+              </div>
+
+              <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
+                <div className="text-[11px] font-medium text-slate-500">Current Access</div>
+                <div className="mt-2 text-lg font-semibold">Locked</div>
+                <div className="mt-1 text-xs text-slate-500">Premium で解放されます</div>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="ls-card-solid rounded-[28px] p-6">
-          <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-violet-200 bg-violet-50/70 px-6 py-10 text-center">
-            <div className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-medium text-violet-700">
-              Premium Feature
-            </div>
-            <div className="mt-4 text-2xl font-semibold text-slate-900">
-              AI Insights は Premium で利用できます
-            </div>
-            <div className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
-              利益率・資金余力・未入金・税負担・利用状況を横断し、経営判断向けの insight を集約表示します。
-            </div>
+        <UpgradePromptCard
+          title="AI Insights は Premium で利用できます"
+          description="AI 分析、経営示唆、AI Chat / OCR の月次利用枠を Premium プランで解放します。"
+          cta="Premium を確認"
+          href={`/${lang}/app/billing/change?target=premium`}
+          targetPlan="premium"
+        />
 
-            <div className="mt-8 grid w-full max-w-4xl grid-cols-1 gap-4 md:grid-cols-3">
-              <StatCard
-                title="Current Plan"
-                value={String(planCode).toUpperCase()}
-                helper="現在のワークスペース契約"
-                tone="primary"
-              />
-              <StatCard
-                title="AI Insights"
-                value="Locked"
-                helper="premium only"
-                tone="warning"
-              />
-              <StatCard
-                title="AI Chat Limit"
-                value={String(limits.aiChatMonthly ?? 0)}
-                helper="月次 AI Chat 上限"
-                tone="default"
-              />
-            </div>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href={`/${lang}/app/billing/change`}
-                className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-              >
-                Premium を確認
-              </Link>
-              <Link
-                href={`/${lang}/app`}
-                className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
-              >
-                Dashboard に戻る
-              </Link>
-            </div>
-          </div>
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <StatCard
+            title="対象機能"
+            value="AI 分析"
+            helper="利益率・未入金・資金余力・利用枠の集約表示"
+            tone="primary"
+          />
+          <StatCard
+            title="利用条件"
+            value="Premium"
+            helper="Starter / Standard ではロック表示"
+            tone="warning"
+          />
+          <StatCard
+            title="アップグレード先"
+            value="Billing"
+            helper="プラン比較ページから変更候補を確認"
+            tone="default"
+          />
         </section>
       </main>
     );
@@ -425,187 +419,168 @@ export default function AiInsightsPage() {
 
   return (
     <main className="space-y-6">
-      <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-        <div className="inline-flex rounded-full bg-white/12 px-3 py-1 text-[11px] font-medium text-white/90">
-          AI Insights
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+      <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#111827_0%,#1f2937_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
           <div>
-            <h1 className="text-[34px] font-semibold tracking-tight">AI Insights</h1>
-            <div className="mt-3 max-w-3xl text-sm leading-6 text-white/80">
-              Dashboard / Reports / Usage の実データを横断して、経営判断向けの insight baseline を表示します。
+            <div className="inline-flex rounded-full bg-white/12 px-3 py-1 text-[11px] font-medium text-white/90">
+              AI Insights
+            </div>
+
+            <h1 className="mt-5 text-[34px] font-semibold tracking-tight">AI Insights</h1>
+
+            <div className="mt-2 text-sm text-white/80">
+              ダッシュボードとレポートの実データを集約し、経営状態の示唆を提示します。
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                workspace: {workspaceName}
+              </span>
+              <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
+                plan: Premium
+              </span>
+              <Link
+                href={`/${lang}/app/reports/profit`}
+                className="ls-btn ls-btn-ghost inline-flex border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
+              >
+                利益分析へ
+              </Link>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/${lang}/app`}
-              className="ls-btn ls-btn-ghost inline-flex border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Dashboard に戻る
-            </Link>
-            <Link
-              href={`/${lang}/app/reports/profit`}
-              className="ls-btn ls-btn-ghost inline-flex border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
-            >
-              利益分析へ
-            </Link>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
+              <div className="text-[11px] font-medium text-slate-500">Health Score</div>
+              <div className="mt-2 text-lg font-semibold">{health.score ?? 0}</div>
+              <div className="mt-1 text-xs text-slate-500">{health.headline ?? "—"}</div>
+            </div>
+
+            <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
+              <div className="text-[11px] font-medium text-slate-500">AI Chat Usage</div>
+              <div className="mt-2 text-lg font-semibold">
+                {usageData.aiChatUsedMonthly ?? 0} / {effectiveLimits.aiChatMonthly ?? 0}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {usage?.period?.monthKey ?? "current month"}
+              </div>
+            </div>
           </div>
         </div>
       </section>
+
+      {error ? (
+        <section className="rounded-[28px] border border-rose-200 bg-rose-50 px-4 py-3">
+          <div className="text-sm font-semibold text-rose-700">AI Insights の取得に失敗しました</div>
+          <div className="mt-1 text-sm text-rose-600">{error}</div>
+        </section>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <StatCard
-          title="Business Health Score"
-          value={String(businessHealth.score ?? 0)}
-          helper={businessHealth.status || "score"}
-          tone="success"
-        />
-        <StatCard
-          title="Revenue"
+          title="売上"
           value={fmtJPY(summary.revenue)}
-          helper="dashboard.summary.revenue"
+          helper="dashboard summary"
           tone="primary"
         />
         <StatCard
-          title="Profit"
+          title="利益"
           value={fmtJPY(summary.profit)}
-          helper="dashboard.summary.profit"
+          helper={`profit margin ${Number(profitReport?.summary?.marginPct ?? 0).toFixed(1)}%`}
           tone="success"
         />
         <StatCard
-          title="Unpaid"
+          title="未入金"
           value={fmtJPY(summary.unpaidAmount)}
-          helper={`未入金件数 ${summary.unpaidCount ?? 0}`}
+          helper={`${summary.unpaidCount ?? 0} 件の未回収`}
           tone="warning"
+        />
+        <StatCard
+          title="資金余力"
+          value={`${summary.runwayMonths ?? 0} ヶ月`}
+          helper={`現金 ${fmtJPY(summary.cash)}`}
+          tone="default"
         />
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-8">
-          <div className="text-sm font-semibold text-slate-900">AI Summary</div>
-          <div className="mt-1 text-[12px] text-slate-500">
-            現在は real data を使った rule-based insight baseline
-          </div>
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <StatCard
+          title="Income Report"
+          value={fmtJPY(incomeReport?.summary?.totalIncome)}
+          helper={`rows ${Number(incomeReport?.summary?.rowsCount ?? 0)}`}
+          tone="primary"
+        />
+        <StatCard
+          title="Expense Report"
+          value={fmtJPY(expenseReport?.summary?.totalExpense)}
+          helper={`rows ${Number(expenseReport?.summary?.rowsCount ?? 0)}`}
+          tone="default"
+        />
+        <StatCard
+          title="Cash Flow"
+          value={fmtJPY(cashflowReport?.summary?.netCash)}
+          helper={`cash in ${fmtJPY(cashflowReport?.summary?.cashIn)}`}
+          tone="success"
+        />
+      </section>
 
-          <div className="mt-5 space-y-4">
-            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-semibold text-slate-900">
-                {businessHealth.headline || "経営健全性サマリー"}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-600">
-                {businessHealth.summary || "business health summary unavailable"}
-              </div>
-            </div>
-
-            {derivedInsights.map((row) => (
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="ls-card-solid rounded-[28px] p-6">
+          <div className="text-sm font-semibold text-slate-900">AI-generated operational insights</div>
+          <div className="mt-4 space-y-3">
+            {generatedInsights.map((item, index) => (
               <InsightRow
-                key={row.title}
-                title={row.title}
-                detail={row.detail}
-                tone={row.tone as "default" | "good" | "watch"}
+                key={`${item.title}-${index}`}
+                title={item.title}
+                detail={item.detail}
+                tone={item.tone}
               />
             ))}
           </div>
-        </section>
+        </div>
 
-        <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-4">
-          <div className="text-sm font-semibold text-slate-900">Usage & Limits</div>
-          <div className="mt-1 text-[12px] text-slate-500">workspace/usage baseline</div>
+        <div className="space-y-4">
+          <section className="ls-card-solid rounded-[28px] p-6">
+            <div className="text-sm font-semibold text-slate-900">利用枠</div>
+            <div className="mt-4 space-y-3">
+              <StatCard
+                title="AI Chat"
+                value={`${usageData.aiChatUsedMonthly ?? 0} / ${effectiveLimits.aiChatMonthly ?? 0}`}
+                helper={`${pct(usage?.utilization?.aiChatPct)} used`}
+                tone="primary"
+              />
+              <StatCard
+                title="AI OCR"
+                value={`${usageData.aiInvoiceOcrUsedMonthly ?? 0} / ${effectiveLimits.aiInvoiceOcrMonthly ?? 0}`}
+                helper={`${pct(usage?.utilization?.aiInvoiceOcrPct)} used`}
+                tone="default"
+              />
+            </div>
+          </section>
 
-          <div className="mt-5 space-y-3">
-            <StatCard
-              title="AI Chat Used"
-              value={`${usageSummary.aiChatUsedMonthly ?? 0} / ${limits.aiChatMonthly ?? 0}`}
-              helper={`utilization ${pct(util.aiChatPct)}`}
-              tone="default"
-            />
-            <StatCard
-              title="AI OCR Used"
-              value={`${usageSummary.aiInvoiceOcrUsedMonthly ?? 0} / ${limits.aiInvoiceOcrMonthly ?? 0}`}
-              helper={`utilization ${pct(util.aiInvoiceOcrPct)}`}
-              tone="default"
-            />
-            <StatCard
-              title="Stores Used"
-              value={`${usageSummary.storesUsed ?? 0} / ${limits.maxStores ?? 0}`}
-              helper={`utilization ${pct(util.storesPct)}`}
-              tone="primary"
-            />
-            <StatCard
-              title="Period"
-              value={usage?.period?.monthKey || "-"}
-              helper="usage period"
-              tone="default"
-            />
-          </div>
-        </section>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-7">
-          <div className="text-sm font-semibold text-slate-900">Report Signals</div>
-          <div className="mt-1 text-[12px] text-slate-500">
-            reports API summary snapshot
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <StatCard
-              title="Income Summary"
-              value={fmtJPY(Number(incomeReport?.summary?.totalIncome ?? 0))}
-              helper={`rows ${Number(incomeReport?.summary?.rowsCount ?? 0)}`}
-              tone="success"
-            />
-            <StatCard
-              title="Expense Summary"
-              value={fmtJPY(Number(expenseReport?.summary?.totalExpense ?? 0))}
-              helper={`rows ${Number(expenseReport?.summary?.rowsCount ?? 0)}`}
-              tone="warning"
-            />
-            <StatCard
-              title="Profit Summary"
-              value={fmtJPY(Number(profitReport?.summary?.grossProfit ?? 0))}
-              helper={`margin ${Number(profitReport?.summary?.marginPct ?? 0).toFixed(1)}%`}
-              tone="primary"
-            />
-            <StatCard
-              title="Cashflow Summary"
-              value={fmtJPY(Number(cashflowReport?.summary?.netCash ?? 0))}
-              helper={`cashIn ${fmtJPY(Number(cashflowReport?.summary?.cashIn ?? 0))}`}
-              tone="default"
-            />
-          </div>
-        </section>
-
-        <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-5">
-          <div className="text-sm font-semibold text-slate-900">Alert Context</div>
-          <div className="mt-1 text-[12px] text-slate-500">
-            dashboard alerts snapshot
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {(dashboard?.alerts ?? []).length === 0 ? (
-              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                no alerts
-              </div>
-            ) : (
-              (dashboard?.alerts ?? []).map((item, idx) => (
-                <div
-                  key={`${item.key || "alert"}-${idx}`}
-                  className="rounded-[22px] border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div className="text-sm font-semibold text-slate-900">
-                    {item.title || item.key || "alert"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-600">
-                    {item.description || item.level || "-"}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+          <section className="ls-card-solid rounded-[28px] p-6">
+            <div className="text-sm font-semibold text-slate-900">移動先</div>
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <Link
+                href={`/${lang}/app/reports/profit`}
+                className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                利益分析
+              </Link>
+              <Link
+                href={`/${lang}/app/reports/cashflow`}
+                className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                キャッシュフロー
+              </Link>
+              <Link
+                href={`/${lang}/app/invoices/unpaid`}
+                className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+              >
+                未入金
+              </Link>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
   );
