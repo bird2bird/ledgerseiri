@@ -4,74 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-
-type JobStatus = "PENDING" | "PROCESSING" | "SUCCEEDED" | "FAILED" | string;
-
-type ImportJobItem = {
-  id: string;
-  domain?: string | null;
-  filename?: string | null;
-  status?: JobStatus | null;
-  totalRows?: number | null;
-  successRows?: number | null;
-  failedRows?: number | null;
-  errorMessage?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
-
-type ExportJobItem = {
-  id: string;
-  domain?: string | null;
-  format?: string | null;
-  status?: JobStatus | null;
-  fileUrl?: string | null;
-  errorMessage?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
-
-type ImportJobsResponse = {
-  ok?: boolean;
-  domain?: string;
-  action?: string;
-  items?: ImportJobItem[];
-  total?: number;
-  message?: string;
-};
-
-type ExportJobsResponse = {
-  ok?: boolean;
-  domain?: string;
-  action?: string;
-  items?: ExportJobItem[];
-  total?: number;
-  message?: string;
-};
-
-type MetaSummary = {
-  total?: number;
-  pending?: number;
-  processing?: number;
-  succeeded?: number;
-  failed?: number;
-};
-
-type ImportMetaResponse = {
-  ok?: boolean;
-  domain?: string;
-  action?: string;
-  summary?: MetaSummary;
-  message?: string;
-};
-
-type ExportMetaResponse = {
-  ok?: boolean;
-  domain?: string;
-  action?: string;
-  summary?: MetaSummary;
-  message?: string;
-};
+import {
+  loadJobsSnapshot,
+  type ExportJobItem,
+  type ImportJobItem,
+  type MetaSummary,
+} from "@/core/jobs";
 
 function cls(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -151,35 +89,12 @@ export default function AmazonReconciliationPage() {
     setError("");
 
     try {
-      const [importRes, importMetaRes, exportRes, exportMetaRes] = await Promise.all([
-        fetch("/api/import-jobs", { credentials: "include", cache: "no-store" }),
-        fetch("/api/import-jobs/meta", { credentials: "include", cache: "no-store" }),
-        fetch("/api/export-jobs", { credentials: "include", cache: "no-store" }),
-        fetch("/api/export-jobs/meta", { credentials: "include", cache: "no-store" }),
-      ]);
+      const snapshot = await loadJobsSnapshot();
 
-      if (!importRes.ok) {
-        throw new Error(`/api/import-jobs failed: ${importRes.status}`);
-      }
-      if (!importMetaRes.ok) {
-        throw new Error(`/api/import-jobs/meta failed: ${importMetaRes.status}`);
-      }
-      if (!exportRes.ok) {
-        throw new Error(`/api/export-jobs failed: ${exportRes.status}`);
-      }
-      if (!exportMetaRes.ok) {
-        throw new Error(`/api/export-jobs/meta failed: ${exportMetaRes.status}`);
-      }
-
-      const importJson = (await importRes.json()) as ImportJobsResponse;
-      const importMetaJson = (await importMetaRes.json()) as ImportMetaResponse;
-      const exportJson = (await exportRes.json()) as ExportJobsResponse;
-      const exportMetaJson = (await exportMetaRes.json()) as ExportMetaResponse;
-
-      setImportItems(Array.isArray(importJson?.items) ? importJson.items : []);
-      setExportItems(Array.isArray(exportJson?.items) ? exportJson.items : []);
-      setImportSummary(importMetaJson?.summary ?? null);
-      setExportSummary(exportMetaJson?.summary ?? null);
+      setImportItems(snapshot.importItems);
+      setExportItems(snapshot.exportItems);
+      setImportSummary(snapshot.importMeta?.summary ?? null);
+      setExportSummary(snapshot.exportMeta?.summary ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load reconciliation jobs");
       setImportItems([]);

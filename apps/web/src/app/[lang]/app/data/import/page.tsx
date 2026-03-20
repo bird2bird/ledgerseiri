@@ -4,45 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-
-type ImportJobItem = {
-  id: string;
-  companyId: string;
-  domain: string;
-  filename: string;
-  status: string;
-  totalRows: number | null;
-  successRows: number | null;
-  failedRows: number | null;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ImportJobsResponse = {
-  ok: boolean;
-  domain: "import-jobs";
-  action: "list";
-  items: ImportJobItem[];
-  total: number;
-  message: string;
-};
-
-type ImportJobsMetaResponse = {
-  ok: boolean;
-  domain: "import-jobs";
-  action: "meta";
-  domains: Array<{ value: string; label: string }>;
-  statuses: Array<{ value: string; label: string }>;
-  summary: {
-    total: number;
-    pending: number;
-    processing: number;
-    succeeded: number;
-    failed: number;
-  };
-  message: string;
-};
+import {
+  loadImportJobsPageSnapshot,
+  type ImportJobItem,
+  type ImportMetaResponse,
+  type ImportJobsResponse,
+} from "@/core/jobs";
 
 function fmtDate(value?: string | null) {
   if (!value) return "-";
@@ -57,7 +24,7 @@ function fmtDate(value?: string | null) {
   }).format(d);
 }
 
-function statusTone(status?: string) {
+function statusTone(status?: string | null) {
   const s = String(status || "").toUpperCase();
   if (s === "SUCCEEDED") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (s === "FAILED") return "border-rose-200 bg-rose-50 text-rose-700";
@@ -94,7 +61,7 @@ export default function DataImportPage() {
   const lang = normalizeLang(params?.lang) as Lang;
 
   const [jobs, setJobs] = useState<ImportJobItem[]>([]);
-  const [meta, setMeta] = useState<ImportJobsMetaResponse | null>(null);
+  const [meta, setMeta] = useState<ImportMetaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -103,29 +70,10 @@ export default function DataImportPage() {
     setError("");
 
     try {
-      const [jobsRes, metaRes] = await Promise.all([
-        fetch("/api/import-jobs", {
-          credentials: "include",
-          cache: "no-store",
-        }),
-        fetch("/api/import-jobs/meta", {
-          credentials: "include",
-          cache: "no-store",
-        }),
-      ]);
+      const snapshot = await loadImportJobsPageSnapshot();
 
-      if (!jobsRes.ok) {
-        throw new Error(`/api/import-jobs failed: ${jobsRes.status}`);
-      }
-      if (!metaRes.ok) {
-        throw new Error(`/api/import-jobs/meta failed: ${metaRes.status}`);
-      }
-
-      const jobsJson = (await jobsRes.json()) as ImportJobsResponse;
-      const metaJson = (await metaRes.json()) as ImportJobsMetaResponse;
-
-      setJobs(Array.isArray(jobsJson.items) ? jobsJson.items : []);
-      setMeta(metaJson);
+      setJobs(Array.isArray(snapshot.jobs.items) ? snapshot.jobs.items : []);
+      setMeta(snapshot.meta ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load import jobs");
       setJobs([]);
@@ -141,8 +89,13 @@ export default function DataImportPage() {
 
   const latestUpdatedAt = useMemo(() => {
     const values = jobs
-      .map((x) => new Date(x.updatedAt).getTime())
+      .map((x) => {
+        const raw = x.updatedAt;
+        if (!raw) return Number.NaN;
+        return new Date(raw).getTime();
+      })
       .filter((x) => Number.isFinite(x));
+
     if (values.length === 0) return "-";
     return fmtDate(new Date(Math.max(...values)).toISOString());
   }, [jobs]);
@@ -218,15 +171,15 @@ export default function DataImportPage() {
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="rounded-[22px] bg-white/92 p-5 text-slate-900 shadow-sm">
             <div className="text-[11px] font-medium text-slate-500">Total Jobs</div>
-            <div className="mt-2 text-xl font-semibold">{meta?.summary.total ?? 0}</div>
+            <div className="mt-2 text-xl font-semibold">{meta?.summary?.total ?? 0}</div>
           </div>
           <div className="rounded-[22px] bg-white/92 p-5 text-slate-900 shadow-sm">
             <div className="text-[11px] font-medium text-slate-500">Pending</div>
-            <div className="mt-2 text-xl font-semibold">{meta?.summary.pending ?? 0}</div>
+            <div className="mt-2 text-xl font-semibold">{meta?.summary?.pending ?? 0}</div>
           </div>
           <div className="rounded-[22px] bg-white/92 p-5 text-slate-900 shadow-sm">
             <div className="text-[11px] font-medium text-slate-500">Succeeded</div>
-            <div className="mt-2 text-xl font-semibold">{meta?.summary.succeeded ?? 0}</div>
+            <div className="mt-2 text-xl font-semibold">{meta?.summary?.succeeded ?? 0}</div>
           </div>
           <div className="rounded-[22px] bg-white/92 p-5 text-slate-900 shadow-sm">
             <div className="text-[11px] font-medium text-slate-500">Latest Update</div>
@@ -238,13 +191,13 @@ export default function DataImportPage() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <MetricCard
           label="処理中"
-          value={meta?.summary.processing ?? 0}
+          value={meta?.summary?.processing ?? 0}
           helper="PROCESSING"
           tone="primary"
         />
         <MetricCard
           label="失敗"
-          value={meta?.summary.failed ?? 0}
+          value={meta?.summary?.failed ?? 0}
           helper="FAILED"
           tone="warning"
         />
