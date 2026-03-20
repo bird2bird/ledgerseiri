@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
+  useParams } from "next/navigation";
+import { normalizeLang,
+  type Lang } from "@/lib/i18n/lang";
+import {
+  createFallbackMatchingBaselineSummary,
   loadAmazonReconciliationSnapshot,
   type AmazonReconciliationSnapshot,
+  deriveMatchingSummaryCardModel,
 } from "@/core/amazon-reconciliation";
 import {
   type ExportJobItem,
@@ -15,6 +19,7 @@ import {
 import { AmazonReconciliationStatCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatCard";
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
 import { AmazonReconciliationJobSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSummaryCard";
+import { AmazonReconciliationMatchingSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSummaryCard";
 import { AmazonReconciliationReadinessCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationReadinessCard";
 import { AmazonReconciliationQuickActionsCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationQuickActionsCard";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
@@ -57,8 +62,10 @@ export default function AmazonReconciliationPage() {
   const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
-  const matching = snapshot!.matching;
-  const totalFailed = Number(snapshot?.matching?.totalFailedJobs ?? 0);
+  const resolvedSnapshot = snapshot;
+  const matching = resolvedSnapshot?.matching ?? createFallbackMatchingBaselineSummary();
+  const matchingCard = resolvedSnapshot?.matchingCard ?? deriveMatchingSummaryCardModel(matching);
+  const totalFailed = Number(matching.totalFailedJobs ?? 0);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -101,6 +108,13 @@ export default function AmazonReconciliationPage() {
           title="Current Mode"
           value="Connected"
           helper="real Step46 job baseline connected"
+        />
+      </section>
+
+      <section className="grid grid-cols-1 gap-6">
+        <AmazonReconciliationMatchingSummaryCard
+          lang={lang}
+          model={matchingCard}
         />
       </section>
 

@@ -23,10 +23,24 @@ export type MatchingBaselineSummary = {
   recommendedAction: MatchingRecommendedAction;
 };
 
+export type MatchingSummaryCardModel = {
+  title: string;
+  lead: string;
+  coverageLabel: string;
+  coverageValue: string;
+  failedJobsLabel: string;
+  failedJobsValue: number;
+  latestActivityLabel: string;
+  latestActivityValue: string;
+  nextActionHref: string;
+  nextActionLabel: string;
+};
+
 export type AmazonReconciliationSnapshot = {
   importItems: ImportJobItem[];
   exportItems: ExportJobItem[];
   importSummary: MetaSummary | null;
   exportSummary: MetaSummary | null;
   matching: MatchingBaselineSummary;
+  matchingCard: MatchingSummaryCardModel;
 };

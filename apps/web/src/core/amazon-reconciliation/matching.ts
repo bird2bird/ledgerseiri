@@ -1,8 +1,13 @@
-import type { ExportJobItem, ImportJobItem, MetaSummary } from "@/core/jobs";
+import type {
+  ExportJobItem,
+  ImportJobItem,
+  MetaSummary,
+} from "@/core/jobs";
 import type {
   MatchingBaselineBlock,
   MatchingBaselineSummary,
   MatchingBaselineStatus,
+  MatchingSummaryCardModel,
 } from "./types";
 
 function latestIso(values: Array<string | null | undefined>): string | null {
@@ -49,35 +54,6 @@ function makeBaselineBlock(args: {
     status,
     headline: args.hasItems ? "Needs review" : "Not ready",
     detail: args.attentionDetail,
-  };
-}
-
-export function createFallbackMatchingBaselineSummary(): MatchingBaselineSummary {
-  return {
-    importBaseline: {
-      title: "Import Baseline",
-      status: "planned",
-      headline: "Planned",
-      detail: "matching baseline unavailable",
-    },
-    exportBaseline: {
-      title: "Export Baseline",
-      status: "planned",
-      headline: "Planned",
-      detail: "matching baseline unavailable",
-    },
-    matchingEngine: {
-      title: "Amazon Matching Engine",
-      status: "planned",
-      headline: "Planned",
-      detail: "matching baseline unavailable",
-    },
-    totalFailedJobs: 0,
-    latestActivityAt: null,
-    recommendedAction: {
-      href: "/app/amazon-reconciliation",
-      label: "Amazon照合",
-    },
   };
 }
 
@@ -132,10 +108,10 @@ export function deriveMatchingBaselineSummary(args: {
     !importHasItems
       ? { href: "/app/data/import", label: "データインポートを開く" }
       : !exportHasItems
-        ? { href: "/app/data/export", label: "データエクスポートを開く" }
-        : totalFailedJobs > 0
-          ? { href: "/app/amazon-reconciliation", label: "失敗ジョブを確認" }
-          : { href: "/app/journals", label: "仕訳一覧へ" };
+      ? { href: "/app/data/export", label: "データエクスポートを開く" }
+      : totalFailedJobs > 0
+      ? { href: "/app/amazon-reconciliation", label: "失敗ジョブを確認" }
+      : { href: "/app/journals", label: "仕訳一覧へ" };
 
   return {
     importBaseline,
@@ -144,5 +120,70 @@ export function deriveMatchingBaselineSummary(args: {
     totalFailedJobs,
     latestActivityAt,
     recommendedAction,
+  };
+}
+
+function fmtDate(value?: string | null) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+export function createFallbackMatchingBaselineSummary(): MatchingBaselineSummary {
+  return {
+    importBaseline: {
+      title: "Import Baseline",
+      status: "planned",
+      headline: "Planned",
+      detail: "matching baseline unavailable",
+    },
+    exportBaseline: {
+      title: "Export Baseline",
+      status: "planned",
+      headline: "Planned",
+      detail: "matching baseline unavailable",
+    },
+    matchingEngine: {
+      title: "Amazon Matching Engine",
+      status: "planned",
+      headline: "Planned",
+      detail: "matching baseline unavailable",
+    },
+    totalFailedJobs: 0,
+    latestActivityAt: null,
+    recommendedAction: {
+      href: "/app/amazon-reconciliation",
+      label: "Amazon照合",
+    },
+  };
+}
+
+export function deriveMatchingSummaryCardModel(
+  matching: MatchingBaselineSummary,
+): MatchingSummaryCardModel {
+  const readyCount = [
+    matching.importBaseline,
+    matching.exportBaseline,
+    matching.matchingEngine,
+  ].filter((x) => x.status === "ready").length;
+
+  return {
+    title: "Matching Summary",
+    lead: "Current reconciliation baseline derived from import/export runtime state.",
+    coverageLabel: "Coverage",
+    coverageValue: `${readyCount}/3 ready`,
+    failedJobsLabel: "Failed Jobs",
+    failedJobsValue: matching.totalFailedJobs,
+    latestActivityLabel: "Latest Activity",
+    latestActivityValue: fmtDate(matching.latestActivityAt),
+    nextActionHref: matching.recommendedAction.href,
+    nextActionLabel: matching.recommendedAction.label,
   };
 }

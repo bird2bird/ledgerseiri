@@ -2,6 +2,7 @@ import { loadJobsSnapshot } from "@/core/jobs";
 import {
   createFallbackMatchingBaselineSummary,
   deriveMatchingBaselineSummary,
+  deriveMatchingSummaryCardModel,
 } from "./matching";
 import type { AmazonReconciliationSnapshot } from "./types";
 
@@ -20,12 +21,16 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     exportSummary,
   });
 
+
+  const resolvedMatching = matching ?? createFallbackMatchingBaselineSummary();
+
   return {
     importItems,
     exportItems,
     importSummary,
     exportSummary,
-    matching: matching ?? createFallbackMatchingBaselineSummary(),
+    matching: resolvedMatching,
+    matchingCard: deriveMatchingSummaryCardModel(resolvedMatching),
   };
 }
 

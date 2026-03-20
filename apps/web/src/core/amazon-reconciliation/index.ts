@@ -1,3 +1,3 @@
 export * from "./types";
-export * from "./matching";
 export * from "./api";
+export * from "./matching";
