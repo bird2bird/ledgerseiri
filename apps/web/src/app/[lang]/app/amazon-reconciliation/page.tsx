@@ -6,10 +6,8 @@ import {
 import { normalizeLang,
   type Lang } from "@/lib/i18n/lang";
 import {
-  createFallbackMatchingBaselineSummary,
   loadAmazonReconciliationSnapshot,
   type AmazonReconciliationSnapshot,
-  deriveMatchingSummaryCardModel,
 } from "@/core/amazon-reconciliation";
 import {
   type ExportJobItem,
@@ -62,9 +60,18 @@ export default function AmazonReconciliationPage() {
   const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
-  const resolvedSnapshot = snapshot;
-  const matching = resolvedSnapshot?.matching ?? createFallbackMatchingBaselineSummary();
-  const matchingCard = resolvedSnapshot?.matchingCard ?? deriveMatchingSummaryCardModel(matching);
+  if (!snapshot) {
+    return (
+      <AmazonReconciliationErrorState
+        lang={lang}
+        error="reconciliation snapshot unavailable"
+        onReload={load}
+      />
+    );
+  }
+
+  const matching = snapshot.matching;
+  const matchingCard = snapshot.matchingCard;
   const totalFailed = Number(matching.totalFailedJobs ?? 0);
 
   if (loading) {
@@ -88,13 +95,13 @@ export default function AmazonReconciliationPage() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <AmazonReconciliationStatCard
           title="Import Jobs"
-          value={Number(importSummary?.total ?? snapshot?.importItems.length ?? 0)}
+          value={Number(importSummary?.total ?? snapshot.importItems.length ?? 0)}
           helper="import job total"
           tone="primary"
         />
         <AmazonReconciliationStatCard
           title="Export Jobs"
-          value={Number(exportSummary?.total ?? snapshot?.exportItems.length ?? 0)}
+          value={Number(exportSummary?.total ?? snapshot.exportItems.length ?? 0)}
           helper="export job total"
           tone="success"
         />

@@ -23,6 +23,7 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
 
 
   const resolvedMatching = matching ?? createFallbackMatchingBaselineSummary();
+  const matchingCard = deriveMatchingSummaryCardModel(resolvedMatching);
 
   return {
     importItems,
@@ -30,7 +31,7 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     importSummary,
     exportSummary,
     matching: resolvedMatching,
-    matchingCard: deriveMatchingSummaryCardModel(resolvedMatching),
+    matchingCard,
   };
 }
 
