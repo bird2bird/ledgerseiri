@@ -4,7 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
-  loadJobsSnapshot,
+  loadAmazonReconciliationSnapshot,
+  type AmazonReconciliationSnapshot,
+} from "@/core/amazon-reconciliation";
+import {
   type ExportJobItem,
   type ImportJobItem,
   type MetaSummary,
@@ -25,28 +28,23 @@ export default function AmazonReconciliationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [importItems, setImportItems] = useState<ImportJobItem[]>([]);
-  const [exportItems, setExportItems] = useState<ExportJobItem[]>([]);
-  const [importSummary, setImportSummary] = useState<MetaSummary | null>(null);
-  const [exportSummary, setExportSummary] = useState<MetaSummary | null>(null);
+  const [snapshot, setSnapshot] = useState<AmazonReconciliationSnapshot | null>(null);
+
+  const importItems: ImportJobItem[] = snapshot?.importItems ?? [];
+  const exportItems: ExportJobItem[] = snapshot?.exportItems ?? [];
+  const importSummary: MetaSummary | null = snapshot?.importSummary ?? null;
+  const exportSummary: MetaSummary | null = snapshot?.exportSummary ?? null;
 
   async function load() {
     setLoading(true);
     setError("");
 
     try {
-      const snapshot = await loadJobsSnapshot();
-
-      setImportItems(snapshot.importItems);
-      setExportItems(snapshot.exportItems);
-      setImportSummary(snapshot.importMeta?.summary ?? null);
-      setExportSummary(snapshot.exportMeta?.summary ?? null);
+      const nextSnapshot = await loadAmazonReconciliationSnapshot();
+      setSnapshot(nextSnapshot);
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load reconciliation jobs");
-      setImportItems([]);
-      setExportItems([]);
-      setImportSummary(null);
-      setExportSummary(null);
+      setSnapshot(null);
     } finally {
       setLoading(false);
     }
@@ -59,9 +57,7 @@ export default function AmazonReconciliationPage() {
   const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
-  const importFailed = Number(importSummary?.failed ?? 0);
-  const exportFailed = Number(exportSummary?.failed ?? 0);
-  const totalFailed = importFailed + exportFailed;
+  const totalFailed = Number(snapshot?.totalFailed ?? 0);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
