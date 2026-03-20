@@ -10,6 +10,13 @@ import {
   getAiInsightsPrimaryReportHref,
   getAiInsightsUpgradeHref,
 } from "@/components/app/dashboard-v2/dashboard-linking";
+import {
+  loadAiInsightsSnapshot,
+  type DashboardSummaryResponse,
+  type ReportSummaryResponse,
+  type UsageResponse,
+  type WorkspaceContextResponse,
+} from "@/core/ai-insights";
 import { AiInsightsHero } from "@/components/app/ai-insights/AiInsightsHero";
 import { AiInsightsLockedState } from "@/components/app/ai-insights/AiInsightsLockedState";
 import { AiInsightsSummaryStats } from "@/components/app/ai-insights/AiInsightsSummaryStats";
@@ -17,94 +24,6 @@ import { AiInsightsReportStats } from "@/components/app/ai-insights/AiInsightsRe
 import { AiInsightsOperationalInsightsCard } from "@/components/app/ai-insights/AiInsightsOperationalInsightsCard";
 import { AiInsightsUsageCard } from "@/components/app/ai-insights/AiInsightsUsageCard";
 import { AiInsightsDestinationsCard } from "@/components/app/ai-insights/AiInsightsDestinationsCard";
-
-type WorkspaceContextResponse = {
-  workspace?: {
-    slug?: string;
-    displayName?: string;
-    companyName?: string;
-    locale?: string;
-  };
-  subscription?: {
-    planCode?: string;
-    status?: string;
-    source?: string;
-    entitlements?: Record<string, boolean>;
-    limits?: {
-      maxStores?: number;
-      invoiceStorageMb?: number;
-      aiChatMonthly?: number;
-      aiInvoiceOcrMonthly?: number;
-      historyMonths?: number;
-    };
-  };
-};
-
-type UsageResponse = {
-  effectiveLimits?: {
-    maxStores?: number;
-    invoiceStorageMb?: number;
-    aiChatMonthly?: number;
-    aiInvoiceOcrMonthly?: number;
-    historyMonths?: number;
-  };
-  usage?: {
-    storesUsed?: number;
-    invoiceStorageMbUsed?: number;
-    aiChatUsedMonthly?: number;
-    aiInvoiceOcrUsedMonthly?: number;
-  };
-  utilization?: {
-    storesPct?: number;
-    invoiceStoragePct?: number;
-    aiChatPct?: number;
-    aiInvoiceOcrPct?: number;
-  };
-  overLimit?: {
-    stores?: boolean;
-    invoiceStorage?: boolean;
-    aiChat?: boolean;
-    aiInvoiceOcr?: boolean;
-  };
-  period?: {
-    monthKey?: string;
-  };
-};
-
-type DashboardSummaryResponse = {
-  summary?: {
-    revenue?: number;
-    expense?: number;
-    profit?: number;
-    cash?: number;
-    estimatedTax?: number;
-    unpaidAmount?: number;
-    unpaidCount?: number;
-    inventoryValue?: number;
-    inventoryAlertCount?: number;
-    runwayMonths?: number;
-  };
-  businessHealth?: {
-    score?: number;
-    status?: string;
-    headline?: string;
-    summary?: string;
-    items?: Array<{
-      label?: string;
-      value?: string;
-    }>;
-  };
-  alerts?: Array<{
-    key?: string;
-    level?: string;
-    title?: string;
-    description?: string;
-  }>;
-};
-
-type ReportSummaryResponse = {
-  summary?: Record<string, number>;
-};
 
 function fmtJPY(value?: number | null) {
   return `¥${Math.round(Number(value ?? 0)).toLocaleString("ja-JP")}`;
@@ -166,59 +85,17 @@ export default function AiInsightsPage() {
       setError("");
 
       try {
-        const [
-          ctxRes,
-          usageRes,
-          dashRes,
-          incomeRes,
-          expenseRes,
-          profitRes,
-          cashRes,
-        ] = await Promise.all([
-          fetch("/workspace/context", { credentials: "include", cache: "no-store" }),
-          fetch("/workspace/usage", { credentials: "include", cache: "no-store" }),
-          fetch("/dashboard/summary", { credentials: "include", cache: "no-store" }),
-          fetch("/api/reports/income", { credentials: "include", cache: "no-store" }),
-          fetch("/api/reports/expense", { credentials: "include", cache: "no-store" }),
-          fetch("/api/reports/profit", { credentials: "include", cache: "no-store" }),
-          fetch("/api/reports/cashflow", { credentials: "include", cache: "no-store" }),
-        ]);
-
-        if (!ctxRes.ok) throw new Error(`/workspace/context failed: ${ctxRes.status}`);
-        if (!usageRes.ok) throw new Error(`/workspace/usage failed: ${usageRes.status}`);
-        if (!dashRes.ok) throw new Error(`/dashboard/summary failed: ${dashRes.status}`);
-        if (!incomeRes.ok) throw new Error(`/api/reports/income failed: ${incomeRes.status}`);
-        if (!expenseRes.ok) throw new Error(`/api/reports/expense failed: ${expenseRes.status}`);
-        if (!profitRes.ok) throw new Error(`/api/reports/profit failed: ${profitRes.status}`);
-        if (!cashRes.ok) throw new Error(`/api/reports/cashflow failed: ${cashRes.status}`);
-
-        const [
-          ctxJson,
-          usageJson,
-          dashJson,
-          incomeJson,
-          expenseJson,
-          profitJson,
-          cashJson,
-        ] = await Promise.all([
-          ctxRes.json(),
-          usageRes.json(),
-          dashRes.json(),
-          incomeRes.json(),
-          expenseRes.json(),
-          profitRes.json(),
-          cashRes.json(),
-        ]);
+        const snapshot = await loadAiInsightsSnapshot();
 
         if (!mounted) return;
 
-        setWorkspaceCtx((ctxJson || null) as WorkspaceContextResponse | null);
-        setUsage((usageJson || null) as UsageResponse | null);
-        setDashboard((dashJson || null) as DashboardSummaryResponse | null);
-        setIncomeReport((incomeJson || null) as ReportSummaryResponse | null);
-        setExpenseReport((expenseJson || null) as ReportSummaryResponse | null);
-        setProfitReport((profitJson || null) as ReportSummaryResponse | null);
-        setCashflowReport((cashJson || null) as ReportSummaryResponse | null);
+        setWorkspaceCtx(snapshot.workspaceCtx);
+        setUsage(snapshot.usage);
+        setDashboard(snapshot.dashboard);
+        setIncomeReport(snapshot.incomeReport);
+        setExpenseReport(snapshot.expenseReport);
+        setProfitReport(snapshot.profitReport);
+        setCashflowReport(snapshot.cashflowReport);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "failed to load ai insights");
