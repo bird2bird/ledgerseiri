@@ -1,19 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  useParams } from "next/navigation";
-import { normalizeLang,
-  type Lang } from "@/lib/i18n/lang";
-import {
-  loadAmazonReconciliationSnapshot,
-  type AmazonReconciliationSnapshot,
-} from "@/core/amazon-reconciliation";
-import {
-  type ExportJobItem,
-  type ImportJobItem,
-  type MetaSummary,
-} from "@/core/jobs";
+import React from "react";
+import { useParams } from "next/navigation";
+import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { AmazonReconciliationStatCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatCard";
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
 import { AmazonReconciliationJobSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSummaryCard";
@@ -22,57 +11,25 @@ import { AmazonReconciliationReadinessCard } from "@/components/app/amazon-recon
 import { AmazonReconciliationQuickActionsCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationQuickActionsCard";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
-import { selectRecentJobs } from "@/components/app/amazon-reconciliation/amazon-reconciliation-shared";
+import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
 
 export default function AmazonReconciliationPage() {
   const params = useParams<{ lang: string }>();
   const lang = normalizeLang(params?.lang) as Lang;
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const [snapshot, setSnapshot] = useState<AmazonReconciliationSnapshot | null>(null);
-
-  const importItems: ImportJobItem[] = snapshot?.importItems ?? [];
-  const exportItems: ExportJobItem[] = snapshot?.exportItems ?? [];
-  const importSummary: MetaSummary | null = snapshot?.importSummary ?? null;
-  const exportSummary: MetaSummary | null = snapshot?.exportSummary ?? null;
-
-  async function load() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const nextSnapshot = await loadAmazonReconciliationSnapshot();
-      setSnapshot(nextSnapshot);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to load reconciliation jobs");
-      setSnapshot(null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
-  const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
-
-  if (!snapshot) {
-    return (
-      <AmazonReconciliationErrorState
-        lang={lang}
-        error="reconciliation snapshot unavailable"
-        onReload={load}
-      />
-    );
-  }
-
-  const matching = snapshot.matching;
-  const matchingCard = snapshot.matchingCard;
-  const totalFailed = Number(matching.totalFailedJobs ?? 0);
+  const {
+    loading,
+    error,
+    snapshot,
+    load,
+    importSummary,
+    exportSummary,
+    recentImport,
+    recentExport,
+    matching,
+    matchingCard,
+    totalFailed,
+  } = useAmazonReconciliationPageState();
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -83,6 +40,16 @@ export default function AmazonReconciliationPage() {
       <AmazonReconciliationErrorState
         lang={lang}
         error={error}
+        onReload={load}
+      />
+    );
+  }
+
+  if (!snapshot || !matching || !matchingCard) {
+    return (
+      <AmazonReconciliationErrorState
+        lang={lang}
+        error="amazon reconciliation snapshot is unavailable"
         onReload={load}
       />
     );
