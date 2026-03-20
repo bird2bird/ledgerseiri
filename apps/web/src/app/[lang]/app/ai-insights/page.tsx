@@ -6,6 +6,12 @@ import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { useWorkspaceGate } from "@/hooks/useWorkspaceGate";
 import { UpgradePromptCard } from "@/components/app/dashboard-v2/UpgradePromptCard";
+import {
+  getAiInsightsDrilldownHref,
+  getAiInsightsInsightHref,
+  getAiInsightsPrimaryReportHref,
+  getAiInsightsUpgradeHref,
+} from "@/components/app/dashboard-v2/dashboard-linking";
 
 type WorkspaceContextResponse = {
   workspace?: {
@@ -143,6 +149,7 @@ function InsightRow(props: {
   title: string;
   detail: string;
   tone?: "default" | "good" | "watch";
+  href?: string;
 }) {
   const tone =
     props.tone === "good"
@@ -150,6 +157,15 @@ function InsightRow(props: {
       : props.tone === "watch"
       ? "border-amber-200 bg-amber-50"
       : "border-slate-200 bg-white";
+
+  if (props.href) {
+    return (
+      <Link href={props.href} className={cls("block rounded-[22px] border p-4 transition hover:-translate-y-[1px] hover:shadow-[var(--sh-sm)]", tone)}>
+        <div className="text-sm font-semibold text-slate-900">{props.title}</div>
+        <div className="mt-2 text-sm leading-6 text-slate-600">{props.detail}</div>
+      </Link>
+    );
+  }
 
   return (
     <div className={cls("rounded-[22px] border p-4", tone)}>
@@ -179,6 +195,9 @@ export default function AiInsightsPage() {
     workspaceCtx?.subscription?.planCode?.toLowerCase?.() ||
     gate.planCode ||
     "starter";
+
+  const upgradeHref = getAiInsightsUpgradeHref(lang);
+  const primaryReportHref = getAiInsightsPrimaryReportHref(lang);
 
   const aiEnabled =
     workspaceCtx?.subscription?.entitlements?.aiInsights === true ||
@@ -389,7 +408,7 @@ export default function AiInsightsPage() {
           title="AI Insights は Premium で利用できます"
           description="AI 分析、経営示唆、AI Chat / OCR の月次利用枠を Premium プランで解放します。"
           cta="Premium を確認"
-          href={`/${lang}/app/billing/change?target=premium`}
+          href={upgradeHref}
           targetPlan="premium"
         />
 
@@ -440,7 +459,7 @@ export default function AiInsightsPage() {
                 plan: Premium
               </span>
               <Link
-                href={`/${lang}/app/reports/profit`}
+                href={primaryReportHref}
                 className="ls-btn ls-btn-ghost inline-flex border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white"
               >
                 利益分析へ
@@ -533,6 +552,7 @@ export default function AiInsightsPage() {
                 title={item.title}
                 detail={item.detail}
                 tone={item.tone}
+                href={getAiInsightsInsightHref(item.title, lang)}
               />
             ))}
           </div>
@@ -561,19 +581,19 @@ export default function AiInsightsPage() {
             <div className="text-sm font-semibold text-slate-900">移動先</div>
             <div className="mt-4 grid grid-cols-1 gap-3">
               <Link
-                href={`/${lang}/app/reports/profit`}
+                href={getAiInsightsDrilldownHref("profit", lang)}
                 className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
               >
                 利益分析
               </Link>
               <Link
-                href={`/${lang}/app/reports/cashflow`}
+                href={getAiInsightsDrilldownHref("cashflow", lang)}
                 className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
               >
                 キャッシュフロー
               </Link>
               <Link
-                href={`/${lang}/app/invoices/unpaid`}
+                href={getAiInsightsDrilldownHref("unpaid", lang)}
                 className="rounded-[18px] border border-black/5 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
               >
                 未入金

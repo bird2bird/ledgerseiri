@@ -329,3 +329,60 @@ export const DASHBOARD_LINKING_AUDIT = {
     ],
 } as const;
 
+export type AiInsightsDrilldownTarget =
+  | "profit"
+  | "cashflow"
+  | "unpaid"
+  | "inventory"
+  | "billing";
+
+export function getAiInsightsDrilldownHref(
+  target: AiInsightsDrilldownTarget,
+  lang?: string
+): string {
+  switch (target) {
+    case "profit":
+      return buildDashboardTargetHref("profit", lang);
+    case "cashflow":
+      return buildDashboardTargetHref("runway", lang);
+    case "unpaid":
+      return buildDashboardTargetHref("invoice", lang);
+    case "inventory":
+      return buildDashboardTargetHref("stockAlert", lang);
+    case "billing":
+      return `${normalizeDashboardHref("/app/billing/change", lang)}?target=premium`;
+    default:
+      return buildDashboardTargetHref("aiInsights", lang);
+  }
+}
+
+export function getAiInsightsUpgradeHref(lang?: string): string {
+  return getAiInsightsDrilldownHref("billing", lang);
+}
+
+export function getAiInsightsPrimaryReportHref(lang?: string): string {
+  return getAiInsightsDrilldownHref("profit", lang);
+}
+
+export function getAiInsightsInsightHref(title?: string, lang?: string): string {
+  const t = String(title ?? "");
+
+  if (/利益率|利益|Profit|Margin/i.test(t)) {
+    return getAiInsightsDrilldownHref("profit", lang);
+  }
+
+  if (/未入金|回収|Payment|Outstanding/i.test(t)) {
+    return getAiInsightsDrilldownHref("unpaid", lang);
+  }
+
+  if (/資金|ランウェイ|Cash|Runway/i.test(t)) {
+    return getAiInsightsDrilldownHref("cashflow", lang);
+  }
+
+  if (/在庫|Inventory/i.test(t)) {
+    return getAiInsightsDrilldownHref("inventory", lang);
+  }
+
+  return buildDashboardTargetHref("aiInsights", lang);
+}
+
