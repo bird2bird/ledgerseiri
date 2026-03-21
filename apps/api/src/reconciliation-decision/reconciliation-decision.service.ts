@@ -6,7 +6,11 @@ import { CreateReconciliationDecisionBatchDto } from "./dto/create-reconciliatio
 export class ReconciliationDecisionService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async submitBatch(dto: CreateReconciliationDecisionBatchDto) {
+  async submitBatch(args: {
+    dto: CreateReconciliationDecisionBatchDto;
+    companyId: string;
+  }) {
+    const { dto, companyId } = args;
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException("items must not be empty");
     }
@@ -20,12 +24,14 @@ export class ReconciliationDecisionService {
             persistenceKey: item.persistenceKey,
           },
           update: {
+            companyId,
             candidateId: item.candidateId,
             decision: item.decision,
             confidence: item.confidence,
             submittedAt,
           },
           create: {
+            companyId,
             candidateId: item.candidateId,
             decision: item.decision,
             persistenceKey: item.persistenceKey,
@@ -43,18 +49,25 @@ export class ReconciliationDecisionService {
     };
   }
 
-  async listAll() {
+  async listAll(args: { companyId: string }) {
     return this.prisma.reconciliationDecision.findMany({
+      where: {
+        companyId: args.companyId,
+      },
       orderBy: {
         submittedAt: "desc",
       },
     });
   }
 
-  async findByPersistenceKey(persistenceKey: string) {
-    return this.prisma.reconciliationDecision.findUnique({
+  async findByPersistenceKey(args: {
+    persistenceKey: string;
+    companyId: string;
+  }) {
+    return this.prisma.reconciliationDecision.findFirst({
       where: {
-        persistenceKey,
+        persistenceKey: args.persistenceKey,
+        companyId: args.companyId,
       },
     });
   }

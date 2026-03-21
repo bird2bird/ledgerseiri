@@ -1,6 +1,14 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Param, Post, Query } from "@nestjs/common";
 import { CreateReconciliationDecisionBatchDto } from "./dto/create-reconciliation-decision.dto";
 import { ReconciliationDecisionService } from "./reconciliation-decision.service";
+
+function resolveCompanyId(args: {
+  headerCompanyId?: string;
+  queryCompanyId?: string;
+}): string {
+  return args.headerCompanyId || args.queryCompanyId || "demo-company";
+}
+
 
 @Controller("reconciliation-decisions")
 export class ReconciliationDecisionController {
@@ -9,17 +17,36 @@ export class ReconciliationDecisionController {
   ) {}
 
   @Post()
-  submitBatch(@Body() dto: CreateReconciliationDecisionBatchDto) {
-    return this.reconciliationDecisionService.submitBatch(dto);
+  submitBatch(
+    @Body() dto: CreateReconciliationDecisionBatchDto,
+    @Headers("x-company-id") headerCompanyId?: string,
+    @Query("companyId") queryCompanyId?: string,
+  ) {
+    return this.reconciliationDecisionService.submitBatch({
+      dto,
+      companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
+    });
   }
 
   @Get()
-  listAll() {
-    return this.reconciliationDecisionService.listAll();
+  listAll(
+    @Headers("x-company-id") headerCompanyId?: string,
+    @Query("companyId") queryCompanyId?: string,
+  ) {
+    return this.reconciliationDecisionService.listAll({
+      companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
+    });
   }
 
   @Get(":persistenceKey")
-  findByPersistenceKey(@Param("persistenceKey") persistenceKey: string) {
-    return this.reconciliationDecisionService.findByPersistenceKey(persistenceKey);
+  findByPersistenceKey(
+    @Param("persistenceKey") persistenceKey: string,
+    @Headers("x-company-id") headerCompanyId?: string,
+    @Query("companyId") queryCompanyId?: string,
+  ) {
+    return this.reconciliationDecisionService.findByPersistenceKey({
+      persistenceKey,
+      companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
+    });
   }
 }

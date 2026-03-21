@@ -436,6 +436,7 @@ model WorkspaceSubscription {
 
 model ReconciliationDecision {
   id             String   @id @default(cuid())
+  companyId      String
   candidateId    String
   decision       String
   persistenceKey String   @unique
@@ -445,4 +446,6 @@ model ReconciliationDecision {
   updatedAt      DateTime @updatedAt
 
   @@index([submittedAt])
+  @@index([companyId])
+  @@index([companyId, submittedAt])
 }

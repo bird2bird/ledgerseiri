@@ -11,3 +11,8 @@ export class CreateReconciliationDecisionBatchDto {
   submittedAt!: string;
   items!: CreateReconciliationDecisionItemDto[];
 }
+
+
+export class ReconciliationDecisionScopeDto {
+  companyId!: string;
+}
