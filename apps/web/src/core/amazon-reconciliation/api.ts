@@ -4,7 +4,7 @@ import {
   deriveMatchingBaselineSummary,
   deriveMatchingSummaryCardModel,
 } from "./matching";
-import { deriveMatchingEngineSummary, deriveMatchingExecutionPreview } from "./matching-engine";
+import { deriveMatchingEngineSummary, deriveMatchingExecutionPreview, deriveMatchingCandidates } from "./matching-engine";
 import type { AmazonReconciliationSnapshot } from "./types";
 
 export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconciliationSnapshot> {
@@ -37,6 +37,11 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     importItems,
     exportItems,
   });
+  const matchingCandidates = deriveMatchingCandidates({
+    engineSummary,
+    importItems,
+    exportItems,
+  });
 
   return {
     importItems,
@@ -47,6 +52,7 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     matchingCard,
     engineSummary,
     executionPreview,
+    matchingCandidates,
   };
 }
 

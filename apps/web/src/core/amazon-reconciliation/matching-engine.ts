@@ -30,6 +30,21 @@ export type MatchingExecutionPreviewItem = {
   confidenceLabel: string;
 };
 
+export type MatchingCandidateStatus = "auto" | "review" | "blocked";
+
+export type MatchingCandidate = {
+  id: string;
+  sourceType: "import" | "export";
+  sourceId: string;
+  sourceLabel: string;
+  targetType: "import" | "export" | "none";
+  targetId: string | null;
+  targetLabel: string;
+  confidence: number;
+  status: MatchingCandidateStatus;
+  reason: string;
+};
+
 export type MatchingExecutionPreview = {
   eligibleCount: number;
   reviewQueueCount: number;
@@ -265,4 +280,102 @@ export function deriveMatchingExecutionPreview(args: {
     nextStepLabel,
     nextStepDetail,
   };
+}
+
+
+function toCandidateStatus(state: MatchingExecutionPreviewState): MatchingCandidateStatus {
+  if (state === "eligible") return "auto";
+  if (state === "review") return "review";
+  return "blocked";
+}
+
+function makeImportCandidate(args: {
+  item: ImportJobItem;
+  index: number;
+  pairedExport: ExportJobItem | null;
+  state: MatchingExecutionPreviewState;
+}): MatchingCandidate {
+  const status = toCandidateStatus(args.state);
+  const confidence =
+    status === "auto" ? 0.75 :
+    status === "review" ? 0.45 :
+    0.1;
+
+  return {
+    id: `candidate-import-${args.item.id}`,
+    sourceType: "import",
+    sourceId: String(args.item.id),
+    sourceLabel: args.item.filename ? `Import: ${args.item.filename}` : `Import Job ${args.item.id}`,
+    targetType: args.pairedExport ? "export" : "none",
+    targetId: args.pairedExport ? String(args.pairedExport.id) : null,
+    targetLabel: args.pairedExport
+      ? (args.pairedExport.format ? `Export: ${args.pairedExport.format}` : `Export Job ${args.pairedExport.id}`)
+      : "No paired export candidate yet",
+    confidence,
+    status,
+    reason:
+      status === "auto"
+        ? "Import/export baseline is ready, so this candidate can move into the first-pass reconciliation queue."
+        : status === "review"
+        ? "Failures or unresolved runtime conditions mean this candidate should be reviewed before reconciliation."
+        : "Baseline is not ready yet, so this candidate stays blocked.",
+  };
+}
+
+function makeExportOnlyCandidate(args: {
+  item: ExportJobItem;
+  state: MatchingExecutionPreviewState;
+}): MatchingCandidate {
+  const status = toCandidateStatus(args.state);
+  const confidence =
+    status === "auto" ? 0.7 :
+    status === "review" ? 0.4 :
+    0.1;
+
+  return {
+    id: `candidate-export-${args.item.id}`,
+    sourceType: "export",
+    sourceId: String(args.item.id),
+    sourceLabel: args.item.format ? `Export: ${args.item.format}` : `Export Job ${args.item.id}`,
+    targetType: "none",
+    targetId: null,
+    targetLabel: "No paired import candidate yet",
+    confidence,
+    status,
+    reason:
+      status === "auto"
+        ? "Export candidate is available for reconciliation, but no import-side pair has been derived yet."
+        : status === "review"
+        ? "Export candidate exists, but the runtime requires review before pairing."
+        : "Baseline is not ready yet, so export-only candidates stay blocked.",
+  };
+}
+
+export function deriveMatchingCandidates(args: {
+  engineSummary: MatchingEngineSummary;
+  importItems: ImportJobItem[];
+  exportItems: ExportJobItem[];
+}): MatchingCandidate[] {
+  const previewState = resolveExecutionPreviewState(args.engineSummary.status);
+
+  const candidates: MatchingCandidate[] = args.importItems.map((item, index) =>
+    makeImportCandidate({
+      item,
+      index,
+      pairedExport: args.exportItems[index] ?? null,
+      state: previewState,
+    })
+  );
+
+  if (args.exportItems.length > args.importItems.length) {
+    const extraExports = args.exportItems.slice(args.importItems.length).map((item) =>
+      makeExportOnlyCandidate({
+        item,
+        state: previewState,
+      })
+    );
+    candidates.push(...extraExports);
+  }
+
+  return candidates;
 }
