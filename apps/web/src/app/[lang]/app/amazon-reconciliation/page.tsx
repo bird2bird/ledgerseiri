@@ -25,9 +25,6 @@ export default function AmazonReconciliationPage() {
     exportSummary,
     recentImport,
     recentExport,
-    matching,
-    matchingCard,
-    totalFailed,
   } = useAmazonReconciliationPageState();
 
   if (loading) {
@@ -44,15 +41,19 @@ export default function AmazonReconciliationPage() {
     );
   }
 
-  if (!snapshot || !matching || !matchingCard) {
-    return (
-      <AmazonReconciliationErrorState
-        lang={lang}
-        error="amazon reconciliation snapshot is unavailable"
-        onReload={load}
-      />
-    );
-  }
+  if (!snapshot) {
+      return (
+        <AmazonReconciliationErrorState
+          lang={lang}
+          error="amazon reconciliation snapshot is unavailable"
+          onReload={load}
+        />
+      );
+    }
+
+    const matching = snapshot.matching;
+    const matchingCard = snapshot.matchingCard;
+    const totalFailed = Number(snapshot.matching.totalFailedJobs);
 
   return (
     <main className="space-y-6">

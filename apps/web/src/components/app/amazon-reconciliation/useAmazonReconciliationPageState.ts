@@ -38,9 +38,9 @@ export function useAmazonReconciliationPageState() {
   const recentImport = useMemo(() => selectRecentJobs(importItems, 8), [importItems]);
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
-  const matching = snapshot?.matching ?? null;
-  const matchingCard = snapshot?.matchingCard ?? null;
-  const totalFailed = Number(snapshot?.matching?.totalFailedJobs ?? 0);
+  const matching = snapshot ? snapshot.matching : null;
+  const matchingCard = snapshot ? snapshot.matchingCard : null;
+  const totalFailed = snapshot ? Number(snapshot.matching.totalFailedJobs) : 0;
 
   return {
     loading,
