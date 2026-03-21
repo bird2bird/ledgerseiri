@@ -134,18 +134,31 @@ function resolveReconciliationCompanyId(explicitCompanyId?: string): string {
   if (explicitCompanyId) return explicitCompanyId;
 
   if (typeof window !== "undefined") {
+    const win = window as typeof window & {
+      __LS_COMPANY_ID__?: string;
+      __LS_WORKSPACE_CONTEXT__?: {
+        companyId?: string;
+        workspaceId?: string;
+        company?: {
+          id?: string;
+        };
+      };
+    };
+
+    const workspaceContextCompanyId =
+      win.__LS_WORKSPACE_CONTEXT__?.companyId ||
+      win.__LS_WORKSPACE_CONTEXT__?.company?.id;
+
+    if (workspaceContextCompanyId) return workspaceContextCompanyId;
+
+    if (win.__LS_COMPANY_ID__) return win.__LS_COMPANY_ID__;
+
     const fromLocalStorage =
       window.localStorage.getItem("ls_company_id") ||
       window.localStorage.getItem("companyId") ||
       window.localStorage.getItem("workspace_company_id");
 
     if (fromLocalStorage) return fromLocalStorage;
-
-    const win = window as typeof window & {
-      __LS_COMPANY_ID__?: string;
-    };
-
-    if (win.__LS_COMPANY_ID__) return win.__LS_COMPANY_ID__;
   }
 
   return "demo-company";
