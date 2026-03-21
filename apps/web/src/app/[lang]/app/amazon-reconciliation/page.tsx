@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { AmazonReconciliationStatsSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatsSection";
@@ -14,6 +14,8 @@ import { AmazonReconciliationBottomSection } from "@/components/app/amazon-recon
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
+
+type CandidateDecision = "approved" | "rejected";
 
 export default function AmazonReconciliationPage() {
   const params = useParams<{ lang: string }>();
@@ -32,6 +34,26 @@ export default function AmazonReconciliationPage() {
     executionPreview,
     matchingCandidates,
     } = useAmazonReconciliationPageState();
+
+  const [candidateDecisionById, setCandidateDecisionById] = useState<
+    Record<string, CandidateDecision | undefined>
+  >({});
+
+  const handleApproveCandidate = (candidateId: string) => {
+    setCandidateDecisionById((prev) => ({
+      ...prev,
+      [candidateId]: "approved",
+    }));
+  };
+
+  const handleRejectCandidate = (candidateId: string) => {
+    setCandidateDecisionById((prev) => ({
+      ...prev,
+      [candidateId]: "rejected",
+    }));
+  };
+
+  const displayCandidates = useMemo(() => matchingCandidates, [matchingCandidates]);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -90,7 +112,10 @@ export default function AmazonReconciliationPage() {
         )}
 
         <AmazonReconciliationCandidateListCard
-          candidates={matchingCandidates}
+          candidates={displayCandidates}
+          decisionById={candidateDecisionById}
+          onApprove={handleApproveCandidate}
+          onReject={handleRejectCandidate}
         />
 
       <AmazonReconciliationJobSection
