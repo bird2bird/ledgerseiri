@@ -14,7 +14,7 @@ import { AmazonReconciliationBottomSection } from "@/components/app/amazon-recon
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
-import { submitDecisionPayloadMock } from "@/core/amazon-reconciliation";
+import { submitDecisionPayload } from "@/core/amazon-reconciliation";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -106,7 +106,7 @@ export default function AmazonReconciliationPage() {
     setIsSubmittingDecisions(true);
 
     try {
-      const result = await submitDecisionPayloadMock({
+      const result = await submitDecisionPayload({
         payload: effectiveSubmitPayload,
       });
 

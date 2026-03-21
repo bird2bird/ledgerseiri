@@ -67,14 +67,22 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
 export { createFallbackMatchingBaselineSummary, deriveMatchingBaselineSummary };
 
 
-export async function submitDecisionPayloadMock(args: {
+export async function submitDecisionPayload(args: {
   payload: import("./matching-engine").ReconciliationDecisionSubmitPayload;
 }): Promise<import("./matching-engine").ReconciliationDecisionSubmitResult> {
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  const response = await fetch("/api/reconciliation-decisions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(args.payload),
+  });
 
-  return {
-    acceptedCount: args.payload.items.length,
-    submittedAt: args.payload.submittedAt,
-    persistenceKeys: args.payload.items.map((item) => item.persistenceKey),
-  };
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "failed to submit reconciliation decisions");
+  }
+
+  return response.json();
 }
