@@ -1,4 +1,5 @@
 import type { ExportJobItem, ImportJobItem, MetaSummary } from "@/core/jobs";
+import type { MatchingEngineSummary } from "./matching-engine";
 
 export type MatchingBaselineStatus = "ready" | "attention" | "planned";
 
@@ -43,4 +44,5 @@ export type AmazonReconciliationSnapshot = {
   exportSummary: MetaSummary | null;
   matching: MatchingBaselineSummary;
   matchingCard: MatchingSummaryCardModel;
+  engineSummary: MatchingEngineSummary;
 };

@@ -4,6 +4,7 @@ import {
   deriveMatchingBaselineSummary,
   deriveMatchingSummaryCardModel,
 } from "./matching";
+import { deriveMatchingEngineSummary } from "./matching-engine";
 import type { AmazonReconciliationSnapshot } from "./types";
 
 export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconciliationSnapshot> {
@@ -24,6 +25,13 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
 
   const resolvedMatching = matching ?? createFallbackMatchingBaselineSummary();
   const matchingCard = deriveMatchingSummaryCardModel(resolvedMatching);
+  const engineSummary = deriveMatchingEngineSummary({
+    matching: resolvedMatching,
+    importItems,
+    exportItems,
+    importSummary,
+    exportSummary,
+  });
 
   return {
     importItems,
@@ -32,6 +40,7 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     exportSummary,
     matching: resolvedMatching,
     matchingCard,
+    engineSummary,
   };
 }
 
