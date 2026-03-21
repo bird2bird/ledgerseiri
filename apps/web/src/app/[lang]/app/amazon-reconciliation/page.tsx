@@ -7,8 +7,7 @@ import { AmazonReconciliationStatsSection } from "@/components/app/amazon-reconc
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
 import { AmazonReconciliationJobSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSection";
 import { AmazonReconciliationMatchingSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSection";
-import { AmazonReconciliationReadinessCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationReadinessCard";
-import { AmazonReconciliationQuickActionsCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationQuickActionsCard";
+import { AmazonReconciliationBottomSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationBottomSection";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
@@ -78,10 +77,10 @@ export default function AmazonReconciliationPage() {
         recentExport={recentExport}
       />
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <AmazonReconciliationReadinessCard matching={matching} />
-        <AmazonReconciliationQuickActionsCard lang={lang} />
-      </section>
+      <AmazonReconciliationBottomSection
+        lang={lang}
+        matching={matching}
+      />
     </main>
   );
 }
