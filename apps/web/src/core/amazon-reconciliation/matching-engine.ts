@@ -297,6 +297,57 @@ export function deriveMatchingExecutionPreview(args: {
 }
 
 
+
+function getComparableTimestamp(value?: string | null): number | null {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function getJobTimestamp(job: { updatedAt?: string | null; createdAt?: string | null }): number | null {
+  return getComparableTimestamp(job.updatedAt ?? job.createdAt ?? null);
+}
+
+function getDayDiff(a: number | null, b: number | null): number | null {
+  if (a === null || b === null) return null;
+  return Math.abs(a - b) / (1000 * 60 * 60 * 24);
+}
+
+function pickBestExportCandidate(args: {
+  item: ImportJobItem;
+  exportItems: ExportJobItem[];
+  fallbackIndex: number;
+}): ExportJobItem | null {
+  const importDomain = normalizeDomainValue(args.item.domain);
+  const importTs = getJobTimestamp(args.item);
+
+  const sameDomainExports = args.exportItems.filter(
+    (item) => normalizeDomainValue(item.domain) === importDomain
+  );
+
+  const pool = sameDomainExports.length > 0 ? sameDomainExports : args.exportItems;
+  if (pool.length === 0) return null;
+
+  let best = pool[0];
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const candidate of pool) {
+    const exportTs = getJobTimestamp(candidate);
+    const dayDiff = getDayDiff(importTs, exportTs);
+    const score = dayDiff === null ? 999999 : dayDiff;
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  if (sameDomainExports.length === 0) {
+    return args.exportItems[args.fallbackIndex] ?? best ?? null;
+  }
+
+  return best ?? null;
+}
+
 function normalizeDomainValue(value?: string | null): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -306,6 +357,8 @@ function resolveCandidateDecision(args: {
   importDomain?: string | null;
   exportDomain?: string | null;
   hasPairedExport: boolean;
+  importTimestamp?: number | null;
+  exportTimestamp?: number | null;
 }): {
   status: MatchingCandidateStatus;
   confidence: number;
@@ -329,11 +382,12 @@ function resolveCandidateDecision(args: {
 
   const importDomain = normalizeDomainValue(args.importDomain);
   const exportDomain = normalizeDomainValue(args.exportDomain);
+  const dayDiff = getDayDiff(args.importTimestamp ?? null, args.exportTimestamp ?? null);
 
   if (importDomain && exportDomain && importDomain !== exportDomain) {
     return {
       status: "review",
-      confidence: 0.40,
+      confidence: 0.42,
       reason: "Import/export candidates exist, but their domains do not match, so review is required before reconciliation.",
     };
   }
@@ -341,23 +395,41 @@ function resolveCandidateDecision(args: {
   if (args.engineStatus === "review_required") {
     return {
       status: "review",
-      confidence: 0.55,
-      reason: "Baseline pairing exists, but runtime failures or unresolved conditions mean this candidate should still be reviewed.",
+      confidence: dayDiff !== null && dayDiff <= 3 ? 0.62 : 0.55,
+      reason: dayDiff !== null && dayDiff <= 3
+        ? "Runtime still requires review, but the paired candidate is close in time, so this remains a higher-priority review candidate."
+        : "Baseline pairing exists, but runtime failures or unresolved conditions mean this candidate should still be reviewed.",
     };
   }
 
   if (importDomain && exportDomain && importDomain === exportDomain) {
+    if (dayDiff !== null && dayDiff <= 3) {
+      return {
+        status: "auto",
+        confidence: 0.92,
+        reason: "Import/export candidates share the same domain and are closely aligned in time, so this candidate is a strong auto-match.",
+      };
+    }
+
+    if (dayDiff !== null && dayDiff <= 7) {
+      return {
+        status: "auto",
+        confidence: 0.85,
+        reason: "Import/export candidates share the same domain and are reasonably close in time, so this candidate is eligible for first-pass auto reconciliation.",
+      };
+    }
+
     return {
       status: "auto",
-      confidence: 0.85,
-      reason: "Import/export candidates are paired and share the same domain, so this candidate is eligible for first-pass auto reconciliation.",
+      confidence: 0.78,
+      reason: "Import/export candidates share the same domain, but the time distance is wider, so confidence is moderate.",
     };
   }
 
   return {
-    status: "auto",
-    confidence: 0.70,
-    reason: "A paired candidate exists and runtime baseline is ready, but domain evidence is incomplete, so confidence remains moderate.",
+    status: "review",
+    confidence: 0.58,
+    reason: "A paired candidate exists and runtime baseline is ready, but domain evidence is incomplete, so review is still recommended.",
   };
 }
 
@@ -374,11 +446,16 @@ function makeImportCandidate(args: {
   state: MatchingExecutionPreviewState;
   engineStatus: MatchingEngineStatus;
 }): MatchingCandidate {
+  const importTimestamp = getJobTimestamp(args.item);
+  const exportTimestamp = args.pairedExport ? getJobTimestamp(args.pairedExport) : null;
+
   const decision = resolveCandidateDecision({
     engineStatus: args.engineStatus,
     importDomain: args.item.domain,
     exportDomain: args.pairedExport?.domain ?? null,
     hasPairedExport: Boolean(args.pairedExport),
+    importTimestamp,
+    exportTimestamp,
   });
 
   return {
@@ -434,7 +511,11 @@ export function deriveMatchingCandidates(args: {
     makeImportCandidate({
       item,
       index,
-      pairedExport: args.exportItems[index] ?? null,
+      pairedExport: pickBestExportCandidate({
+        item,
+        exportItems: args.exportItems,
+        fallbackIndex: index,
+      }),
       state: previewState,
       engineStatus: args.engineSummary.status,
     })
