@@ -4,7 +4,7 @@ import {
   deriveMatchingBaselineSummary,
   deriveMatchingSummaryCardModel,
 } from "./matching";
-import { deriveMatchingEngineSummary, deriveMatchingExecutionPreview, deriveMatchingCandidates, buildCandidateDecisionRecords } from "./matching-engine";
+import { deriveMatchingEngineSummary, deriveMatchingExecutionPreview, deriveMatchingCandidates, buildCandidateDecisionRecords, buildDecisionSubmitPayload } from "./matching-engine";
 import type { AmazonReconciliationSnapshot } from "./types";
 
 export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconciliationSnapshot> {
@@ -43,6 +43,10 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     exportItems,
   });
   const decisionRecords = buildCandidateDecisionRecords(matchingCandidates);
+  const submitPayloadPreview = buildDecisionSubmitPayload({
+    records: decisionRecords,
+  });
+  const submitResultPreview = null;
 
   return {
     importItems,
@@ -55,7 +59,22 @@ export async function loadAmazonReconciliationSnapshot(): Promise<AmazonReconcil
     executionPreview,
     matchingCandidates,
     decisionRecords,
+    submitPayloadPreview,
+    submitResultPreview,
   };
 }
 
 export { createFallbackMatchingBaselineSummary, deriveMatchingBaselineSummary };
+
+
+export async function submitDecisionPayloadMock(args: {
+  payload: import("./matching-engine").ReconciliationDecisionSubmitPayload;
+}): Promise<import("./matching-engine").ReconciliationDecisionSubmitResult> {
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  return {
+    acceptedCount: args.payload.items.length,
+    submittedAt: args.payload.submittedAt,
+    persistenceKeys: args.payload.items.map((item) => item.persistenceKey),
+  };
+}

@@ -486,3 +486,38 @@ export function buildCandidateDecisionRecords(
     persistenceKey: makeCandidatePersistenceKey(candidate),
   }));
 }
+
+
+export type ReconciliationDecisionSubmitItem = {
+  candidateId: string;
+  decision: CandidateDecision;
+  persistenceKey: string;
+  confidence: number;
+};
+
+export type ReconciliationDecisionSubmitPayload = {
+  submittedAt: string;
+  items: ReconciliationDecisionSubmitItem[];
+};
+
+export type ReconciliationDecisionSubmitResult = {
+  acceptedCount: number;
+  submittedAt: string;
+  persistenceKeys: string[];
+};
+
+export function buildDecisionSubmitPayload(args: {
+  records: CandidateDecisionRecord[];
+}): ReconciliationDecisionSubmitPayload {
+  return {
+    submittedAt: new Date().toISOString(),
+    items: args.records
+      .filter((record) => record.decision !== "pending")
+      .map((record) => ({
+        candidateId: record.candidateId,
+        decision: record.decision === "approved" ? "approved" : "rejected",
+        persistenceKey: record.persistenceKey,
+        confidence: record.confidence,
+      })),
+  };
+}

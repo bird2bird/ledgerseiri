@@ -42,6 +42,8 @@ export function useAmazonReconciliationPageState() {
     const executionPreview = snapshot?.executionPreview ?? null;
     const matchingCandidates = snapshot?.matchingCandidates ?? [];
     const decisionRecords = snapshot?.decisionRecords ?? [];
+    const submitPayloadPreview = snapshot?.submitPayloadPreview ?? null;
+    const submitResultPreview = snapshot?.submitResultPreview ?? null;
     const matching = snapshot ? snapshot.matching : null;
   const matchingCard = snapshot ? snapshot.matchingCard : null;
   const totalFailed = snapshot ? Number(snapshot.matching.totalFailedJobs) : 0;
@@ -64,6 +66,8 @@ export function useAmazonReconciliationPageState() {
       executionPreview,
       matchingCandidates,
       decisionRecords,
+      submitPayloadPreview,
+      submitResultPreview,
       matching,
     matchingCard,
     totalFailed,

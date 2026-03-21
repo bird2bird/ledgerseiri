@@ -14,6 +14,7 @@ import { AmazonReconciliationBottomSection } from "@/components/app/amazon-recon
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
+import { submitDecisionPayloadMock } from "@/core/amazon-reconciliation";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -41,6 +42,8 @@ export default function AmazonReconciliationPage() {
     executionPreview,
     matchingCandidates,
     decisionRecords,
+    submitPayloadPreview,
+    submitResultPreview,
     } = useAmazonReconciliationPageState();
 
   const [candidateDecisionById, setCandidateDecisionById] = useState<
@@ -79,17 +82,40 @@ export default function AmazonReconciliationPage() {
     });
   }, [candidateDecisionById, decisionRecords]);
 
+  const effectiveSubmitPayload = useMemo(() => {
+    const previewItems = submitPayloadPreview?.items ?? [];
+    const itemByCandidateId = new Map(previewItems.map((item) => [item.candidateId, item]));
+
+    return {
+      submittedAt: new Date().toISOString(),
+      items: decisionRecordsForSubmit
+        .filter((record) => record.decision !== "pending")
+        .map((record) => {
+          const preview = itemByCandidateId.get(record.candidateId);
+          return {
+            candidateId: record.candidateId,
+            decision: (record.decision === "approved" ? "approved" : "rejected") as "approved" | "rejected",
+            persistenceKey: preview?.persistenceKey ?? record.persistenceKey,
+            confidence: preview?.confidence ?? record.confidence,
+          };
+        }),
+    };
+  }, [decisionRecordsForSubmit, submitPayloadPreview]);
+
   const handleMockSubmitDecisions = useCallback(async () => {
     setIsSubmittingDecisions(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const result = await submitDecisionPayloadMock({
+        payload: effectiveSubmitPayload,
+      });
+
       setSubmittedDecisionRecords(decisionRecordsForSubmit);
-      setLastSubmittedAt(new Date().toISOString());
+      setLastSubmittedAt(result.submittedAt);
     } finally {
       setIsSubmittingDecisions(false);
     }
-  }, [decisionRecordsForSubmit]);
+  }, [decisionRecordsForSubmit, effectiveSubmitPayload]);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -184,7 +210,7 @@ export default function AmazonReconciliationPage() {
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-medium text-slate-500">Ready to Submit</div>
               <div className="mt-2 text-lg font-semibold text-slate-900">
-                {decisionRecordsForSubmit.length}
+                {effectiveSubmitPayload.items.length}
               </div>
             </div>
 
