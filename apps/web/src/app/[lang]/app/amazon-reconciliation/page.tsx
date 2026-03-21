@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { AmazonReconciliationStatsSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatsSection";
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
-import { AmazonReconciliationJobSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSummaryCard";
+import { AmazonReconciliationJobSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSection";
 import { AmazonReconciliationMatchingSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSection";
 import { AmazonReconciliationReadinessCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationReadinessCard";
 import { AmazonReconciliationQuickActionsCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationQuickActionsCard";
@@ -70,21 +70,13 @@ export default function AmazonReconciliationPage() {
         model={matchingCard}
       />
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <AmazonReconciliationJobSummaryCard
-          mode="import"
-          lang={lang}
-          summary={importSummary}
-          items={recentImport}
-        />
-
-        <AmazonReconciliationJobSummaryCard
-          mode="export"
-          lang={lang}
-          summary={exportSummary}
-          items={recentExport}
-        />
-      </section>
+      <AmazonReconciliationJobSection
+        lang={lang}
+        importSummary={importSummary}
+        exportSummary={exportSummary}
+        recentImport={recentImport}
+        recentExport={recentExport}
+      />
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <AmazonReconciliationReadinessCard matching={matching} />
