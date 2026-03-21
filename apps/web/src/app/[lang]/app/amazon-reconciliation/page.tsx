@@ -8,6 +8,7 @@ import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation
 import { AmazonReconciliationJobSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSection";
 import { AmazonReconciliationMatchingSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSection";
 import { AmazonReconciliationEngineSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationEngineSummaryCard";
+import { AmazonReconciliationExecutionPreviewCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationExecutionPreviewCard";
 import { AmazonReconciliationBottomSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationBottomSection";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
@@ -27,6 +28,7 @@ export default function AmazonReconciliationPage() {
     recentImport,
     recentExport,
   engineSummary,
+    executionPreview,
     } = useAmazonReconciliationPageState();
 
   if (loading) {
@@ -76,6 +78,12 @@ export default function AmazonReconciliationPage() {
           <AmazonReconciliationEngineSummaryCard
             lang={lang}
             model={engineSummary}
+          />
+        )}
+
+        {executionPreview && (
+          <AmazonReconciliationExecutionPreviewCard
+            model={executionPreview}
           />
         )}
 

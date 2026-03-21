@@ -20,6 +20,25 @@ export type MatchingEngineSummary = {
   secondaryAction: MatchingEngineAction | null;
 };
 
+export type MatchingExecutionPreviewState = "eligible" | "review" | "blocked";
+
+export type MatchingExecutionPreviewItem = {
+  id: string;
+  label: string;
+  detail: string;
+  state: MatchingExecutionPreviewState;
+  confidenceLabel: string;
+};
+
+export type MatchingExecutionPreview = {
+  eligibleCount: number;
+  reviewQueueCount: number;
+  blockedCount: number;
+  suggestedMatches: MatchingExecutionPreviewItem[];
+  nextStepLabel: string;
+  nextStepDetail: string;
+};
+
 function resolveEngineStatus(args: {
   matching: MatchingBaselineSummary;
   importItems: ImportJobItem[];
@@ -141,5 +160,109 @@ export function deriveMatchingEngineSummary(args: {
     }),
     primaryAction,
     secondaryAction,
+  };
+}
+
+
+function resolveExecutionPreviewState(
+  status: MatchingEngineStatus,
+): MatchingExecutionPreviewState {
+  if (status === "ready") return "eligible";
+  if (status === "review_required") return "review";
+  return "blocked";
+}
+
+function makeExecutionNextStep(args: {
+  status: MatchingEngineStatus;
+  totalCandidates: number;
+}): {
+  nextStepLabel: string;
+  nextStepDetail: string;
+} {
+  if (args.status === "ready") {
+    return {
+      nextStepLabel: "Ready to execute",
+      nextStepDetail: `${args.totalCandidates} candidates can move into the next reconciliation workflow step.`,
+    };
+  }
+
+  if (args.status === "review_required") {
+    return {
+      nextStepLabel: "Review queue first",
+      nextStepDetail: "Failures or unresolved candidates should be reviewed before execution confidence improves.",
+    };
+  }
+
+  return {
+    nextStepLabel: "Blocked until baseline is ready",
+    nextStepDetail: "Prepare import/export baseline first, then execution preview can unlock candidate processing.",
+  };
+}
+
+function makePreviewItemLabel(args: {
+  id: string;
+  title: string;
+  detail: string;
+  state: MatchingExecutionPreviewState;
+}): MatchingExecutionPreviewItem {
+  return {
+    id: args.id,
+    label: args.title,
+    detail: args.detail,
+    state: args.state,
+    confidenceLabel:
+      args.state === "eligible"
+        ? "Baseline ready"
+        : args.state === "review"
+        ? "Needs review"
+        : "Blocked",
+  };
+}
+
+export function deriveMatchingExecutionPreview(args: {
+  engineSummary: MatchingEngineSummary;
+  importItems: ImportJobItem[];
+  exportItems: ExportJobItem[];
+}): MatchingExecutionPreview {
+  const state = resolveExecutionPreviewState(args.engineSummary.status);
+
+  const suggestedMatches: MatchingExecutionPreviewItem[] = [
+    ...args.importItems.slice(0, 2).map((item) =>
+      makePreviewItemLabel({
+        id: `import-${item.id}`,
+        title: item.filename ? `Import: ${item.filename}` : `Import Job ${item.id}`,
+        detail: item.domain ? `domain: ${item.domain}` : "import baseline candidate",
+        state,
+      })
+    ),
+    ...args.exportItems.slice(0, 1).map((item) =>
+      makePreviewItemLabel({
+        id: `export-${item.id}`,
+        title: item.format ? `Export: ${item.format}` : `Export Job ${item.id}`,
+        detail: item.domain ? `domain: ${item.domain}` : "export baseline candidate",
+        state,
+      })
+    ),
+  ];
+
+  const totalCandidates = args.engineSummary.totalCandidates;
+
+  const eligibleCount = args.engineSummary.status === "ready" ? totalCandidates : 0;
+  const reviewQueueCount =
+    args.engineSummary.status === "review_required" ? totalCandidates : 0;
+  const blockedCount = args.engineSummary.status === "not_ready" ? totalCandidates : 0;
+
+  const { nextStepLabel, nextStepDetail } = makeExecutionNextStep({
+    status: args.engineSummary.status,
+    totalCandidates,
+  });
+
+  return {
+    eligibleCount,
+    reviewQueueCount,
+    blockedCount,
+    suggestedMatches,
+    nextStepLabel,
+    nextStepDetail,
   };
 }

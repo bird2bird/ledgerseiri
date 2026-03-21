@@ -39,6 +39,7 @@ export function useAmazonReconciliationPageState() {
   const recentExport = useMemo(() => selectRecentJobs(exportItems, 8), [exportItems]);
 
   const engineSummary = snapshot?.engineSummary ?? null;
+    const executionPreview = snapshot?.executionPreview ?? null;
     const matching = snapshot ? snapshot.matching : null;
   const matchingCard = snapshot ? snapshot.matchingCard : null;
   const totalFailed = snapshot ? Number(snapshot.matching.totalFailedJobs) : 0;
@@ -58,6 +59,7 @@ export function useAmazonReconciliationPageState() {
     recentExport,
 
     engineSummary,
+      executionPreview,
       matching,
     matchingCard,
     totalFailed,

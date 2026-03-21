@@ -1,5 +1,5 @@
 import type { ExportJobItem, ImportJobItem, MetaSummary } from "@/core/jobs";
-import type { MatchingEngineSummary } from "./matching-engine";
+import type { MatchingEngineSummary, MatchingExecutionPreview } from "./matching-engine";
 
 export type MatchingBaselineStatus = "ready" | "attention" | "planned";
 
@@ -50,4 +50,5 @@ export type AmazonReconciliationSnapshot = {
   matching: MatchingBaselineSummary;
   matchingCard: MatchingSummaryCardModel;
   engineSummary: MatchingEngineSummary;
+  executionPreview: MatchingExecutionPreview;
 };
