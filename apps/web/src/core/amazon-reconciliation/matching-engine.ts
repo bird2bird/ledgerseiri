@@ -283,6 +283,70 @@ export function deriveMatchingExecutionPreview(args: {
 }
 
 
+function normalizeDomainValue(value?: string | null): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function resolveCandidateDecision(args: {
+  engineStatus: MatchingEngineStatus;
+  importDomain?: string | null;
+  exportDomain?: string | null;
+  hasPairedExport: boolean;
+}): {
+  status: MatchingCandidateStatus;
+  confidence: number;
+  reason: string;
+} {
+  if (args.engineStatus === "not_ready") {
+    return {
+      status: "blocked",
+      confidence: 0.10,
+      reason: "Matching baseline is not ready yet, so this candidate remains blocked until import/export runtime preparation is completed.",
+    };
+  }
+
+  if (!args.hasPairedExport) {
+    return {
+      status: "review",
+      confidence: args.engineStatus === "ready" ? 0.35 : 0.30,
+      reason: "No paired export candidate has been derived yet, so this candidate must stay in review.",
+    };
+  }
+
+  const importDomain = normalizeDomainValue(args.importDomain);
+  const exportDomain = normalizeDomainValue(args.exportDomain);
+
+  if (importDomain && exportDomain && importDomain !== exportDomain) {
+    return {
+      status: "review",
+      confidence: 0.40,
+      reason: "Import/export candidates exist, but their domains do not match, so review is required before reconciliation.",
+    };
+  }
+
+  if (args.engineStatus === "review_required") {
+    return {
+      status: "review",
+      confidence: 0.55,
+      reason: "Baseline pairing exists, but runtime failures or unresolved conditions mean this candidate should still be reviewed.",
+    };
+  }
+
+  if (importDomain && exportDomain && importDomain === exportDomain) {
+    return {
+      status: "auto",
+      confidence: 0.85,
+      reason: "Import/export candidates are paired and share the same domain, so this candidate is eligible for first-pass auto reconciliation.",
+    };
+  }
+
+  return {
+    status: "auto",
+    confidence: 0.70,
+    reason: "A paired candidate exists and runtime baseline is ready, but domain evidence is incomplete, so confidence remains moderate.",
+  };
+}
+
 function toCandidateStatus(state: MatchingExecutionPreviewState): MatchingCandidateStatus {
   if (state === "eligible") return "auto";
   if (state === "review") return "review";
@@ -294,12 +358,14 @@ function makeImportCandidate(args: {
   index: number;
   pairedExport: ExportJobItem | null;
   state: MatchingExecutionPreviewState;
+  engineStatus: MatchingEngineStatus;
 }): MatchingCandidate {
-  const status = toCandidateStatus(args.state);
-  const confidence =
-    status === "auto" ? 0.75 :
-    status === "review" ? 0.45 :
-    0.1;
+  const decision = resolveCandidateDecision({
+    engineStatus: args.engineStatus,
+    importDomain: args.item.domain,
+    exportDomain: args.pairedExport?.domain ?? null,
+    hasPairedExport: Boolean(args.pairedExport),
+  });
 
   return {
     id: `candidate-import-${args.item.id}`,
@@ -311,26 +377,23 @@ function makeImportCandidate(args: {
     targetLabel: args.pairedExport
       ? (args.pairedExport.format ? `Export: ${args.pairedExport.format}` : `Export Job ${args.pairedExport.id}`)
       : "No paired export candidate yet",
-    confidence,
-    status,
-    reason:
-      status === "auto"
-        ? "Import/export baseline is ready, so this candidate can move into the first-pass reconciliation queue."
-        : status === "review"
-        ? "Failures or unresolved runtime conditions mean this candidate should be reviewed before reconciliation."
-        : "Baseline is not ready yet, so this candidate stays blocked.",
+    confidence: decision.confidence,
+    status: decision.status,
+    reason: decision.reason,
   };
 }
 
 function makeExportOnlyCandidate(args: {
   item: ExportJobItem;
   state: MatchingExecutionPreviewState;
+  engineStatus: MatchingEngineStatus;
 }): MatchingCandidate {
-  const status = toCandidateStatus(args.state);
-  const confidence =
-    status === "auto" ? 0.7 :
-    status === "review" ? 0.4 :
-    0.1;
+  const decision = resolveCandidateDecision({
+    engineStatus: args.engineStatus,
+    importDomain: null,
+    exportDomain: args.item.domain,
+    hasPairedExport: false,
+  });
 
   return {
     id: `candidate-export-${args.item.id}`,
@@ -340,14 +403,9 @@ function makeExportOnlyCandidate(args: {
     targetType: "none",
     targetId: null,
     targetLabel: "No paired import candidate yet",
-    confidence,
-    status,
-    reason:
-      status === "auto"
-        ? "Export candidate is available for reconciliation, but no import-side pair has been derived yet."
-        : status === "review"
-        ? "Export candidate exists, but the runtime requires review before pairing."
-        : "Baseline is not ready yet, so export-only candidates stay blocked.",
+    confidence: decision.confidence,
+    status: decision.status,
+    reason: decision.reason,
   };
 }
 
@@ -364,6 +422,7 @@ export function deriveMatchingCandidates(args: {
       index,
       pairedExport: args.exportItems[index] ?? null,
       state: previewState,
+      engineStatus: args.engineSummary.status,
     })
   );
 
@@ -372,6 +431,7 @@ export function deriveMatchingCandidates(args: {
       makeExportOnlyCandidate({
         item,
         state: previewState,
+        engineStatus: args.engineSummary.status,
       })
     );
     candidates.push(...extraExports);
