@@ -69,15 +69,21 @@ export { createFallbackMatchingBaselineSummary, deriveMatchingBaselineSummary };
 
 export async function submitDecisionPayload(args: {
   payload: import("./matching-engine").ReconciliationDecisionSubmitPayload;
+  companyId?: string;
 }): Promise<import("./matching-engine").ReconciliationDecisionSubmitResult> {
-  const response = await fetch("/api/reconciliation-decisions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-    body: JSON.stringify(args.payload),
-  });
+  const companyId = resolveReconciliationCompanyId(args.companyId);
+  const response = await fetch(
+    `/api/reconciliation-decisions?companyId=${encodeURIComponent(companyId)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-company-id": companyId,
+      },
+      credentials: "include",
+      body: JSON.stringify(args.payload),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -99,14 +105,21 @@ export type PersistedReconciliationDecisionRecord = {
   updatedAt: string;
 };
 
-export async function loadPersistedDecisionRecords(): Promise<
-  PersistedReconciliationDecisionRecord[]
-> {
-  const response = await fetch("/api/reconciliation-decisions", {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  });
+export async function loadPersistedDecisionRecords(args?: {
+  companyId?: string;
+}): Promise<PersistedReconciliationDecisionRecord[]> {
+  const companyId = resolveReconciliationCompanyId(args?.companyId);
+  const response = await fetch(
+    `/api/reconciliation-decisions?companyId=${encodeURIComponent(companyId)}`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        "x-company-id": companyId,
+      },
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -114,4 +127,26 @@ export async function loadPersistedDecisionRecords(): Promise<
   }
 
   return response.json();
+}
+
+
+function resolveReconciliationCompanyId(explicitCompanyId?: string): string {
+  if (explicitCompanyId) return explicitCompanyId;
+
+  if (typeof window !== "undefined") {
+    const fromLocalStorage =
+      window.localStorage.getItem("ls_company_id") ||
+      window.localStorage.getItem("companyId") ||
+      window.localStorage.getItem("workspace_company_id");
+
+    if (fromLocalStorage) return fromLocalStorage;
+
+    const win = window as typeof window & {
+      __LS_COMPANY_ID__?: string;
+    };
+
+    if (win.__LS_COMPANY_ID__) return win.__LS_COMPANY_ID__;
+  }
+
+  return "demo-company";
 }
