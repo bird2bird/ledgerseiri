@@ -432,3 +432,17 @@ model WorkspaceSubscription {
   @@index([planCode])
   @@index([status])
 }
+
+
+model ReconciliationDecision {
+  id             String   @id @default(cuid())
+  candidateId    String
+  decision       String
+  persistenceKey String   @unique
+  confidence     Float
+  submittedAt    DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([submittedAt])
+}

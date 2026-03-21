@@ -18,9 +18,12 @@ import { AccountsModule } from './accounts/accounts.module';
 import { ReportsModule } from './reports/reports.module';
 import { AccountModule } from './account/account.module';
 import { BillingModule } from './billing/billing.module';
+import { ReconciliationDecisionModule } from "./reconciliation-decision/reconciliation-decision.module";
+
 
 @Module({
       imports: [
+    ReconciliationDecisionModule,
       WorkspaceModule,
       AuthModule,
       CompanyModule,
