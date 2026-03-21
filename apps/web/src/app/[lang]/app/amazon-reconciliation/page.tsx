@@ -50,16 +50,38 @@ export default function AmazonReconciliationPage() {
     Record<string, CandidateDecision | undefined>
   >({});
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [lastDecisionSnapshot, setLastDecisionSnapshot] = useState<
+    Record<string, CandidateDecision | undefined> | null
+  >(null);
+  const [lastDecisionActionLabel, setLastDecisionActionLabel] = useState<string | null>(null);
+
+  const captureDecisionSnapshot = (
+    actionLabel: string,
+    updater: (prev: Record<string, CandidateDecision | undefined>) => Record<string, CandidateDecision | undefined>,
+  ) => {
+    setCandidateDecisionById((prev) => {
+      setLastDecisionSnapshot(prev);
+      setLastDecisionActionLabel(actionLabel);
+      return updater(prev);
+    });
+  };
+
+  const handleUndoLastDecisionAction = () => {
+    if (!lastDecisionSnapshot) return;
+    setCandidateDecisionById(lastDecisionSnapshot);
+    setLastDecisionSnapshot(null);
+    setLastDecisionActionLabel(null);
+  };
 
   const handleApproveCandidate = (candidateId: string) => {
-    setCandidateDecisionById((prev) => ({
+    captureDecisionSnapshot("Approve Candidate", (prev) => ({
       ...prev,
       [candidateId]: "approved",
     }));
   };
 
   const handleRejectCandidate = (candidateId: string) => {
-    setCandidateDecisionById((prev) => ({
+    captureDecisionSnapshot("Reject Candidate", (prev) => ({
       ...prev,
       [candidateId]: "rejected",
     }));
@@ -82,7 +104,7 @@ export default function AmazonReconciliationPage() {
   };
 
   const handleBatchApprove = () => {
-    setCandidateDecisionById((prev) => {
+    captureDecisionSnapshot("Batch Approve", (prev) => {
       const next = { ...prev };
       for (const candidateId of selectedCandidateIds) {
         next[candidateId] = "approved";
@@ -92,7 +114,7 @@ export default function AmazonReconciliationPage() {
   };
 
   const handleBatchReject = () => {
-    setCandidateDecisionById((prev) => {
+    captureDecisionSnapshot("Batch Reject", (prev) => {
       const next = { ...prev };
       for (const candidateId of selectedCandidateIds) {
         next[candidateId] = "rejected";
@@ -109,7 +131,7 @@ export default function AmazonReconciliationPage() {
   );
 
   const handleApplySuggestions = () => {
-    setCandidateDecisionById((prev) => {
+    captureDecisionSnapshot("Apply Suggestions", (prev) => {
       const next = { ...prev };
       for (const suggestion of autoApplySuggestions) {
         next[suggestion.candidateId] = "approved";
@@ -421,6 +443,43 @@ export default function AmazonReconciliationPage() {
             )}
           </div>
         </div>
+
+        <section className="ls-card-solid rounded-[28px] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Undo / Rollback</div>
+              <div className="mt-1 text-[12px] text-slate-500">
+                Restore the most recent local batch or auto-apply decision change.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleUndoLastDecisionAction}
+              disabled={!lastDecisionSnapshot}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Undo Last Action
+            </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-medium text-slate-500">Rollback Available</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {lastDecisionSnapshot ? "Yes" : "No"}
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-medium text-slate-500">Last Action</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {lastDecisionActionLabel ?? "-"}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="ls-card-solid rounded-[28px] p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
