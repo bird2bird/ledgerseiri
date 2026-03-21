@@ -12,7 +12,7 @@ export class ReconciliationDecisionService {
   }) {
     const { dto, companyId } = args;
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException("items must not be empty");
+      throw new BadRequestException("reconciliation decision items must not be empty");
     }
 
     const submittedAt = new Date(dto.submittedAt);
@@ -49,7 +49,12 @@ export class ReconciliationDecisionService {
     };
   }
 
-  async listAll(args: { companyId: string }) {
+  async listAll(args: { companyId: string; limit?: string }) {
+    const parsedLimit = Number(args.limit ?? 50);
+    const take = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(parsedLimit, 200))
+      : 50;
+
     return this.prisma.reconciliationDecision.findMany({
       where: {
         companyId: args.companyId,
@@ -57,6 +62,7 @@ export class ReconciliationDecisionService {
       orderBy: {
         submittedAt: "desc",
       },
+      take,
     });
   }
 

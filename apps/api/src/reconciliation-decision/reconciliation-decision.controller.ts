@@ -32,9 +32,11 @@ export class ReconciliationDecisionController {
   listAll(
     @Headers("x-company-id") headerCompanyId?: string,
     @Query("companyId") queryCompanyId?: string,
+    @Query("limit") limit?: string,
   ) {
     return this.reconciliationDecisionService.listAll({
       companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
+      limit,
     });
   }
 

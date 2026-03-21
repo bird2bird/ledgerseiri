@@ -107,10 +107,12 @@ export type PersistedReconciliationDecisionRecord = {
 
 export async function loadPersistedDecisionRecords(args?: {
   companyId?: string;
+  limit?: number;
 }): Promise<PersistedReconciliationDecisionRecord[]> {
   const companyId = resolveReconciliationCompanyId(args?.companyId);
+  const limit = args?.limit ?? 50;
   const response = await fetch(
-    `/api/reconciliation-decisions?companyId=${encodeURIComponent(companyId)}`,
+    `/api/reconciliation-decisions?companyId=${encodeURIComponent(companyId)}&limit=${encodeURIComponent(String(limit))}`,
     {
       method: "GET",
       credentials: "include",
