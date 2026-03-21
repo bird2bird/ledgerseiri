@@ -26,7 +26,8 @@ export default function AmazonReconciliationPage() {
     exportSummary,
     recentImport,
     recentExport,
-  } = useAmazonReconciliationPageState();
+  engineSummary,
+    } = useAmazonReconciliationPageState();
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -70,6 +71,13 @@ export default function AmazonReconciliationPage() {
         lang={lang}
         model={matchingCard}
       />
+
+        {engineSummary && (
+          <AmazonReconciliationEngineSummaryCard
+            lang={lang}
+            model={engineSummary}
+          />
+        )}
 
       <AmazonReconciliationJobSection
         lang={lang}

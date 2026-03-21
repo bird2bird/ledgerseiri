@@ -3,7 +3,7 @@ import type {
   ImportJobItem,
   MetaSummary,
 } from "@/core/jobs";
-import type { MatchingBaselineSummary } from "./types";
+import type { MatchingBaselineSummary, MatchingEngineAction } from "./types";
 
 export type MatchingEngineStatus = "not_ready" | "ready" | "review_required";
 
@@ -16,6 +16,8 @@ export type MatchingEngineSummary = {
   latestActivityAt: string | null;
   statusLabel: string;
   summaryText: string;
+  primaryAction: MatchingEngineAction | null;
+  secondaryAction: MatchingEngineAction | null;
 };
 
 function resolveEngineStatus(args: {
@@ -49,6 +51,50 @@ function makeStatusLabel(status: MatchingEngineStatus): string {
   return "Not ready";
 }
 
+function deriveEngineActions(args: {
+  status: MatchingEngineStatus;
+}): {
+  primaryAction: MatchingEngineAction | null;
+  secondaryAction: MatchingEngineAction | null;
+} {
+  if (args.status === "not_ready") {
+    return {
+      primaryAction: {
+        label: "データインポートを開く",
+        href: "/app/data/import",
+      },
+      secondaryAction: {
+        label: "データエクスポートを開く",
+        href: "/app/data/export",
+      },
+    };
+  }
+
+  if (args.status === "review_required") {
+    return {
+      primaryAction: {
+        label: "失敗ジョブを確認",
+        href: "/app/amazon-reconciliation",
+      },
+      secondaryAction: {
+        label: "仕訳一覧へ",
+        href: "/app/journals",
+      },
+    };
+  }
+
+  return {
+    primaryAction: {
+      label: "仕訳一覧へ",
+      href: "/app/journals",
+    },
+    secondaryAction: {
+      label: "詳細レポートへ",
+      href: "/app/reports/detail",
+    },
+  };
+}
+
 function makeSummaryText(args: {
   status: MatchingEngineStatus;
   totalCandidates: number;
@@ -78,6 +124,7 @@ export function deriveMatchingEngineSummary(args: {
 
   const matchedCount = 0;
   const unmatchedCount = totalCandidates;
+  const { primaryAction, secondaryAction } = deriveEngineActions({ status });
 
   return {
     status,
@@ -92,5 +139,7 @@ export function deriveMatchingEngineSummary(args: {
       totalCandidates,
       reviewRequiredCount,
     }),
+    primaryAction,
+    secondaryAction,
   };
 }

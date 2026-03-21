@@ -1,9 +1,12 @@
+import Link from "next/link";
 import React from "react";
 import type { MatchingEngineSummary } from "@/core/amazon-reconciliation";
 
 export function AmazonReconciliationEngineSummaryCard({
+  lang,
   model,
 }: {
+  lang: string;
   model: MatchingEngineSummary;
 }) {
   return (
@@ -36,6 +39,28 @@ export function AmazonReconciliationEngineSummaryCard({
           <div className="font-medium">{model.reviewRequiredCount}</div>
         </div>
       </div>
+
+      {(model.primaryAction || model.secondaryAction) && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {model.primaryAction && (
+            <Link
+              href={`/${lang}${model.primaryAction.href}`}
+              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              {model.primaryAction.label}
+            </Link>
+          )}
+
+          {model.secondaryAction && (
+            <Link
+              href={`/${lang}${model.secondaryAction.href}`}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              {model.secondaryAction.label}
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

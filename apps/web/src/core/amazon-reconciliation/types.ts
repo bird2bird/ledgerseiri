@@ -24,6 +24,11 @@ export type MatchingBaselineSummary = {
   recommendedAction: MatchingRecommendedAction;
 };
 
+export type MatchingEngineAction = {
+  label: string;
+  href: string;
+};
+
 export type MatchingSummaryCardModel = {
   title: string;
   lead: string;
