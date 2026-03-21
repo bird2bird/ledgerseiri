@@ -4,6 +4,8 @@ import type { MatchingCandidate } from "@/core/amazon-reconciliation";
 type CandidateDecision = "approved" | "rejected";
 type DecisionMap = Record<string, CandidateDecision | undefined>;
 
+type PersistedDecisionMap = Record<string, string | undefined>;
+
 function statusTone(status: "auto" | "review" | "blocked") {
   if (status === "auto") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "review") return "border-amber-200 bg-amber-50 text-amber-700";
@@ -87,6 +89,13 @@ function buildExplanationBullets(candidate: MatchingCandidate): string[] {
 export function AmazonReconciliationCandidateListCard(props: {
   candidates: MatchingCandidate[];
   decisionById: DecisionMap;
+  persistedDecisionByCandidateId: PersistedDecisionMap;
+  selectedCandidateIds: string[];
+  onToggleCandidateSelection: (candidateId: string) => void;
+  onSelectAllVisible: () => void;
+  onClearSelection: () => void;
+  onBatchApprove: () => void;
+  onBatchReject: () => void;
   onApprove: (candidateId: string) => void;
   onReject: (candidateId: string) => void;
 }) {
@@ -111,6 +120,14 @@ export function AmazonReconciliationCandidateListCard(props: {
     });
   }, [props.candidates]);
 
+  const selectedSet = useMemo(() => new Set(props.selectedCandidateIds), [props.selectedCandidateIds]);
+
+  const conflictCount = rankedCandidates.filter((candidate) => {
+    const localDecision = props.decisionById[candidate.id];
+    const persistedDecision = props.persistedDecisionByCandidateId[candidate.id];
+    return Boolean(localDecision && persistedDecision && localDecision !== persistedDecision);
+  }).length;
+
   return (
     <section className="ls-card-solid rounded-[28px] p-5">
       <div className="flex items-start justify-between gap-4">
@@ -129,7 +146,7 @@ export function AmazonReconciliationCandidateListCard(props: {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
         <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
           <div className="text-[11px] font-medium text-slate-500">Approved</div>
           <div className="mt-2 text-lg font-semibold text-slate-900">{approvedCount}</div>
@@ -142,6 +159,54 @@ export function AmazonReconciliationCandidateListCard(props: {
           <div className="text-[11px] font-medium text-slate-500">Pending</div>
           <div className="mt-2 text-lg font-semibold text-slate-900">{pendingCount}</div>
         </div>
+        <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div className="text-[11px] font-medium text-slate-500">Conflicts</div>
+          <div className="mt-2 text-lg font-semibold text-slate-900">{conflictCount}</div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm font-medium text-slate-900">
+            Selected: {props.selectedCandidateIds.length}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={props.onSelectAllVisible}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              Select All Visible
+            </button>
+
+            <button
+              type="button"
+              onClick={props.onClearSelection}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+            >
+              Clear Selection
+            </button>
+
+            <button
+              type="button"
+              onClick={props.onBatchApprove}
+              disabled={props.selectedCandidateIds.length === 0}
+              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Batch Approve
+            </button>
+
+            <button
+              type="button"
+              onClick={props.onBatchReject}
+              disabled={props.selectedCandidateIds.length === 0}
+              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Batch Reject
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -152,8 +217,11 @@ export function AmazonReconciliationCandidateListCard(props: {
         ) : (
           rankedCandidates.map((candidate, index) => {
             const decision = props.decisionById[candidate.id];
+            const persistedDecision = props.persistedDecisionByCandidateId[candidate.id];
+            const hasConflict = Boolean(decision && persistedDecision && decision !== persistedDecision);
             const rankBadge = getRankBadge(candidate);
             const bullets = buildExplanationBullets(candidate);
+            const isSelected = selectedSet.has(candidate.id);
 
             return (
               <div
@@ -161,23 +229,38 @@ export function AmazonReconciliationCandidateListCard(props: {
                 className="rounded-[22px] border border-slate-200 p-4"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-sm font-medium text-slate-900">
-                        #{index + 1}
-                      </div>
-                      <div
-                        className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${rankBadge.className}`}
-                      >
-                        {rankBadge.label}
-                      </div>
-                    </div>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => props.onToggleCandidateSelection(candidate.id)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300"
+                    />
 
-                    <div className="mt-2 text-sm font-medium text-slate-900">
-                      {candidate.sourceLabel}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      → {candidate.targetLabel}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-medium text-slate-900">
+                          #{index + 1}
+                        </div>
+                        <div
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${rankBadge.className}`}
+                        >
+                          {rankBadge.label}
+                        </div>
+
+                        {hasConflict ? (
+                          <div className="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+                            Conflict
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-2 text-sm font-medium text-slate-900">
+                        {candidate.sourceLabel}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        → {candidate.targetLabel}
+                      </div>
                     </div>
                   </div>
 
@@ -187,6 +270,12 @@ export function AmazonReconciliationCandidateListCard(props: {
                     >
                       {statusLabel(candidate.status)}
                     </div>
+
+                    {persistedDecision ? (
+                      <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                        Persisted: {persistedDecision}
+                      </div>
+                    ) : null}
 
                     {decision && (
                       <div
@@ -227,6 +316,12 @@ export function AmazonReconciliationCandidateListCard(props: {
                     ))}
                   </div>
                 </div>
+
+                {hasConflict ? (
+                  <div className="mt-4 rounded-[18px] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                    Local decision and persisted decision do not match. Review before the next submit.
+                  </div>
+                ) : null}
 
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button

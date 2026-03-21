@@ -49,6 +49,7 @@ export default function AmazonReconciliationPage() {
   const [candidateDecisionById, setCandidateDecisionById] = useState<
     Record<string, CandidateDecision | undefined>
   >({});
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
 
   const handleApproveCandidate = (candidateId: string) => {
     setCandidateDecisionById((prev) => ({
@@ -64,7 +65,45 @@ export default function AmazonReconciliationPage() {
     }));
   };
 
+  const handleToggleCandidateSelection = (candidateId: string) => {
+    setSelectedCandidateIds((prev) =>
+      prev.includes(candidateId)
+        ? prev.filter((id) => id !== candidateId)
+        : [...prev, candidateId],
+    );
+  };
+
+  const handleSelectAllVisible = () => {
+    setSelectedCandidateIds(matchingCandidates.map((candidate) => candidate.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedCandidateIds([]);
+  };
+
+  const handleBatchApprove = () => {
+    setCandidateDecisionById((prev) => {
+      const next = { ...prev };
+      for (const candidateId of selectedCandidateIds) {
+        next[candidateId] = "approved";
+      }
+      return next;
+    });
+  };
+
+  const handleBatchReject = () => {
+    setCandidateDecisionById((prev) => {
+      const next = { ...prev };
+      for (const candidateId of selectedCandidateIds) {
+        next[candidateId] = "rejected";
+      }
+      return next;
+    });
+  };
+
   const displayCandidates = useMemo(() => matchingCandidates, [matchingCandidates]);
+
+  
 
   const [isSubmittingDecisions, setIsSubmittingDecisions] = useState(false);
   const [submittedDecisionRecords, setSubmittedDecisionRecords] = useState<SubmittedDecisionRecord[]>([]);
@@ -81,6 +120,14 @@ export default function AmazonReconciliationPage() {
       updatedAt: string;
     }>
   >([]);
+
+  const persistedDecisionByCandidateId = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    for (const record of persistedDecisionRecords) {
+      map[record.candidateId] = record.decision;
+    }
+    return map;
+  }, [persistedDecisionRecords]);
   const [persistedLoadError, setPersistedLoadError] = useState("");
 
   const decisionRecordsForSubmit = useMemo<SubmittedDecisionRecord[]>(() => {
@@ -207,6 +254,13 @@ export default function AmazonReconciliationPage() {
         <AmazonReconciliationCandidateListCard
           candidates={displayCandidates}
           decisionById={candidateDecisionById}
+          persistedDecisionByCandidateId={persistedDecisionByCandidateId}
+          selectedCandidateIds={selectedCandidateIds}
+          onToggleCandidateSelection={handleToggleCandidateSelection}
+          onSelectAllVisible={handleSelectAllVisible}
+          onClearSelection={handleClearSelection}
+          onBatchApprove={handleBatchApprove}
+          onBatchReject={handleBatchReject}
           onApprove={handleApproveCandidate}
           onReject={handleRejectCandidate}
         />
