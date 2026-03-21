@@ -32,6 +32,20 @@ export type MatchingExecutionPreviewItem = {
 
 export type MatchingCandidateStatus = "auto" | "review" | "blocked";
 
+export type CandidateDecision = "approved" | "rejected" | "pending";
+
+export type CandidateDecisionRecord = {
+  candidateId: string;
+  decision: CandidateDecision;
+  sourceType: "import" | "export";
+  sourceId: string;
+  targetType: "import" | "export" | "none";
+  targetId: string | null;
+  confidence: number;
+  reason: string;
+  persistenceKey: string;
+};
+
 export type MatchingCandidate = {
   id: string;
   sourceType: "import" | "export";
@@ -438,4 +452,37 @@ export function deriveMatchingCandidates(args: {
   }
 
   return candidates;
+}
+
+
+function toCandidateDecision(status: MatchingCandidateStatus): CandidateDecision {
+  if (status === "auto") return "approved";
+  if (status === "review") return "pending";
+  return "rejected";
+}
+
+function makeCandidatePersistenceKey(candidate: MatchingCandidate): string {
+  return [
+    "reconciliation",
+    candidate.sourceType,
+    candidate.sourceId,
+    candidate.targetType,
+    candidate.targetId ?? "none",
+  ].join(":");
+}
+
+export function buildCandidateDecisionRecords(
+  candidates: MatchingCandidate[],
+): CandidateDecisionRecord[] {
+  return candidates.map((candidate) => ({
+    candidateId: candidate.id,
+    decision: toCandidateDecision(candidate.status),
+    sourceType: candidate.sourceType,
+    sourceId: candidate.sourceId,
+    targetType: candidate.targetType,
+    targetId: candidate.targetId,
+    confidence: candidate.confidence,
+    reason: candidate.reason,
+    persistenceKey: makeCandidatePersistenceKey(candidate),
+  }));
 }
