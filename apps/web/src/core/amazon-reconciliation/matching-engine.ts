@@ -602,3 +602,28 @@ export function buildDecisionSubmitPayload(args: {
       })),
   };
 }
+
+
+export type AutoApplySuggestion = {
+  candidateId: string;
+  recommendedDecision: "approved";
+  confidence: number;
+  reason: string;
+};
+
+export function deriveAutoApplySuggestions(args: {
+  candidates: MatchingCandidate[];
+}): AutoApplySuggestion[] {
+  return args.candidates
+    .filter(
+      (candidate) =>
+        candidate.status === "auto" &&
+        candidate.confidence >= 0.9
+    )
+    .map((candidate) => ({
+      candidateId: candidate.id,
+      recommendedDecision: "approved",
+      confidence: candidate.confidence,
+      reason: candidate.reason,
+    }));
+}
