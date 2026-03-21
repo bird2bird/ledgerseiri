@@ -6,7 +6,7 @@ import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { AmazonReconciliationStatsSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatsSection";
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
 import { AmazonReconciliationJobSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSummaryCard";
-import { AmazonReconciliationMatchingSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSummaryCard";
+import { AmazonReconciliationMatchingSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSection";
 import { AmazonReconciliationReadinessCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationReadinessCard";
 import { AmazonReconciliationQuickActionsCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationQuickActionsCard";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
@@ -65,12 +65,10 @@ export default function AmazonReconciliationPage() {
         totalFailed={totalFailed}
       />
 
-      <section className="grid grid-cols-1 gap-6">
-        <AmazonReconciliationMatchingSummaryCard
-          lang={lang}
-          model={matchingCard}
-        />
-      </section>
+      <AmazonReconciliationMatchingSection
+        lang={lang}
+        model={matchingCard}
+      />
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <AmazonReconciliationJobSummaryCard
