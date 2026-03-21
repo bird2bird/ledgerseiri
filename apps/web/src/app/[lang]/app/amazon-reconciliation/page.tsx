@@ -14,7 +14,7 @@ import { AmazonReconciliationBottomSection } from "@/components/app/amazon-recon
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
-import { submitDecisionPayload } from "@/core/amazon-reconciliation";
+import { loadPersistedDecisionRecords, submitDecisionPayload } from "@/core/amazon-reconciliation";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -69,6 +69,19 @@ export default function AmazonReconciliationPage() {
   const [isSubmittingDecisions, setIsSubmittingDecisions] = useState(false);
   const [submittedDecisionRecords, setSubmittedDecisionRecords] = useState<SubmittedDecisionRecord[]>([]);
   const [lastSubmittedAt, setLastSubmittedAt] = useState<string | null>(null);
+  const [persistedDecisionRecords, setPersistedDecisionRecords] = useState<
+    Array<{
+      id: string;
+      candidateId: string;
+      decision: string;
+      persistenceKey: string;
+      confidence: number;
+      submittedAt: string;
+      createdAt: string;
+      updatedAt: string;
+    }>
+  >([]);
+  const [persistedLoadError, setPersistedLoadError] = useState("");
 
   const decisionRecordsForSubmit = useMemo<SubmittedDecisionRecord[]>(() => {
     return decisionRecords.map((record) => {
@@ -102,6 +115,18 @@ export default function AmazonReconciliationPage() {
     };
   }, [decisionRecordsForSubmit, submitPayloadPreview]);
 
+  const refreshPersistedDecisionRecords = useCallback(async () => {
+    try {
+      setPersistedLoadError("");
+      const rows = await loadPersistedDecisionRecords();
+      setPersistedDecisionRecords(rows);
+    } catch (error) {
+      setPersistedLoadError(
+        error instanceof Error ? error.message : "failed to read persisted decisions",
+      );
+    }
+  }, []);
+
   const handleMockSubmitDecisions = useCallback(async () => {
     setIsSubmittingDecisions(true);
 
@@ -112,10 +137,12 @@ export default function AmazonReconciliationPage() {
 
       setSubmittedDecisionRecords(decisionRecordsForSubmit);
       setLastSubmittedAt(result.submittedAt);
+      await refreshPersistedDecisionRecords();
+      await load();
     } finally {
       setIsSubmittingDecisions(false);
     }
-  }, [decisionRecordsForSubmit, effectiveSubmitPayload]);
+  }, [decisionRecordsForSubmit, effectiveSubmitPayload, load, refreshPersistedDecisionRecords]);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -130,6 +157,10 @@ export default function AmazonReconciliationPage() {
       />
     );
   }
+  React.useEffect(() => {
+    void refreshPersistedDecisionRecords();
+  }, [refreshPersistedDecisionRecords]);
+
 
   if (!snapshot) {
       return (
@@ -222,6 +253,13 @@ export default function AmazonReconciliationPage() {
             </div>
 
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-[11px] font-medium text-slate-500">Persisted</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {persistedDecisionRecords.length}
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-medium text-slate-500">Last Submitted</div>
               <div className="mt-2 text-sm font-semibold text-slate-900">
                 {lastSubmittedAt
@@ -236,6 +274,12 @@ export default function AmazonReconciliationPage() {
               </div>
             </div>
           </div>
+
+          {persistedLoadError ? (
+            <div className="mt-5 rounded-[22px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {persistedLoadError}
+            </div>
+          ) : null}
 
           <div className="mt-5 space-y-3">
             {decisionRecordsForSubmit.length === 0 ? (
@@ -265,6 +309,51 @@ export default function AmazonReconciliationPage() {
             )}
           </div>
         </section>
+        <div className="mt-5">
+          <div className="text-sm font-semibold text-slate-900">Persisted Decisions</div>
+          <div className="mt-3 space-y-3">
+            {persistedDecisionRecords.length === 0 ? (
+              <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
+                No persisted reconciliation decisions yet.
+              </div>
+            ) : (
+              persistedDecisionRecords.slice(0, 5).map((record) => (
+                <div
+                  key={record.id}
+                  className="rounded-[22px] border border-slate-200 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {record.candidateId}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {record.persistenceKey}
+                      </div>
+                    </div>
+
+                    <div className="text-sm font-semibold text-slate-900">
+                      {record.decision}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-sm text-slate-600">
+                    submitted:{" "}
+                    {new Intl.DateTimeFormat("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(record.submittedAt))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+
 
 
       <AmazonReconciliationBottomSection

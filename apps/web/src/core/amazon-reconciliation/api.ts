@@ -86,3 +86,32 @@ export async function submitDecisionPayload(args: {
 
   return response.json();
 }
+
+
+export type PersistedReconciliationDecisionRecord = {
+  id: string;
+  candidateId: string;
+  decision: string;
+  persistenceKey: string;
+  confidence: number;
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export async function loadPersistedDecisionRecords(): Promise<
+  PersistedReconciliationDecisionRecord[]
+> {
+  const response = await fetch("/api/reconciliation-decisions", {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "failed to load persisted reconciliation decisions");
+  }
+
+  return response.json();
+}
