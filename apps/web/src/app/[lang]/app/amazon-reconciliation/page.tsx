@@ -3,7 +3,7 @@
 import React from "react";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { AmazonReconciliationStatCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatCard";
+import { AmazonReconciliationStatsSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationStatsSection";
 import { AmazonReconciliationHero } from "@/components/app/amazon-reconciliation/AmazonReconciliationHero";
 import { AmazonReconciliationJobSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationJobSummaryCard";
 import { AmazonReconciliationMatchingSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSummaryCard";
@@ -59,31 +59,11 @@ export default function AmazonReconciliationPage() {
     <main className="space-y-6">
       <AmazonReconciliationHero lang={lang} onReload={load} />
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <AmazonReconciliationStatCard
-          title="Import Jobs"
-          value={Number(importSummary?.total ?? snapshot.importItems.length ?? 0)}
-          helper="import job total"
-          tone="primary"
-        />
-        <AmazonReconciliationStatCard
-          title="Export Jobs"
-          value={Number(exportSummary?.total ?? snapshot.exportItems.length ?? 0)}
-          helper="export job total"
-          tone="success"
-        />
-        <AmazonReconciliationStatCard
-          title="Failed Jobs"
-          value={totalFailed}
-          helper="import + export failed"
-          tone="warning"
-        />
-        <AmazonReconciliationStatCard
-          title="Current Mode"
-          value="Connected"
-          helper="real Step46 job baseline connected"
-        />
-      </section>
+      <AmazonReconciliationStatsSection
+        importJobsCount={Number(importSummary?.total ?? snapshot.importItems.length ?? 0)}
+        exportJobsCount={Number(exportSummary?.total ?? snapshot.exportItems.length ?? 0)}
+        totalFailed={totalFailed}
+      />
 
       <section className="grid grid-cols-1 gap-6">
         <AmazonReconciliationMatchingSummaryCard
