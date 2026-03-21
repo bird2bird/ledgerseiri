@@ -9,6 +9,7 @@ import { AmazonReconciliationJobSection } from "@/components/app/amazon-reconcil
 import { AmazonReconciliationMatchingSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationMatchingSection";
 import { AmazonReconciliationEngineSummaryCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationEngineSummaryCard";
 import { AmazonReconciliationExecutionPreviewCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationExecutionPreviewCard";
+import { AmazonReconciliationCandidateListCard } from "@/components/app/amazon-reconciliation/AmazonReconciliationCandidateListCard";
 import { AmazonReconciliationBottomSection } from "@/components/app/amazon-reconciliation/AmazonReconciliationBottomSection";
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
@@ -29,6 +30,7 @@ export default function AmazonReconciliationPage() {
     recentExport,
   engineSummary,
     executionPreview,
+    matchingCandidates,
     } = useAmazonReconciliationPageState();
 
   if (loading) {
@@ -86,6 +88,10 @@ export default function AmazonReconciliationPage() {
             model={executionPreview}
           />
         )}
+
+        <AmazonReconciliationCandidateListCard
+          candidates={matchingCandidates}
+        />
 
       <AmazonReconciliationJobSection
         lang={lang}
