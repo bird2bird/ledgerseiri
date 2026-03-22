@@ -14,7 +14,8 @@ import { AmazonReconciliationBottomSection } from "@/components/app/amazon-recon
 import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconciliation/AmazonReconciliationLoadingState";
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
-import { deriveAutoApplySuggestions, loadPersistedDecisionRecords, submitDecisionPayload } from "@/core/amazon-reconciliation";
+import { deriveAutoApplySuggestions, submitDecisionPayload } from "@/core/amazon-reconciliation";
+import { loadPersistedDecisionRecordsPage } from "@/core/amazon-reconciliation/api";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -157,6 +158,15 @@ export default function AmazonReconciliationPage() {
       updatedAt: string;
     }>
   >([]);
+  const [persistedDecisionPage, setPersistedDecisionPage] = useState(1);
+  const [persistedDecisionLimit] = useState(5);
+  const [persistedDecisionFilter, setPersistedDecisionFilter] = useState("");
+  const [persistedDecisionCandidateQuery, setPersistedDecisionCandidateQuery] = useState("");
+  const [persistedDecisionKeyQuery, setPersistedDecisionKeyQuery] = useState("");
+  const [persistedDecisionTotal, setPersistedDecisionTotal] = useState(0);
+  const [persistedDecisionTotalPages, setPersistedDecisionTotalPages] = useState(1);
+  const [persistedDecisionHasNextPage, setPersistedDecisionHasNextPage] = useState(false);
+  const [persistedDecisionHasPrevPage, setPersistedDecisionHasPrevPage] = useState(false);
 
   const persistedDecisionByCandidateId = useMemo(() => {
     const map: Record<string, string | undefined> = {};
@@ -202,14 +212,30 @@ export default function AmazonReconciliationPage() {
   const refreshPersistedDecisionRecords = useCallback(async () => {
     try {
       setPersistedLoadError("");
-      const rows = await loadPersistedDecisionRecords();
-      setPersistedDecisionRecords(rows);
+      const pageResult = await loadPersistedDecisionRecordsPage({
+        page: persistedDecisionPage,
+        limit: persistedDecisionLimit,
+        decision: persistedDecisionFilter || undefined,
+        candidateId: persistedDecisionCandidateQuery || undefined,
+        persistenceKey: persistedDecisionKeyQuery || undefined,
+      });
+      setPersistedDecisionRecords(pageResult.items);
+      setPersistedDecisionTotal(pageResult.total);
+      setPersistedDecisionTotalPages(pageResult.totalPages);
+      setPersistedDecisionHasNextPage(pageResult.hasNextPage);
+      setPersistedDecisionHasPrevPage(pageResult.hasPrevPage);
     } catch (error) {
       setPersistedLoadError(
         error instanceof Error ? error.message : "failed to read persisted decisions",
       );
     }
-  }, []);
+  }, [
+    persistedDecisionPage,
+    persistedDecisionLimit,
+    persistedDecisionFilter,
+    persistedDecisionCandidateQuery,
+    persistedDecisionKeyQuery,
+  ]);
 
   const handleMockSubmitDecisions = useCallback(async () => {
     setIsSubmittingDecisions(true);
@@ -232,6 +258,14 @@ export default function AmazonReconciliationPage() {
   React.useEffect(() => {
     void refreshPersistedDecisionRecords();
   }, [refreshPersistedDecisionRecords]);
+
+  React.useEffect(() => {
+    setPersistedDecisionPage(1);
+  }, [
+    persistedDecisionFilter,
+    persistedDecisionCandidateQuery,
+    persistedDecisionKeyQuery,
+  ]);
 
   if (loading) {
     return <AmazonReconciliationLoadingState />;
@@ -403,14 +437,87 @@ export default function AmazonReconciliationPage() {
           </div>
         </section>
         <div className="mt-5">
-          <div className="text-sm font-semibold text-slate-900">Persisted Decisions</div>
-          <div className="mt-3 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+      <div>
+        <div className="text-sm font-semibold text-slate-900">Persisted Decisions</div>
+        <div className="mt-1 text-[12px] text-slate-500">
+          Filter and paginate persisted reconciliation decisions.
+        </div>
+      </div>
+      <div className="text-xs text-slate-500">
+        total: {persistedDecisionTotal} / page: {persistedDecisionPage} of {persistedDecisionTotalPages}
+      </div>
+    </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+  <select
+    value={persistedDecisionFilter}
+    onChange={(event) => setPersistedDecisionFilter(event.target.value)}
+    className="rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+  >
+    <option value="">All decisions</option>
+    <option value="approved">Approved</option>
+    <option value="rejected">Rejected</option>
+  </select>
+
+  <input
+    value={persistedDecisionCandidateQuery}
+    onChange={(event) => setPersistedDecisionCandidateQuery(event.target.value)}
+    placeholder="Search candidateId"
+    className="rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+  />
+
+  <input
+    value={persistedDecisionKeyQuery}
+    onChange={(event) => setPersistedDecisionKeyQuery(event.target.value)}
+    placeholder="Search persistenceKey"
+    className="rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+  />
+
+  <button
+    type="button"
+    onClick={() => {
+      setPersistedDecisionFilter("");
+      setPersistedDecisionCandidateQuery("");
+      setPersistedDecisionKeyQuery("");
+      setPersistedDecisionPage(1);
+    }}
+    className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
+  >
+    Clear Filters
+  </button>
+</div>
+
+<div className="mt-4 flex items-center justify-between gap-3">
+  <button
+    type="button"
+    onClick={() => setPersistedDecisionPage((prev) => Math.max(1, prev - 1))}
+    disabled={!persistedDecisionHasPrevPage}
+    className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold disabled:opacity-50"
+  >
+    Previous
+  </button>
+
+  <div className="text-xs text-slate-500">
+    Showing {persistedDecisionRecords.length} records
+  </div>
+
+  <button
+    type="button"
+    onClick={() => setPersistedDecisionPage((prev) => prev + 1)}
+    disabled={!persistedDecisionHasNextPage}
+    className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold disabled:opacity-50"
+  >
+    Next
+  </button>
+</div>
+
+<div className="mt-3 space-y-3">
             {persistedDecisionRecords.length === 0 ? (
               <div className="rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-500">
-                No persisted reconciliation decisions yet.
+                No persisted reconciliation decisions match the current filters.
               </div>
             ) : (
-              persistedDecisionRecords.slice(0, 5).map((record) => (
+              persistedDecisionRecords.map((record) => (
                 <div
                   key={record.id}
                   className="rounded-[22px] border border-slate-200 p-4"

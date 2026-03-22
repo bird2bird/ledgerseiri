@@ -93,21 +93,71 @@ export class ReconciliationDecisionService {
     };
   }
 
-  async listAll(args: { companyId: string; limit?: string }) {
+  async listAll(args: {
+    companyId: string;
+    page?: string;
+    limit?: string;
+    decision?: string;
+    candidateId?: string;
+    persistenceKey?: string;
+  }) {
+    const parsedPage = Number(args.page ?? 1);
     const parsedLimit = Number(args.limit ?? 50);
-    const take = Number.isFinite(parsedLimit)
+
+    const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+    const limit = Number.isFinite(parsedLimit)
       ? Math.max(1, Math.min(parsedLimit, 200))
       : 50;
 
-    return this.prisma.reconciliationDecision.findMany({
-      where: {
-        companyId: args.companyId,
-      },
+    const where = {
+      companyId: args.companyId,
+      ...(args.decision ? { decision: args.decision } : {}),
+      ...(args.candidateId
+        ? {
+            candidateId: {
+              contains: args.candidateId,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+      ...(args.persistenceKey
+        ? {
+            persistenceKey: {
+              contains: args.persistenceKey,
+              mode: "insensitive" as const,
+            },
+          }
+        : {}),
+    };
+
+    const total = await this.prisma.reconciliationDecision.count({ where });
+    const totalPages = total === 0 ? 1 : Math.ceil(total / limit);
+    const safePage = Math.min(page, totalPages);
+    const skip = (safePage - 1) * limit;
+
+    const items = await this.prisma.reconciliationDecision.findMany({
+      where,
       orderBy: {
         submittedAt: "desc",
       },
-      take,
+      skip,
+      take: limit,
     });
+
+    return {
+      items,
+      total,
+      page: safePage,
+      limit,
+      totalPages,
+      hasNextPage: safePage < totalPages,
+      hasPrevPage: safePage > 1,
+      filters: {
+        decision: args.decision ?? null,
+        candidateId: args.candidateId ?? null,
+        persistenceKey: args.persistenceKey ?? null,
+      },
+    };
   }
 
   async findByPersistenceKey(args: {

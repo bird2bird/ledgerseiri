@@ -105,39 +105,97 @@ export type PersistedReconciliationDecisionRecord = {
   updatedAt: string;
 };
 
-export async function loadPersistedDecisionRecords(args?: {
+
+export type PersistedReconciliationDecisionQuery = {
   companyId?: string;
+  page?: number;
   limit?: number;
-}): Promise<PersistedReconciliationDecisionRecord[]> {
+  decision?: string;
+  candidateId?: string;
+  persistenceKey?: string;
+};
+
+export type PersistedReconciliationDecisionPage = {
+  items: PersistedReconciliationDecisionRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  filters: {
+    decision: string | null;
+    candidateId: string | null;
+    persistenceKey: string | null;
+  };
+};
+
+export async function loadPersistedDecisionRecordsPage(
+  args?: PersistedReconciliationDecisionQuery,
+): Promise<PersistedReconciliationDecisionPage> {
   const companyId = resolveReconciliationCompanyId(args?.companyId);
+  const page = args?.page ?? 1;
   const limit = args?.limit ?? 50;
-  const response = await fetch(
-    `/api/reconciliation-decisions?companyId=${encodeURIComponent(companyId)}&limit=${encodeURIComponent(String(limit))}`,
-    {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        "x-company-id": companyId,
-      },
-    }
-  );
+
+  const params = new URLSearchParams();
+  params.set("companyId", companyId);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
+
+  if (args?.decision) params.set("decision", args.decision);
+  if (args?.candidateId) params.set("candidateId", args.candidateId);
+  if (args?.persistenceKey) params.set("persistenceKey", args.persistenceKey);
+
+  const response = await fetch(`/api/reconciliation-decisions?${params.toString()}`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "x-company-id": companyId,
+    },
+  });
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(text || "failed to load persisted reconciliation decisions");
   }
 
-  return response.json();
+  const json = await response.json();
+
+  if (Array.isArray(json)) {
+    return {
+      items: json,
+      total: json.length,
+      page: 1,
+      limit,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+      filters: {
+        decision: args?.decision ?? null,
+        candidateId: args?.candidateId ?? null,
+        persistenceKey: args?.persistenceKey ?? null,
+      },
+    };
+  }
+
+  return json;
+}
+
+export async function loadPersistedDecisionRecords(
+  args?: PersistedReconciliationDecisionQuery,
+): Promise<PersistedReconciliationDecisionRecord[]> {
+  const page = await loadPersistedDecisionRecordsPage(args);
+  return page.items;
 }
 
 
 function resolveReconciliationCompanyId(explicitCompanyId?: string): string {
-  if (explicitCompanyId) return explicitCompanyId;
+  const explicit = explicitCompanyId?.trim();
+  if (explicit) return explicit;
 
   if (typeof window !== "undefined") {
     const win = window as typeof window & {
-      __LS_COMPANY_ID__?: string;
       __LS_WORKSPACE_CONTEXT__?: {
         companyId?: string;
         workspaceId?: string;
@@ -151,17 +209,10 @@ function resolveReconciliationCompanyId(explicitCompanyId?: string): string {
       win.__LS_WORKSPACE_CONTEXT__?.companyId ||
       win.__LS_WORKSPACE_CONTEXT__?.company?.id;
 
-    if (workspaceContextCompanyId) return workspaceContextCompanyId;
-
-    if (win.__LS_COMPANY_ID__) return win.__LS_COMPANY_ID__;
-
-    const fromLocalStorage =
-      window.localStorage.getItem("ls_company_id") ||
-      window.localStorage.getItem("companyId") ||
-      window.localStorage.getItem("workspace_company_id");
-
-    if (fromLocalStorage) return fromLocalStorage;
+    if (workspaceContextCompanyId?.trim()) {
+      return workspaceContextCompanyId.trim();
+    }
   }
 
-  return "demo-company";
+  throw new Error("companyId is required for reconciliation api transport");
 }
