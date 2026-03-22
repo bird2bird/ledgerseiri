@@ -74,7 +74,18 @@ export class ReconciliationDecisionController {
     });
   }
 
-  @Get(":persistenceKey")
+  @Get("metrics/insights")
+  getMetricsInsights(
+    @Headers("x-company-id") headerCompanyId?: string,
+    @Query("companyId") queryCompanyId?: string,
+  ) {
+    return this.reconciliationDecisionService.getMetricsInsights({
+      companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
+    });
+  }
+
+  
+@Get(":persistenceKey")
   findByPersistenceKey(
     @Param("persistenceKey") persistenceKey: string,
     @Headers("x-company-id") headerCompanyId?: string,
@@ -85,4 +96,5 @@ export class ReconciliationDecisionController {
       companyId: resolveCompanyId({ headerCompanyId, queryCompanyId }),
     });
   }
+
 }

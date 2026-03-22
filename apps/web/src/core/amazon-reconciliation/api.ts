@@ -144,6 +144,28 @@ export type ReconciliationMetricsSummary = {
   autoApplyCount: number;
 };
 
+
+export type ReconciliationMetricsInsights = {
+  trends: Array<{
+    date: string;
+    totalDecisions: number;
+    approvedCount: number;
+    rejectedCount: number;
+    approveRate: number;
+  }>;
+  confidenceDistribution: {
+    high: number;
+    mid: number;
+    low: number;
+  };
+  aiQuality: {
+    autoApplyCount: number;
+    overriddenAutoApplyCount: number;
+    autoApplySuccessCount: number;
+    autoApplySuccessRate: number;
+  };
+};
+
 export async function loadPersistedDecisionRecordsPage(
   args?: PersistedReconciliationDecisionQuery,
 ): Promise<PersistedReconciliationDecisionPage> {
@@ -224,6 +246,32 @@ export async function loadReconciliationMetricsSummary(args?: {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(text || "failed to load reconciliation metrics summary");
+  }
+
+  return response.json();
+}
+
+
+export async function loadReconciliationMetricsInsights(args?: {
+  companyId?: string;
+}): Promise<ReconciliationMetricsInsights> {
+  const companyId = resolveReconciliationCompanyId(args?.companyId);
+
+  const response = await fetch(
+    `/api/reconciliation-decisions/metrics/insights?companyId=${encodeURIComponent(companyId)}`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        "x-company-id": companyId,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "failed to load reconciliation metrics insights");
   }
 
   return response.json();

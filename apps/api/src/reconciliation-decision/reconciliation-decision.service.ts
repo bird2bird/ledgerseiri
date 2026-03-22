@@ -216,6 +216,106 @@ export class ReconciliationDecisionService {
     };
   }
 
+  async getMetricsInsights(args: { companyId: string }) {
+    const [decisions, audits] = await this.prisma.$transaction([
+      this.prisma.reconciliationDecision.findMany({
+        where: { companyId: args.companyId },
+        select: {
+          candidateId: true,
+          decision: true,
+          confidence: true,
+          submittedAt: true,
+        },
+        orderBy: { submittedAt: "asc" },
+      }),
+      this.prisma.reconciliationDecisionAudit.findMany({
+        where: { companyId: args.companyId },
+        select: {
+          candidateId: true,
+          actionType: true,
+          previousValue: true,
+          nextValue: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+
+    const now = new Date();
+    const trendDays: Array<{
+      date: string;
+      totalDecisions: number;
+      approvedCount: number;
+      rejectedCount: number;
+      approveRate: number;
+    }> = [];
+
+    for (let i = 6; i >= 0; i -= 1) {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - i);
+      const key = d.toISOString().slice(0, 10);
+
+      const rows = decisions.filter(
+        (row) => row.submittedAt.toISOString().slice(0, 10) === key,
+      );
+
+      const totalDecisions = rows.length;
+      const approvedCount = rows.filter((row) => row.decision === "approved").length;
+      const rejectedCount = rows.filter((row) => row.decision === "rejected").length;
+      const approveRate = totalDecisions > 0 ? approvedCount / totalDecisions : 0;
+
+      trendDays.push({
+        date: key,
+        totalDecisions,
+        approvedCount,
+        rejectedCount,
+        approveRate,
+      });
+    }
+
+    const confidenceHigh = decisions.filter((row) => row.confidence >= 0.9).length;
+    const confidenceMid = decisions.filter(
+      (row) => row.confidence >= 0.6 && row.confidence < 0.9,
+    ).length;
+    const confidenceLow = decisions.filter((row) => row.confidence < 0.6).length;
+
+    const autoApplyCandidates = new Set(
+      audits
+        .filter((row) => row.actionType === "auto_apply")
+        .map((row) => row.candidateId),
+    );
+
+    let overriddenAutoApplyCount = 0;
+    for (const candidateId of autoApplyCandidates) {
+      const rows = audits.filter((row) => row.candidateId === candidateId);
+      const firstAutoApplyIndex = rows.findIndex((row) => row.actionType === "auto_apply");
+      const laterChanged = rows.slice(firstAutoApplyIndex + 1).some(
+        (row) => (row.previousValue ?? null) !== (row.nextValue ?? null),
+      );
+      if (laterChanged) overriddenAutoApplyCount += 1;
+    }
+
+    const autoApplyCount = autoApplyCandidates.size;
+    const autoApplySuccessCount = Math.max(0, autoApplyCount - overriddenAutoApplyCount);
+    const autoApplySuccessRate =
+      autoApplyCount > 0 ? autoApplySuccessCount / autoApplyCount : 0;
+
+    return {
+      trends: trendDays,
+      confidenceDistribution: {
+        high: confidenceHigh,
+        mid: confidenceMid,
+        low: confidenceLow,
+      },
+      aiQuality: {
+        autoApplyCount,
+        overriddenAutoApplyCount,
+        autoApplySuccessCount,
+        autoApplySuccessRate,
+      },
+    };
+  }
+
   async findByPersistenceKey(args: {
     persistenceKey: string;
     companyId: string;

@@ -15,7 +15,7 @@ import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconc
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
 import { deriveAutoApplySuggestions, submitDecisionPayload } from "@/core/amazon-reconciliation";
-import { loadPersistedDecisionRecordsPage, loadReconciliationMetricsSummary } from "@/core/amazon-reconciliation/api";
+import { loadPersistedDecisionRecordsPage, loadReconciliationMetricsInsights, loadReconciliationMetricsSummary } from "@/core/amazon-reconciliation/api";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -179,6 +179,26 @@ export default function AmazonReconciliationPage() {
     changeRate: number;
     autoApplyCount: number;
   } | null>(null);
+  const [metricsInsights, setMetricsInsights] = useState<{
+    trends: Array<{
+      date: string;
+      totalDecisions: number;
+      approvedCount: number;
+      rejectedCount: number;
+      approveRate: number;
+    }>;
+    confidenceDistribution: {
+      high: number;
+      mid: number;
+      low: number;
+    };
+    aiQuality: {
+      autoApplyCount: number;
+      overriddenAutoApplyCount: number;
+      autoApplySuccessCount: number;
+      autoApplySuccessRate: number;
+    };
+  } | null>(null);
 
   const metricsVisualization = useMemo(() => {
     if (!metricsSummary) return null;
@@ -307,6 +327,17 @@ export default function AmazonReconciliationPage() {
   }, []);
 
   React.useEffect(() => {
+    void (async () => {
+      try {
+        const insights = await loadReconciliationMetricsInsights();
+        setMetricsInsights(insights);
+      } catch {
+        setMetricsInsights(null);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
     setPersistedDecisionPage(1);
   }, [
     persistedDecisionFilter,
@@ -347,6 +378,97 @@ export default function AmazonReconciliationPage() {
     <main className="space-y-6">
       <AmazonReconciliationHero lang={lang} onReload={load} />
 
+
+
+      {metricsInsights ? (
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 xl:col-span-2">
+            <div className="text-sm font-semibold text-slate-900">7-Day Trend</div>
+            <div className="mt-4 space-y-4">
+              {metricsInsights.trends.map((row) => {
+                const width = Math.min(100, row.totalDecisions * 20);
+                return (
+                  <div key={row.date}>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{row.date}</span>
+                      <span>
+                        decisions {row.totalDecisions} / approve {(row.approveRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-3 rounded-full bg-slate-100">
+                      <div
+                        className="h-3 rounded-full bg-slate-900 transition-all"
+                        style={{ width: `${width}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold text-slate-900">Confidence Distribution</div>
+            <div className="mt-4 space-y-4">
+              {[
+                { label: "High", value: metricsInsights.confidenceDistribution.high },
+                { label: "Mid", value: metricsInsights.confidenceDistribution.mid },
+                { label: "Low", value: metricsInsights.confidenceDistribution.low },
+              ].map((row) => {
+                const total =
+                  metricsInsights.confidenceDistribution.high +
+                  metricsInsights.confidenceDistribution.mid +
+                  metricsInsights.confidenceDistribution.low;
+                const pct = total > 0 ? (row.value / total) * 100 : 0;
+                return (
+                  <div key={row.label}>
+                    <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{row.label}</span>
+                      <span>{row.value} / {pct.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-slate-100">
+                      <div
+                        className="h-3 rounded-full bg-slate-900 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 xl:col-span-3">
+            <div className="text-sm font-semibold text-slate-900">AI Quality</div>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Auto Apply Count</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsInsights.aiQuality.autoApplyCount}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Overridden</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsInsights.aiQuality.overriddenAutoApplyCount}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Successful Auto Apply</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsInsights.aiQuality.autoApplySuccessCount}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Success Rate</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {(metricsInsights.aiQuality.autoApplySuccessRate * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {metricsVisualization ? (
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
