@@ -160,6 +160,62 @@ export class ReconciliationDecisionService {
     };
   }
 
+  async getMetrics(args: { companyId: string }) {
+    const [totalDecisions, approvedCount, rejectedCount, auditRows] =
+      await this.prisma.$transaction([
+        this.prisma.reconciliationDecision.count({
+          where: { companyId: args.companyId },
+        }),
+        this.prisma.reconciliationDecision.count({
+          where: { companyId: args.companyId, decision: "approved" },
+        }),
+        this.prisma.reconciliationDecision.count({
+          where: { companyId: args.companyId, decision: "rejected" },
+        }),
+        this.prisma.reconciliationDecisionAudit.findMany({
+          where: { companyId: args.companyId },
+          select: {
+            previousValue: true,
+            nextValue: true,
+            actionType: true,
+          },
+        }),
+      ]);
+
+    const totalAudits = auditRows.length;
+    const changedDecisionCount = auditRows.filter(
+      (row) => (row.previousValue ?? null) !== (row.nextValue ?? null),
+    ).length;
+
+    const unchangedDecisionCount = auditRows.filter(
+      (row) => (row.previousValue ?? null) === (row.nextValue ?? null),
+    ).length;
+
+    const autoApplyCount = auditRows.filter(
+      (row) => row.actionType === "auto_apply",
+    ).length;
+
+    const approveRate =
+      totalDecisions > 0 ? approvedCount / totalDecisions : 0;
+    const rejectRate =
+      totalDecisions > 0 ? rejectedCount / totalDecisions : 0;
+    const changeRate =
+      totalAudits > 0 ? changedDecisionCount / totalAudits : 0;
+
+    return {
+      totalDecisions,
+      approvedCount,
+      rejectedCount,
+      approveRate,
+      rejectRate,
+      totalAudits,
+      changedDecisionCount,
+      unchangedDecisionCount,
+      changeRate,
+      autoApplyCount,
+    };
+  }
+
   async findByPersistenceKey(args: {
     persistenceKey: string;
     companyId: string;

@@ -15,7 +15,7 @@ import { AmazonReconciliationLoadingState } from "@/components/app/amazon-reconc
 import { AmazonReconciliationErrorState } from "@/components/app/amazon-reconciliation/AmazonReconciliationErrorState";
 import { useAmazonReconciliationPageState } from "@/components/app/amazon-reconciliation/useAmazonReconciliationPageState";
 import { deriveAutoApplySuggestions, submitDecisionPayload } from "@/core/amazon-reconciliation";
-import { loadPersistedDecisionRecordsPage } from "@/core/amazon-reconciliation/api";
+import { loadPersistedDecisionRecordsPage, loadReconciliationMetricsSummary } from "@/core/amazon-reconciliation/api";
 
 type CandidateDecision = "approved" | "rejected";
 
@@ -167,6 +167,18 @@ export default function AmazonReconciliationPage() {
   const [persistedDecisionTotalPages, setPersistedDecisionTotalPages] = useState(1);
   const [persistedDecisionHasNextPage, setPersistedDecisionHasNextPage] = useState(false);
   const [persistedDecisionHasPrevPage, setPersistedDecisionHasPrevPage] = useState(false);
+  const [metricsSummary, setMetricsSummary] = useState<{
+    totalDecisions: number;
+    approvedCount: number;
+    rejectedCount: number;
+    approveRate: number;
+    rejectRate: number;
+    totalAudits: number;
+    changedDecisionCount: number;
+    unchangedDecisionCount: number;
+    changeRate: number;
+    autoApplyCount: number;
+  } | null>(null);
 
   const persistedDecisionByCandidateId = useMemo(() => {
     const map: Record<string, string | undefined> = {};
@@ -260,6 +272,17 @@ export default function AmazonReconciliationPage() {
   }, [refreshPersistedDecisionRecords]);
 
   React.useEffect(() => {
+    void (async () => {
+      try {
+        const summary = await loadReconciliationMetricsSummary();
+        setMetricsSummary(summary);
+      } catch {
+        setMetricsSummary(null);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
     setPersistedDecisionPage(1);
   }, [
     persistedDecisionFilter,
@@ -299,6 +322,43 @@ export default function AmazonReconciliationPage() {
   return (
     <main className="space-y-6">
       <AmazonReconciliationHero lang={lang} onReload={load} />
+
+      {metricsSummary ? (
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">Total Decisions</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{metricsSummary.totalDecisions}</div>
+          </div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">Approved</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{metricsSummary.approvedCount}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {(metricsSummary.approveRate * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">Rejected</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{metricsSummary.rejectedCount}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {(metricsSummary.rejectRate * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">Changed Decisions</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{metricsSummary.changedDecisionCount}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {(metricsSummary.changeRate * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="text-xs text-slate-500">Auto Apply</div>
+            <div className="mt-2 text-2xl font-semibold text-slate-900">{metricsSummary.autoApplyCount}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              audits: {metricsSummary.totalAudits}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <AmazonReconciliationStatsSection
         importJobsCount={Number(importSummary?.total ?? snapshot.importItems.length ?? 0)}

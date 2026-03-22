@@ -130,6 +130,20 @@ export type PersistedReconciliationDecisionPage = {
   };
 };
 
+
+export type ReconciliationMetricsSummary = {
+  totalDecisions: number;
+  approvedCount: number;
+  rejectedCount: number;
+  approveRate: number;
+  rejectRate: number;
+  totalAudits: number;
+  changedDecisionCount: number;
+  unchangedDecisionCount: number;
+  changeRate: number;
+  autoApplyCount: number;
+};
+
 export async function loadPersistedDecisionRecordsPage(
   args?: PersistedReconciliationDecisionQuery,
 ): Promise<PersistedReconciliationDecisionPage> {
@@ -187,6 +201,32 @@ export async function loadPersistedDecisionRecords(
 ): Promise<PersistedReconciliationDecisionRecord[]> {
   const page = await loadPersistedDecisionRecordsPage(args);
   return page.items;
+}
+
+
+export async function loadReconciliationMetricsSummary(args?: {
+  companyId?: string;
+}): Promise<ReconciliationMetricsSummary> {
+  const companyId = resolveReconciliationCompanyId(args?.companyId);
+
+  const response = await fetch(
+    `/api/reconciliation-decisions/metrics/summary?companyId=${encodeURIComponent(companyId)}`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        "x-company-id": companyId,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "failed to load reconciliation metrics summary");
+  }
+
+  return response.json();
 }
 
 
