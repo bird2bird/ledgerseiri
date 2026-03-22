@@ -433,7 +433,6 @@ model WorkspaceSubscription {
   @@index([status])
 }
 
-
 model ReconciliationDecision {
   id             String   @id @default(cuid())
   companyId      String
@@ -448,4 +447,21 @@ model ReconciliationDecision {
   @@index([submittedAt])
   @@index([companyId])
   @@index([companyId, submittedAt])
+}
+
+model ReconciliationDecisionAudit {
+  id             String   @id @default(cuid())
+  companyId      String
+  candidateId    String
+  persistenceKey String?
+  actionType     String
+  previousValue  String?
+  nextValue      String?
+  source         String
+  createdAt      DateTime @default(now())
+
+  @@index([companyId])
+  @@index([companyId, createdAt])
+  @@index([candidateId])
+  @@index([persistenceKey])
 }

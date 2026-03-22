@@ -10,7 +10,7 @@ function resolveCompanyId(args: {
 }
 
 
-@Controller("reconciliation-decisions")
+@Controller("api/reconciliation-decisions")
 export class ReconciliationDecisionController {
   constructor(
     private readonly reconciliationDecisionService: ReconciliationDecisionService,

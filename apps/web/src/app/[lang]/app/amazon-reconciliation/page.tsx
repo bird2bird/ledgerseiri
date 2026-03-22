@@ -228,6 +228,11 @@ export default function AmazonReconciliationPage() {
     }
   }, [decisionRecordsForSubmit, effectiveSubmitPayload, load, refreshPersistedDecisionRecords]);
 
+
+  React.useEffect(() => {
+    void refreshPersistedDecisionRecords();
+  }, [refreshPersistedDecisionRecords]);
+
   if (loading) {
     return <AmazonReconciliationLoadingState />;
   }
@@ -241,9 +246,6 @@ export default function AmazonReconciliationPage() {
       />
     );
   }
-  React.useEffect(() => {
-    void refreshPersistedDecisionRecords();
-  }, [refreshPersistedDecisionRecords]);
 
 
   if (!snapshot) {
