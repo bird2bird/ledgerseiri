@@ -562,8 +562,22 @@ export function buildCandidateDecisionRecords(
     sourceId: candidate.sourceId,
     targetType: candidate.targetType,
     targetId: candidate.targetId,
-    confidence: candidate.confidence,
-    reason: candidate.reason,
+    ...(() => {
+      const weighted = weightedConfidenceV2({
+        sourceAmount: (candidate as any).sourceAmount ?? (candidate as any).amount,
+        targetAmount: (candidate as any).targetAmount ?? (candidate as any).matchedAmount,
+        sourceDate: (candidate as any).sourceDate ?? (candidate as any).date,
+        targetDate: (candidate as any).targetDate ?? (candidate as any).matchedDate,
+        sourceType: (candidate as any).sourceType,
+        targetType: (candidate as any).targetType,
+        conflictCount: (candidate as any).conflictCount ?? 0,
+      });
+
+      return {
+        confidence: weighted.confidence,
+        reason: weighted.reason,
+      };
+    })(),
     persistenceKey: makeCandidatePersistenceKey(candidate),
   }));
 }
@@ -603,6 +617,125 @@ export function buildDecisionSubmitPayload(args: {
   };
 }
 
+
+
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function safeNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function amountProximityScore(a: unknown, b: unknown): number {
+  const av = safeNumber(a);
+  const bv = safeNumber(b);
+  if (av === null || bv === null) return 0.35;
+
+  const diff = Math.abs(av - bv);
+  const base = Math.max(Math.abs(av), Math.abs(bv), 1);
+  const ratio = diff / base;
+
+  if (ratio <= 0.001) return 1.0;
+  if (ratio <= 0.005) return 0.96;
+  if (ratio <= 0.01) return 0.92;
+  if (ratio <= 0.03) return 0.82;
+  if (ratio <= 0.05) return 0.72;
+  if (ratio <= 0.10) return 0.55;
+  return 0.25;
+}
+
+function parseDateLike(value: unknown): number | null {
+  if (!value) return null;
+  const t = new Date(String(value)).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function timeDecayScore(a: unknown, b: unknown): number {
+  const ta = parseDateLike(a);
+  const tb = parseDateLike(b);
+  if (ta === null || tb === null) return 0.45;
+
+  const diffDays = Math.abs(ta - tb) / (1000 * 60 * 60 * 24);
+
+  if (diffDays <= 0.5) return 1.0;
+  if (diffDays <= 1) return 0.95;
+  if (diffDays <= 2) return 0.88;
+  if (diffDays <= 3) return 0.80;
+  if (diffDays <= 7) return 0.62;
+  if (diffDays <= 14) return 0.42;
+  return 0.20;
+}
+
+function domainWeightScore(sourceType: unknown, targetType: unknown): number {
+  const s = String(sourceType ?? "").toLowerCase();
+  const t = String(targetType ?? "").toLowerCase();
+
+  if (s.includes("amazon") && t.includes("settlement")) return 1.0;
+  if (s.includes("import") && t.includes("export")) return 0.82;
+  if (s.includes("order") && t.includes("payment")) return 0.86;
+  if (s && t) return 0.70;
+  return 0.55;
+}
+
+function conflictPenaltyScore(conflictCount: number): number {
+  if (conflictCount <= 0) return 0;
+  if (conflictCount === 1) return 0.05;
+  if (conflictCount === 2) return 0.10;
+  return 0.18;
+}
+
+function buildWeightedReason(args: {
+  amountScore: number;
+  timeScore: number;
+  domainScore: number;
+  penalty: number;
+}): string {
+  const parts = [
+    `amount ${(args.amountScore * 100).toFixed(0)}%`,
+    `time ${(args.timeScore * 100).toFixed(0)}%`,
+    `domain ${(args.domainScore * 100).toFixed(0)}%`,
+  ];
+
+  if (args.penalty > 0) {
+    parts.push(`conflict penalty -${(args.penalty * 100).toFixed(0)}%`);
+  }
+
+  return parts.join(" / ");
+}
+
+function weightedConfidenceV2(args: {
+  sourceAmount?: unknown;
+  targetAmount?: unknown;
+  sourceDate?: unknown;
+  targetDate?: unknown;
+  sourceType?: unknown;
+  targetType?: unknown;
+  conflictCount?: number;
+}): { confidence: number; reason: string } {
+  const amountScore = amountProximityScore(args.sourceAmount, args.targetAmount);
+  const timeScore = timeDecayScore(args.sourceDate, args.targetDate);
+  const domainScore = domainWeightScore(args.sourceType, args.targetType);
+  const penalty = conflictPenaltyScore(Number(args.conflictCount ?? 0));
+
+  const weighted =
+    amountScore * 0.45 +
+    timeScore * 0.30 +
+    domainScore * 0.25 -
+    penalty;
+
+  return {
+    confidence: clampScore(weighted),
+    reason: buildWeightedReason({
+      amountScore,
+      timeScore,
+      domainScore,
+      penalty,
+    }),
+  };
+}
 
 export type AutoApplySuggestion = {
   candidateId: string;
