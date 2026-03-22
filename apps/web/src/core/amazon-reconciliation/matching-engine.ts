@@ -620,6 +620,115 @@ export function buildDecisionSubmitPayload(args: {
 
 
 
+
+export type ReconciliationMatchingPolicy = {
+  amountWeights: {
+    exact: number;
+    near005: number;
+    near01: number;
+    near03: number;
+    near05: number;
+    near10: number;
+    fallback: number;
+  };
+  timeWeights: {
+    sameHalfDay: number;
+    sameDay: number;
+    within2d: number;
+    within3d: number;
+    within7d: number;
+    within14d: number;
+    fallback: number;
+  };
+  domainWeights: {
+    amazonSettlement: number;
+    importExport: number;
+    orderPayment: number;
+    genericKnown: number;
+    fallback: number;
+  };
+  penalties: {
+    oneConflict: number;
+    twoConflicts: number;
+    manyConflicts: number;
+  };
+  scoringWeights: {
+    amount: number;
+    time: number;
+    domain: number;
+  };
+  autoApplyThreshold: number;
+};
+
+export const DEFAULT_RECONCILIATION_MATCHING_POLICY: ReconciliationMatchingPolicy = {
+  amountWeights: {
+    exact: 1.0,
+    near005: 0.96,
+    near01: 0.92,
+    near03: 0.82,
+    near05: 0.72,
+    near10: 0.55,
+    fallback: 0.25,
+  },
+  timeWeights: {
+    sameHalfDay: 1.0,
+    sameDay: 0.95,
+    within2d: 0.88,
+    within3d: 0.80,
+    within7d: 0.62,
+    within14d: 0.42,
+    fallback: 0.20,
+  },
+  domainWeights: {
+    amazonSettlement: 1.0,
+    importExport: 0.82,
+    orderPayment: 0.86,
+    genericKnown: 0.70,
+    fallback: 0.55,
+  },
+  penalties: {
+    oneConflict: 0.05,
+    twoConflicts: 0.10,
+    manyConflicts: 0.18,
+  },
+  scoringWeights: {
+    amount: 0.45,
+    time: 0.30,
+    domain: 0.25,
+  },
+  autoApplyThreshold: 0.90,
+};
+
+function resolveMatchingPolicy(
+  policy?: Partial<ReconciliationMatchingPolicy>,
+): ReconciliationMatchingPolicy {
+  return {
+    amountWeights: {
+      ...DEFAULT_RECONCILIATION_MATCHING_POLICY.amountWeights,
+      ...(policy?.amountWeights ?? {}),
+    },
+    timeWeights: {
+      ...DEFAULT_RECONCILIATION_MATCHING_POLICY.timeWeights,
+      ...(policy?.timeWeights ?? {}),
+    },
+    domainWeights: {
+      ...DEFAULT_RECONCILIATION_MATCHING_POLICY.domainWeights,
+      ...(policy?.domainWeights ?? {}),
+    },
+    penalties: {
+      ...DEFAULT_RECONCILIATION_MATCHING_POLICY.penalties,
+      ...(policy?.penalties ?? {}),
+    },
+    scoringWeights: {
+      ...DEFAULT_RECONCILIATION_MATCHING_POLICY.scoringWeights,
+      ...(policy?.scoringWeights ?? {}),
+    },
+    autoApplyThreshold:
+      policy?.autoApplyThreshold ??
+      DEFAULT_RECONCILIATION_MATCHING_POLICY.autoApplyThreshold,
+  };
+}
+
 function clampScore(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
@@ -629,7 +738,7 @@ function safeNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function amountProximityScore(a: unknown, b: unknown): number {
+function amountProximityScore(a: unknown, b: unknown, policy: ReconciliationMatchingPolicy): number {
   const av = safeNumber(a);
   const bv = safeNumber(b);
   if (av === null || bv === null) return 0.35;
@@ -653,7 +762,7 @@ function parseDateLike(value: unknown): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-function timeDecayScore(a: unknown, b: unknown): number {
+function timeDecayScore(a: unknown, b: unknown, policy: ReconciliationMatchingPolicy): number {
   const ta = parseDateLike(a);
   const tb = parseDateLike(b);
   if (ta === null || tb === null) return 0.45;
@@ -669,22 +778,22 @@ function timeDecayScore(a: unknown, b: unknown): number {
   return 0.20;
 }
 
-function domainWeightScore(sourceType: unknown, targetType: unknown): number {
+function domainWeightScore(sourceType: unknown, targetType: unknown, policy: ReconciliationMatchingPolicy): number {
   const s = String(sourceType ?? "").toLowerCase();
   const t = String(targetType ?? "").toLowerCase();
 
-  if (s.includes("amazon") && t.includes("settlement")) return 1.0;
-  if (s.includes("import") && t.includes("export")) return 0.82;
-  if (s.includes("order") && t.includes("payment")) return 0.86;
-  if (s && t) return 0.70;
-  return 0.55;
+  if (s.includes("amazon") && t.includes("settlement")) return policy.domainWeights.amazonSettlement;
+  if (s.includes("import") && t.includes("export")) return policy.domainWeights.importExport;
+  if (s.includes("order") && t.includes("payment")) return policy.domainWeights.orderPayment;
+  if (s && t) return policy.domainWeights.genericKnown;
+  return policy.domainWeights.fallback;
 }
 
-function conflictPenaltyScore(conflictCount: number): number {
+function conflictPenaltyScore(conflictCount: number, policy: ReconciliationMatchingPolicy): number {
   if (conflictCount <= 0) return 0;
-  if (conflictCount === 1) return 0.05;
-  if (conflictCount === 2) return 0.10;
-  return 0.18;
+  if (conflictCount === 1) return policy.penalties.oneConflict;
+  if (conflictCount === 2) return policy.penalties.twoConflicts;
+  return policy.penalties.manyConflicts;
 }
 
 function buildWeightedReason(args: {
@@ -714,16 +823,19 @@ function weightedConfidenceV2(args: {
   sourceType?: unknown;
   targetType?: unknown;
   conflictCount?: number;
+  policy?: Partial<ReconciliationMatchingPolicy>;
 }): { confidence: number; reason: string } {
-  const amountScore = amountProximityScore(args.sourceAmount, args.targetAmount);
-  const timeScore = timeDecayScore(args.sourceDate, args.targetDate);
-  const domainScore = domainWeightScore(args.sourceType, args.targetType);
-  const penalty = conflictPenaltyScore(Number(args.conflictCount ?? 0));
+  const policy = resolveMatchingPolicy(args.policy);
+
+  const amountScore = amountProximityScore(args.sourceAmount, args.targetAmount, policy);
+  const timeScore = timeDecayScore(args.sourceDate, args.targetDate, policy);
+  const domainScore = domainWeightScore(args.sourceType, args.targetType, policy);
+  const penalty = conflictPenaltyScore(Number(args.conflictCount ?? 0), policy);
 
   const weighted =
-    amountScore * 0.45 +
-    timeScore * 0.30 +
-    domainScore * 0.25 -
+    amountScore * policy.scoringWeights.amount +
+    timeScore * policy.scoringWeights.time +
+    domainScore * policy.scoringWeights.domain -
     penalty;
 
   return {
@@ -746,12 +858,15 @@ export type AutoApplySuggestion = {
 
 export function deriveAutoApplySuggestions(args: {
   candidates: MatchingCandidate[];
+  policy?: Partial<ReconciliationMatchingPolicy>;
 }): AutoApplySuggestion[] {
+  const policy = resolveMatchingPolicy(args.policy);
+
   return args.candidates
     .filter(
       (candidate) =>
         candidate.status === "auto" &&
-        candidate.confidence >= 0.9
+        candidate.confidence >= policy.autoApplyThreshold
     )
     .map((candidate) => ({
       candidateId: candidate.id,
