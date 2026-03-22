@@ -180,6 +180,30 @@ export default function AmazonReconciliationPage() {
     autoApplyCount: number;
   } | null>(null);
 
+  const metricsVisualization = useMemo(() => {
+    if (!metricsSummary) return null;
+
+    const approvedPct = Number((metricsSummary.approveRate * 100).toFixed(1));
+    const rejectedPct = Number((metricsSummary.rejectRate * 100).toFixed(1));
+    const changedPct = Number((metricsSummary.changeRate * 100).toFixed(1));
+    const unchangedPct = Number((100 - changedPct).toFixed(1));
+
+    return {
+      approvedPct,
+      rejectedPct,
+      changedPct,
+      unchangedPct,
+      totalDecisions: metricsSummary.totalDecisions,
+      totalAudits: metricsSummary.totalAudits,
+      autoApplyCount: metricsSummary.autoApplyCount,
+      approvedCount: metricsSummary.approvedCount,
+      rejectedCount: metricsSummary.rejectedCount,
+      changedDecisionCount: metricsSummary.changedDecisionCount,
+      unchangedDecisionCount: metricsSummary.unchangedDecisionCount,
+    };
+  }, [metricsSummary]);
+
+
   const persistedDecisionByCandidateId = useMemo(() => {
     const map: Record<string, string | undefined> = {};
     for (const record of persistedDecisionRecords) {
@@ -322,6 +346,103 @@ export default function AmazonReconciliationPage() {
   return (
     <main className="space-y-6">
       <AmazonReconciliationHero lang={lang} onReload={load} />
+
+
+      {metricsVisualization ? (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold text-slate-900">Decision Mix</div>
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                  <span>Approved</span>
+                  <span>{metricsVisualization.approvedCount} / {metricsVisualization.approvedPct}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100">
+                  <div
+                    className="h-3 rounded-full bg-slate-900 transition-all"
+                    style={{ width: `${metricsVisualization.approvedPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                  <span>Rejected</span>
+                  <span>{metricsVisualization.rejectedCount} / {metricsVisualization.rejectedPct}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100">
+                  <div
+                    className="h-3 rounded-full bg-slate-500 transition-all"
+                    style={{ width: `${metricsVisualization.rejectedPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold text-slate-900">Change Quality</div>
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                  <span>Changed</span>
+                  <span>{metricsVisualization.changedDecisionCount} / {metricsVisualization.changedPct}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100">
+                  <div
+                    className="h-3 rounded-full bg-slate-900 transition-all"
+                    style={{ width: `${metricsVisualization.changedPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                  <span>Unchanged</span>
+                  <span>{metricsVisualization.unchangedDecisionCount} / {metricsVisualization.unchangedPct}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100">
+                  <div
+                    className="h-3 rounded-full bg-slate-400 transition-all"
+                    style={{ width: `${metricsVisualization.unchangedPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+            <div className="text-sm font-semibold text-slate-900">Operational Snapshot</div>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Total Decisions</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsVisualization.totalDecisions}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Total Audits</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsVisualization.totalAudits}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Auto Apply</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsVisualization.autoApplyCount}
+                </div>
+              </div>
+              <div className="rounded-[18px] bg-slate-50 p-4">
+                <div className="text-xs text-slate-500">Change Rate</div>
+                <div className="mt-2 text-xl font-semibold text-slate-900">
+                  {metricsVisualization.changedPct}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {metricsSummary ? (
         <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
