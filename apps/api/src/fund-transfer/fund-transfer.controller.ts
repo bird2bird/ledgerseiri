@@ -1,20 +1,24 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { FundTransferService } from './fund-transfer.service';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('api/fund-transfer')
 export class FundTransferController {
   constructor(private readonly service: FundTransferService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  list(@Req() req: any) {
+    return this.service.list(req.user?.companyId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: unknown) {
-    return this.service.update(id, (body || {}) as any);
+  update(@Req() req: any, @Param('id') id: string, @Body() body: unknown) {
+    return this.service.update(id, {
+      ...((body || {}) as any),
+      companyId: req.user?.companyId,
+    });
   }
-
 
   @Get('meta')
   meta() {
@@ -22,7 +26,10 @@ export class FundTransferController {
   }
 
   @Post()
-  create(@Body() body: unknown) {
-    return this.service.create((body || {}) as any);
+  create(@Req() req: any, @Body() body: unknown) {
+    return this.service.create({
+      ...((body || {}) as any),
+      companyId: req.user?.companyId,
+    });
   }
 }

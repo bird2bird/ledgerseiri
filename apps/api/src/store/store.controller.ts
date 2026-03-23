@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
@@ -6,6 +6,30 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 @Controller()
 export class StoreController {
   constructor(private prisma: PrismaService) {}
+
+  private async getStoreLimit(companyId: string): Promise<number> {
+    const row = await this.prisma.workspaceSubscription.findUnique({
+      where: { companyId },
+      select: { maxStores: true },
+    });
+
+    if (typeof row?.maxStores === 'number' && row.maxStores > 0) {
+      return row.maxStores;
+    }
+
+    return 1;
+  }
+
+  private async assertStoreCreateAllowed(companyId: string): Promise<void> {
+    const [used, limit] = await Promise.all([
+      this.prisma.store.count({ where: { companyId } }),
+      this.getStoreLimit(companyId),
+    ]);
+
+    if (used >= limit) {
+      throw new ForbiddenException('PLAN_LIMIT_REACHED');
+    }
+  }
 
   // 读取当前用户公司下的全部店铺
   @Get('store')
@@ -29,6 +53,8 @@ export class StoreController {
     if (!user?.companyId) {
       return { error: 'No company yet. Create company first.' };
     }
+
+    await this.assertStoreCreateAllowed(user.companyId);
 
     const store = await this.prisma.store.create({
       data: {

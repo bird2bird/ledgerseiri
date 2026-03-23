@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, {
   createContext,
   useContext,
@@ -10,7 +11,6 @@ import React, {
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { fetchWorkspaceContext } from "@/core/workspace/api";
-import { TenantSuspendedError } from "@/core/tenant-suspended";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { getPlanLimits } from "@/core/billing/planLimits";
 
@@ -61,6 +61,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [ctx, setCtx] = useState<WorkspaceContextValue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [upgradeModal, setUpgradeModal] = useState<{
+    open: boolean;
+    message: string;
+    target: string;
+  }>({
+    open: false,
+    message: "現在のプラン上限に達しました。アップグレードすると引き続き利用できます。",
+    target: "standard",
+  });
 
   async function loadWorkspaceContext() {
     try {
@@ -139,6 +149,29 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     };
   }, [lang, debugPlan]);
 
+  useEffect(() => {
+    function onPlanLimit(event: Event) {
+      const custom = event as CustomEvent<{ message?: string; target?: string }>;
+      setUpgradeModal({
+        open: true,
+        message:
+          custom.detail?.message ||
+          "現在のプラン上限に達しました。アップグレードすると引き続き利用できます。",
+        target: custom.detail?.target || "standard",
+      });
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("ledgerseiri:plan-limit-reached", onPlanLimit as EventListener);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("ledgerseiri:plan-limit-reached", onPlanLimit as EventListener);
+      }
+    };
+  }, []);
+
   const value = useMemo<WorkspaceProviderValue>(
     () => ({
       ctx,
@@ -149,7 +182,50 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [ctx, loading, error]
   );
 
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+  return (
+    <WorkspaceContext.Provider value={value}>
+      {children}
+
+      {upgradeModal.open ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="text-lg font-semibold text-slate-900">プラン上限に達しました</div>
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              {upgradeModal.message}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setUpgradeModal((prev) => ({
+                    ...prev,
+                    open: false,
+                  }))
+                }
+                className="inline-flex items-center justify-center rounded-xl border border-black/10 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+
+              <Link
+                href={`/${lang}/app/billing/change?target=${upgradeModal.target || "standard"}`}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                onClick={() =>
+                  setUpgradeModal((prev) => ({
+                    ...prev,
+                    open: false,
+                  }))
+                }
+              >
+                アップグレード
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </WorkspaceContext.Provider>
+  );
 }
 
 export function useWorkspaceProvider() {

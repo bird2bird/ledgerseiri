@@ -5,8 +5,19 @@ export class TenantSuspendedError extends Error {
   }
 }
 
+export class PlanLimitReachedError extends Error {
+  constructor(message = "PLAN_LIMIT_REACHED") {
+    super(message);
+    this.name = "PlanLimitReachedError";
+  }
+}
+
 export function isTenantSuspendedPayload(payload: unknown): boolean {
   return !!payload && typeof payload === "object" && (payload as any).message === "TENANT_SUSPENDED";
+}
+
+export function isPlanLimitReachedPayload(payload: unknown): boolean {
+  return !!payload && typeof payload === "object" && (payload as any).message === "PLAN_LIMIT_REACHED";
 }
 
 export function getTenantSuspendedPath(): string {
@@ -14,6 +25,13 @@ export function getTenantSuspendedPath(): string {
   const parts = window.location.pathname.split("/").filter(Boolean);
   const lang = parts[0] || "ja";
   return `/${lang}/tenant-suspended`;
+}
+
+export function getUpgradePath(target = "standard"): string {
+  if (typeof window === "undefined") return `/ja/app/billing/change?target=${target}`;
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  const lang = parts[0] || "ja";
+  return `/${lang}/app/billing/change?target=${target}`;
 }
 
 export function redirectToTenantSuspended(): never {
@@ -24,6 +42,21 @@ export function redirectToTenantSuspended(): never {
     }
   }
   throw new TenantSuspendedError();
+}
+
+export function dispatchPlanLimitReached(detail?: { message?: string; target?: string }) {
+  if (typeof window === "undefined") return;
+
+  window.dispatchEvent(
+    new CustomEvent("ledgerseiri:plan-limit-reached", {
+      detail: {
+        message:
+          detail?.message ||
+          "現在のプラン上限に達しました。アップグレードすると引き続き利用できます。",
+        target: detail?.target || "standard",
+      },
+    })
+  );
 }
 
 export async function parseResponsePayload(res: Response): Promise<unknown> {
@@ -42,16 +75,21 @@ export async function ensureNotTenantSuspended(res: Response): Promise<unknown |
 
   const payload = await parseResponsePayload(res);
 
-  if (res.status === 403 && isTenantSuspendedPayload(payload)) {
-    redirectToTenantSuspended();
-  }
-
   const message =
     payload && typeof payload === "object" && typeof (payload as any).message === "string"
       ? String((payload as any).message)
       : typeof payload === "string"
       ? payload
       : `Request failed: ${res.status}`;
+
+  if (isPlanLimitReachedPayload(payload)) {
+    dispatchPlanLimitReached({ message, target: "standard" });
+    throw new PlanLimitReachedError(message);
+  }
+
+  if (res.status === 403 && isTenantSuspendedPayload(payload)) {
+    redirectToTenantSuspended();
+  }
 
   throw new Error(message);
 }

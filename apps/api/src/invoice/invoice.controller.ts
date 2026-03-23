@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { InvoiceService } from './invoice.service';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('api/invoices')
 export class InvoiceController {
   constructor(private readonly service: InvoiceService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  list(@Req() req: any) {
+    return this.service.list(req.user?.companyId);
   }
 
   @Get('meta')
@@ -16,17 +18,20 @@ export class InvoiceController {
   }
 
   @Get('unpaid')
-  unpaid() {
-    return this.service.unpaid();
+  unpaid(@Req() req: any) {
+    return this.service.unpaid(req.user?.companyId);
   }
 
   @Get('history')
-  history() {
-    return this.service.history();
+  history(@Req() req: any) {
+    return this.service.history(req.user?.companyId);
   }
 
   @Post()
-  create(@Body() body: unknown) {
-    return this.service.create((body || {}) as any);
+  create(@Req() req: any, @Body() body: unknown) {
+    return this.service.create({
+      ...((body || {}) as any),
+      companyId: req.user?.companyId,
+    });
   }
 }

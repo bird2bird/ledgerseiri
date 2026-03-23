@@ -1,27 +1,20 @@
+import { TransactionType } from "@prisma/client";
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 type Direction = 'INCOME' | 'EXPENSE' | 'TRANSFER';
-
-type CreateCategoryPayload = {
-  companyId?: string;
-  name?: string;
-  direction?: Direction;
-  code?: string;
-};
 
 type CreateTransactionPayload = {
   companyId?: string;
   storeId?: string;
   accountId?: string | null;
   categoryId?: string | null;
-  type?: 'SALE' | 'FBA_FEE' | 'AD' | 'REFUND' | 'OTHER';
+  type?: string;
   direction?: Direction;
   amount?: number | string;
   currency?: string;
   occurredAt?: string;
   memo?: string;
-  externalRef?: string;
 };
 
 @Injectable()
@@ -29,18 +22,11 @@ export class TransactionService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async resolveCompanyId(inputCompanyId?: string) {
-    if (inputCompanyId) return inputCompanyId;
-
-    const company = await this.prisma.company.findFirst({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-
-    if (!company) {
-      throw new Error('No company found. Please create a company first.');
+    const companyId = String(inputCompanyId ?? '').trim();
+    if (!companyId) {
+      throw new Error('COMPANY_CONTEXT_REQUIRED');
     }
-
-    return company.id;
+    return companyId;
   }
 
   private async resolveDefaultStoreId(companyId: string, storeId?: string) {
@@ -53,116 +39,70 @@ export class TransactionService {
     });
 
     if (!store) {
-      throw new Error('No store found. Please create a store first.');
+      throw new Error('No store found.');
     }
 
     return store.id;
   }
 
-  async listCategories(direction?: Direction) {
-    const companyId = await this.resolveCompanyId();
+  private async getMonthlyTransactionLimit(companyId: string): Promise<number> {
+    const row = await this.prisma.workspaceSubscription.findUnique({
+      where: { companyId },
+      select: { planCode: true },
+    });
 
-    const items = await this.prisma.transactionCategory.findMany({
+    const plan = String(row?.planCode ?? 'STARTER').trim().toUpperCase();
+
+    if (plan === 'PREMIUM') return Number.MAX_SAFE_INTEGER;
+    if (plan === 'STANDARD') return 2000;
+    return 100;
+  }
+
+  private getMonthRange(baseDate?: Date) {
+    const now = baseDate ?? new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+    return { start, end };
+  }
+
+  private async countTransactionsThisMonth(companyId: string, baseDate?: Date): Promise<number> {
+    const { start, end } = this.getMonthRange(baseDate);
+
+    return this.prisma.transaction.count({
       where: {
         companyId,
-        ...(direction ? { direction } : {}),
-      },
-      orderBy: [{ direction: 'asc' }, { createdAt: 'asc' }],
-    });
-
-    return {
-      ok: true,
-      domain: 'transaction-categories',
-      action: 'list',
-      items,
-      message: 'transaction categories loaded',
-    };
-  }
-
-  async createCategory(payload: CreateCategoryPayload) {
-    const companyId = await this.resolveCompanyId(payload?.companyId);
-
-    if (!payload?.name || !String(payload.name).trim()) {
-      throw new Error('Category name is required.');
-    }
-
-    const direction = payload.direction ?? 'EXPENSE';
-
-    const item = await this.prisma.transactionCategory.create({
-      data: {
-        companyId,
-        name: String(payload.name).trim(),
-        direction,
-        code: payload.code ? String(payload.code).trim() : null,
-        isSystem: false,
-      },
-    });
-
-    return {
-      ok: true,
-      domain: 'transaction-categories',
-      action: 'create',
-      item,
-      message: 'transaction category created',
-    };
-  }
-
-  async seedDefaultCategories() {
-    const companyId = await this.resolveCompanyId();
-
-    const defaults: Array<{ name: string; direction: Direction; code: string }> = [
-      { name: '売上', direction: 'INCOME', code: 'sales' },
-      { name: 'その他収入', direction: 'INCOME', code: 'other-income' },
-      { name: '広告費', direction: 'EXPENSE', code: 'ads' },
-      { name: '運営費', direction: 'EXPENSE', code: 'ops' },
-      { name: 'その他支出', direction: 'EXPENSE', code: 'other-expense' },
-    ];
-
-    for (const d of defaults) {
-      const found = await this.prisma.transactionCategory.findFirst({
-        where: {
-          companyId,
-          direction: d.direction,
-          name: d.name,
+        occurredAt: {
+          gte: start,
+          lt: end,
         },
-        select: { id: true },
-      });
-
-      if (!found) {
-        await this.prisma.transactionCategory.create({
-          data: {
-            companyId,
-            name: d.name,
-            direction: d.direction,
-            code: d.code,
-            isSystem: true,
-          },
-        });
-      }
-    }
-
-    return this.listCategories();
+      },
+    });
   }
 
-  async list(direction?: Direction) {
-    const companyId = await this.resolveCompanyId();
+  private async assertTransactionCreateAllowed(companyId: string, baseDate?: Date): Promise<void> {
+    const [limit, used] = await Promise.all([
+      this.getMonthlyTransactionLimit(companyId),
+      this.countTransactionsThisMonth(companyId, baseDate),
+    ]);
+
+    if (used >= limit) {
+      throw new Error('PLAN_LIMIT_REACHED');
+    }
+  }
+
+  async list(companyId?: string, direction?: Direction) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
     const items = await this.prisma.transaction.findMany({
       where: {
-        companyId,
+        companyId: resolvedCompanyId,
         ...(direction ? { direction } : {}),
       },
-      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ occurredAt: 'desc' }],
       include: {
-        category: {
-          select: { id: true, name: true, direction: true },
-        },
-        account: {
-          select: { id: true, name: true },
-        },
-        store: {
-          select: { id: true, name: true },
-        },
+        category: { select: { name: true } },
+        account: { select: { name: true } },
+        store: { select: { name: true } },
       },
     });
 
@@ -181,15 +121,11 @@ export class TransactionService {
         categoryName: t.category?.name ?? null,
         type: t.type,
         direction: t.direction,
-        sourceType: t.sourceType,
         amount: t.amount,
         currency: t.currency,
         occurredAt: t.occurredAt,
-        externalRef: t.externalRef,
         memo: t.memo,
-        createdAt: t.createdAt,
       })),
-      message: 'transactions list loaded',
     };
   }
 
@@ -198,12 +134,9 @@ export class TransactionService {
     const storeId = await this.resolveDefaultStoreId(companyId, payload?.storeId);
 
     const amount = Number(payload.amount ?? 0);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error('amount must be greater than 0.');
+    if (!amount || amount <= 0) {
+      throw new Error('Invalid amount');
     }
-
-    const direction = payload.direction ?? 'EXPENSE';
-    const type = payload.type ?? 'OTHER';
 
     const item = await this.prisma.transaction.create({
       data: {
@@ -211,126 +144,45 @@ export class TransactionService {
         storeId,
         accountId: payload.accountId || null,
         categoryId: payload.categoryId || null,
-        type,
-        direction,
+        type: (payload.type as TransactionType) ?? TransactionType.OTHER,
+        direction: payload.direction ?? 'EXPENSE',
         sourceType: 'MANUAL',
-        amount: Math.round(amount),
-        currency: String(payload.currency || 'JPY').trim() || 'JPY',
+        amount,
+        currency: payload.currency ?? 'JPY',
         occurredAt: payload.occurredAt ? new Date(payload.occurredAt) : new Date(),
-        externalRef: payload.externalRef ? String(payload.externalRef) : null,
-        memo: payload.memo ? String(payload.memo) : null,
-      },
-      include: {
-        category: { select: { name: true } },
-        account: { select: { name: true } },
-        store: { select: { name: true } },
+        memo: payload.memo ?? null,
       },
     });
 
     return {
       ok: true,
-      domain: 'transactions',
-      action: 'create',
-      item: {
-        id: item.id,
-        companyId: item.companyId,
-        storeId: item.storeId,
-        storeName: item.store?.name ?? null,
-        accountId: item.accountId,
-        accountName: item.account?.name ?? null,
-        categoryId: item.categoryId,
-        categoryName: item.category?.name ?? null,
-        type: item.type,
-        direction: item.direction,
-        amount: item.amount,
-        currency: item.currency,
-        occurredAt: item.occurredAt,
-        memo: item.memo,
-      },
-      message: 'transaction created',
+      item,
     };
   }
 
-  async update(
-    id: string,
-    input: {
-      amount?: number | string | null;
-      memo?: string | null;
-    },
-  ) {
+  async update(id: string, payload: { companyId?: string; amount?: number }) {
     const existing = await this.prisma.transaction.findUnique({
       where: { id },
-      include: {
-        account: true,
-        category: true,
-        store: true,
-      },
     });
 
-    if (!existing) {
-      throw new Error('Transaction not found');
+    if (!existing) throw new Error('Not found');
+
+    const companyId = await this.resolveCompanyId(payload?.companyId);
+
+    if (existing.companyId !== companyId) {
+      throw new Error('Not found');
     }
 
-    const nextAmountRaw = input?.amount;
-    const hasAmount =
-      nextAmountRaw !== undefined &&
-      nextAmountRaw !== null &&
-      String(nextAmountRaw).trim() !== '';
-
-    const parsedAmount = hasAmount ? Number(nextAmountRaw) : Number(existing.amount ?? 0);
-
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      throw new Error('amount must be a positive number');
-    }
-
-    const normalizedAmount =
-      existing.direction === 'EXPENSE'
-        ? -Math.abs(parsedAmount)
-        : Math.abs(parsedAmount);
-
-    const nextMemo =
-      input?.memo === undefined
-        ? existing.memo
-        : input.memo === null
-          ? null
-          : String(input.memo);
-
-    const item = await this.prisma.transaction.update({
+    const updated = await this.prisma.transaction.update({
       where: { id },
       data: {
-        amount: normalizedAmount,
-        memo: nextMemo,
-      },
-      include: {
-        account: true,
-        category: true,
-        store: true,
+        amount: payload.amount ?? existing.amount,
       },
     });
 
     return {
       ok: true,
-      item: {
-        id: item.id,
-        companyId: item.companyId ?? null,
-        storeId: item.storeId,
-        storeName: item.store?.name ?? null,
-        accountId: item.accountId ?? null,
-        accountName: item.account?.name ?? null,
-        categoryId: item.categoryId ?? null,
-        categoryName: item.category?.name ?? null,
-        type: item.type,
-        direction: item.direction ?? null,
-        sourceType: item.sourceType,
-        amount: Number(item.amount ?? 0),
-        currency: item.currency,
-        occurredAt: item.occurredAt instanceof Date ? item.occurredAt.toISOString() : String(item.occurredAt),
-        externalRef: item.externalRef ?? null,
-        memo: item.memo ?? null,
-        createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt),
-      },
-      message: 'updated',
+      item: updated,
     };
   }
-
 }

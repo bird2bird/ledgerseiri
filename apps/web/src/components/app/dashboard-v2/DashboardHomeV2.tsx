@@ -25,6 +25,7 @@ import { BusinessHealthCard } from "@/components/app/dashboard-v2/BusinessHealth
 import { BusinessHealthLockedCard } from "@/components/app/dashboard-v2/BusinessHealthLockedCard";
 import { RecentTransactionsCard } from "@/components/app/dashboard-v2/RecentTransactionsCard";
 import { QuickActionsCard } from "@/components/app/dashboard-v2/QuickActionsCard";
+import { PlanUsageBar } from "@/components/app/dashboard-v2/PlanUsageBar";
 
 function formatBalanceJPY(value: number) {
   return `¥${Number(value || 0).toLocaleString("ja-JP")}`;
@@ -197,6 +198,7 @@ export function DashboardHomeV2() {
 
   return (
     <div className="space-y-6">
+        <PlanUsageBar />
       <div className="flex flex-wrap items-center justify-end gap-2">
         <span
           className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium ${planBadgeClass(

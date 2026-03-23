@@ -26,10 +26,7 @@ export async function fetchWorkspaceContext(args: {
     cache: "no-store",
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`/workspace/context failed: ${res.status} ${text}`);
-  }
+  await ensureNotTenantSuspended(res);
 
   return (await res.json()) as WorkspaceContextValue;
 }

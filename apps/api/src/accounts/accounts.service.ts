@@ -28,6 +28,38 @@ export class AccountsService {
     return companyId;
   }
 
+  private async getAccountPlanCode(companyId: string): Promise<'STARTER' | 'STANDARD' | 'PREMIUM'> {
+    const row = await this.prisma.workspaceSubscription.findUnique({
+      where: { companyId },
+      select: { planCode: true },
+    });
+
+    const raw = String(row?.planCode ?? 'STARTER').trim().toUpperCase();
+
+    if (raw === 'PREMIUM') return 'PREMIUM';
+    if (raw === 'STANDARD') return 'STANDARD';
+    return 'STARTER';
+  }
+
+  private async getAccountLimit(companyId: string): Promise<number> {
+    const planCode = await this.getAccountPlanCode(companyId);
+
+    if (planCode === 'PREMIUM') return Number.MAX_SAFE_INTEGER;
+    if (planCode === 'STANDARD') return 5;
+    return 1;
+  }
+
+  private async assertAccountCreateAllowed(companyId: string): Promise<void> {
+    const [limit, used] = await Promise.all([
+      this.getAccountLimit(companyId),
+      this.prisma.account.count({ where: { companyId } }),
+    ]);
+
+    if (used >= limit) {
+      throw new Error('PLAN_LIMIT_REACHED');
+    }
+  }
+
   async list(companyId?: string) {
     const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
@@ -62,6 +94,7 @@ export class AccountsService {
 
   async create(payload: CreateAccountPayload) {
     const companyId = await this.resolveCompanyId(payload?.companyId);
+    await this.assertAccountCreateAllowed(companyId);
 
     const created = await this.prisma.account.create({
       data: {

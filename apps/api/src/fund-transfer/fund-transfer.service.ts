@@ -16,23 +16,19 @@ export class FundTransferService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async resolveCompanyId(inputCompanyId?: string) {
-    if (inputCompanyId) return inputCompanyId;
-
-    const company = await this.prisma.company.findFirst({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-
-    if (!company) {
-      throw new Error('No company found. Please create a company first.');
+    const companyId = String(inputCompanyId ?? '').trim();
+    if (!companyId) {
+      throw new Error('COMPANY_CONTEXT_REQUIRED');
     }
-
-    return company.id;
+    return companyId;
   }
 
-  async list() {
+  async list(companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
+
     const items = await this.prisma.fundTransfer.findMany({
-      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      where: { companyId: resolvedCompanyId },
+        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         fromAccount: { select: { id: true, name: true } },
         toAccount: { select: { id: true, name: true } },

@@ -1,3 +1,4 @@
+import { ensureNotTenantSuspended } from "@/core/tenant-suspended";
 export type AccountItem = {
   id: string;
   companyId: string;
@@ -42,10 +43,7 @@ export type AccountBalanceItem = {
 };
 
 async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${text}`);
-  }
+  await ensureNotTenantSuspended(res);
   return (await res.json()) as T;
 }
 

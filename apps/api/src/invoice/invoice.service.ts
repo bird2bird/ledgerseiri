@@ -21,22 +21,25 @@ export class InvoiceService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async resolveCompanyId(inputCompanyId?: string) {
-    if (inputCompanyId) return inputCompanyId;
-
-    const company = await this.prisma.company.findFirst({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-
-    if (!company) {
-      throw new Error('No company found. Please create a company first.');
+    const companyId = String(inputCompanyId ?? '').trim();
+    if (!companyId) {
+      throw new Error('COMPANY_CONTEXT_REQUIRED');
     }
-
-    return company.id;
+    return companyId;
   }
 
   private async resolveDefaultStoreId(companyId: string, storeId?: string | null) {
-    if (storeId) return storeId;
+    const inputStoreId = String(storeId ?? '').trim();
+    if (inputStoreId) {
+      const ownedStore = await this.prisma.store.findFirst({
+        where: { id: inputStoreId, companyId },
+        select: { id: true },
+      });
+      if (!ownedStore) {
+        throw new Error('store not found or not owned by current company.');
+      }
+      return ownedStore.id;
+    }
 
     const store = await this.prisma.store.findFirst({
       where: { companyId },
@@ -66,7 +69,7 @@ export class InvoiceService {
       store?: { name: string } | null;
     },
   ) {
-    const totalAmount = row.totalAmount ?? 0;
+    const totalAmount = Number(row.totalAmount ?? 0);
     const subtotal = Math.round(totalAmount / 1.1);
     const tax = totalAmount - subtotal;
 
@@ -86,19 +89,19 @@ export class InvoiceService {
       total: totalAmount,
       subtotal,
       tax,
-      paidAmount: row.paidAmount,
-      balance: totalAmount - row.paidAmount,
+      paidAmount: Number(row.paidAmount ?? 0),
+      balance: totalAmount - Number(row.paidAmount ?? 0),
       memo: row.memo,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
 
-  async list() {
-    const companyId = await this.resolveCompanyId();
+  async list(companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
     const items = await this.prisma.invoice.findMany({
-      where: { companyId },
+      where: { companyId: resolvedCompanyId },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
       include: {
         store: { select: { name: true } },
@@ -114,12 +117,12 @@ export class InvoiceService {
     };
   }
 
-  async unpaid() {
-    const companyId = await this.resolveCompanyId();
+  async unpaid(companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
     const items = await this.prisma.invoice.findMany({
       where: {
-        companyId,
+        companyId: resolvedCompanyId,
         status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
@@ -137,12 +140,12 @@ export class InvoiceService {
     };
   }
 
-  async history() {
-    const companyId = await this.resolveCompanyId();
+  async history(companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
     const items = await this.prisma.invoice.findMany({
       where: {
-        companyId,
+        companyId: resolvedCompanyId,
         paidAmount: { gt: 0 },
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],

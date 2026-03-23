@@ -16,25 +16,18 @@ export class PaymentService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async resolveCompanyId(inputCompanyId?: string) {
-    if (inputCompanyId) return inputCompanyId;
-
-    const company = await this.prisma.company.findFirst({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    });
-
-    if (!company) {
-      throw new Error('No company found. Please create a company first.');
+    const companyId = String(inputCompanyId ?? '').trim();
+    if (!companyId) {
+      throw new Error('COMPANY_CONTEXT_REQUIRED');
     }
-
-    return company.id;
+    return companyId;
   }
 
-  async list() {
-    const companyId = await this.resolveCompanyId();
+  async list(companyId?: string) {
+    const resolvedCompanyId = await this.resolveCompanyId(companyId);
 
     const items = await this.prisma.paymentReceipt.findMany({
-      where: { companyId },
+      where: { companyId: resolvedCompanyId },
       orderBy: [{ receivedAt: 'desc' }, { createdAt: 'desc' }],
       include: {
         invoice: {
@@ -126,12 +119,22 @@ export class PaymentService {
       throw new Error('invoice does not belong to current company.');
     }
 
-    const newPaid = invoice.paidAmount + amount;
+    if (accountId) {
+      const account = await this.prisma.account.findFirst({
+        where: { id: accountId, companyId },
+        select: { id: true },
+      });
+      if (!account) {
+        throw new Error('account not found or not owned by current company.');
+      }
+    }
+
+    const newPaid = Number(invoice.paidAmount ?? 0) + amount;
 
     let nextStatus: 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' = 'ISSUED';
     if (newPaid <= 0) {
       nextStatus = 'ISSUED';
-    } else if (newPaid < invoice.totalAmount) {
+    } else if (newPaid < Number(invoice.totalAmount ?? 0)) {
       nextStatus = 'PARTIALLY_PAID';
     } else {
       nextStatus = 'PAID';
