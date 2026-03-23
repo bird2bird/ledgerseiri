@@ -1,3 +1,5 @@
+import { ensureNotTenantSuspended } from "@/core/tenant-suspended";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 export type AccountItem = {
@@ -30,10 +32,7 @@ type AccountWriteResponse = {
 };
 
 async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
-  }
+  await ensureNotTenantSuspended(res);
   return res.json() as Promise<T>;
 }
 
@@ -58,6 +57,7 @@ export async function createAccount(payload: {
     },
     body: JSON.stringify(payload),
   });
+
   return readJson<AccountWriteResponse>(res);
 }
 
@@ -77,5 +77,6 @@ export async function updateAccount(
     },
     body: JSON.stringify(payload),
   });
+
   return readJson<AccountWriteResponse>(res);
 }

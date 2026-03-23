@@ -21,7 +21,7 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   providers: [AuthService, PrismaService, JwtStrategy, AuthService, RefreshService],
-  controllers: [AuthApiController, AuthController, RefreshController, RefreshApiController],
+  controllers: [AuthApiController, RefreshController, RefreshApiController],
   exports: [AuthService],
 })
 export class AuthModule {}

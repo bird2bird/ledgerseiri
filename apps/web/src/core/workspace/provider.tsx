@@ -10,6 +10,7 @@ import React, {
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { fetchWorkspaceContext } from "@/core/workspace/api";
+import { TenantSuspendedError } from "@/core/tenant-suspended";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { getPlanLimits } from "@/core/billing/planLimits";
 

@@ -11,14 +11,22 @@ function isHttps(req: Request): boolean {
 }
 
 function setRefreshCookie(req: Request, res: Response, token: string) {
-  // Browser HTTPS: Secure=true -> __Host- requirements satisfied.
-  // Local/container HTTP test: Secure=false -> you can still see behavior.
   res.cookie('__Host-lsrt', token, {
     httpOnly: true,
     secure: isHttps(req),
     sameSite: 'lax',
     path: '/',
     maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function setAccessCookie(req: Request, res: Response, token: string) {
+  res.cookie('access_token', token, {
+    httpOnly: true,
+    secure: isHttps(req),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 1000,
   });
 }
 
@@ -35,17 +43,32 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() body: any, @Req() req: Request, @Res() res: Response) {
-    const identifier = (body as any).email ?? (body as any).username ?? (body as any).userName;
-    if (!identifier || typeof identifier !== "string") {
-      throw new BadRequestException("EMAIL_REQUIRED");
+  async login(
+    @Body() body: any,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const identifier =
+      (body as any).email ??
+      (body as any).username ??
+      (body as any).userName;
+
+    if (!identifier || typeof identifier !== 'string') {
+      throw new BadRequestException('EMAIL_REQUIRED');
     }
-    const userId = await this.auth.validateUser(identifier, (body as any).password);
-const { jti } = await this.refresh.issueRefreshSession(userId);
+
+    const userId = await this.auth.validateUser(
+      identifier,
+      (body as any).password,
+    );
+
+    const { jti } = await this.refresh.issueRefreshSession(userId);
     const refreshToken = this.refresh.createRefreshToken(userId, jti);
     const accessToken = this.refresh.createAccessToken(userId);
 
     setRefreshCookie(req, res, refreshToken);
+    setAccessCookie(req, res, accessToken);
+
     return res.status(201).json({ accessToken });
   }
 

@@ -1,4 +1,5 @@
 import type { WorkspaceContextValue } from "@/core/workspace/types";
+import { ensureNotTenantSuspended } from "@/core/tenant-suspended";
 
 export async function fetchWorkspaceContext(args: {
   token?: string;

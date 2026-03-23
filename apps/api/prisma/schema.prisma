@@ -20,6 +20,8 @@ model User {
 }
 
 model Company {
+  status    CompanyStatus @default(ACTIVE)
+
   id               String   @id @default(cuid())
   name             String
   fiscalMonthStart Int      @default(1)
@@ -464,4 +466,33 @@ model ReconciliationDecisionAudit {
   @@index([companyId, createdAt])
   @@index([candidateId])
   @@index([persistenceKey])
+}
+
+
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  sessions PlatformAdminSession[]
+}
+
+model PlatformAdminSession {
+  id                String   @id @default(cuid())
+  adminId           String
+  refreshTokenHash  String
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  admin PlatformAdmin @relation(fields: [adminId], references: [id])
+}
+
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
 }

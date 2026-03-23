@@ -1,4 +1,6 @@
-import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { TenantStatusMiddleware } from './tenant-status.middleware';
+import { Module, MiddlewareConsumer, NestModule, RequestMethod } from '@nestjs/common';
 import { SecurityModule } from './security/security.module';
 import { AuthModule } from './auth/auth.module';
 import { CompanyModule } from './company/company.module';
@@ -19,6 +21,8 @@ import { ReportsModule } from './reports/reports.module';
 import { AccountModule } from './account/account.module';
 import { BillingModule } from './billing/billing.module';
 import { ReconciliationDecisionModule } from "./reconciliation-decision/reconciliation-decision.module";
+import { PlatformAuthModule } from './platform-auth/platform-auth.module';
+import { PlatformOpsModule } from './platform-ops/platform-ops.module';
 
 
 @Module({
@@ -26,6 +30,8 @@ import { ReconciliationDecisionModule } from "./reconciliation-decision/reconcil
     ReconciliationDecisionModule,
       WorkspaceModule,
       AuthModule,
+      PlatformAuthModule,
+      PlatformOpsModule,
       CompanyModule,
       StoreModule,
       TransactionModule,
@@ -44,4 +50,11 @@ import { ReconciliationDecisionModule } from "./reconciliation-decision/reconcil
     ],
     controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantStatusMiddleware).forRoutes({
+      path: '*',
+      method: RequestMethod.ALL,
+    });
+  }
+}

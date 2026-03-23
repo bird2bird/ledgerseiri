@@ -547,7 +547,7 @@ export class DashboardApiController {
         const balancesRes = await this.accountsService.listBalances();
     const balancesItems = balancesRes.items ?? [];
     const totalCurrentBalance = balancesItems.reduce(
-      (sum, item) => sum + Number(item.currentBalance ?? 0),
+      (sum, item) => sum + Number(item.openingBalance ?? 0),
       0,
     );
     const activeAccounts = balancesItems.filter((item) => !!item.isActive).length;

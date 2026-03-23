@@ -10,6 +10,7 @@ import type {
   CashFlowPoint,
 } from "@/components/app/dashboard-v2/types";
 import { getAlertHref, getSummaryCardHref } from "@/components/app/dashboard-v2/dashboard-linking";
+import { TenantSuspendedError, ensureNotTenantSuspended } from "@/core/tenant-suspended";
 
 type FetchDashboardSummaryArgs = {
   token?: string | null;
@@ -23,10 +24,7 @@ function money(value: number) {
 }
 
 async function readJson<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${text}`);
-  }
+  await ensureNotTenantSuspended(res);
   return (await res.json()) as T;
 }
 
@@ -136,6 +134,9 @@ export async function fetchDashboardSummary(args: FetchDashboardSummaryArgs = {}
       })
     );
   } catch (err) {
+    if (err instanceof TenantSuspendedError || (err as any)?.message === "TENANT_SUSPENDED") {
+      throw err;
+    }
     console.error("fetchDashboardSummary failed:", err);
     return emptyDashboard(normalizeRange(args.range), args.storeId ?? "all");
   }

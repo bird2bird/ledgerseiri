@@ -1,73 +1,56 @@
-import { NextRequest, NextResponse } from "next/server";
-import { normalizeLang, isLangSegment, pickLangFromAcceptLanguage } from "./lib/i18n/lang";
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-const COOKIE_LANG = "ls_lang";
+export async function middleware(req: NextRequest) {
+  const { pathname, origin } = req.nextUrl;
 
-/**
- * Rules:
- * 1) If path already starts with /{lang}/... -> allow (no rewrite to ja)
- * 2) If path is "/" -> redirect to preferred /{lang}
- * 3) If path is "/login|/register|/forgot-password|/terms|/privacy" (without lang) -> redirect to /{lang}/{path}
- * 4) Otherwise pass-through (avoid breaking LP routes)
- */
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-
-  // Ignore Next internals & static assets
+  // 放行平台 & 登录
   if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/robots.txt") ||
-    pathname.startsWith("/sitemap") ||
-    pathname.startsWith("/assets") ||
-    pathname.startsWith("/images")
+    pathname.startsWith('/ja/platform') ||
+    pathname.startsWith('/platform-auth') ||
+    pathname.startsWith('/api/platform') ||
+    pathname.startsWith('/api/platform-auth') ||
+    pathname.startsWith('/api/auth')
   ) {
     return NextResponse.next();
   }
 
-  const seg1 = pathname.split("/")[1] || "";
-  // Already localized: keep it
-  if (isLangSegment(seg1)) {
-    // Keep cookie updated (so /login can inherit language)
-    const res = NextResponse.next();
-    res.cookies.set(COOKIE_LANG, seg1, { path: "/", sameSite: "lax", secure: true, maxAge: 60 * 60 * 24 * 365 });
-    return res;
+  const token = req.cookies.get('access_token')?.value;
+
+  if (!token) {
+    return NextResponse.next();
   }
 
-  const cookieLang = req.cookies.get(COOKIE_LANG)?.value;
-  const preferred = normalizeLang(cookieLang) || pickLangFromAcceptLanguage(req.headers.get("accept-language"));
+  try {
+    // ✅ 用当前域名（关键）
+    const res = await fetch(
+      `${origin}/api/workspace/context`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
-  // Root -> /{lang}
-  if (pathname === "/") {
-    const url = req.nextUrl.clone();
-    url.pathname = `/${preferred}`;
-    url.search = search;
-    return NextResponse.redirect(url);
+    if (res.status === 403) {
+      const data = await res.json();
+
+      if (data?.message === 'TENANT_SUSPENDED') {
+        return NextResponse.redirect(
+          new URL(`/${pathname.split('/').filter(Boolean)[0] || 'ja'}/tenant-suspended`, req.url)
+        );
+      }
+    }
+
+  } catch (e) {
+    console.error('middleware fetch error', e);
   }
 
-  // If visiting auth/legal routes without lang prefix, redirect to add prefix
-  const plain = pathname.replace(/\/+$/g, "");
-  const isAuthOrLegal =
-    plain === "/login" ||
-    plain === "/register" ||
-    plain === "/forgot-password" ||
-    plain === "/terms" ||
-    plain === "/privacy";
-
-  if (isAuthOrLegal) {
-    const url = req.nextUrl.clone();
-    url.pathname = `/${preferred}${plain}`;
-    url.search = search;
-    return NextResponse.redirect(url);
-  }
-
-  // Do NOT rewrite other routes. (LP & marketing pages should work as-is)
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    '/((?!_next|favicon.ico).*)',
   ],
 };

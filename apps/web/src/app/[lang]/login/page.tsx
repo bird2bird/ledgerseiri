@@ -26,11 +26,29 @@ export default function LoginPage() {
     e.preventDefault();
     setErr(null);
     setLoading(true);
+
     try {
-      // TODO: call your real API
-      // await fetch('/api/auth/login' ...)
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      await res.json().catch(() => ({}));
       router.push(`/${lang}/app`);
     } catch (e: any) {
+      console.error(e);
       setErr("LOGIN_FAILED");
     } finally {
       setLoading(false);
