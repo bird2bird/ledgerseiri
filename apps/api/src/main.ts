@@ -9,7 +9,7 @@ const pgSession = require('connect-pg-simple');
 const { Pool } = require('pg');
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   bindDashboardCacheInvalidationMiddleware(app);
   (app.getHttpAdapter().getInstance() as any).set('trust proxy', 1);
   app.use(cookieParser());

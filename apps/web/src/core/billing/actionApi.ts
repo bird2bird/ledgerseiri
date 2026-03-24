@@ -1,31 +1,29 @@
-export type BillingCheckoutStubResponse = {
+export type BillingCheckoutResponse = {
   ok: boolean;
-  mode: "stub";
-  action: "checkout-session";
-  targetPlan: "starter" | "standard" | "premium";
-  currentPlan: "starter" | "standard" | "premium";
-  redirectPath: string;
-  message: string;
+  action?: "checkout-session";
+  targetPlan?: "starter" | "standard" | "premium";
+  url?: string | null;
+  message?: string;
 };
 
-export type BillingPortalStubResponse = {
+export type BillingPortalResponse = {
   ok: boolean;
-  mode: "stub";
-  action: "portal-session";
-  redirectPath: string;
-  message: string;
+  action?: "portal-session";
+  url?: string | null;
+  message?: string;
 };
 
 export async function createBillingCheckoutSession(args: {
   targetPlan: "starter" | "standard" | "premium";
   currentPlan: "starter" | "standard" | "premium";
   locale?: string;
-}): Promise<BillingCheckoutStubResponse> {
+}): Promise<BillingCheckoutResponse> {
   const res = await fetch("/billing/checkout-session", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     cache: "no-store",
     body: JSON.stringify(args),
   });
@@ -35,12 +33,12 @@ export async function createBillingCheckoutSession(args: {
     throw new Error(`/billing/checkout-session failed: ${res.status} ${text}`);
   }
 
-  return (await res.json()) as BillingCheckoutStubResponse;
+  return (await res.json()) as BillingCheckoutResponse;
 }
 
 export async function createBillingPortalSession(args?: {
   locale?: string;
-}): Promise<BillingPortalStubResponse> {
+}): Promise<BillingPortalResponse> {
   const qs = new URLSearchParams();
   if (args?.locale) qs.set("locale", args.locale);
 
@@ -48,6 +46,7 @@ export async function createBillingPortalSession(args?: {
 
   const res = await fetch(`/billing/portal-session${suffix}`, {
     method: "GET",
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -56,5 +55,5 @@ export async function createBillingPortalSession(args?: {
     throw new Error(`/billing/portal-session failed: ${res.status} ${text}`);
   }
 
-  return (await res.json()) as BillingPortalStubResponse;
+  return (await res.json()) as BillingPortalResponse;
 }

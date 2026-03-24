@@ -20,7 +20,7 @@ model User {
 }
 
 model Company {
-  status    CompanyStatus @default(ACTIVE)
+  status CompanyStatus @default(ACTIVE)
 
   id               String   @id @default(cuid())
   name             String
@@ -426,6 +426,10 @@ model WorkspaceSubscription {
   aiChatMonthly       Int       @default(0)
   aiInvoiceOcrMonthly Int       @default(0)
 
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -433,6 +437,8 @@ model WorkspaceSubscription {
 
   @@index([planCode])
   @@index([status])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
 }
 
 model ReconciliationDecision {
@@ -468,7 +474,6 @@ model ReconciliationDecisionAudit {
   @@index([persistenceKey])
 }
 
-
 model PlatformAdmin {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -481,16 +486,15 @@ model PlatformAdmin {
 }
 
 model PlatformAdminSession {
-  id                String   @id @default(cuid())
-  adminId           String
-  refreshTokenHash  String
-  expiresAt         DateTime
-  revokedAt         DateTime?
-  createdAt         DateTime @default(now())
+  id               String    @id @default(cuid())
+  adminId          String
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
 
   admin PlatformAdmin @relation(fields: [adminId], references: [id])
 }
-
 
 enum CompanyStatus {
   ACTIVE

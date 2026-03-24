@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useMemo } from "react";
+import React, { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
@@ -9,6 +9,7 @@ import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
+import { createBillingCheckoutSession, createBillingPortalSession } from "@/core/billing/actionApi";
 
 type PlanCode = "starter" | "standard" | "premium";
 
@@ -93,6 +94,7 @@ function ChangePlanInner() {
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
   const { ctx, loading, error } = useWorkspaceProvider();
+  const [submitting, setSubmitting] = useState(false);
 
   const rawTarget = searchParams.get("target") || "standard";
   const target = (normalizePlan(rawTarget) ?? "standard") as PlanCode;
@@ -208,7 +210,50 @@ function ChangePlanInner() {
           const active = plan.code === target;
           const current = plan.code === currentPlan;
 
-          return (
+      
+    async function handleCheckout() {
+      try {
+        setSubmitting(true);
+        const data = await createBillingCheckoutSession({
+          targetPlan: target,
+          currentPlan,
+          locale: lang,
+        });
+
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+
+        throw new Error(data?.message || "CHECKOUT_URL_MISSING");
+      } catch (e: any) {
+        alert(e?.message || "Checkout failed");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    async function handlePortal() {
+      try {
+        setSubmitting(true);
+        const data = await createBillingPortalSession({
+          locale: lang,
+        });
+
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+
+        throw new Error(data?.message || "PORTAL_URL_MISSING");
+      } catch (e: any) {
+        alert(e?.message || "Portal failed");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    return (
             <section
               key={plan.code}
               className={cls(
