@@ -18,7 +18,13 @@ type PlanCode = 'starter' | 'standard' | 'premium';
 type PrismaPlanCode = 'STARTER' | 'STANDARD' | 'PREMIUM';
 type PrismaSubscriptionStatus = 'ACTIVE' | 'TRIALING' | 'PAST_DUE' | 'CANCELED';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+function getStripeClient(): Stripe {
+  const key = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!key) {
+    throw new BadRequestException('STRIPE_NOT_CONFIGURED');
+  }
+  return new Stripe(key);
+}
 
 function normalizePlan(raw?: string | null): PlanCode | null {
   if (raw === 'starter' || raw === 'standard' || raw === 'premium') return raw;
@@ -49,6 +55,7 @@ function priceIdToPlan(priceId?: string | null): PlanCode {
 
   if (priceId && premium && priceId === premium) return 'premium';
   if (priceId && standard && priceId === standard) return 'standard';
+  if (priceId && starter && priceId === starter) return 'starter';
   return 'starter';
 }
 
@@ -56,11 +63,7 @@ function stripeStatusToPrisma(status?: string | null): PrismaSubscriptionStatus 
   const v = String(status || '').toLowerCase();
   if (v === 'trialing') return 'TRIALING';
   if (v === 'past_due' || v === 'unpaid') return 'PAST_DUE';
-  if (
-    v === 'canceled' ||
-    v === 'cancelled' ||
-    v === 'incomplete_expired'
-  ) {
+  if (v === 'canceled' || v === 'cancelled' || v === 'incomplete_expired') {
     return 'CANCELED';
   }
   return 'ACTIVE';
@@ -93,7 +96,7 @@ function planLimits(plan: PlanCode) {
   };
 }
 
-@Controller('billing')
+@Controller('api/billing')
 export class BillingController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -135,6 +138,7 @@ export class BillingController {
       `${process.env.APP_URL || 'http://localhost:3000'}` +
       `/${locale}/app/billing/change?target=${targetPlan}`;
 
+    const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
@@ -184,6 +188,7 @@ export class BillingController {
       throw new BadRequestException('STRIPE_CUSTOMER_NOT_FOUND');
     }
 
+    const stripe = getStripeClient();
     const portal = await stripe.billingPortal.sessions.create({
       customer: existing.stripeCustomerId,
       return_url:
@@ -216,6 +221,7 @@ export class BillingController {
       throw new BadRequestException('RAW_BODY_MISSING');
     }
 
+    const stripe = getStripeClient();
     const event = stripe.webhooks.constructEvent(rawBody, signature, endpointSecret);
 
     switch (event.type) {
@@ -294,7 +300,7 @@ export class BillingController {
           ? new Date((sub as any).current_period_end * 1000)
           : null;
 
-        let existing = null;
+        let existing = null as null | { companyId: string };
 
         if (stripeSubscriptionId) {
           existing = await this.prisma.workspaceSubscription.findFirst({
@@ -311,7 +317,7 @@ export class BillingController {
         }
 
         const companyId = String(
-          existing?.companyId || sub.metadata?.companyId || ''
+          existing?.companyId || sub.metadata?.companyId || '',
         ).trim();
 
         if (!companyId) {

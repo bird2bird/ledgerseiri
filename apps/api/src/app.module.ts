@@ -47,7 +47,8 @@ import { PlatformOpsModule } from './platform-ops/platform-ops.module';
       PaymentModule,
       JobModule,
       SecurityModule,
-    ],
+        BillingModule,
+      ],
     controllers: [HealthController],
 })
 export class AppModule implements NestModule {

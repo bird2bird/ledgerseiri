@@ -18,7 +18,7 @@ export async function createBillingCheckoutSession(args: {
   currentPlan: "starter" | "standard" | "premium";
   locale?: string;
 }): Promise<BillingCheckoutResponse> {
-  const res = await fetch("/billing/checkout-session", {
+  const res = await fetch("/api/billing/checkout-session", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -30,7 +30,7 @@ export async function createBillingCheckoutSession(args: {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`/billing/checkout-session failed: ${res.status} ${text}`);
+    throw new Error(`/api/billing/checkout-session failed: ${res.status} ${text}`);
   }
 
   return (await res.json()) as BillingCheckoutResponse;
@@ -44,7 +44,7 @@ export async function createBillingPortalSession(args?: {
 
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
 
-  const res = await fetch(`/billing/portal-session${suffix}`, {
+  const res = await fetch(`/api/billing/portal-session${suffix}`, {
     method: "GET",
     credentials: "include",
     cache: "no-store",
@@ -52,7 +52,7 @@ export async function createBillingPortalSession(args?: {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`/billing/portal-session failed: ${res.status} ${text}`);
+    throw new Error(`/api/billing/portal-session failed: ${res.status} ${text}`);
   }
 
   return (await res.json()) as BillingPortalResponse;

@@ -9,7 +9,10 @@ import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
-import { createBillingCheckoutSession, createBillingPortalSession } from "@/core/billing/actionApi";
+import {
+  createBillingCheckoutSession,
+  createBillingPortalSession,
+} from "@/core/billing/actionApi";
 
 type PlanCode = "starter" | "standard" | "premium";
 
@@ -54,7 +57,7 @@ function buildPlanFeatureList(code: PlanCode): string[] {
   const items: string[] = [
     `${limits.maxStores} 店舗`,
     `${limits.historyMonths} ヶ月履歴`,
-    `請求アップロード`,
+    "請求アップロード",
   ];
 
   if (features.invoiceManagement) items.push("請求管理");
@@ -98,9 +101,6 @@ function ChangePlanInner() {
 
   const rawTarget = searchParams.get("target") || "standard";
   const target = (normalizePlan(rawTarget) ?? "standard") as PlanCode;
-
-
-
   const fallbackPlan = normalizePlan(debugPlan) ?? "starter";
 
   const effectiveCtx = useMemo(
@@ -115,7 +115,6 @@ function ChangePlanInner() {
   );
 
   const { workspace, subscription, limits } = useWorkspaceContext(effectiveCtx);
-
   const currentPlan = subscription.planCode;
 
   const plans = useMemo(
@@ -136,6 +135,48 @@ function ChangePlanInner() {
     []
   );
 
+  async function handleCheckout() {
+    try {
+      setSubmitting(true);
+      const data = await createBillingCheckoutSession({
+        targetPlan: target,
+        currentPlan,
+        locale: lang,
+      });
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      throw new Error(data?.message || "CHECKOUT_URL_MISSING");
+    } catch (e: any) {
+      alert(e?.message || "Checkout failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handlePortal() {
+    try {
+      setSubmitting(true);
+      const data = await createBillingPortalSession({
+        locale: lang,
+      });
+
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      throw new Error(data?.message || "PORTAL_URL_MISSING");
+    } catch (e: any) {
+      alert(e?.message || "Portal failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <main className="space-y-6">
       <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#111827_0%,#1f2937_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
@@ -150,7 +191,7 @@ function ChangePlanInner() {
             </h1>
 
             <div className="mt-2 text-sm text-white/80">
-              現在の契約プランと変更候補を比較できます。決済導線は次ステップで接続します。
+              現在の契約プランと変更候補を比較できます。決済導線は Stripe checkout / portal に接続されます。
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -160,6 +201,24 @@ function ChangePlanInner() {
               >
                 Billing に戻る
               </Link>
+
+              <button
+                type="button"
+                onClick={handleCheckout}
+                disabled={submitting}
+                className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? "処理中..." : "checkout に進む"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePortal}
+                disabled={submitting}
+                className="ls-btn ls-btn-ghost inline-flex border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? "処理中..." : "billing portal を開く"}
+              </button>
 
               <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] text-white/90">
                 status: {statusLabel(subscription.status)}
@@ -174,19 +233,13 @@ function ChangePlanInner() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Current Plan</div>
-              <div className="mt-2 text-lg font-semibold">
-                {planLabel(currentPlan)}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                maxStores: {limits.maxStores}
-              </div>
+              <div className="mt-2 text-lg font-semibold">{planLabel(currentPlan)}</div>
+              <div className="mt-1 text-xs text-slate-500">maxStores: {limits.maxStores}</div>
             </div>
 
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Workspace</div>
-              <div className="mt-2 text-lg font-semibold">
-                {workspace.displayName}
-              </div>
+              <div className="mt-2 text-lg font-semibold">{workspace.displayName}</div>
               <div className="mt-1 text-xs text-slate-500">{workspace.slug}</div>
             </div>
           </div>
@@ -210,50 +263,7 @@ function ChangePlanInner() {
           const active = plan.code === target;
           const current = plan.code === currentPlan;
 
-      
-    async function handleCheckout() {
-      try {
-        setSubmitting(true);
-        const data = await createBillingCheckoutSession({
-          targetPlan: target,
-          currentPlan,
-          locale: lang,
-        });
-
-        if (data?.url) {
-          window.location.href = data.url;
-          return;
-        }
-
-        throw new Error(data?.message || "CHECKOUT_URL_MISSING");
-      } catch (e: any) {
-        alert(e?.message || "Checkout failed");
-      } finally {
-        setSubmitting(false);
-      }
-    }
-
-    async function handlePortal() {
-      try {
-        setSubmitting(true);
-        const data = await createBillingPortalSession({
-          locale: lang,
-        });
-
-        if (data?.url) {
-          window.location.href = data.url;
-          return;
-        }
-
-        throw new Error(data?.message || "PORTAL_URL_MISSING");
-      } catch (e: any) {
-        alert(e?.message || "Portal failed");
-      } finally {
-        setSubmitting(false);
-      }
-    }
-
-    return (
+          return (
             <section
               key={plan.code}
               className={cls(
@@ -318,72 +328,42 @@ function ChangePlanInner() {
           現在プランと選択プランの差分
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
             <div className="text-[11px] font-medium text-slate-500">Current</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
+            <div className="mt-1 text-base font-semibold text-slate-900">
               {planLabel(currentPlan)}
             </div>
-            <div className="mt-1 text-sm text-slate-600">
-              最大 {limits.maxStores} 店舗
-            </div>
           </div>
 
-          <div className="rounded-[22px] border border-black/5 bg-slate-50 p-4">
-            <div className="text-[11px] font-medium text-slate-500">Target</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] font-medium text-slate-500">Selected</div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
               {planLabel(target)}
             </div>
-            <div className="mt-1 text-sm text-slate-600">
-              最大 {getPlanLimits(target).maxStores} 店舗
-            </div>
           </div>
-        </div>
 
-        <div className="mt-5 rounded-[22px] border border-dashed border-[color:var(--ls-primary)]/35 bg-[color:var(--ls-primary)]/5 p-4">
-          <div className="text-sm font-medium text-slate-900">Next Step</div>
-          <div className="mt-2 text-sm text-slate-600">
-            次ステップで決済導線、請求履歴、upgrade action を接続します。
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] font-medium text-slate-500">Delta</div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {getPlanLimits(target).maxStores - getPlanLimits(currentPlan).maxStores >= 0 ? "+" : ""}
+              {getPlanLimits(target).maxStores - getPlanLimits(currentPlan).maxStores} stores
+            </div>
           </div>
         </div>
       </section>
-    
-        <section className="ls-card-solid rounded-[28px] p-5">
-          <div className="text-sm font-semibold text-slate-900">Next Action</div>
-          <div className="mt-1 text-[12px] text-slate-500">
-            Step 27 stub 導線。checkout / portal の UI 動線を確認できます。
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Link
-              href={`/${lang}/app/billing/checkout?target=${target}&current=${currentPlan}${debugPlan ? `&plan=${debugPlan}` : ""}`}
-              className="ls-btn ls-btn-primary inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              checkout に進む
-            </Link>
-
-            <Link
-              href={`/${lang}/app/billing/portal${debugPlan ? `?plan=${debugPlan}` : ""}`}
-              className="ls-btn ls-btn-ghost inline-flex px-4 py-2 text-sm font-semibold"
-            >
-              billing portal を開く
-            </Link>
-          </div>
-        </section>
-
-      </main>
+    </main>
   );
 }
-
-
-
 
 export default function Page() {
   return (
     <Suspense
       fallback={
-        <main className="rounded-[28px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          billing change page を読み込み中...
+        <main className="space-y-6">
+          <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="text-sm text-slate-500">Loading billing change...</div>
+          </section>
         </main>
       }
     >

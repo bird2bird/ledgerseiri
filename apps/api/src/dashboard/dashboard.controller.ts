@@ -637,6 +637,6 @@ export class DashboardController {
 
       setSharedDashboardCache(cacheKey, response);
 
-      return response;
+      return { ...(response as any) } as DashboardSummaryResponse;
     }
   }
