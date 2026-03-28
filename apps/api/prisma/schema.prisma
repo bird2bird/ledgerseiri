@@ -500,3 +500,15 @@ enum CompanyStatus {
   ACTIVE
   SUSPENDED
 }
+
+model BillingWebhookEvent {
+  id          String   @id
+  type        String
+  source      String   @default("stripe")
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@index([processedAt])
+}

@@ -7,8 +7,11 @@ import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { useWorkspaceContext } from "@/hooks/useWorkspaceContext";
 import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
+import { getBillingMonthlyPriceLabel } from "@/core/billing/pricing";
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { useWorkspaceProvider } from "@/core/workspace/provider";
+import { getBillingStatusMeta } from "@/core/billing/status-ui";
+import { resolveBillingFeedback } from "@/core/billing/feedback";
 import {
   createBillingCheckoutSession,
   createBillingPortalSession,
@@ -27,9 +30,7 @@ function cardTone(code: PlanCode) {
 }
 
 function planPrice(code: PlanCode) {
-  if (code === "starter") return "¥980 / 月";
-  if (code === "standard") return "¥1,980 / 月";
-  return "¥4,980 / 月";
+  return getBillingMonthlyPriceLabel(code);
 }
 
 function planLabel(code: PlanCode) {
@@ -96,6 +97,7 @@ function ChangePlanInner() {
   const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
+  const feedback = resolveBillingFeedback(searchParams);
   const { ctx, loading, error } = useWorkspaceProvider();
   const [submitting, setSubmitting] = useState(false);
 
@@ -116,6 +118,7 @@ function ChangePlanInner() {
 
   const { workspace, subscription, limits } = useWorkspaceContext(effectiveCtx);
   const currentPlan = subscription.planCode;
+  const statusMeta = getBillingStatusMeta(ctx?.subscription.status);
 
   const plans = useMemo(
     () =>
@@ -179,6 +182,14 @@ function ChangePlanInner() {
 
   return (
     <main className="space-y-6">
+        {feedback ? (
+          <div className={`rounded-[28px] border px-4 py-3 ${feedback.className}`}>
+            <div className="text-sm font-semibold">{feedback.title}</div>
+            <div className="mt-1 text-sm opacity-90">{feedback.message}</div>
+          </div>
+        ) : null}
+
+
       <section className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,#111827_0%,#1f2937_55%,#334155_100%)] p-7 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
           <div>
@@ -244,6 +255,25 @@ function ChangePlanInner() {
             </div>
           </div>
         </div>
+
+      {statusMeta.code === "PAST_DUE" ? (
+        <div className="mb-5 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          お支払い状況の確認が必要です。プラン変更前に Billing Portal で請求状態を確認してください。Portal から戻った後は反映状態を確認してください。
+        </div>
+      ) : null}
+
+      {statusMeta.code === "CANCELED" ? (
+        <div className="mb-5 rounded-[24px] border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          現在の契約はキャンセル済みです。再契約する場合は希望プランを選択して checkout に進んでください。
+        </div>
+      ) : null}
+
+      {statusMeta.code === "TRIALING" ? (
+        <div className="mb-5 rounded-[24px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+          無料試用期間中です。正式課金前にプラン比較と切り替え候補を確認できます。
+        </div>
+      ) : null}
+
       </section>
 
       {loading ? (

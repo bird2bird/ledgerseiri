@@ -96,6 +96,63 @@ function planLimits(plan: PlanCode) {
   };
 }
 
+type StripeSubLike = Stripe.Subscription | null;
+
+function subscriptionRank(status?: string | null): number {
+  const v = String(status || '').toLowerCase();
+  if (v === 'active') return 100;
+  if (v === 'trialing') return 95;
+  if (v === 'past_due') return 80;
+  if (v === 'unpaid') return 70;
+  if (v === 'incomplete') return 60;
+  if (v === 'canceled' || v === 'cancelled') return 20;
+  if (v === 'incomplete_expired') return 10;
+  return 0;
+}
+
+function sortSubscriptionsForCurrent(subs: Stripe.Subscription[]): Stripe.Subscription[] {
+  return [...subs].sort((a, b) => {
+    const rankDiff = subscriptionRank(b.status) - subscriptionRank(a.status);
+    if (rankDiff !== 0) return rankDiff;
+    return (b.created || 0) - (a.created || 0);
+  });
+}
+
+async function resolveCurrentSubscriptionForCustomer(
+  stripe: Stripe,
+  customerId?: string | null,
+  fallbackSubscriptionId?: string | null,
+): Promise<StripeSubLike> {
+  const cid = String(customerId || '').trim();
+  const sid = String(fallbackSubscriptionId || '').trim();
+
+  let candidates: Stripe.Subscription[] = [];
+
+  if (cid) {
+    const list = await stripe.subscriptions.list({
+      customer: cid,
+      status: 'all',
+      limit: 20,
+    });
+    candidates = list.data || [];
+  }
+
+  if (!candidates.length && sid) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(sid);
+      return sub;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  return sortSubscriptionsForCurrent(candidates)[0] ?? null;
+}
+
 @Controller('api/billing')
 export class BillingController {
   constructor(private readonly prisma: PrismaService) {}
@@ -203,6 +260,77 @@ export class BillingController {
     };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('sync')
+  async syncSubscription(@Req() req: any) {
+    const companyId = String(req?.user?.companyId || '').trim();
+    if (!companyId) {
+      throw new UnauthorizedException('COMPANY_CONTEXT_REQUIRED');
+    }
+
+    const existing = await this.prisma.workspaceSubscription.findUnique({
+      where: { companyId },
+    });
+
+    if (!existing?.stripeCustomerId && !existing?.stripeSubscriptionId) {
+      throw new BadRequestException('STRIPE_SUBSCRIPTION_NOT_LINKED');
+    }
+
+    const stripe = getStripeClient();
+    const sub = await resolveCurrentSubscriptionForCustomer(
+      stripe,
+      existing?.stripeCustomerId || null,
+      existing?.stripeSubscriptionId || null,
+    );
+
+    if (!sub) {
+      throw new BadRequestException('STRIPE_SUBSCRIPTION_NOT_FOUND');
+    }
+
+    const stripePriceId = sub.items.data[0]?.price?.id || null;
+    const plan = priceIdToPlan(stripePriceId);
+    const status = stripeStatusToPrisma(sub.status);
+    const currentPeriodEnd = (sub as any).current_period_end
+      ? new Date((sub as any).current_period_end * 1000)
+      : null;
+    const limits = planLimits(plan);
+
+    const updated = await this.prisma.workspaceSubscription.update({
+      where: { companyId },
+      data: {
+        planCode: planToPrisma(plan),
+        status,
+        currentPeriodEnd,
+        maxStores: limits.maxStores,
+        invoiceStorageMb: limits.invoiceStorageMb,
+        aiChatMonthly: limits.aiChatMonthly,
+        aiInvoiceOcrMonthly: limits.aiInvoiceOcrMonthly,
+        stripeCustomerId:
+          typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || null,
+        stripeSubscriptionId: sub.id,
+        stripePriceId,
+      },
+    });
+
+    console.log('[billing.sync] synced subscription', {
+      companyId,
+      stripeSubscriptionId: updated.stripeSubscriptionId,
+      stripePriceId: updated.stripePriceId,
+      planCode: updated.planCode,
+      status: updated.status,
+    });
+
+    return {
+      ok: true,
+      companyId: updated.companyId,
+      planCode: updated.planCode,
+      status: updated.status,
+      stripeCustomerId: updated.stripeCustomerId,
+      stripeSubscriptionId: updated.stripeSubscriptionId,
+      stripePriceId: updated.stripePriceId,
+    };
+  }
+
   @Post('webhook')
   async handleWebhook(
     @Req() req: any,
@@ -224,32 +352,92 @@ export class BillingController {
     const stripe = getStripeClient();
     const event = stripe.webhooks.constructEvent(rawBody, signature, endpointSecret);
 
+    console.log('[billing.webhook] received', {
+      id: event.id,
+      type: event.type,
+    });
+
+    const trackedEventTypes = new Set([
+      'checkout.session.completed',
+      'customer.subscription.created',
+      'customer.subscription.updated',
+      'customer.subscription.deleted',
+      'invoice.paid',
+      'invoice.payment_failed',
+    ]);
+
+    const shouldTrackEvent = trackedEventTypes.has(event.type);
+
+    if (!shouldTrackEvent) {
+      console.log('[billing.webhook] ignored non-billing event', {
+        id: event.id,
+        type: event.type,
+      });
+      return { received: true, ignored: true };
+    }
+
+    const existingWebhookEvent = await this.prisma.billingWebhookEvent.findUnique({
+      where: { id: event.id },
+    });
+
+    if (existingWebhookEvent?.processedAt) {
+      console.log('[billing.webhook] duplicate event ignored', {
+        id: event.id,
+        type: event.type,
+      });
+      return { received: true, duplicate: true };
+    }
+
+    await this.prisma.billingWebhookEvent.upsert({
+      where: { id: event.id },
+      create: {
+        id: event.id,
+        type: event.type,
+        source: 'stripe',
+      },
+      update: {
+        type: event.type,
+      },
+    });
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        const companyId =
-          String(session.metadata?.companyId || session.client_reference_id || '').trim();
-        const stripeCustomerId = String(session.customer || '').trim();
-        const stripeSubscriptionId = String(session.subscription || '').trim();
+
+        const companyId = String(
+          session.metadata?.companyId || session.client_reference_id || '',
+        ).trim();
 
         if (!companyId) {
           break;
         }
 
+        const stripeCustomerId = String(session.customer || '').trim();
+        const fallbackSubscriptionId = String(session.subscription || '').trim();
+
+        const sub = await resolveCurrentSubscriptionForCustomer(
+          stripe,
+          stripeCustomerId || null,
+          fallbackSubscriptionId || null,
+        );
+
         let plan: PlanCode = normalizePlan(session.metadata?.targetPlan) || 'starter';
-        let currentPeriodEnd: Date | null = null;
         let stripePriceId: string | null = null;
         let status: PrismaSubscriptionStatus = 'ACTIVE';
+        let currentPeriodEnd: Date | null = null;
+        let finalSubscriptionId: string | null = fallbackSubscriptionId || null;
+        let finalCustomerId: string | null = stripeCustomerId || null;
 
-        if (stripeSubscriptionId) {
-          const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-          const item = sub.items.data[0];
-          stripePriceId = item?.price?.id || null;
+        if (sub) {
+          stripePriceId = sub.items.data[0]?.price?.id || null;
           plan = priceIdToPlan(stripePriceId);
           status = stripeStatusToPrisma(sub.status);
           currentPeriodEnd = (sub as any).current_period_end
             ? new Date((sub as any).current_period_end * 1000)
             : null;
+          finalSubscriptionId = sub.id;
+          finalCustomerId =
+            typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || null;
         }
 
         const limits = planLimits(plan);
@@ -265,8 +453,8 @@ export class BillingController {
             invoiceStorageMb: limits.invoiceStorageMb,
             aiChatMonthly: limits.aiChatMonthly,
             aiInvoiceOcrMonthly: limits.aiInvoiceOcrMonthly,
-            stripeCustomerId: stripeCustomerId || null,
-            stripeSubscriptionId: stripeSubscriptionId || null,
+            stripeCustomerId: finalCustomerId,
+            stripeSubscriptionId: finalSubscriptionId,
             stripePriceId,
           },
           update: {
@@ -277,10 +465,19 @@ export class BillingController {
             invoiceStorageMb: limits.invoiceStorageMb,
             aiChatMonthly: limits.aiChatMonthly,
             aiInvoiceOcrMonthly: limits.aiInvoiceOcrMonthly,
-            stripeCustomerId: stripeCustomerId || null,
-            stripeSubscriptionId: stripeSubscriptionId || null,
+            stripeCustomerId: finalCustomerId,
+            stripeSubscriptionId: finalSubscriptionId,
             stripePriceId,
           },
+        });
+
+        console.log('[billing.webhook] checkout.session.completed synced', {
+          companyId,
+          stripeCustomerId: finalCustomerId,
+          stripeSubscriptionId: finalSubscriptionId,
+          stripePriceId,
+          plan,
+          status,
         });
 
         break;
@@ -355,12 +552,127 @@ export class BillingController {
           },
         });
 
+        console.log('[billing.webhook] customer.subscription synced', {
+          companyId,
+          stripeCustomerId,
+          stripeSubscriptionId,
+          stripePriceId,
+          plan,
+          status,
+          type: event.type,
+        });
+
+        break;
+      }
+
+      case 'invoice.paid':
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as any;
+
+        const stripeSubscriptionId =
+          typeof invoice.subscription === 'string'
+            ? invoice.subscription
+            : invoice.subscription?.id || '';
+
+        const stripeCustomerId =
+          typeof invoice.customer === 'string'
+            ? invoice.customer
+            : invoice.customer?.id || '';
+
+        if (!stripeSubscriptionId && !stripeCustomerId) {
+          break;
+        }
+
+        const sub = await resolveCurrentSubscriptionForCustomer(
+          stripe,
+          stripeCustomerId || null,
+          stripeSubscriptionId || null,
+        );
+
+        if (!sub) {
+          break;
+        }
+
+        let existing = null as null | { companyId: string };
+
+        if (sub.id) {
+          existing = await this.prisma.workspaceSubscription.findFirst({
+            where: { stripeSubscriptionId: sub.id },
+            select: { companyId: true },
+          });
+        }
+
+        if (!existing && stripeCustomerId) {
+          existing = await this.prisma.workspaceSubscription.findFirst({
+            where: { stripeCustomerId },
+            select: { companyId: true },
+          });
+        }
+
+        const companyId = String(existing?.companyId || sub.metadata?.companyId || '').trim();
+        if (!companyId) {
+          break;
+        }
+
+        const stripePriceId = sub.items.data[0]?.price?.id || null;
+        const plan = priceIdToPlan(stripePriceId);
+        const status = stripeStatusToPrisma(sub.status);
+        const currentPeriodEnd = (sub as any).current_period_end
+          ? new Date((sub as any).current_period_end * 1000)
+          : null;
+        const limits = planLimits(plan);
+
+        await this.prisma.workspaceSubscription.upsert({
+          where: { companyId },
+          create: {
+            companyId,
+            planCode: planToPrisma(plan),
+            status,
+            currentPeriodEnd,
+            maxStores: limits.maxStores,
+            invoiceStorageMb: limits.invoiceStorageMb,
+            aiChatMonthly: limits.aiChatMonthly,
+            aiInvoiceOcrMonthly: limits.aiInvoiceOcrMonthly,
+            stripeCustomerId:
+              typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || null,
+            stripeSubscriptionId: sub.id,
+            stripePriceId,
+          },
+          update: {
+            planCode: planToPrisma(plan),
+            status,
+            currentPeriodEnd,
+            maxStores: limits.maxStores,
+            invoiceStorageMb: limits.invoiceStorageMb,
+            aiChatMonthly: limits.aiChatMonthly,
+            aiInvoiceOcrMonthly: limits.aiInvoiceOcrMonthly,
+            stripeCustomerId:
+              typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || null,
+            stripeSubscriptionId: sub.id,
+            stripePriceId,
+          },
+        });
+
+        console.log('[billing.webhook] invoice synced', {
+          companyId,
+          stripeSubscriptionId: sub.id,
+          stripePriceId,
+          plan,
+          status,
+          type: event.type,
+        });
+
         break;
       }
 
       default:
         break;
     }
+
+    await this.prisma.billingWebhookEvent.update({
+      where: { id: event.id },
+      data: { processedAt: new Date() },
+    });
 
     return { received: true };
   }

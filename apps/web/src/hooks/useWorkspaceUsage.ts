@@ -19,7 +19,7 @@ export function useWorkspaceUsage(args: {
 
       const token =
         typeof window !== "undefined"
-          ? localStorage.getItem("ls_token") ?? undefined
+          ? undefined
           : undefined;
 
       const res = await fetchWorkspaceUsage({

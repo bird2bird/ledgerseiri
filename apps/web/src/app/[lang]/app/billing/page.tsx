@@ -8,6 +8,9 @@ import { useWorkspaceProvider } from "@/core/workspace/provider";
 import { useWorkspaceUsage } from "@/hooks/useWorkspaceUsage";
 import { getPlanFeatures } from "@/core/billing/features";
 import { getPlanLimits } from "@/core/billing/planLimits";
+import { getBillingMonthlyPriceLabel } from "@/core/billing/pricing";
+import { getBillingStatusMeta } from "@/core/billing/status-ui";
+import { resolveBillingFeedback } from "@/core/billing/feedback";
 
 type PlanCode = "starter" | "standard" | "premium";
 
@@ -49,9 +52,7 @@ function planLabel(code: PlanCode) {
 }
 
 function planPrice(code: PlanCode) {
-  if (code === "starter") return "¥980 / 月";
-  if (code === "standard") return "¥1,980 / 月";
-  return "¥4,980 / 月";
+  return getBillingMonthlyPriceLabel(code);
 }
 
 function normalizePlan(code?: string | null): PlanCode | undefined {
@@ -130,6 +131,7 @@ function BillingPageInner() {
   const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
   const debugPlan = searchParams?.get("plan") || undefined;
+  const feedback = resolveBillingFeedback(searchParams);
 
   const { ctx, loading: ctxLoading, error: ctxError } = useWorkspaceProvider();
   const usage = useWorkspaceUsage({
@@ -168,6 +170,14 @@ function BillingPageInner() {
 
   return (
     <main className="space-y-6">
+        {feedback ? (
+          <div className={`rounded-[28px] border px-4 py-3 ${feedback.className}`}>
+            <div className="text-sm font-semibold">{feedback.title}</div>
+            <div className="mt-1 text-sm opacity-90">{feedback.message}</div>
+          </div>
+        ) : null}
+
+
       <section
         className={cls(
           "overflow-hidden rounded-[32px] border p-7 shadow-[0_18px_40px_rgba(15,23,42,0.06)]",

@@ -79,7 +79,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       const token =
         typeof window !== "undefined"
-          ? localStorage.getItem("ls_token") ?? undefined
+          ? undefined
           : undefined;
 
       const data = await fetchWorkspaceContext({
@@ -115,7 +115,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
         const token =
           typeof window !== "undefined"
-            ? localStorage.getItem("ls_token") ?? undefined
+            ? undefined
             : undefined;
 
         const data = await fetchWorkspaceContext({
