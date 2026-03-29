@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   fetchPlatformUsersList,
   fetchPlatformTenantsList,
+  fetchPlatformOperationsList,
   getPlatformAccessToken,
   controlPlatformUser,
   isPlatformUnauthorizedError,
@@ -33,6 +34,7 @@ export default function PlatformUsersPage() {
 
   const [rows, setRows] = useState<UserRow[]>([]);
   const [tenants, setTenants] = useState<TenantRow[]>([]);
+  const [latestUserOperation, setLatestUserOperation] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");

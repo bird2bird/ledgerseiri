@@ -401,6 +401,7 @@ function PlatformReconciliationPageContent() {
                   {batchResult?.operationId ? ` · Operation: ${batchResult.operationId}` : ""}
                   {batchResult?.operationStatus ? ` · Status: ${batchResult.operationStatus}` : ""}
                   {batchResult?.failed > 0 ? " · Retry path is backed by persistent operation history" : ""}
+                  {batchResult?.operationId ? " · Review queue and operations center are now linked by the same operation contract" : ""}
                 </div>
               </div>
 

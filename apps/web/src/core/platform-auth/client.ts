@@ -460,15 +460,36 @@ export async function fetchPlatformOperationById(
   return data as PlatformOperationRecord & { items: PlatformOperationItemRecord[] };
 }
 
+export type PlatformOperationsListResponse = {
+  items: PlatformOperationRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  filters: {
+    scope: string | null;
+    status: string | null;
+    q: string | null;
+  };
+};
+
 export async function fetchPlatformOperationsList(
   token: string,
   params?: {
     scope?: string;
+    status?: string;
+    q?: string;
+    page?: number;
     limit?: number;
   }
 ) {
   const query = new URLSearchParams();
   if (params?.scope) query.set("scope", params.scope);
+  if (params?.status) query.set("status", params.status);
+  if (params?.q) query.set("q", params.q);
+  if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.toString();
 
@@ -480,12 +501,12 @@ export async function fetchPlatformOperationsList(
     }
   );
 
-  const data = await res.json().catch(() => ([]));
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throwPlatformApiError(res, data, "Platform operations list failed");
   }
 
-  return data as PlatformOperationRecord[];
+  return data as PlatformOperationsListResponse;
 }
 
 export async function retryFailedPlatformOperation(

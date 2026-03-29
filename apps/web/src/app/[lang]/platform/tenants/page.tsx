@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   fetchPlatformTenantsList,
+  fetchPlatformOperationsList,
   getPlatformAccessToken,
   controlPlatformTenant,
   isPlatformUnauthorizedError,
@@ -29,6 +30,7 @@ export default function PlatformTenantsPage() {
   const lang = params?.lang || "ja";
 
   const [rows, setRows] = useState<TenantRow[]>([]);
+  const [latestTenantOperation, setLatestTenantOperation] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -47,8 +49,17 @@ export default function PlatformTenantsPage() {
       return;
     }
 
-    const data = await fetchPlatformTenantsList(token);
+    const [data, opsData] = await Promise.all([
+      fetchPlatformTenantsList(token),
+      fetchPlatformOperationsList(token, {
+        scope: "PLATFORM_TENANT",
+        page: 1,
+        limit: 1,
+      }),
+    ]);
+
     setRows(data);
+    setLatestTenantOperation((opsData.items || [])[0] || null);
     setError("");
   }
 

@@ -44,20 +44,6 @@ type OperationDetail = OperationSummary & {
   }>;
 };
 
-function buildAuditHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
-
-
 function statusBadgeClass(status?: string | null) {
   if (status === "COMPLETED" || status === "SUCCEEDED") {
     return "rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-200";
@@ -82,6 +68,19 @@ function itemStatusBadgeClass(status?: string | null) {
     return "rounded-full bg-rose-500/10 px-2 py-1 text-xs text-rose-200";
   }
   return "rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300";
+}
+
+function buildAuditHref(
+  lang: string,
+  params?: Record<string, string | number | boolean | null | undefined>
+) {
+  const sp = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    sp.set(k, String(v));
+  });
+  const qs = sp.toString();
+  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
 }
 
 function buildReconciliationHref(
@@ -110,17 +109,47 @@ function OperationsCenterContent() {
     actionableSignals: number;
     latestAuditAt: string | null;
   } | null>(null);
+
   const [operations, setOperations] = useState<OperationSummary[]>([]);
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<OperationDetail | null>(null);
+
+  const [scopeFilter, setScopeFilter] = useState<"all" | "RECONCILIATION" | "PLATFORM_TENANT" | "PLATFORM_USER">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "PARTIAL_FAILED" | "FAILED" | "RUNNING">("all");
+  const [searchText, setSearchText] = useState("");
   const [itemFilter, setItemFilter] = useState<"all" | "failed" | "succeeded">("all");
+
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState({
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
 
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [retryingOperationId, setRetryingOperationId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function reload() {
+  const filteredItems = useMemo(() => {
+    const items = selectedOperation?.items || [];
+    if (itemFilter === "failed") return items.filter((item) => item.status === "FAILED");
+    if (itemFilter === "succeeded") return items.filter((item) => item.status === "SUCCEEDED");
+    return items;
+  }, [selectedOperation, itemFilter]);
+
+  const failureSummary = useMemo(() => {
+    const rows = (selectedOperation?.items || []).filter((item) => item.status === "FAILED");
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      const key = row.failureCode || "UNKNOWN";
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return Array.from(map.entries()).map(([code, count]) => ({ code, count }));
+  }, [selectedOperation]);
+
+  async function reload(keepSelection = true) {
     const token = getPlatformAccessToken();
     if (!token) {
       router.replace(`/${lang}/platform-auth/login`);
@@ -130,15 +159,28 @@ function OperationsCenterContent() {
     const [ops, list] = await Promise.all([
       fetchPlatformReconciliationOpsSummary(token),
       fetchPlatformOperationsList(token, {
-        scope: "RECONCILIATION",
-        limit: 20,
+        ...(scopeFilter === "all" ? {} : { scope: scopeFilter }),
+        ...(statusFilter === "all" ? {} : { status: statusFilter }),
+        ...(searchText.trim() ? { q: searchText.trim() } : {}),
+        page,
+        limit: 12,
       }),
     ]);
 
     setOpsSummary(ops);
-    setOperations(list);
+    setOperations(list.items || []);
+    setPageMeta({
+      total: list.total ?? 0,
+      totalPages: list.totalPages ?? 1,
+      hasNextPage: !!list.hasNextPage,
+      hasPrevPage: !!list.hasPrevPage,
+    });
 
-    const nextId = selectedOperationId || list[0]?.id || null;
+    const nextId =
+      keepSelection && selectedOperationId && (list.items || []).some((x) => x.id === selectedOperationId)
+        ? selectedOperationId
+        : list.items?.[0]?.id || null;
+
     setSelectedOperationId(nextId);
 
     if (nextId) {
@@ -154,34 +196,6 @@ function OperationsCenterContent() {
     }
 
     setError("");
-  }
-
-
-
-  async function retryFailedOperation(id: string) {
-    const token = getPlatformAccessToken();
-    if (!token) {
-      router.replace(`/${lang}/platform-auth/login`);
-      return;
-    }
-
-    setRetryingOperationId(id);
-    try {
-      const result = await retryFailedPlatformOperation(id, token, "operations_center");
-      setSelectedOperationId(result.operation.id);
-      const detail = await fetchPlatformOperationById(result.operation.id, token);
-      setSelectedOperation(detail as OperationDetail);
-
-      const list = await fetchPlatformOperationsList(token, {
-        scope: "RECONCILIATION",
-        limit: 20,
-      });
-      setOperations(list);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRetryingOperationId(null);
-    }
   }
 
   async function openOperation(id: string) {
@@ -203,13 +217,26 @@ function OperationsCenterContent() {
     }
   }
 
+  async function retryFailedOperation(id: string) {
+    const token = getPlatformAccessToken();
+    if (!token) {
+      router.replace(`/${lang}/platform-auth/login`);
+      return;
+    }
 
-  const filteredItems = useMemo(() => {
-    const items = selectedOperation?.items || [];
-    if (itemFilter === "failed") return items.filter((item) => item.status === "FAILED");
-    if (itemFilter === "succeeded") return items.filter((item) => item.status === "SUCCEEDED");
-    return items;
-  }, [selectedOperation, itemFilter]);
+    setRetryingOperationId(id);
+    try {
+      const result = await retryFailedPlatformOperation(id, token, "operations_center");
+      setSelectedOperationId(result.operation.id);
+      const detail = await fetchPlatformOperationById(result.operation.id, token);
+      setSelectedOperation(detail as OperationDetail);
+      await reload(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRetryingOperationId(null);
+    }
+  }
 
   useEffect(() => {
     reload()
@@ -221,7 +248,7 @@ function OperationsCenterContent() {
         setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setLoading(false));
-  }, [lang, router]);
+  }, [lang, router, scopeFilter, statusFilter, page]);
 
   const cards = useMemo(
     () => [
@@ -242,7 +269,7 @@ function OperationsCenterContent() {
           <div className="text-xs uppercase tracking-[0.3em] text-cyan-400">Platform Operations</div>
           <h2 className="mt-3 text-3xl font-semibold">Operations Center</h2>
           <div className="mt-2 text-xs text-slate-400">
-            Unified operator-facing signals across dashboard, review queue, and audit timeline.
+            Unified operator-facing signals across dashboard, review queue, tenant controls, user controls, and audit timeline.
           </div>
         </div>
 
@@ -275,7 +302,7 @@ function OperationsCenterContent() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="mt-6 grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
         <section className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold">Recent Operations</div>
@@ -294,9 +321,50 @@ function OperationsCenterContent() {
           </div>
 
           <div className="mt-4 space-y-3">
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search operation id / company / candidate / note"
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setPage(1);
+                setLoading(true);
+                reload(false)
+                  .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                  .finally(() => setLoading(false));
+              }}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Apply Search
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setScopeFilter("all"); setPage(1); }} className={scopeFilter === "all" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>All</button>
+            <button type="button" onClick={() => { setScopeFilter("RECONCILIATION"); setPage(1); }} className={scopeFilter === "RECONCILIATION" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Reconciliation</button>
+            <button type="button" onClick={() => { setScopeFilter("PLATFORM_TENANT"); setPage(1); }} className={scopeFilter === "PLATFORM_TENANT" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Tenant Controls</button>
+            <button type="button" onClick={() => { setScopeFilter("PLATFORM_USER"); setPage(1); }} className={scopeFilter === "PLATFORM_USER" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>User Controls</button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setStatusFilter("all"); setPage(1); }} className={statusFilter === "all" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>All Status</button>
+            <button type="button" onClick={() => { setStatusFilter("COMPLETED"); setPage(1); }} className={statusFilter === "COMPLETED" ? "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Completed</button>
+            <button type="button" onClick={() => { setStatusFilter("PARTIAL_FAILED"); setPage(1); }} className={statusFilter === "PARTIAL_FAILED" ? "rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Partial Failed</button>
+            <button type="button" onClick={() => { setStatusFilter("FAILED"); setPage(1); }} className={statusFilter === "FAILED" ? "rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Failed</button>
+            <button type="button" onClick={() => { setStatusFilter("RUNNING"); setPage(1); }} className={statusFilter === "RUNNING" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Running</button>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-400">
+            Total <span className="font-semibold text-slate-100">{pageMeta.total}</span> · Page <span className="font-semibold text-slate-100">{page}</span> / <span className="font-semibold text-slate-100">{pageMeta.totalPages}</span>
+          </div>
+
+          <div className="mt-4 space-y-3">
             {operations.length === 0 ? (
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4 text-sm text-slate-400">
-                No recent operations found.
+                No operations found for current filters.
               </div>
             ) : (
               operations.map((op) => {
@@ -316,6 +384,7 @@ function OperationsCenterContent() {
                       <div>
                         <div className="text-sm font-semibold">{op.id}</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{op.scope}</span>
                           <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300">{op.requestedDecision || "-"}</span>
                           <span className={statusBadgeClass(op.status)}>{op.status}</span>
                         </div>
@@ -332,6 +401,25 @@ function OperationsCenterContent() {
                 );
               })
             )}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              disabled={!pageMeta.hasPrevPage}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={!pageMeta.hasNextPage}
+              onClick={() => setPage((prev) => prev + 1)}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         </section>
 
@@ -383,17 +471,33 @@ function OperationsCenterContent() {
                   Open Audit
                 </Link>
 
-                <Link
-                  href={buildReconciliationHref(lang, selectedOperation)}
-                  className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
-                >
-                  Open Review Queue
-                </Link>
+                {selectedOperation.scope === "RECONCILIATION" ? (
+                  <Link
+                    href={buildReconciliationHref(lang, selectedOperation)}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    Open Review Queue
+                  </Link>
+                ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
+                  <Link
+                    href={`/${lang}/platform/tenants`}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    Open Tenants
+                  </Link>
+                ) : selectedOperation.scope === "PLATFORM_USER" ? (
+                  <Link
+                    href={`/${lang}/platform/users`}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    Open Users
+                  </Link>
+                ) : null}
 
                 <button
                   type="button"
                   onClick={() => retryFailedOperation(selectedOperation.id)}
-                  disabled={retryingOperationId === selectedOperation.id}
+                  disabled={retryingOperationId === selectedOperation.id || selectedOperation.scope !== "RECONCILIATION"}
                   className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 disabled:opacity-40"
                 >
                   Retry Failed Items
@@ -423,30 +527,27 @@ function OperationsCenterContent() {
               </div>
 
               <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Failure Aggregation</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {failureSummary.length === 0 ? (
+                    <div className="text-sm text-slate-400">No failed items in this operation.</div>
+                  ) : (
+                    failureSummary.map((row) => (
+                      <div key={row.code} className="rounded-full border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 text-xs text-rose-200">
+                        {row.code} · {row.count}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Operation Items</div>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setItemFilter("all")}
-                      className={itemFilter === "all" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setItemFilter("failed")}
-                      className={itemFilter === "failed" ? "rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}
-                    >
-                      Failed
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setItemFilter("succeeded")}
-                      className={itemFilter === "succeeded" ? "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}
-                    >
-                      Succeeded
-                    </button>
+                    <button type="button" onClick={() => setItemFilter("all")} className={itemFilter === "all" ? "rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>All</button>
+                    <button type="button" onClick={() => setItemFilter("failed")} className={itemFilter === "failed" ? "rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Failed</button>
+                    <button type="button" onClick={() => setItemFilter("succeeded")} className={itemFilter === "succeeded" ? "rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200" : "rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"}>Succeeded</button>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2">
@@ -491,12 +592,28 @@ function OperationsCenterContent() {
                           >
                             Open Audit
                           </Link>
-                          <Link
-                            href={buildReconciliationHref(lang, item)}
-                            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                          >
-                            Open Review Queue
-                          </Link>
+                          {selectedOperation.scope === "RECONCILIATION" ? (
+                            <Link
+                              href={buildReconciliationHref(lang, item)}
+                              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                            >
+                              Open Review Queue
+                            </Link>
+                          ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
+                            <Link
+                              href={`/${lang}/platform/tenants`}
+                              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                            >
+                              Open Tenants
+                            </Link>
+                          ) : selectedOperation.scope === "PLATFORM_USER" ? (
+                            <Link
+                              href={`/${lang}/platform/users`}
+                              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                            >
+                              Open Users
+                            </Link>
+                          ) : null}
                         </div>
                       </div>
                     ))
