@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   fetchPlatformTenantsList,
   getPlatformAccessToken,
   controlPlatformTenant,
+  isPlatformUnauthorizedError,
 } from "@/core/platform-auth/client";
+import { TenantDetailDrawer } from "@/components/platform/TenantDetailDrawer";
 
 type TenantRow = {
   id: string;
@@ -28,6 +31,14 @@ export default function PlatformTenantsPage() {
   const [rows, setRows] = useState<TenantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedRow, setSelectedRow] = useState<TenantRow | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
 
   async function reload() {
     const token = getPlatformAccessToken();
@@ -35,82 +46,214 @@ export default function PlatformTenantsPage() {
       router.replace(`/${lang}/platform-auth/login`);
       return;
     }
+
     const data = await fetchPlatformTenantsList(token);
     setRows(data);
+    setError("");
   }
 
   useEffect(() => {
     reload()
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [lang, router]);
 
   async function onControl(id: string, action: "suspend" | "activate") {
+    const confirmed = window.confirm(
+      action === "suspend"
+        ? "Suspend this tenant now?"
+        : "Activate this tenant now?"
+    );
+    if (!confirmed) return;
+
     try {
       const token = getPlatformAccessToken();
       if (!token) {
         router.replace(`/${lang}/platform-auth/login`);
         return;
       }
+
+      setBusyId(id);
+      setNotice("");
+      setError("");
+
       await controlPlatformTenant(id, action, token);
-      alert(`Tenant ${action} success`);
+      setNotice(
+        action === "suspend"
+          ? "Tenant suspended successfully."
+          : "Tenant activated successfully."
+      );
       await reload();
     } catch (e) {
-      alert(`Tenant ${action} failed: ` + e);
+      if (isPlatformUnauthorizedError(e)) {
+        router.replace(`/${lang}/platform-auth/login`);
+        return;
+      }
+      setError(`Tenant ${action} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusyId(null);
     }
   }
 
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return rows.filter((row) => {
+      const matchSearch =
+        !q ||
+        row.name.toLowerCase().includes(q) ||
+        row.id.toLowerCase().includes(q);
+
+      const matchStatus = !statusFilter || row.companyStatus === statusFilter;
+      const matchPlan = !planFilter || (row.subscriptionPlan || "") === planFilter;
+
+      return matchSearch && matchStatus && matchPlan;
+    });
+  }, [rows, search, statusFilter, planFilter]);
+
   if (loading) return <div className="text-slate-300">Loading tenants...</div>;
-  if (error) return <div className="text-rose-300">{error}</div>;
 
   return (
-    <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-slate-100">
-      <div className="mb-4 text-2xl font-semibold">Tenants</div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-slate-400">
-            <tr className="border-b border-slate-800">
-              <th className="px-3 py-3 text-left">Name</th>
-              <th className="px-3 py-3 text-left">Users</th>
-              <th className="px-3 py-3 text-left">Stores</th>
-              <th className="px-3 py-3 text-left">Plan</th>
-              <th className="px-3 py-3 text-left">Tenant Status</th>
-              <th className="px-3 py-3 text-left">Billing Status</th>
-              <th className="px-3 py-3 text-left">Period End</th>
-              <th className="px-3 py-3 text-left">Created</th>
-              <th className="px-3 py-3 text-left">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-800/70">
-                <td className="px-3 py-3 font-medium">{row.name}</td>
-                <td className="px-3 py-3">{row.userCount}</td>
-                <td className="px-3 py-3">{row.storeCount}</td>
-                <td className="px-3 py-3">{row.subscriptionPlan || "-"}</td>
-                <td className="px-3 py-3">{row.companyStatus}</td>
-                <td className="px-3 py-3">{row.subscriptionStatus || "-"}</td>
-                <td className="px-3 py-3">{row.currentPeriodEnd || "-"}</td>
-                <td className="px-3 py-3">{row.createdAt}</td>
-                <td className="px-3 py-3">
-                  <button
-                    className="mr-2 rounded bg-rose-600 px-2 py-1 text-xs"
-                    onClick={() => onControl(row.id, "suspend")}
-                  >
-                    SUSPEND
-                  </button>
-                  <button
-                    className="rounded bg-emerald-600 px-2 py-1 text-xs"
-                    onClick={() => onControl(row.id, "activate")}
-                  >
-                    ACTIVATE
-                  </button>
-                </td>
+    <>
+      <TenantDetailDrawer
+        open={drawerOpen}
+        row={selectedRow}
+        onClose={() => {
+          setDrawerOpen(false);
+          setSelectedRow(null);
+        }}
+        onOpenAudit={() => router.push(`/${lang}/platform/audit?companyId=${selectedRow?.id || ""}&page=1&limit=20`)}
+      />
+
+      <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-slate-100">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="text-2xl font-semibold">Tenants</div>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/${lang}/platform/audit?page=1&limit=20`}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Audit Entry
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                reload()
+                  .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                  .finally(() => setLoading(false));
+              }}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tenant name / id"
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          >
+            <option value="">All tenant status</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="SUSPENDED">SUSPENDED</option>
+          </select>
+
+          <select
+            value={planFilter}
+            onChange={(e) => setPlanFilter(e.target.value)}
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          >
+            <option value="">All plans</option>
+            <option value="STARTER">STARTER</option>
+            <option value="STANDARD">STANDARD</option>
+            <option value="PREMIUM">PREMIUM</option>
+          </select>
+        </div>
+
+        <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+          Showing <span className="font-semibold text-slate-100">{filteredRows.length}</span> of{" "}
+          <span className="font-semibold text-slate-100">{rows.length}</span> tenants
+        </div>
+
+        {notice ? (
+          <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            {notice}
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-slate-400">
+              <tr className="border-b border-slate-800">
+                <th className="px-3 py-3 text-left">Name</th>
+                <th className="px-3 py-3 text-left">Users</th>
+                <th className="px-3 py-3 text-left">Stores</th>
+                <th className="px-3 py-3 text-left">Plan</th>
+                <th className="px-3 py-3 text-left">Tenant Status</th>
+                <th className="px-3 py-3 text-left">Billing Status</th>
+                <th className="px-3 py-3 text-left">Period End</th>
+                <th className="px-3 py-3 text-left">Created</th>
+                <th className="px-3 py-3 text-left">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredRows.map((row) => (
+                <tr key={row.id} className="border-b border-slate-800/70">
+                  <td className="px-3 py-3 font-medium">{row.name}</td>
+                  <td className="px-3 py-3">{row.userCount}</td>
+                  <td className="px-3 py-3">{row.storeCount}</td>
+                  <td className="px-3 py-3">{row.subscriptionPlan || "-"}</td>
+                  <td className="px-3 py-3">{row.companyStatus}</td>
+                  <td className="px-3 py-3">{row.subscriptionStatus || "-"}</td>
+                  <td className="px-3 py-3">{row.currentPeriodEnd || "-"}</td>
+                  <td className="px-3 py-3">{row.createdAt}</td>
+                  <td className="px-3 py-3">
+                    <button
+                      className="mr-2 rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
+                      onClick={() => {
+                        setSelectedRow(row);
+                        setDrawerOpen(true);
+                      }}
+                    >
+                      DETAIL
+                    </button>
+                    <button
+                      className="mr-2 rounded bg-rose-600 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={busyId === row.id}
+                      onClick={() => onControl(row.id, "suspend")}
+                    >
+                      SUSPEND
+                    </button>
+                    <button
+                      className="rounded bg-emerald-600 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={busyId === row.id}
+                      onClick={() => onControl(row.id, "activate")}
+                    >
+                      ACTIVATE
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

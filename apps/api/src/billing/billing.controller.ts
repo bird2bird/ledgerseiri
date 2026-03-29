@@ -13,6 +13,7 @@ import {
 import Stripe from 'stripe';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { PrismaService } from '../prisma.service';
+import { resolveWorkspaceLimits } from '../common/workspace-plan-limits';
 
 type PlanCode = 'starter' | 'standard' | 'premium';
 type PrismaPlanCode = 'STARTER' | 'STANDARD' | 'PREMIUM';
@@ -70,29 +71,13 @@ function stripeStatusToPrisma(status?: string | null): PrismaSubscriptionStatus 
 }
 
 function planLimits(plan: PlanCode) {
-  if (plan === 'premium') {
-    return {
-      maxStores: 10,
-      invoiceStorageMb: 5 * 1024,
-      aiChatMonthly: 50,
-      aiInvoiceOcrMonthly: 100,
-    };
-  }
-
-  if (plan === 'standard') {
-    return {
-      maxStores: 3,
-      invoiceStorageMb: 1024,
-      aiChatMonthly: 0,
-      aiInvoiceOcrMonthly: 0,
-    };
-  }
+  const resolved = resolveWorkspaceLimits(String(plan || 'starter').trim().toUpperCase() as any);
 
   return {
-    maxStores: 1,
-    invoiceStorageMb: 200,
-    aiChatMonthly: 0,
-    aiInvoiceOcrMonthly: 0,
+    maxStores: resolved.maxStores,
+    invoiceStorageMb: resolved.invoiceStorageMb,
+    aiChatMonthly: resolved.aiChatMonthly,
+    aiInvoiceOcrMonthly: resolved.aiInvoiceOcrMonthly,
   };
 }
 

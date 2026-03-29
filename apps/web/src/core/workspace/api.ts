@@ -1,5 +1,5 @@
 import type { WorkspaceContextValue } from "@/core/workspace/types";
-import { ensureNotTenantSuspended } from "@/core/tenant-suspended";
+import { ensureNotTenantSuspended, readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
 
 export async function fetchWorkspaceContext(args: {
   token?: string;
@@ -24,9 +24,12 @@ export async function fetchWorkspaceContext(args: {
   const res = await fetch(`/workspace/context${suffix}`, {
     headers,
     cache: "no-store",
-  });
+  });    await ensureNotTenantSuspended(res);
 
-  await ensureNotTenantSuspended(res);
+    if (!res.ok) {
+      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+      throw new Error(`/workspace/context failed: ${res.status} ${text}`);
+    }
 
-  return (await res.json()) as WorkspaceContextValue;
+    return (await res.json()) as WorkspaceContextValue;
 }

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { throwPlanLimitReached } from '../common/plan-enforcement';
+import { readWorkspaceLimits } from '../common/workspace-plan-limits';
 import { PrismaService } from '../prisma.service';
 import { AccountType } from '@prisma/client';
 
@@ -28,24 +30,13 @@ export class AccountsService {
     return companyId;
   }
 
-  private async getAccountPlanCode(companyId: string): Promise<'STARTER' | 'STANDARD' | 'PREMIUM'> {
-    const row = await this.prisma.workspaceSubscription.findUnique({
-      where: { companyId },
-      select: { planCode: true },
-    });
 
-    const raw = String(row?.planCode ?? 'STARTER').trim().toUpperCase();
-
-    if (raw === 'PREMIUM') return 'PREMIUM';
-    if (raw === 'STANDARD') return 'STANDARD';
-    return 'STARTER';
-  }
 
   private async getAccountLimit(companyId: string): Promise<number> {
-    const planCode = await this.getAccountPlanCode(companyId);
+    const limits = await readWorkspaceLimits(this.prisma, companyId);
 
-    if (planCode === 'PREMIUM') return Number.MAX_SAFE_INTEGER;
-    if (planCode === 'STANDARD') return 5;
+    if (limits.planCode === 'PREMIUM') return Number.MAX_SAFE_INTEGER;
+    if (limits.planCode === 'STANDARD') return 5;
     return 1;
   }
 
@@ -56,7 +47,7 @@ export class AccountsService {
     ]);
 
     if (used >= limit) {
-      throw new Error('PLAN_LIMIT_REACHED');
+      throwPlanLimitReached();
     }
   }
 

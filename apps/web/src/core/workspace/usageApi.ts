@@ -1,4 +1,5 @@
 import type { WorkspaceContextValue, WorkspaceLimits } from "@/core/workspace/types";
+import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
 
 export type WorkspaceUsageValue = {
   storesUsed: number;
@@ -54,9 +55,9 @@ export async function fetchWorkspaceUsage(args: {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`/workspace/usage failed: ${res.status} ${text}`);
-  }
+      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+      throw new Error(`/workspace/usage failed: ${res.status} ${text}`);
+    }
 
   return (await res.json()) as WorkspaceUsageResponse;
 }

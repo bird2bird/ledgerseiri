@@ -1,5 +1,37 @@
 export const PLATFORM_ACCESS_TOKEN_KEY = "ls_platform_access_token";
 
+export class PlatformUnauthorizedError extends Error {
+  constructor(message = "PLATFORM_ACCESS_INVALID") {
+    super(message);
+    this.name = "PlatformUnauthorizedError";
+  }
+}
+
+export function isPlatformUnauthorizedError(err: unknown): err is PlatformUnauthorizedError {
+  return err instanceof PlatformUnauthorizedError;
+}
+
+function throwPlatformApiError(res: Response, data: any, fallback: string): never {
+  const message = String(data?.message || fallback || "Platform request failed");
+
+  if (res.status === 401 || res.status === 403) {
+    clearPlatformAccessToken();
+    throw new PlatformUnauthorizedError(message);
+  }
+
+  throw new Error(message);
+}
+
+function buildQuery(params?: Record<string, string | number | boolean | null | undefined>) {
+  const sp = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    sp.set(k, String(v));
+  });
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
 export function getPlatformApiBase(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 }
@@ -27,10 +59,7 @@ export async function platformLogin(email: string, password: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Platform login failed");
-  }
+  if (!res.ok) throwPlatformApiError(res, data, "Platform login failed");
 
   return data as {
     accessToken: string;
@@ -48,11 +77,7 @@ export async function fetchPlatformProtected(token: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Protected request failed");
-  }
-
+  if (!res.ok) throwPlatformApiError(res, data, "Protected request failed");
   return data;
 }
 
@@ -63,14 +88,9 @@ export async function fetchPlatformMe() {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Platform me failed");
-  }
-
+  if (!res.ok) throwPlatformApiError(res, data, "Platform me failed");
   return data;
 }
-
 
 export async function fetchPlatformTenantSummary(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/tenants/summary`, {
@@ -80,20 +100,9 @@ export async function fetchPlatformTenantSummary(token: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Platform tenant summary failed");
-  }
-
-  return data as {
-    totalTenants: number;
-    tenantsWithUsers: number;
-    tenantsWithStores: number;
-    subscribedTenants: number;
-    createdLast30Days: number;
-  };
+  if (!res.ok) throwPlatformApiError(res, data, "Platform tenant summary failed");
+  return data;
 }
-
 
 export async function fetchPlatformUsersSummary(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/users/summary`, {
@@ -103,19 +112,9 @@ export async function fetchPlatformUsersSummary(token: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Platform users summary failed");
-  }
-
-  return data as {
-    totalUsers: number;
-    assignedUsers: number;
-    unassignedUsers: number;
-    newUsers30d: number;
-  };
+  if (!res.ok) throwPlatformApiError(res, data, "Platform users summary failed");
+  return data;
 }
-
 
 export async function fetchPlatformReconciliationSummary(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/reconciliation/summary`, {
@@ -125,31 +124,18 @@ export async function fetchPlatformReconciliationSummary(token: string) {
   });
 
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    throw new Error(data?.message || "Platform reconciliation summary failed");
-  }
-
-  return data as {
-    totalDecisions: number;
-    avgConfidence: number;
-    decisions30d: number;
-    totalAudits: number;
-    audits30d: number;
-    latestSubmittedAt: string | null;
-    decisionBreakdown: Array<{ decision: string; count: number }>;
-  };
+  if (!res.ok) throwPlatformApiError(res, data, "Platform reconciliation summary failed");
+  return data;
 }
-
 
 export async function fetchPlatformRevenueSummary(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/revenue/summary`, {
     headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store"
+    cache: "no-store",
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error("Revenue summary failed");
+  if (!res.ok) throwPlatformApiError(res, data, "Revenue summary failed");
   return data;
 }
 
@@ -160,11 +146,9 @@ export async function fetchPlatformTenantsList(token: string) {
   });
 
   const data = await res.json().catch(() => ([]));
-
-  if (!res.ok) throw new Error("Platform tenants list failed");
+  if (!res.ok) throwPlatformApiError(res, { message: "Platform tenants list failed" }, "Platform tenants list failed");
   return data;
 }
-
 
 export async function fetchPlatformUsersList(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/users/list`, {
@@ -173,22 +157,64 @@ export async function fetchPlatformUsersList(token: string) {
   });
 
   const data = await res.json().catch(() => ([]));
-
-  if (!res.ok) throw new Error("Platform users list failed");
+  if (!res.ok) throwPlatformApiError(res, { message: "Platform users list failed" }, "Platform users list failed");
   return data;
 }
 
+export type PlatformAuditListParams = {
+  page?: number;
+  limit?: number;
+  q?: string;
+  actionType?: string;
+  source?: string;
+  changed?: string;
+  companyId?: string;
+  candidateId?: string;
+  persistenceKey?: string;
+};
 
-export async function fetchPlatformReconciliationList(token: string) {
-  const res = await fetch(`${getPlatformApiBase()}/platform/reconciliation/list`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+export type PlatformAuditRow = {
+  id: string;
+  companyId: string;
+  candidateId: string;
+  persistenceKey: string | null;
+  actionType: string;
+  source: string;
+  previousValue: string | null;
+  nextValue: string | null;
+  changed: boolean;
+  createdAt: string;
+  submittedAt: string;
+};
 
-  const data = await res.json().catch(() => ([]));
+export type PlatformAuditListResponse = {
+  items: PlatformAuditRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  filters: Record<string, string | null>;
+};
 
-  if (!res.ok) throw new Error("Platform reconciliation list failed");
-  return data;
+export async function fetchPlatformReconciliationList(
+  token: string,
+  params?: PlatformAuditListParams
+) {
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/reconciliation/list${buildQuery(params)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, { message: "Platform reconciliation list failed" }, "Platform reconciliation list failed");
+  }
+  return data as PlatformAuditListResponse;
 }
 
 export async function controlPlatformTenant(id: string, action: "suspend" | "activate", token: string) {
@@ -198,10 +224,9 @@ export async function controlPlatformTenant(id: string, action: "suspend" | "act
   });
 
   const data = await res.text();
-  if (!res.ok) throw new Error(data || "Tenant control failed");
+  if (!res.ok) throwPlatformApiError(res, { message: data }, "Tenant control failed");
   return data;
 }
-
 
 export async function controlPlatformUser(
   id: string,
@@ -219,6 +244,6 @@ export async function controlPlatformUser(
   });
 
   const data = await res.text();
-  if (!res.ok) throw new Error(data || "User control failed");
+  if (!res.ok) throwPlatformApiError(res, { message: data }, "User control failed");
   return data;
 }

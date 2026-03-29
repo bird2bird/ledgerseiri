@@ -5,12 +5,19 @@ export type ReconciliationDecisionAuditActionType =
   | "batch_reject"
   | "auto_apply"
   | "undo"
-  | "submit";
+  | "submit"
+  | "tenant_suspend"
+  | "tenant_activate"
+  | "user_assign"
+  | "user_unassign"
+  | "override_approve"
+  | "override_reject";
 
 export type ReconciliationDecisionAuditSource =
   | "web"
   | "api"
-  | "system";
+  | "system"
+  | "admin";
 
 export type CreateReconciliationDecisionAuditRecord = {
   companyId: string;

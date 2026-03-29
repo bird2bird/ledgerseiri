@@ -1,3 +1,4 @@
+import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
 export type BillingCheckoutResponse = {
   ok: boolean;
   action?: "checkout-session";
@@ -29,9 +30,9 @@ export async function createBillingCheckoutSession(args: {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`/api/billing/checkout-session failed: ${res.status} ${text}`);
-  }
+      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+      throw new Error(`/api/billing/checkout-session failed: ${res.status} ${text}`);
+    }
 
   return (await res.json()) as BillingCheckoutResponse;
 }
@@ -51,9 +52,9 @@ export async function createBillingPortalSession(args?: {
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`/api/billing/portal-session failed: ${res.status} ${text}`);
-  }
+      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+      throw new Error(`/api/billing/portal-session failed: ${res.status} ${text}`);
+    }
 
   return (await res.json()) as BillingPortalResponse;
 }

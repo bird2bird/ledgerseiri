@@ -1,5 +1,7 @@
 import { TransactionType } from "@prisma/client";
 import { Injectable } from '@nestjs/common';
+import { throwPlanLimitReached } from '../common/plan-enforcement';
+import { readWorkspaceLimits } from '../common/workspace-plan-limits';
 import { PrismaService } from '../prisma.service';
 
 type Direction = 'INCOME' | 'EXPENSE' | 'TRANSFER';
@@ -46,16 +48,8 @@ export class TransactionService {
   }
 
   private async getMonthlyTransactionLimit(companyId: string): Promise<number> {
-    const row = await this.prisma.workspaceSubscription.findUnique({
-      where: { companyId },
-      select: { planCode: true },
-    });
-
-    const plan = String(row?.planCode ?? 'STARTER').trim().toUpperCase();
-
-    if (plan === 'PREMIUM') return Number.MAX_SAFE_INTEGER;
-    if (plan === 'STANDARD') return 2000;
-    return 100;
+    const limits = await readWorkspaceLimits(this.prisma, companyId);
+    return limits.monthlyTransactions;
   }
 
   private getMonthRange(baseDate?: Date) {
@@ -86,7 +80,7 @@ export class TransactionService {
     ]);
 
     if (used >= limit) {
-      throw new Error('PLAN_LIMIT_REACHED');
+      throwPlanLimitReached();
     }
   }
 
@@ -131,6 +125,7 @@ export class TransactionService {
 
   async create(payload: CreateTransactionPayload) {
     const companyId = await this.resolveCompanyId(payload?.companyId);
+    await this.assertTransactionCreateAllowed(companyId);
     const storeId = await this.resolveDefaultStoreId(companyId, payload?.storeId);
 
     const amount = Number(payload.amount ?? 0);

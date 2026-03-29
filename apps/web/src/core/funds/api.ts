@@ -1,4 +1,5 @@
 import { ensureNotTenantSuspended } from "@/core/tenant-suspended";
+import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
 export type AccountItem = {
   id: string;
   companyId: string;
@@ -44,6 +45,12 @@ export type AccountBalanceItem = {
 
 async function readJson<T>(res: Response): Promise<T> {
   await ensureNotTenantSuspended(res);
+
+  if (!res.ok) {
+    const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+    throw new Error(`${res.status} ${text}`);
+  }
+
   return (await res.json()) as T;
 }
 

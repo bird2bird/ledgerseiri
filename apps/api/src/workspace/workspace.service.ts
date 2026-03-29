@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { resolveWorkspaceLimits } from '../common/workspace-plan-limits';
 
 type PlanCodeLower = 'starter' | 'standard' | 'premium';
 type SubscriptionStatusLower = 'active' | 'trialing' | 'past_due' | 'canceled';
@@ -145,32 +146,14 @@ export class WorkspaceService {
   }
 
   private getDefaultLimits(planCode: PlanCodeLower): WorkspaceLimits {
-    if (planCode === 'premium') {
-      return {
-        maxStores: 10,
-        invoiceStorageMb: 5 * 1024,
-        aiChatMonthly: 50,
-        aiInvoiceOcrMonthly: 100,
-        historyMonths: 24,
-      };
-    }
-
-    if (planCode === 'standard') {
-      return {
-        maxStores: 3,
-        invoiceStorageMb: 1024,
-        aiChatMonthly: 0,
-        aiInvoiceOcrMonthly: 0,
-        historyMonths: 24,
-      };
-    }
+    const resolved = resolveWorkspaceLimits(String(planCode || 'starter').trim().toUpperCase() as any);
 
     return {
-      maxStores: 1,
-      invoiceStorageMb: 200,
-      aiChatMonthly: 0,
-      aiInvoiceOcrMonthly: 0,
-      historyMonths: 12,
+      maxStores: resolved.maxStores,
+      invoiceStorageMb: resolved.invoiceStorageMb,
+      aiChatMonthly: resolved.aiChatMonthly,
+      aiInvoiceOcrMonthly: resolved.aiInvoiceOcrMonthly,
+      historyMonths: resolved.historyMonths,
     };
   }
 

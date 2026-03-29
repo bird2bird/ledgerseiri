@@ -93,3 +93,44 @@ export async function ensureNotTenantSuspended(res: Response): Promise<unknown |
 
   throw new Error(message);
 }
+
+export async function readErrorTextOrThrowSpecialCases(
+  res: Response,
+  target = "standard"
+): Promise<string> {
+  const payload = await parseResponsePayload(res);
+
+  if (isTenantSuspendedPayload(payload)) {
+    redirectToTenantSuspended();
+  }
+
+  if (
+    isPlanLimitReachedPayload(payload) ||
+    (res.status === 403 &&
+      !!payload &&
+      typeof payload === "object" &&
+      String((payload as any).message || "").trim() === "PLAN_LIMIT_REACHED")
+  ) {
+    const message =
+      typeof payload === "object" && payload && "message" in (payload as any)
+        ? String((payload as any).message || "PLAN_LIMIT_REACHED")
+        : "PLAN_LIMIT_REACHED";
+
+    dispatchPlanLimitReached({ message, target });
+    throw new PlanLimitReachedError(message);
+  }
+
+  if (typeof payload === "string") return payload;
+
+  if (payload && typeof payload === "object") {
+    const msg = String((payload as any).message || "").trim();
+    if (msg) return msg;
+    try {
+      return JSON.stringify(payload);
+    } catch {
+      return `Request failed: ${res.status}`;
+    }
+  }
+
+  return `Request failed: ${res.status}`;
+}

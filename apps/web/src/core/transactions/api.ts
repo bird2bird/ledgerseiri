@@ -1,3 +1,4 @@
+import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
 export type TransactionCategoryItem = {
   id: string;
   companyId: string;
@@ -31,9 +32,9 @@ export type TransactionItem = {
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${text}`);
-  }
+      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+      throw new Error(`${res.status} ${text}`);
+    }
   return (await res.json()) as T;
 }
 

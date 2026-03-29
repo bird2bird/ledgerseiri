@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Post, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { throwPlanLimitReached } from '../common/plan-enforcement';
+import { readWorkspaceLimits } from '../common/workspace-plan-limits';
 import { PrismaService } from '../prisma.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
@@ -8,16 +10,8 @@ export class StoreController {
   constructor(private prisma: PrismaService) {}
 
   private async getStoreLimit(companyId: string): Promise<number> {
-    const row = await this.prisma.workspaceSubscription.findUnique({
-      where: { companyId },
-      select: { maxStores: true },
-    });
-
-    if (typeof row?.maxStores === 'number' && row.maxStores > 0) {
-      return row.maxStores;
-    }
-
-    return 1;
+    const limits = await readWorkspaceLimits(this.prisma, companyId);
+    return limits.maxStores;
   }
 
   private async assertStoreCreateAllowed(companyId: string): Promise<void> {
@@ -27,7 +21,7 @@ export class StoreController {
     ]);
 
     if (used >= limit) {
-      throw new ForbiddenException('PLAN_LIMIT_REACHED');
+      throwPlanLimitReached();
     }
   }
 
