@@ -26,6 +26,14 @@ import { PlatformTenantsListService } from './platform-tenants-list.service';
 import { PlatformUsersListService } from './platform-users-list.service';
 import { PlatformReconciliationListService } from './platform-reconciliation-list.service';
 import { PlatformReconciliationOverrideService } from './platform-reconciliation-override.service';
+import { PlatformReconciliationOpsService } from './platform-reconciliation-ops.service';
+import { PlatformReconciliationOpsController } from './platform-reconciliation-ops.controller';
+import { PlatformReconciliationBatchService } from './platform-reconciliation-batch.service';
+import { PlatformReconciliationBatchController } from './platform-reconciliation-batch.controller';
+import { PlatformReconciliationOperationController } from './platform-reconciliation-operation.controller';
+import { PlatformReconciliationOperationService } from './platform-reconciliation-operation.service';
+import { PlatformOperationController } from './platform-operation.controller';
+import { PlatformOperationService } from './platform-operation.service';
 
 @Module({
   imports: [
@@ -46,6 +54,10 @@ import { PlatformReconciliationOverrideService } from './platform-reconciliation
     PlatformUsersListController,
     PlatformReconciliationListController,
     PlatformReconciliationOverrideController,
+    PlatformReconciliationOpsController,
+    PlatformReconciliationBatchController,
+    PlatformOperationController,
+    PlatformReconciliationOperationController,
   ],
   providers: [
     PlatformTenantsControlService,
@@ -59,6 +71,10 @@ import { PlatformReconciliationOverrideService } from './platform-reconciliation
     PlatformUsersListService,
     PlatformReconciliationListService,
     PlatformReconciliationOverrideService,
+    PlatformReconciliationOpsService,
+    PlatformReconciliationBatchService,
+    PlatformOperationService,
+    PlatformReconciliationOperationService,
     PlatformAdminGuard,
     PrismaService,
   ],

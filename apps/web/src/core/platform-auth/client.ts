@@ -247,3 +247,269 @@ export async function controlPlatformUser(
   if (!res.ok) throwPlatformApiError(res, { message: data }, "User control failed");
   return data;
 }
+
+export async function overridePlatformReconciliationDecision(
+  id: string,
+  decision: "APPROVED" | "REJECTED",
+  token: string
+) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/reconciliation/${id}/override`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ decision }),
+  });
+
+  const data = await res.json().catch(async () => {
+    const text = await res.text().catch(() => "");
+    return text ? { message: text } : {};
+  });
+
+  if (!res.ok) {
+    throwPlatformApiError(
+      res,
+      data,
+      "Platform reconciliation override failed"
+    );
+  }
+
+  return data;
+}
+
+export type PlatformBatchOverrideResult = {
+  attempted: number;
+  success: number;
+  failed: number;
+  failedIds: string[];
+};
+
+export async function batchOverridePlatformReconciliationDecisions(
+  ids: string[],
+  decision: "APPROVED" | "REJECTED",
+  token: string
+) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/reconciliation/batch/override`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ids, decision }),
+  });
+
+  const data = await res.json().catch(async () => {
+    const text = await res.text().catch(() => "");
+    return text ? { message: text } : {};
+  });
+
+  if (!res.ok) {
+    throwPlatformApiError(
+      res,
+      data,
+      "Platform reconciliation batch override failed"
+    );
+  }
+
+  return data as PlatformBatchOverrideResult;
+}
+
+export type PlatformReconciliationOpsSummary = {
+  totalAuditRows: number;
+  changedRows: number;
+  adminRows: number;
+  overrideRows: number;
+  failedSignals: number;
+  actionableSignals: number;
+  latestAuditAt: string | null;
+  filters: {
+    companyId: string | null;
+    candidateId: string | null;
+    persistenceKey: string | null;
+  };
+};
+
+export async function fetchPlatformReconciliationOpsSummary(
+  token: string,
+  params?: {
+    companyId?: string;
+    candidateId?: string;
+    persistenceKey?: string;
+  }
+) {
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/reconciliation/ops-summary${buildQuery(params)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(
+      res,
+      data,
+      "Platform reconciliation ops summary failed"
+    );
+  }
+
+  return data as PlatformReconciliationOpsSummary;
+}
+
+export type PlatformOperationRecord = {
+  id: string;
+  type: string;
+  scope: string;
+  status: string;
+  requestedDecision: string | null;
+  requestedByAdminId?: string | null;
+  requestedByAdminEmail?: string | null;
+  companyId?: string | null;
+  candidateId?: string | null;
+  persistenceKey?: string | null;
+  source?: string | null;
+  note?: string | null;
+  requestedCount: number;
+  successCount: number;
+  failedCount: number;
+  requestedAt: string;
+  completedAt: string | null;
+};
+
+export type PlatformOperationItemRecord = {
+  id: string;
+  operationId: string;
+  targetType: string;
+  targetId: string;
+  companyId: string | null;
+  candidateId: string | null;
+  persistenceKey: string | null;
+  requestedAction: string;
+  beforeValue: string | null;
+  afterValue: string | null;
+  status: string;
+  failureCode: string | null;
+  failureMessage: string | null;
+  auditId: string | null;
+  processedAt: string;
+};
+
+export type PlatformBatchOperationResponse = {
+  operation: PlatformOperationRecord;
+  items: PlatformOperationItemRecord[];
+  summary: {
+    attempted: number;
+    success: number;
+    failed: number;
+    failedIds: string[];
+  };
+};
+
+export async function batchOverridePlatformReconciliationViaOperation(
+  ids: string[],
+  decision: "APPROVED" | "REJECTED",
+  token: string,
+  source = "review_queue",
+  note?: string
+) {
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/reconciliation/operations/batch-override`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ids,
+        decision,
+        source,
+        note: note || null,
+      }),
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(
+      res,
+      data,
+      "Platform reconciliation operation batch override failed"
+    );
+  }
+
+  return data as PlatformBatchOperationResponse;
+}
+
+export async function fetchPlatformOperationById(
+  id: string,
+  token: string
+) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/operations/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform operation fetch failed");
+  }
+
+  return data as PlatformOperationRecord & { items: PlatformOperationItemRecord[] };
+}
+
+export async function fetchPlatformOperationsList(
+  token: string,
+  params?: {
+    scope?: string;
+    limit?: number;
+  }
+) {
+  const query = new URLSearchParams();
+  if (params?.scope) query.set("scope", params.scope);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/operations/list${qs ? `?${qs}` : ""}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json().catch(() => ([]));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform operations list failed");
+  }
+
+  return data as PlatformOperationRecord[];
+}
+
+export async function retryFailedPlatformOperation(
+  operationId: string,
+  token: string,
+  source = "operations_center"
+) {
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/operations/${operationId}/retry-failed`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source }),
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Retry failed platform operation failed");
+  }
+
+  return data as PlatformBatchOperationResponse;
+}
+

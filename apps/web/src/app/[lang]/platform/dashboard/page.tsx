@@ -9,6 +9,7 @@ import {
   fetchPlatformReconciliationSummary,
   fetchPlatformRevenueSummary,
   fetchPlatformReconciliationList,
+  fetchPlatformReconciliationOpsSummary,
   getPlatformAccessToken,
   isPlatformUnauthorizedError,
   type PlatformAuditRow,
@@ -80,6 +81,15 @@ export default function PlatformDashboardPage() {
   const [revenueSummary, setRevenueSummary] =
     useState<RevenueSummary | null>(null);
   const [recentEvents, setRecentEvents] = useState<PlatformAuditRow[]>([]);
+  const [opsSummary, setOpsSummary] = useState<{
+    totalAuditRows: number;
+    changedRows: number;
+    adminRows: number;
+    overrideRows: number;
+    failedSignals: number;
+    actionableSignals: number;
+    latestAuditAt: string | null;
+  } | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -91,12 +101,13 @@ export default function PlatformDashboardPage() {
       return;
     }
 
-    const [t, u, r, rev, recent] = await Promise.all([
+    const [t, u, r, rev, recent, ops] = await Promise.all([
       fetchPlatformTenantSummary(token),
       fetchPlatformUsersSummary(token),
       fetchPlatformReconciliationSummary(token),
       fetchPlatformRevenueSummary(token),
       fetchPlatformReconciliationList(token, { page: 1, limit: 6 }),
+      fetchPlatformReconciliationOpsSummary(token),
     ]);
 
     setTenantSummary(t);
@@ -104,6 +115,7 @@ export default function PlatformDashboardPage() {
     setReconciliationSummary(r);
     setRevenueSummary(rev);
     setRecentEvents(recent.items || []);
+    setOpsSummary(ops);
     setError("");
   }
 
@@ -172,7 +184,7 @@ export default function PlatformDashboardPage() {
         subtitle: "new subscriptions in last 30 days",
       },
     ],
-    [tenantSummary, usersSummary, reconciliationSummary, revenueSummary]
+    [tenantSummary, usersSummary, reconciliationSummary, revenueSummary, opsSummary]
   );
 
   if (loading) return <div className="text-slate-300">Loading dashboard...</div>;
@@ -227,6 +239,33 @@ export default function PlatformDashboardPage() {
               <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{card.title}</div>
               <div className="mt-3 text-2xl font-semibold">{card.value}</div>
               <div className="mt-2 text-xs text-slate-400">{card.subtitle}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-slate-800 bg-slate-950/50 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm font-semibold">Operational Status</div>
+          <Link
+            href={`/${lang}/platform/operations`}
+            className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            View Result Center
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Audit Rows", String(opsSummary?.totalAuditRows ?? 0), "Unified audit timeline volume"],
+            ["Changed Signals", String(opsSummary?.changedRows ?? 0), "Signals with meaningful value change"],
+            ["Failed Signals", String(opsSummary?.failedSignals ?? 0), "Requires review or retry"],
+            ["Latest Audit", opsSummary?.latestAuditAt || "-", "Latest observed unified audit write-back"],
+          ].map(([title, value, subtitle]) => (
+            <div key={title} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{title}</div>
+              <div className="mt-3 text-2xl font-semibold">{value}</div>
+              <div className="mt-2 text-xs text-slate-400">{subtitle}</div>
             </div>
           ))}
         </div>

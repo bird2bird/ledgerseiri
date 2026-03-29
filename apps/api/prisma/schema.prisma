@@ -502,13 +502,97 @@ enum CompanyStatus {
 }
 
 model BillingWebhookEvent {
-  id          String   @id
+  id          String    @id
   type        String
-  source      String   @default("stripe")
+  source      String    @default("stripe")
   processedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([type])
   @@index([createdAt])
   @@index([processedAt])
+}
+
+enum PlatformOperationType {
+  RECONCILIATION_BATCH_OVERRIDE
+}
+
+enum PlatformOperationScope {
+  RECONCILIATION
+}
+
+enum PlatformOperationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIAL_FAILED
+  FAILED
+}
+
+enum PlatformOperationItemStatus {
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+model PlatformOperation {
+  id     String                  @id @default(cuid())
+  type   PlatformOperationType
+  scope  PlatformOperationScope
+  status PlatformOperationStatus @default(PENDING)
+
+  requestedDecision     String?
+  requestedByAdminId    String?
+  requestedByAdminEmail String?
+
+  companyId      String?
+  candidateId    String?
+  persistenceKey String?
+
+  source       String?
+  note         String?
+  metadataJson Json?
+
+  requestedCount Int @default(0)
+  successCount   Int @default(0)
+  failedCount    Int @default(0)
+
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  items PlatformOperationItem[]
+
+  @@index([type, requestedAt])
+  @@index([scope, requestedAt])
+  @@index([status, requestedAt])
+  @@index([companyId, requestedAt])
+}
+
+model PlatformOperationItem {
+  id          String            @id @default(cuid())
+  operationId String
+  operation   PlatformOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  targetType String
+  targetId   String
+
+  companyId      String?
+  candidateId    String?
+  persistenceKey String?
+
+  requestedAction String
+  beforeValue     String?
+  afterValue      String?
+
+  status         PlatformOperationItemStatus
+  failureCode    String?
+  failureMessage String?
+
+  auditId     String?
+  processedAt DateTime @default(now())
+
+  @@index([operationId])
+  @@index([status, processedAt])
+  @@index([targetId])
+  @@index([companyId, processedAt])
 }

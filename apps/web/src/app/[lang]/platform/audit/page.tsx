@@ -9,6 +9,7 @@ import {
   isPlatformUnauthorizedError,
   type PlatformAuditListResponse,
   type PlatformAuditRow,
+  fetchPlatformReconciliationOpsSummary,
 } from "@/core/platform-auth/client";
 import { AuditEventDetailDrawer } from "@/components/platform/AuditEventDetailDrawer";
 
@@ -57,6 +58,15 @@ function AuditPageContent() {
   const lang = params?.lang || "ja";
 
   const [data, setData] = useState<PlatformAuditListResponse | null>(null);
+  const [opsSummary, setOpsSummary] = useState<{
+    totalAuditRows: number;
+    changedRows: number;
+    adminRows: number;
+    overrideRows: number;
+    failedSignals: number;
+    actionableSignals: number;
+    latestAuditAt: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedRow, setSelectedRow] = useState<PlatformAuditRow | null>(null);
@@ -79,19 +89,27 @@ function AuditPageContent() {
       return;
     }
 
-    const result = await fetchPlatformReconciliationList(token, {
-      page,
-      limit,
-      q,
-      actionType,
-      source,
-      changed,
-      companyId,
-      candidateId,
-      persistenceKey,
-    });
+    const [result, ops] = await Promise.all([
+      fetchPlatformReconciliationList(token, {
+        page,
+        limit,
+        q,
+        actionType,
+        source,
+        changed,
+        companyId,
+        candidateId,
+        persistenceKey,
+      }),
+      fetchPlatformReconciliationOpsSummary(token, {
+        companyId,
+        candidateId,
+        persistenceKey,
+      }),
+    ]);
 
     setData(result);
+    setOpsSummary(ops);
     setError("");
   }
 
