@@ -22,10 +22,9 @@ export class PlatformReconciliationOperationController {
     return this.service.batchOverride({
       ids: body.ids || [],
       decision: body.decision,
-      source: body.source,
       note: body.note,
-      requestedByAdminId: body.requestedByAdminId ?? null,
-      requestedByAdminEmail: body.requestedByAdminEmail ?? null,
+      adminId: body.requestedByAdminId ?? null,
+      adminEmail: body.requestedByAdminEmail ?? null,
     });
   }
 }

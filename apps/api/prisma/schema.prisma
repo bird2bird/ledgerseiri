@@ -515,10 +515,16 @@ model BillingWebhookEvent {
 
 enum PlatformOperationType {
   RECONCILIATION_BATCH_OVERRIDE
+  TENANT_SUSPEND
+  TENANT_ACTIVATE
+  USER_ASSIGN
+  USER_UNASSIGN
 }
 
 enum PlatformOperationScope {
   RECONCILIATION
+  PLATFORM_TENANT
+  PLATFORM_USER
 }
 
 enum PlatformOperationStatus {

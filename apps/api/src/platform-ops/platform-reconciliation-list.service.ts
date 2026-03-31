@@ -119,4 +119,48 @@ export class PlatformReconciliationListService {
       },
     };
   }
+
+
+  async getOperationLink(operationId: string) {
+    const operation = await this.prisma.platformOperation.findUnique({
+      where: { id: operationId },
+      include: {
+        items: {
+          orderBy: { processedAt: 'asc' },
+        },
+      },
+    });
+
+    if (!operation) {
+      return {
+        operationId,
+        found: false,
+        auditIds: [],
+        items: [],
+      };
+    }
+
+    const auditIds = Array.from(
+      new Set(
+        (operation.items || [])
+          .map((item) => item.auditId)
+          .filter(Boolean)
+      )
+    );
+
+    return {
+      operationId,
+      found: true,
+      scope: operation.scope,
+      status: operation.status,
+      auditIds,
+      items: operation.items.map((item) => ({
+        id: item.id,
+        targetId: item.targetId,
+        auditId: item.auditId,
+        status: item.status,
+      })),
+    };
+  }
+
 }

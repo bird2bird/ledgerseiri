@@ -70,12 +70,20 @@ export default function PlatformTenantsPage() {
   }, [lang, router]);
 
   async function onControl(id: string, action: "suspend" | "activate") {
-    const confirmed = window.confirm(
-      action === "suspend"
-        ? "Suspend this tenant now?"
-        : "Activate this tenant now?"
-    );
-    if (!confirmed) return;
+      const governanceNote = window.prompt(
+        action === "suspend"
+          ? "Provide a reason for tenant suspension:"
+          : "Provide a reason for tenant activation:",
+        ""
+      );
+      if (governanceNote === null) return;
+
+      const confirmed = window.confirm(
+        action === "suspend"
+          ? "Dangerous action: suspend this tenant now?"
+          : "Confirm tenant activation now?"
+      );
+      if (!confirmed) return;
 
     try {
       const token = getPlatformAccessToken();
@@ -88,11 +96,12 @@ export default function PlatformTenantsPage() {
       setNotice("");
       setError("");
 
-      await controlPlatformTenant(id, action, token);
+      const result = await controlPlatformTenant(id, action, token);
+      const operationId =
+        typeof result === "object" && result?.operationId ? result.operationId : "";
+
       setNotice(
-        action === "suspend"
-          ? "Tenant suspended successfully."
-          : "Tenant activated successfully."
+        `${action === "suspend" ? "Tenant suspended successfully." : "Tenant activated successfully."}${operationId ? ` Operation: ${operationId}` : ""}`
       );
       await reload();
     } catch (e) {
@@ -137,6 +146,7 @@ export default function PlatformTenantsPage() {
       />
 
       <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-slate-100">
+        <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">Governance v2: note length policy + protected tenant safety rail are active.<br />Governance: tenant suspend/activate now requires operator note + confirmation.</div>
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="text-2xl font-semibold">Tenants</div>
           <div className="flex items-center gap-3">
@@ -160,6 +170,21 @@ export default function PlatformTenantsPage() {
             </button>
           </div>
         </div>
+
+        {latestTenantOperation ? (
+          <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+            Latest tenant control operation: <span className="font-semibold text-slate-100">{latestTenantOperation.id}</span> ·
+            Status: <span className="font-semibold text-slate-100">{latestTenantOperation.status}</span> ·
+            Success: <span className="font-semibold text-slate-100">{latestTenantOperation.successCount ?? 0}</span> ·
+            Failed: <span className="font-semibold text-slate-100">{latestTenantOperation.failedCount ?? 0}</span>
+            <Link
+              href={`/${lang}/platform/operations`}
+              className="ml-3 text-cyan-300 hover:text-cyan-200"
+            >
+              Open Operations Center
+            </Link>
+          </div>
+        ) : null}
 
         <div className="mb-4 grid gap-3 md:grid-cols-3">
           <input

@@ -217,14 +217,30 @@ export async function fetchPlatformReconciliationList(
   return data as PlatformAuditListResponse;
 }
 
-export async function controlPlatformTenant(id: string, action: "suspend" | "activate", token: string) {
+export async function controlPlatformTenant(
+  id: string,
+  action: "suspend" | "activate",
+  token: string,
+  note?: string
+) {
   const res = await fetch(`${getPlatformApiBase()}/platform/tenants/${id}/${action}`, {
     method: "PATCH",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ note: note || "" }),
   });
 
-  const data = await res.text();
-  if (!res.ok) throwPlatformApiError(res, { message: data }, "Tenant control failed");
+  const text = await res.text();
+  let data: any = text;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = text;
+  }
+
+  if (!res.ok) throwPlatformApiError(res, { message: typeof data === "string" ? data : data?.message }, "Tenant control failed");
   return data;
 }
 
@@ -232,7 +248,8 @@ export async function controlPlatformUser(
   id: string,
   action: "assign" | "unassign",
   token: string,
-  companyId?: string
+  companyId?: string,
+  note?: string
 ) {
   const res = await fetch(`${getPlatformApiBase()}/platform/users/${id}/${action}`, {
     method: "PATCH",
@@ -240,11 +257,21 @@ export async function controlPlatformUser(
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: action === "assign" ? JSON.stringify({ companyId }) : undefined,
+    body:
+      action === "assign"
+        ? JSON.stringify({ companyId, note: note || "" })
+        : JSON.stringify({ note: note || "" }),
   });
 
-  const data = await res.text();
-  if (!res.ok) throwPlatformApiError(res, { message: data }, "User control failed");
+  const text = await res.text();
+  let data: any = text;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = text;
+  }
+
+  if (!res.ok) throwPlatformApiError(res, { message: typeof data === "string" ? data : data?.message }, "User control failed");
   return data;
 }
 
@@ -534,3 +561,275 @@ export async function retryFailedPlatformOperation(
   return data as PlatformBatchOperationResponse;
 }
 
+export async function fetchPlatformAuditOperationLink(
+  operationId: string,
+  token: string
+) {
+  const res = await fetch(
+    `${getPlatformApiBase()}/platform/reconciliation/operation-link?operationId=${encodeURIComponent(operationId)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform audit operation link failed");
+  }
+
+  return data as {
+    operationId: string;
+    found: boolean;
+    scope?: string;
+    status?: string;
+    auditIds: string[];
+    items: Array<{
+      id: string;
+      targetId: string;
+      auditId: string | null;
+      status: string;
+    }>;
+  };
+}
+
+export async function fetchPlatformOperationsMetrics(token: string) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/operations/metrics`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform operations metrics failed");
+  }
+
+  return data as {
+    total: number;
+    running: number;
+    completed: number;
+    partialFailed: number;
+    failed: number;
+    retryCapable: number;
+    byScope: Array<{ scope: string; count: number }>;
+    topFailureCodes: Array<{ code: string; count: number }>;
+  };
+}
+
+export async function fetchPlatformOperationsAnalytics(token: string) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/operations/analytics`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform operations analytics failed");
+  }
+
+  return data as {
+    failureTrend: Array<{
+      id: string;
+      requestedAt: string;
+      scope: string;
+      failedCount: number;
+      successCount: number;
+      status: string;
+    }>;
+    scopeByStatus: Array<{ scope: string; status: string; count: number }>;
+    retryPerformanceByScope: Array<{
+      scope: string;
+      total: number;
+      retryCapable: number;
+      successful: number;
+      successRate: number;
+    }>;
+    topFailureCodes: Array<{ code: string; count: number }>;
+    recentFailingTargets: Array<{
+      targetId: string;
+      count: number;
+      scope: string;
+      lastFailureCode: string | null;
+    }>;
+    noisyCompanies: Array<{ companyId: string; count: number }>;
+    noisyCandidates: Array<{ candidateId: string; count: number }>;
+  };
+}
+
+
+
+export type PlatformExecutiveSummaryResponse = {
+  totals: {
+    totalUsers: number;
+    activePaidUsers: number;
+    totalTenants: number;
+    newUsersThisMonth: number;
+    churnedUsersThisMonth: number;
+    netGrowthThisMonth: number;
+    currentMrr: number;
+  };
+  planBreakdown: Array<{
+    planCode: "free" | "starter" | "standard" | "premium";
+    userCount: number;
+    tenantCount: number;
+    userRatio: number;
+    mrrContribution: number;
+    arpuEstimate?: number;
+  }>;
+  monthlyUserGrowth: Array<{
+    month: string;
+    newUsers: number;
+    totalUsers: number;
+  }>;
+  billingOverview?: {
+    freeTenants: number;
+    activeTenants: number;
+    trialingTenants: number;
+    pastDueTenants: number;
+    canceledTenants: number;
+    billingRiskTenants: number;
+  };
+  paymentEventIntelligence?: {
+    newRiskThisMonth: number;
+    canceledThisMonth: number;
+    recoveredThisMonth: number;
+    trialingUsers: number;
+    pastDueUsers: number;
+    canceledUsers: number;
+    activeUsers: number;
+  };
+  atRiskUsersPreview?: Array<{
+    id: string;
+    email: string;
+    companyId: string | null;
+    planCode: "free" | "starter" | "standard" | "premium";
+    planStatus: string;
+    billingRiskLevel: string;
+    recoveryPriority: string;
+    subscriptionUpdatedAt: string | null;
+    estimatedMonthlyRevenue: number;
+  }>;
+  billingRecoveryWorkspace?: {
+    immediateQueueCount: number;
+    followUpQueueCount: number;
+    observeQueueCount: number;
+    totalAtRiskPreview: number;
+  };
+};
+
+export async function fetchPlatformExecutiveSummary(token: string) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/executive-summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform executive summary failed");
+  }
+
+  return data as PlatformExecutiveSummaryResponse;
+}
+
+
+export type PlatformUserInsightRow = {
+  id: string;
+  email: string;
+  companyId: string | null;
+  joinedAt: string;
+  planCode: "free" | "starter" | "standard" | "premium";
+  planStatus: string;
+  billingStatus: string;
+  estimatedMonthlyRevenue: number;
+  subscriptionUpdatedAt: string | null;
+  billingRiskLevel?: string;
+};
+
+export type PlatformUserInsightDetail = {
+  profile: {
+    id: string;
+    email: string;
+    companyId: string | null;
+    joinedAt: string;
+  };
+  subscription: {
+    planCode: "free" | "starter" | "standard" | "premium";
+    planStatus: string;
+    billingStatus: string;
+    estimatedMonthlyRevenue: number;
+    subscriptionUpdatedAt: string | null;
+  };
+  billingIntelligence?: {
+    billingRiskLevel: string;
+    recoveryPriority: string;
+    riskReason: string;
+  };
+  billingTimeline?: Array<{
+    type: string;
+    label: string;
+    at: string | null;
+    tone: string;
+  }>;
+  paymentEventSummary?: {
+    latestStatus: string;
+    latestUpdatedAt: string | null;
+    hasRevenue: boolean;
+    timelineLength: number;
+  };
+  recentOperations: Array<{
+    id: string;
+    type: string;
+    scope: string;
+    status: string;
+    note: string | null;
+    requestedByAdminEmail: string | null;
+    requestedAt: string;
+    completedAt: string | null;
+  }>;
+  recentAudits: Array<{
+    id: string;
+    actionType: string;
+    source: string;
+    previousValue: string | null;
+    nextValue: string | null;
+    createdAt: string;
+    persistenceKey: string | null;
+  }>;
+};
+
+export async function fetchPlatformUserInsightsList(token: string) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/users-insights/list`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform user insights list failed");
+  }
+
+  return data as {
+    items: PlatformUserInsightRow[];
+    summary: {
+      totalUsers: number;
+      assignedUsers: number;
+      unassignedUsers: number;
+      paidUsers: number;
+        billingRiskUsers: number;
+    };
+  };
+}
+
+export async function fetchPlatformUserInsightDetail(id: string, token: string) {
+  const res = await fetch(`${getPlatformApiBase()}/platform/users-insights/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throwPlatformApiError(res, data, "Platform user insight detail failed");
+  }
+
+  return data as PlatformUserInsightDetail;
+}

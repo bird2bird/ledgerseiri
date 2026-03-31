@@ -7,6 +7,11 @@ import { PlatformReconciliationListService } from './platform-reconciliation-lis
 export class PlatformReconciliationListController {
   constructor(private readonly service: PlatformReconciliationListService) {}
 
+  @Get('operation-link')
+  getOperationLink(@Query('operationId') operationId?: string) {
+    return this.service.getOperationLink(operationId || '');
+  }
+
   @Get('list')
   getList(
     @Query('page') page?: string,

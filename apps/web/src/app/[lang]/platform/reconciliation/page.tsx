@@ -63,6 +63,7 @@ function PlatformReconciliationPageContent() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
+  const [batchNote, setBatchNote] = useState("");
   const [lastOperationId, setLastOperationId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("all");
 
@@ -296,6 +297,7 @@ function PlatformReconciliationPageContent() {
 
   return (
     <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-white">
+      <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">Governance: batch override now performs dry-run preview before execution. Governance v2: note must be at least 8 characters and batch size is capped at 20.</div>
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-[0.3em] text-cyan-400">Investigation Workspace</div>

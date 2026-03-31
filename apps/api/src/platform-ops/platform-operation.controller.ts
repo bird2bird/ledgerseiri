@@ -11,21 +11,37 @@ export class PlatformOperationController {
     private readonly reconciliationOperationService: PlatformReconciliationOperationService,
   ) {}
 
+  @Get('analytics')
+  analytics() {
+    return this.service.getAnalytics();
+  }
+
+  @Get('metrics')
+  metrics() {
+    return this.service.getMetrics();
+  }
+
   @Get('list')
   list(
-    @Query('scope') scope?: 'RECONCILIATION',
+    @Query('scope') scope?: string,
+    @Query('status') status?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    const parsedLimit = Number(limit ?? 20);
-    const safeLimit = Number.isFinite(parsedLimit) ? parsedLimit : 20;
-    return this.service.listOperations(scope, safeLimit);
+    return this.service.listOperations({
+      scope,
+      status,
+      q,
+      page: Number(page ?? 1),
+      limit: Number(limit ?? 20),
+    });
   }
 
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.service.getOperation(id);
   }
-
 
   @Post(':id/retry-failed')
   retryFailed(
@@ -37,5 +53,4 @@ export class PlatformOperationController {
   ) {
     return this.reconciliationOperationService.retryFailed(id);
   }
-
 }

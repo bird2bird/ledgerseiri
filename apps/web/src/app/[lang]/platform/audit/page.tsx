@@ -4,37 +4,14 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
+  fetchPlatformAuditOperationLink,
   fetchPlatformReconciliationList,
   getPlatformAccessToken,
   isPlatformUnauthorizedError,
   type PlatformAuditListResponse,
   type PlatformAuditRow,
-  fetchPlatformReconciliationOpsSummary,
 } from "@/core/platform-auth/client";
 import { AuditEventDetailDrawer } from "@/components/platform/AuditEventDetailDrawer";
-
-const PAGE_SIZE = 20;
-
-function formatBool(value: boolean) {
-  return value ? "YES" : "NO";
-}
-
-function buildQueryString(params: Record<string, string | number | boolean | null | undefined>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  return sp.toString();
-}
-
-function buildAuditHref(
-  lang: string,
-  params: Record<string, string | number | boolean | null | undefined>
-) {
-  const qs = buildQueryString(params);
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
 
 type ActiveFilter = {
   key: string;
@@ -48,7 +25,31 @@ type AuditGroup = {
 };
 
 function toDateKey(value: string) {
-  return value.slice(0, 10) || "Unknown Date";
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value.slice(0, 10) || value;
+  return d.toISOString().slice(0, 10);
+}
+
+function formatBool(v: boolean) {
+  return v ? "YES" : "NO";
+}
+
+function buildQueryString(params: Record<string, string | number | boolean | null | undefined>) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    sp.set(k, String(v));
+  });
+  return sp.toString();
+}
+
+function buildAuditHref(
+  lang: string,
+  params?: Record<string, string | number | boolean | null | undefined>
+) {
+  const qs = buildQueryString(params || {});
+  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
 }
 
 function AuditPageContent() {
@@ -57,21 +58,6 @@ function AuditPageContent() {
   const searchParams = useSearchParams();
   const lang = params?.lang || "ja";
 
-  const [data, setData] = useState<PlatformAuditListResponse | null>(null);
-  const [opsSummary, setOpsSummary] = useState<{
-    totalAuditRows: number;
-    changedRows: number;
-    adminRows: number;
-    overrideRows: number;
-    failedSignals: number;
-    actionableSignals: number;
-    latestAuditAt: string | null;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [selectedRow, setSelectedRow] = useState<PlatformAuditRow | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
   const q = searchParams.get("q") || "";
   const actionType = searchParams.get("actionType") || "";
   const source = searchParams.get("source") || "";
@@ -79,8 +65,16 @@ function AuditPageContent() {
   const companyId = searchParams.get("companyId") || "";
   const candidateId = searchParams.get("candidateId") || "";
   const persistenceKey = searchParams.get("persistenceKey") || "";
-  const page = Number(searchParams.get("page") || 1) || 1;
-  const limit = Number(searchParams.get("limit") || PAGE_SIZE) || PAGE_SIZE;
+  const operationId = searchParams.get("operationId") || "";
+  const page = Math.max(1, Number(searchParams.get("page") || "1"));
+  const limit = Math.max(1, Number(searchParams.get("limit") || "20"));
+
+  const [data, setData] = useState<PlatformAuditListResponse | null>(null);
+  const [operationLink, setOperationLink] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<PlatformAuditRow | null>(null);
 
   async function reload() {
     const token = getPlatformAccessToken();
@@ -89,7 +83,7 @@ function AuditPageContent() {
       return;
     }
 
-    const [result, ops] = await Promise.all([
+    const [result, opLink] = await Promise.all([
       fetchPlatformReconciliationList(token, {
         page,
         limit,
@@ -101,15 +95,11 @@ function AuditPageContent() {
         candidateId,
         persistenceKey,
       }),
-      fetchPlatformReconciliationOpsSummary(token, {
-        companyId,
-        candidateId,
-        persistenceKey,
-      }),
+      operationId ? fetchPlatformAuditOperationLink(operationId, token) : Promise.resolve(null),
     ]);
 
     setData(result);
-    setOpsSummary(ops);
+    setOperationLink(opLink);
     setError("");
   }
 
@@ -124,7 +114,20 @@ function AuditPageContent() {
         setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setLoading(false));
-  }, [lang, router, q, actionType, source, changed, companyId, candidateId, persistenceKey, page, limit]);
+  }, [
+    lang,
+    router,
+    q,
+    actionType,
+    source,
+    changed,
+    companyId,
+    candidateId,
+    persistenceKey,
+    operationId,
+    page,
+    limit,
+  ]);
 
   const items = data?.items || [];
 
@@ -150,6 +153,7 @@ function AuditPageContent() {
       companyId,
       candidateId,
       persistenceKey,
+      operationId,
       page: 1,
       limit,
       ...patch,
@@ -171,8 +175,9 @@ function AuditPageContent() {
         companyId ? { key: "companyId", label: "Company", value: companyId } : null,
         candidateId ? { key: "candidateId", label: "Candidate", value: candidateId } : null,
         persistenceKey ? { key: "persistenceKey", label: "Persistence", value: persistenceKey } : null,
+        operationId ? { key: "operationId", label: "Operation", value: operationId } : null,
       ].filter(Boolean) as ActiveFilter[],
-    [q, actionType, source, changed, companyId, candidateId, persistenceKey]
+    [q, actionType, source, changed, companyId, candidateId, persistenceKey, operationId]
   );
 
   const pageLabel = useMemo(() => {
@@ -226,11 +231,23 @@ function AuditPageContent() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href={`/${lang}/platform/dashboard`} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">
+            <Link
+              href={`/${lang}/platform/dashboard`}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
               Dashboard
             </Link>
-            <Link href={`/${lang}/platform/reconciliation`} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">
+            <Link
+              href={`/${lang}/platform/reconciliation`}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
               Review Queue
+            </Link>
+            <Link
+              href={`/${lang}/platform/operations`}
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Operations Center
             </Link>
             <button
               type="button"
@@ -247,9 +264,32 @@ function AuditPageContent() {
           </div>
         </div>
 
+        {operationId && operationLink?.found ? (
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+            Operation context: <span className="font-semibold text-slate-100">{operationId}</span> ·
+            Status: <span className="font-semibold text-slate-100">{operationLink.status || "-"}</span> ·
+            Linked audits: <span className="font-semibold text-slate-100">{(operationLink.auditIds || []).length}</span>
+            <Link
+              href={`/${lang}/platform/operations`}
+              className="ml-3 text-cyan-300 hover:text-cyan-200"
+            >
+              Open Operations Center
+            </Link>
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <input value={q} onChange={(e) => updateFilters({ q: e.target.value })} placeholder="Search audit rows" className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none" />
-          <select value={actionType} onChange={(e) => updateFilters({ actionType: e.target.value })} className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none">
+          <input
+            value={q}
+            onChange={(e) => updateFilters({ q: e.target.value })}
+            placeholder="Search audit rows"
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+          <select
+            value={actionType}
+            onChange={(e) => updateFilters({ actionType: e.target.value })}
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          >
             <option value="">All action types</option>
             <option value="submit">submit</option>
             <option value="approve">approve</option>
@@ -265,23 +305,52 @@ function AuditPageContent() {
             <option value="override_approve">override_approve</option>
             <option value="override_reject">override_reject</option>
           </select>
-          <select value={source} onChange={(e) => updateFilters({ source: e.target.value })} className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none">
+          <select
+            value={source}
+            onChange={(e) => updateFilters({ source: e.target.value })}
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          >
             <option value="">All sources</option>
             <option value="api">api</option>
             <option value="web">web</option>
             <option value="system">system</option>
             <option value="admin">admin</option>
           </select>
-          <select value={changed} onChange={(e) => updateFilters({ changed: e.target.value })} className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none">
+          <select
+            value={changed}
+            onChange={(e) => updateFilters({ changed: e.target.value })}
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          >
             <option value="">All changed states</option>
             <option value="true">Changed only</option>
             <option value="false">Unchanged only</option>
           </select>
 
-          <input value={companyId} onChange={(e) => updateFilters({ companyId: e.target.value })} placeholder="Company ID" className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none" />
-          <input value={candidateId} onChange={(e) => updateFilters({ candidateId: e.target.value })} placeholder="Candidate ID" className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none" />
-          <input value={persistenceKey} onChange={(e) => updateFilters({ persistenceKey: e.target.value })} placeholder="Persistence Key" className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none" />
-          <button type="button" onClick={() => router.push(`/${lang}/platform/audit?page=1&limit=${limit}`)} className="rounded-2xl border border-slate-700 px-4 py-3 text-sm text-slate-300 hover:bg-slate-800">Clear Filters</button>
+          <input
+            value={companyId}
+            onChange={(e) => updateFilters({ companyId: e.target.value })}
+            placeholder="Company ID"
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+          <input
+            value={candidateId}
+            onChange={(e) => updateFilters({ candidateId: e.target.value })}
+            placeholder="Candidate ID"
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+          <input
+            value={persistenceKey}
+            onChange={(e) => updateFilters({ persistenceKey: e.target.value })}
+            placeholder="Persistence Key"
+            className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => router.push(`/${lang}/platform/audit?page=1&limit=${limit}`)}
+            className="rounded-2xl border border-slate-700 px-4 py-3 text-sm text-slate-300 hover:bg-slate-800"
+          >
+            Clear Filters
+          </button>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -303,16 +372,41 @@ function AuditPageContent() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={buildAuditHref(lang, { changed: "true", page: 1, limit })} className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15">Changed Only</Link>
-          <Link href={buildAuditHref(lang, { source: "admin", page: 1, limit })} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Admin Source</Link>
-          <Link href={buildAuditHref(lang, { actionType: "override_approve", page: 1, limit })} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Override Approve</Link>
-          <Link href={buildAuditHref(lang, { actionType: "override_reject", page: 1, limit })} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Override Reject</Link>
+          <Link
+            href={buildAuditHref(lang, { changed: "true", page: 1, limit })}
+            className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
+          >
+            Changed Only
+          </Link>
+          <Link
+            href={buildAuditHref(lang, { source: "admin", page: 1, limit })}
+            className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            Admin Source
+          </Link>
+          <Link
+            href={buildAuditHref(lang, { actionType: "override_approve", page: 1, limit })}
+            className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            Override Approve
+          </Link>
+          <Link
+            href={buildAuditHref(lang, { actionType: "override_reject", page: 1, limit })}
+            className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            Override Reject
+          </Link>
         </div>
 
         {activeFilters.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {activeFilters.map((filter) => (
-              <button key={filter.key} type="button" onClick={() => removeFilter(filter.key)} className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15">
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => removeFilter(filter.key)}
+                className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
+              >
                 {filter.label}: {filter.value} ×
               </button>
             ))}
@@ -368,15 +462,50 @@ function AuditPageContent() {
                             setDrawerOpen(true);
                           }}
                         >
-                          <td className="px-4 py-3"><span className="rounded-full bg-slate-800 px-2 py-1 text-xs">{row.actionType}</span></td>
-                          <td className="px-4 py-3"><span className={row.source === "admin" ? "rounded-full bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200" : "rounded-full bg-slate-800 px-2 py-1 text-xs"}>{row.source}</span></td>
-                          <td className="px-4 py-3"><span className={row.changed ? "rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200" : "rounded-full bg-slate-800 px-2 py-1 text-xs"}>{formatBool(row.changed)}</span></td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full bg-slate-800 px-2 py-1 text-xs">{row.actionType}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={
+                                row.source === "admin"
+                                  ? "rounded-full bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200"
+                                  : "rounded-full bg-slate-800 px-2 py-1 text-xs"
+                              }
+                            >
+                              {row.source}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={
+                                row.changed
+                                  ? "rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-200"
+                                  : "rounded-full bg-slate-800 px-2 py-1 text-xs"
+                              }
+                            >
+                              {formatBool(row.changed)}
+                            </span>
+                          </td>
                           <td className="px-4 py-3">{row.companyId}</td>
                           <td className="px-4 py-3">{row.candidateId}</td>
                           <td className="px-4 py-3">{row.persistenceKey || "-"}</td>
                           <td className="px-4 py-3">{row.previousValue || "-"}</td>
                           <td className="px-4 py-3">{row.nextValue || "-"}</td>
-                          <td className="px-4 py-3">{row.createdAt}</td>
+                          <td className="px-4 py-3">
+                            <div>{row.createdAt}</div>
+                            {operationId ? (
+                              <div className="mt-2">
+                                <Link
+                                  href={`/${lang}/platform/operations`}
+                                  className="text-xs text-cyan-300 hover:text-cyan-200"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Open Operation
+                                </Link>
+                              </div>
+                            ) : null}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -390,8 +519,52 @@ function AuditPageContent() {
         <div className="mt-4 flex items-center justify-between gap-4">
           <div className="text-xs text-slate-400">Timeline is grouped by created date for faster operator scanning.</div>
           <div className="flex items-center gap-3">
-            <button type="button" disabled={!data?.hasPrevPage} onClick={() => router.push(`/${lang}/platform/audit?${buildQueryString({ q, actionType, source, changed, companyId, candidateId, persistenceKey, page: Math.max(1, page - 1), limit })}`)} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40">Prev</button>
-            <button type="button" disabled={!data?.hasNextPage} onClick={() => router.push(`/${lang}/platform/audit?${buildQueryString({ q, actionType, source, changed, companyId, candidateId, persistenceKey, page: page + 1, limit })}`)} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40">Next</button>
+            <button
+              type="button"
+              disabled={!data?.hasPrevPage}
+              onClick={() =>
+                router.push(
+                  `/${lang}/platform/audit?${buildQueryString({
+                    q,
+                    actionType,
+                    source,
+                    changed,
+                    companyId,
+                    candidateId,
+                    persistenceKey,
+                    operationId,
+                    page: Math.max(1, page - 1),
+                    limit,
+                  })}`
+                )
+              }
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={!data?.hasNextPage}
+              onClick={() =>
+                router.push(
+                  `/${lang}/platform/audit?${buildQueryString({
+                    q,
+                    actionType,
+                    source,
+                    changed,
+                    companyId,
+                    candidateId,
+                    persistenceKey,
+                    operationId,
+                    page: page + 1,
+                    limit,
+                  })}`
+                )
+              }
+              className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

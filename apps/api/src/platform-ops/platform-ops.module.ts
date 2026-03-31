@@ -29,7 +29,11 @@ import { PlatformReconciliationOverrideService } from './platform-reconciliation
 import { PlatformReconciliationOpsService } from './platform-reconciliation-ops.service';
 import { PlatformReconciliationOpsController } from './platform-reconciliation-ops.controller';
 import { PlatformReconciliationBatchService } from './platform-reconciliation-batch.service';
+import { PlatformExecutiveSummaryService } from './platform-executive-summary.service';
+import { PlatformUserInsightsService } from './platform-user-insights.service';
 import { PlatformReconciliationBatchController } from './platform-reconciliation-batch.controller';
+import { PlatformExecutiveSummaryController } from './platform-executive-summary.controller';
+import { PlatformUserInsightsController } from './platform-user-insights.controller';
 import { PlatformReconciliationOperationController } from './platform-reconciliation-operation.controller';
 import { PlatformReconciliationOperationService } from './platform-reconciliation-operation.service';
 import { PlatformOperationController } from './platform-operation.controller';
@@ -56,6 +60,8 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformReconciliationOverrideController,
     PlatformReconciliationOpsController,
     PlatformReconciliationBatchController,
+    PlatformExecutiveSummaryController,
+    PlatformUserInsightsController,
     PlatformOperationController,
     PlatformReconciliationOperationController,
   ],
@@ -73,6 +79,8 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformReconciliationOverrideService,
     PlatformReconciliationOpsService,
     PlatformReconciliationBatchService,
+    PlatformExecutiveSummaryService,
+    PlatformUserInsightsService,
     PlatformOperationService,
     PlatformReconciliationOperationService,
     PlatformAdminGuard,

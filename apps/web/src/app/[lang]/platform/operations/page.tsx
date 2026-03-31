@@ -4,7 +4,10 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  fetchPlatformAuditOperationLink,
   fetchPlatformOperationById,
+  fetchPlatformOperationsAnalytics,
+  fetchPlatformOperationsMetrics,
   fetchPlatformOperationsList,
   fetchPlatformReconciliationOpsSummary,
   getPlatformAccessToken,
@@ -95,11 +98,43 @@ function buildReconciliationHref(
   return `/${lang}/platform/reconciliation${qs ? `?${qs}` : ""}`;
 }
 
+function buildUsersHref(
+  lang: string,
+  params?: Record<string, string | number | boolean | null | undefined>
+) {
+  const sp = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === "") return;
+    sp.set(k, String(v));
+  });
+  const qs = sp.toString();
+  return `/${lang}/platform/users${qs ? `?${qs}` : ""}`;
+}
+
 function OperationsCenterContent() {
   const router = useRouter();
   const params = useParams<{ lang: string }>();
   const lang = params?.lang || "ja";
 
+  const [analytics, setAnalytics] = useState<{
+    failureTrend: Array<{ id: string; requestedAt: string; scope: string; failedCount: number; successCount: number; status: string }>;
+    scopeByStatus: Array<{ scope: string; status: string; count: number }>;
+    retryPerformanceByScope: Array<{ scope: string; total: number; retryCapable: number; successful: number; successRate: number }>;
+    topFailureCodes: Array<{ code: string; count: number }>;
+    recentFailingTargets: Array<{ targetId: string; count: number; scope: string; lastFailureCode: string | null }>;
+    noisyCompanies: Array<{ companyId: string; count: number }>;
+    noisyCandidates: Array<{ candidateId: string; count: number }>;
+  } | null>(null);
+  const [metrics, setMetrics] = useState<{
+    total: number;
+    running: number;
+    completed: number;
+    partialFailed: number;
+    failed: number;
+    retryCapable: number;
+    byScope: Array<{ scope: string; count: number }>;
+    topFailureCodes: Array<{ code: string; count: number }>;
+  } | null>(null);
   const [opsSummary, setOpsSummary] = useState<{
     totalAuditRows: number;
     changedRows: number;
@@ -112,7 +147,9 @@ function OperationsCenterContent() {
 
   const [operations, setOperations] = useState<OperationSummary[]>([]);
   const [selectedOperationId, setSelectedOperationId] = useState<string | null>(null);
+  const [initialSelectedOperationId, setInitialSelectedOperationId] = useState<string | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<OperationDetail | null>(null);
+  const [operationAuditLink, setOperationAuditLink] = useState<{ auditIds: string[] } | null>(null);
 
   const [scopeFilter, setScopeFilter] = useState<"all" | "RECONCILIATION" | "PLATFORM_TENANT" | "PLATFORM_USER">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "PARTIAL_FAILED" | "FAILED" | "RUNNING">("all");
@@ -149,6 +186,17 @@ function OperationsCenterContent() {
     return Array.from(map.entries()).map(([code, count]) => ({ code, count }));
   }, [selectedOperation]);
 
+  function syncSelectedOperationQuery(id?: string | null) {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (id) {
+      url.searchParams.set("selected", id);
+    } else {
+      url.searchParams.delete("selected");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }
+
   async function reload(keepSelection = true) {
     const token = getPlatformAccessToken();
     if (!token) {
@@ -156,8 +204,10 @@ function OperationsCenterContent() {
       return;
     }
 
-    const [ops, list] = await Promise.all([
+    const [ops, metricsData, analyticsData, list] = await Promise.all([
       fetchPlatformReconciliationOpsSummary(token),
+      fetchPlatformOperationsMetrics(token),
+      fetchPlatformOperationsAnalytics(token),
       fetchPlatformOperationsList(token, {
         ...(scopeFilter === "all" ? {} : { scope: scopeFilter }),
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
@@ -168,6 +218,8 @@ function OperationsCenterContent() {
     ]);
 
     setOpsSummary(ops);
+    setMetrics(metricsData);
+    setAnalytics(analyticsData);
     setOperations(list.items || []);
     setPageMeta({
       total: list.total ?? 0,
@@ -176,18 +228,28 @@ function OperationsCenterContent() {
       hasPrevPage: !!list.hasPrevPage,
     });
 
+    const urlSelectedId =
+      initialSelectedOperationId && (list.items || []).some((x) => x.id === initialSelectedOperationId)
+        ? initialSelectedOperationId
+        : null;
+
     const nextId =
       keepSelection && selectedOperationId && (list.items || []).some((x) => x.id === selectedOperationId)
         ? selectedOperationId
-        : list.items?.[0]?.id || null;
+        : urlSelectedId || list.items?.[0]?.id || null;
 
     setSelectedOperationId(nextId);
+    syncSelectedOperationQuery(nextId);
 
     if (nextId) {
       setDetailLoading(true);
       try {
-        const detail = await fetchPlatformOperationById(nextId, token);
+        const [detail, auditLink] = await Promise.all([
+          fetchPlatformOperationById(nextId, token),
+          fetchPlatformAuditOperationLink(nextId, token),
+        ]);
         setSelectedOperation(detail as OperationDetail);
+        setOperationAuditLink({ auditIds: auditLink.auditIds || [] });
       } finally {
         setDetailLoading(false);
       }
@@ -206,10 +268,15 @@ function OperationsCenterContent() {
     }
 
     setSelectedOperationId(id);
+    syncSelectedOperationQuery(id);
     setDetailLoading(true);
     try {
-      const detail = await fetchPlatformOperationById(id, token);
+      const [detail, auditLink] = await Promise.all([
+        fetchPlatformOperationById(id, token),
+        fetchPlatformAuditOperationLink(id, token),
+      ]);
       setSelectedOperation(detail as OperationDetail);
+      setOperationAuditLink({ auditIds: auditLink.auditIds || [] });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -228,6 +295,7 @@ function OperationsCenterContent() {
     try {
       const result = await retryFailedPlatformOperation(id, token, "operations_center");
       setSelectedOperationId(result.operation.id);
+      syncSelectedOperationQuery(result.operation.id);
       const detail = await fetchPlatformOperationById(result.operation.id, token);
       setSelectedOperation(detail as OperationDetail);
       await reload(false);
@@ -237,6 +305,16 @@ function OperationsCenterContent() {
       setRetryingOperationId(null);
     }
   }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const qp = new URLSearchParams(window.location.search);
+    const selected = qp.get("selected");
+    if (selected) {
+      setInitialSelectedOperationId(selected);
+      setSelectedOperationId((prev) => prev ?? selected);
+    }
+  }, []);
 
   useEffect(() => {
     reload()
@@ -284,11 +362,155 @@ function OperationsCenterContent() {
             Investigation Timeline
           </Link>
         </div>
-      </div>
+      </div>        {selectedOperation ? (
+          <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+            Requested By: <span className="font-semibold text-slate-100">{(selectedOperation as any).requestedByAdminEmail || (selectedOperation as any).requestedByAdminId || "-"}</span> ·
+            Governance Note: <span className="font-semibold text-slate-100">{(selectedOperation as any).note || "-"}</span>
+          </div>
+        ) : null}
+
+        {selectedOperation ? (
+          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/40 px-4 py-3 text-xs text-slate-300">
+            Governance Flags:
+            <span className="ml-2 font-semibold text-slate-100">reasonValidated</span> /
+            <span className="ml-2 font-semibold text-slate-100">thresholdReviewed</span> /
+            <span className="ml-2 font-semibold text-slate-100">protectedScopeChecked</span>
+          </div>
+        ) : null}
+
+
 
       {error ? (
         <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
           {error}
+        </div>
+      ) : null}
+
+      {analytics ? (
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
+          <div className="text-sm font-semibold">Failure Intelligence</div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Retry Performance By Scope</div>
+              <div className="mt-3 space-y-2">
+                {(analytics.retryPerformanceByScope || []).map((row) => (
+                  <div key={row.scope} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm">
+                    <div>{row.scope}</div>
+                    <div className="text-slate-400">
+                      success {row.successRate}% · retry {row.retryCapable}/{row.total}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Recent Failing Targets</div>
+              <div className="mt-3 space-y-2">
+                {(analytics.recentFailingTargets || []).length === 0 ? (
+                  <div className="text-sm text-slate-400">No recent failing targets.</div>
+                ) : (
+                  analytics.recentFailingTargets.map((row) => (
+                    <div key={`${row.scope}-${row.targetId}`} className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm">
+                      <div className="font-medium">{row.targetId}</div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {row.scope} · failures {row.count} · code {row.lastFailureCode || "-"}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Noisy Companies</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(analytics.noisyCompanies || []).length === 0 ? (
+                  <div className="text-sm text-slate-400">No company hotspots.</div>
+                ) : (
+                  analytics.noisyCompanies.map((row) => (
+                    <div key={row.companyId} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+                      {row.companyId} · {row.count}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Noisy Candidates</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(analytics.noisyCandidates || []).length === 0 ? (
+                  <div className="text-sm text-slate-400">No candidate hotspots.</div>
+                ) : (
+                  analytics.noisyCandidates.map((row) => (
+                    <div key={row.candidateId} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+                      {row.candidateId} · {row.count}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {metrics ? (
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
+          <div className="text-sm font-semibold">Operations Metrics</div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Total</div>
+              <div className="mt-2 text-2xl font-semibold">{metrics.total}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Running</div>
+              <div className="mt-2 text-2xl font-semibold">{metrics.running}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Failed</div>
+              <div className="mt-2 text-2xl font-semibold">{metrics.failed}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Partial Failed</div>
+              <div className="mt-2 text-2xl font-semibold">{metrics.partialFailed}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Retry Capable</div>
+              <div className="mt-2 text-2xl font-semibold">{metrics.retryCapable}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">By Scope</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(metrics.byScope || []).map((row) => (
+                  <div key={row.scope} className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+                    {row.scope} · {row.count}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Top Failure Codes</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(metrics.topFailureCodes || []).length === 0 ? (
+                  <div className="text-sm text-slate-400">No recent failure codes.</div>
+                ) : (
+                  metrics.topFailureCodes.map((row) => (
+                    <div key={row.code} className="rounded-full border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 text-xs text-rose-200">
+                      {row.code} · {row.count}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -487,10 +709,21 @@ function OperationsCenterContent() {
                   </Link>
                 ) : selectedOperation.scope === "PLATFORM_USER" ? (
                   <Link
-                    href={`/${lang}/platform/users`}
+                    href={buildUsersHref(lang, {
+                      selected: selectedOperation.candidateId || "",
+                    })}
                     className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                   >
                     Open Users
+                  </Link>
+                ) : null}
+
+                {selectedOperation.scope === "RECONCILIATION" ? (
+                  <Link
+                    href={`/${lang}/platform/audit?operationId=${encodeURIComponent(selectedOperation.id)}&page=1&limit=20`}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    Open Matching Audit Rows
                   </Link>
                 ) : null}
 
@@ -581,7 +814,7 @@ function OperationsCenterContent() {
 
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Link
-                            href={buildAuditHref(lang, {
+                            href={item.auditId ? `/${lang}/platform/audit?operationId=${encodeURIComponent(selectedOperation.id)}&page=1&limit=20` : buildAuditHref(lang, {
                               companyId: item.companyId || "",
                               candidateId: item.candidateId || "",
                               persistenceKey: item.persistenceKey || "",
@@ -590,7 +823,7 @@ function OperationsCenterContent() {
                             })}
                             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                           >
-                            Open Audit
+                            {item.auditId ? "Open This Audit" : "Open Audit"}
                           </Link>
                           {selectedOperation.scope === "RECONCILIATION" ? (
                             <Link
@@ -608,7 +841,9 @@ function OperationsCenterContent() {
                             </Link>
                           ) : selectedOperation.scope === "PLATFORM_USER" ? (
                             <Link
-                              href={`/${lang}/platform/users`}
+                              href={buildUsersHref(lang, {
+                                selected: item.candidateId || selectedOperation.candidateId || "",
+                              })}
                               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                             >
                               Open Users
