@@ -839,6 +839,8 @@ export type PlatformUserInsightRow = {
   email: string;
   companyId: string | null;
   joinedAt: string;
+  lastLoginAt?: string | null;
+  lastLoginIp?: string | null;
   planCode: "free" | "starter" | "standard" | "premium";
   planStatus: string;
   billingStatus: string;

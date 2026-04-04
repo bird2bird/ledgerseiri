@@ -161,18 +161,23 @@ export class PlatformUserInsightsService {
         email: true,
         companyId: true,
         createdAt: true,
+        lastLoginAt: true,
+        lastLoginIp: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    const companyIds = Array.from(new Set(users.map((u) => u.companyId).filter(Boolean) as string[]));
+    const companyIds = Array.from(
+      new Set(users.map((u) => u.companyId).filter(Boolean) as string[]),
+    );
     const { latestMap } = await this.getSubscriptionHistoryMap(companyIds);
 
     const rows = users.map((user) => {
       const sub = user.companyId ? latestMap.get(user.companyId) : null;
-      const planCode = sub && ACTIVE_SUBSCRIPTION_STATUSES.has((sub.status || '').toLowerCase())
-        ? this.normalizePlan(sub.planCode)
-        : 'free';
+      const planCode =
+        sub && ACTIVE_SUBSCRIPTION_STATUSES.has((sub.status || '').toLowerCase())
+          ? this.normalizePlan(sub.planCode)
+          : 'free';
 
       const planStatus = sub?.status || 'free';
       const estimatedMonthlyRevenue = PLAN_PRICE_MAP[planCode];
@@ -182,12 +187,14 @@ export class PlatformUserInsightsService {
         id: user.id,
         email: user.email,
         companyId: user.companyId,
-        joinedAt: user.createdAt,
+        joinedAt: user.createdAt.toISOString(),
+        lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
+        lastLoginIp: user.lastLoginIp || null,
         planCode,
         planStatus,
         billingStatus: planStatus,
         estimatedMonthlyRevenue,
-        subscriptionUpdatedAt: sub?.updatedAt || null,
+        subscriptionUpdatedAt: sub?.updatedAt ? sub.updatedAt.toISOString() : null,
         billingRiskLevel,
       };
     });
@@ -199,7 +206,9 @@ export class PlatformUserInsightsService {
         assignedUsers: rows.filter((x) => !!x.companyId).length,
         unassignedUsers: rows.filter((x) => !x.companyId).length,
         paidUsers: rows.filter((x) => x.planCode !== 'free').length,
-        billingRiskUsers: rows.filter((x) => x.billingRiskLevel === 'high' || x.billingRiskLevel === 'medium').length,
+        billingRiskUsers: rows.filter(
+          (x) => x.billingRiskLevel === 'high' || x.billingRiskLevel === 'medium',
+        ).length,
       },
     };
   }
