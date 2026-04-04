@@ -715,6 +715,108 @@ export type PlatformExecutiveSummaryResponse = {
     observeQueueCount: number;
     totalAtRiskPreview: number;
   };
+  mrrDecomposition?: {
+    totalMrr: number;
+    activeMrr: number;
+    pastDueMrr: number;
+    canceledMrr: number;
+    atRiskMrr: number;
+    trialingPipelineMrr: number;
+    freeMrr: number;
+    byStatus: {
+      active: number;
+      trialing: number;
+      pastDue: number;
+      canceled: number;
+      free: number;
+    };
+    byPlan: Array<{
+      planCode: "free" | "starter" | "standard" | "premium";
+      currentMrr: number;
+      atRiskMrr: number;
+      trialingPipelineMrr: number;
+      currentSharePct: number;
+    }>;
+  };
+  planMovementInsights?: {
+    upgradesThisMonth: number;
+    downgradesThisMonth: number;
+    activationsThisMonth: number;
+    cancellationsThisMonth: number;
+    trialingStartsThisMonth: number;
+    byPlan: Array<{
+      planCode: "free" | "starter" | "standard" | "premium";
+      entered: number;
+      exited: number;
+      net: number;
+    }>;
+  };
+  lifecycleFunnel?: {
+    current: {
+      trialingNow: number;
+      activeNow: number;
+      pastDueNow: number;
+      canceledNow: number;
+    };
+    movements: {
+      trialStartsThisMonth: number;
+      trialToActiveThisMonth: number;
+      trialToCanceledThisMonth: number;
+      pastDueToActiveThisMonth: number;
+      activeToCanceledThisMonth: number;
+      recoveryAttemptsThisMonth: number;
+    };
+    rates: {
+      trialConversionRatePct: number;
+      recoverySuccessRatePct: number;
+    };
+  };
+  riskRevenueTrend?: Array<{
+    month: string;
+    atRiskMrr: number;
+    recoveredMrr: number;
+    canceledMrr: number;
+  }>;
+  churnRecoveryTrend?: Array<{
+    month: string;
+    cancellations: number;
+    recoveries: number;
+    trialConversions: number;
+  }>;
+  cohortRetentionInsights?: {
+    cohorts: Array<{
+      cohortMonth: string;
+      newUsers: number;
+      retainedPaidUsers: number;
+      churnedUsers: number;
+      currentMrr: number;
+    }>;
+    summary: {
+      retainedPaidCompanies: number;
+      churnedPaidCompanies: number;
+      expansionMrr: number;
+      contractionMrr: number;
+    };
+  };
+  forecastInsights?: {
+    projectedNextMonthMrr: number;
+    baseline: {
+      avgAtRiskMrr: number;
+      avgRecoveredMrr: number;
+      avgCanceledMrr: number;
+      avgRecoveries: number;
+      avgCancellations: number;
+      avgTrialConversions: number;
+    };
+    anomalyFlags: {
+      riskSpike: boolean;
+      recoveryDrop: boolean;
+      cancellationSpike: boolean;
+      trialConversionDrop: boolean;
+    };
+    alertLevel: "healthy" | "medium" | "high" | string;
+    summary: string;
+  };
 };
 
 export async function fetchPlatformExecutiveSummary(token: string) {
@@ -751,6 +853,8 @@ export type PlatformUserInsightDetail = {
     email: string;
     companyId: string | null;
     joinedAt: string;
+    lastLoginAt?: string | null;
+    lastLoginIp?: string | null;
   };
   subscription: {
     planCode: "free" | "starter" | "standard" | "premium";
@@ -794,6 +898,13 @@ export type PlatformUserInsightDetail = {
     nextValue: string | null;
     createdAt: string;
     persistenceKey: string | null;
+  }>;
+  loginHistory: Array<{
+    loggedInAt: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+    loginMethod: string;
+    success: boolean;
   }>;
 };
 

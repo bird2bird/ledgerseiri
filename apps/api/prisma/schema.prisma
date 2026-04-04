@@ -14,9 +14,12 @@ model User {
   companyId           String?
   company             Company?             @relation(fields: [companyId], references: [id])
   createdAt           DateTime             @default(now())
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
   // Refresh token sessions (opposite side of RefreshSession.user)
   refreshSessions     RefreshSession[]
   passwordResetTokens PasswordResetToken[]
+  loginEvents         UserLoginEvent[]
 }
 
 model Company {
@@ -399,6 +402,22 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model UserLoginEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  loggedInAt    DateTime @default(now())
+  ipAddress     String?
+  userAgent     String?
+  loginMethod   String   @default("password")
+  success       Boolean  @default(true)
+  failureReason String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedInAt])
+  @@index([loggedInAt])
 }
 
 enum PlanCode {

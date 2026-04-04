@@ -11,18 +11,10 @@ import {
   isPlatformUnauthorizedError,
 } from "@/core/platform-auth/client";
 import { TenantDetailDrawer } from "@/components/platform/TenantDetailDrawer";
-
-type TenantRow = {
-  id: string;
-  name: string;
-  companyStatus: string;
-  createdAt: string;
-  userCount: number;
-  storeCount: number;
-  subscriptionPlan: string | null;
-  subscriptionStatus: string | null;
-  currentPeriodEnd: string | null;
-};
+import { PlatformTenantWorkspaceShell } from "@/components/platform/PlatformTenantWorkspaceShell";
+import { PlatformTenantIntelligencePanel } from "@/components/platform/PlatformTenantIntelligencePanel";
+import { PlatformTenantActionWorkspace } from "@/components/platform/PlatformTenantActionWorkspace";
+import type { TenantRow } from "@/components/platform/tenant-types";
 
 export default function PlatformTenantsPage() {
   const router = useRouter();
@@ -41,6 +33,7 @@ export default function PlatformTenantsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
+  const [selectedTenantIdFromUrl, setSelectedTenantIdFromUrl] = useState("");
 
   async function reload() {
     const token = getPlatformAccessToken();
@@ -68,6 +61,12 @@ export default function PlatformTenantsPage() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, [lang, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const selected = new URLSearchParams(window.location.search).get("selected") || "";
+    setSelectedTenantIdFromUrl(selected);
+  }, []);
 
   async function onControl(id: string, action: "suspend" | "activate") {
       const governanceNote = window.prompt(
@@ -115,6 +114,16 @@ export default function PlatformTenantsPage() {
     }
   }
 
+  const matchedSelectedRow = useMemo(() => {
+    if (!selectedTenantIdFromUrl) return null;
+    return rows.find((row) => row.id === selectedTenantIdFromUrl) || null;
+  }, [rows, selectedTenantIdFromUrl]);
+
+  useEffect(() => {
+    if (!matchedSelectedRow) return;
+    setSelectedRow(matchedSelectedRow);
+  }, [matchedSelectedRow]);
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -135,6 +144,54 @@ export default function PlatformTenantsPage() {
 
   return (
     <>
+      <PlatformTenantWorkspaceShell
+        lang={lang}
+        selectedCompanyId={selectedRow?.id || ""}
+      />
+
+      <PlatformTenantIntelligencePanel
+        lang={lang}
+        selectedCompanyId={selectedRow?.id || ""}
+        selectedTenantName={selectedRow?.name || ""}
+        tenantStatus={selectedRow?.companyStatus || ""}
+        tenantPlan={selectedRow?.subscriptionPlan || ""}
+        riskSignal={selectedRow?.subscriptionStatus || ""}
+        auditHref={
+          selectedRow?.id
+            ? `/${lang}/platform/audit?companyId=${encodeURIComponent(selectedRow.id)}&page=1&limit=20`
+            : `/${lang}/platform/audit?page=1&limit=20`
+        }
+        operationsHref={
+          selectedRow?.id
+            ? `/${lang}/platform/operations?companyId=${encodeURIComponent(selectedRow.id)}`
+            : `/${lang}/platform/operations`
+        }
+        usersHref={
+          selectedRow?.id
+            ? `/${lang}/platform/users?companyId=${encodeURIComponent(selectedRow.id)}`
+            : `/${lang}/platform/users`
+        }
+      />
+
+      <PlatformTenantActionWorkspace
+        selectedCompanyId={selectedRow?.id || ""}
+        selectedTenantName={selectedRow?.name || ""}
+        companyStatus={selectedRow?.companyStatus || ""}
+        subscriptionStatus={selectedRow?.subscriptionStatus || ""}
+        latestTenantOperation={latestTenantOperation}
+        busyId={busyId}
+        notice={notice}
+        error={error}
+        onSuspend={() => {
+          if (!selectedRow?.id) return;
+          onControl(selectedRow.id, "suspend");
+        }}
+        onActivate={() => {
+          if (!selectedRow?.id) return;
+          onControl(selectedRow.id, "activate");
+        }}
+      />
+
       <TenantDetailDrawer
         open={drawerOpen}
         row={selectedRow}

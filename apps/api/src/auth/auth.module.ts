@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { PasswordResetService } from './password-reset.service';
 import { RefreshService } from './refresh.service';
+import { UserLoginAuditService } from './user-login-audit.service';
 import { RefreshController } from './refresh.controller';
 import { RefreshApiController } from './refresh_api.controller';
 import { PasswordResetController } from './password-reset.controller';
@@ -20,8 +21,8 @@ import { JwtStrategy } from './jwt.strategy';
       signOptions: { expiresIn: '7d' },
     }),
   ],
-  providers: [AuthService, PrismaService, JwtStrategy, AuthService, RefreshService],
+  providers: [AuthService, PrismaService, JwtStrategy, AuthService, RefreshService, UserLoginAuditService],
   controllers: [AuthApiController, RefreshController, RefreshApiController],
-  exports: [AuthService],
+  exports: [AuthService, UserLoginAuditService],
 })
 export class AuthModule {}

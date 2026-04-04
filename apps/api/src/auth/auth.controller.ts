@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common
 import { BadRequestException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { UserLoginAuditService } from './user-login-audit.service';
 import { JwtAuthGuard } from './jwt.guard';
 import { RefreshService } from './refresh.service';
 
@@ -35,6 +36,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly refresh: RefreshService,
+    private readonly loginAudit: UserLoginAuditService,
   ) {}
 
   @Post('register')
@@ -55,7 +57,7 @@ export class AuthController {
 
     if (!identifier || typeof identifier !== 'string') {
       throw new BadRequestException('EMAIL_REQUIRED');
-    }
+  }
 
     const userId = await this.auth.validateUser(
       identifier,
@@ -66,10 +68,12 @@ export class AuthController {
     const refreshToken = this.refresh.createRefreshToken(userId, jti);
     const accessToken = this.refresh.createAccessToken(userId);
 
-    setRefreshCookie(req, res, refreshToken);
-    setAccessCookie(req, res, accessToken);
+      setRefreshCookie(req, res, refreshToken);
+      setAccessCookie(req, res, accessToken);
 
-    return res.status(201).json({ accessToken });
+      await this.loginAudit.recordSuccessfulLoginByEmail(identifier, req);
+
+      return res.status(201).json({ accessToken });
   }
 
   @UseGuards(JwtAuthGuard)

@@ -13,6 +13,11 @@ import {
   type PlatformUserInsightRow,
 } from "@/core/platform-auth/client";
 import { PlatformLanguageSwitch } from "@/components/platform/PlatformLanguageSwitch";
+import {
+  buildPlatformAuditHref,
+  buildPlatformOperationsHref,
+  buildPlatformReconciliationHref,
+} from "@/core/platform/drilldown";
 
 function formatMoney(v?: number | null) {
   return `¥${Number(v || 0).toLocaleString("ja-JP")}`;
@@ -93,44 +98,8 @@ function getPriorityChip(level?: string) {
   }
 }
 
-function buildPlatformAuditHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
 
-function buildPlatformReconciliationHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/reconciliation${qs ? `?${qs}` : ""}`;
-}
 
-function buildPlatformOperationsHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/operations${qs ? `?${qs}` : ""}`;
-}
 
 function getLabels(lang: string) {
   if (lang === "zh-CN") {
@@ -161,6 +130,12 @@ function getLabels(lang: string) {
       billingIntel: "付款智能",
       billingTimeline: "付款时间线",
       paymentSignals: "付款事件摘要",
+      loginActivity: "登录活动",
+      lastLoginAt: "最近登录时间",
+      lastLoginIp: "最近登录IP",
+      loginIp: "登录IP",
+      loginMethod: "登录方式",
+      userAgent: "User-Agent",
       operations: "最近操作",
       audits: "最近审计",
       requestedBy: "操作者",
@@ -220,6 +195,12 @@ function getLabels(lang: string) {
     billingIntel: "Billing Intelligence",
     billingTimeline: "Billing Timeline",
     paymentSignals: "Payment Event Summary",
+    loginActivity: "Login Activity",
+    lastLoginAt: "Last Login At",
+    lastLoginIp: "Last Login IP",
+    loginIp: "Login IP",
+    loginMethod: "Login Method",
+    userAgent: "User-Agent",
     operations: "Recent Operations",
     audits: "Recent Audits",
     requestedBy: "Requested By",
@@ -489,29 +470,46 @@ export default function PlatformUsersPage() {
   const billingTimeline = (detail as any)?.billingTimeline || [];
   const paymentSignals = (detail as any)?.paymentEventSummary || null;
 
-  const userAuditHref = buildPlatformAuditHref(lang, {
-    candidateId: detail?.profile?.id || "",
-    companyId: detail?.profile?.companyId || "",
-    page: 1,
-    limit: 20,
-  });
-
-  const userChangedAuditHref = buildPlatformAuditHref(lang, {
-    candidateId: detail?.profile?.id || "",
-    companyId: detail?.profile?.companyId || "",
-    changed: true,
-    page: 1,
-    limit: 20,
-  });
-
-  const userReviewQueueHref = buildPlatformReconciliationHref(lang, {
-    candidateId: detail?.profile?.id || "",
-    companyId: detail?.profile?.companyId || "",
-  });
-
-  const operationsCenterHref = buildPlatformOperationsHref(lang, {});
   const latestOperation = detail?.recentOperations?.[0] || null;
   const latestAudit = detail?.recentAudits?.[0] || null;
+
+  const userAuditHref = buildPlatformAuditHref(lang, {
+      from: "users_detail",
+      selected: detail?.profile?.id || "",
+      operationId: latestOperation?.id || "",
+      candidateId: detail?.profile?.id || "",
+      companyId: detail?.profile?.companyId || "",
+      page: 1,
+      limit: 20,
+    });
+
+  const userChangedAuditHref = buildPlatformAuditHref(lang, {
+      from: "users_detail",
+      selected: detail?.profile?.id || "",
+      operationId: latestOperation?.id || "",
+      candidateId: detail?.profile?.id || "",
+      companyId: detail?.profile?.companyId || "",
+      changed: true,
+      page: 1,
+      limit: 20,
+    });
+
+  const userReviewQueueHref = buildPlatformReconciliationHref(lang, {
+      from: "users_detail",
+      selected: detail?.profile?.id || "",
+      operationId: latestOperation?.id || "",
+      candidateId: detail?.profile?.id || "",
+      companyId: detail?.profile?.companyId || "",
+      persistenceKey: latestAudit?.persistenceKey || "",
+    });
+
+  const operationsCenterHref = buildPlatformOperationsHref(lang, {
+      from: "users_detail",
+      selected: latestOperation?.id || detail?.profile?.id || "",
+      operationId: latestOperation?.id || "",
+      companyId: detail?.profile?.companyId || "",
+      candidateId: detail?.profile?.id || "",
+    });
 
   return (
     <div className="rounded-3xl border border-slate-800 bg-slate-900 p-6 text-slate-100">
@@ -892,6 +890,41 @@ export default function PlatformUsersPage() {
                       </div>
 
                       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                            {t.loginActivity}
+                          </div>
+                          <div className="mt-3 space-y-2 text-sm">
+                            <div>
+                              {t.lastLoginAt}:{" "}
+                              <span className="text-slate-300">
+                                {formatDateTime(detail.profile.lastLoginAt, lang)}
+                              </span>
+                            </div>
+                            <div>
+                              {t.lastLoginIp}:{" "}
+                              <span className="text-slate-300">{detail.profile.lastLoginIp || "-"}</span>
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {(detail.loginHistory || []).length === 0 ? (
+                              <div className="text-sm text-slate-400">No login history.</div>
+                            ) : (
+                              detail.loginHistory.map((row, idx) => (
+                                <div
+                                  key={`${row.loggedInAt}-${idx}`}
+                                  className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm"
+                                >
+                                  <div className="font-medium">{formatDateTime(row.loggedInAt, lang)}</div>
+                                  <div className="mt-1 text-xs text-slate-400">{t.loginIp}: {row.ipAddress || "-"}</div>
+                                  <div className="mt-1 text-xs text-slate-400">{t.loginMethod}: {row.loginMethod || "-"}</div>
+                                  <div className="mt-1 text-xs text-slate-400">{t.userAgent}: {row.userAgent || "-"}</div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
                         <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                           {t.billingTimeline}
                         </div>
@@ -920,7 +953,15 @@ export default function PlatformUsersPage() {
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Link
+                          {detail?.profile?.companyId ? (
+                              <Link
+                                href={`/${lang}/platform/tenants?selected=${encodeURIComponent(detail.profile.companyId)}`}
+                                className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-200 hover:bg-violet-500/15"
+                              >
+                                Open Tenant
+                              </Link>
+                            ) : null}
+                            <Link
                             href={operationsCenterHref}
                             className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                           >
@@ -962,8 +1003,12 @@ export default function PlatformUsersPage() {
                                 <div className="mt-3">
                                   <Link
                                     href={buildPlatformOperationsHref(lang, {
-                                      selected: latestOperation.id,
-                                    })}
+                                        from: "users_detail_latest_operation",
+                                        selected: latestOperation.id,
+                                        operationId: latestOperation.id,
+                                        companyId: detail?.profile?.companyId || "",
+                                        candidateId: detail?.profile?.id || "",
+                                      })}
                                     className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                                   >
                                     {t.openOperationDetail}
@@ -990,22 +1035,28 @@ export default function PlatformUsersPage() {
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <Link
                                     href={buildPlatformAuditHref(lang, {
-                                      candidateId: detail?.profile?.id || "",
-                                      companyId: detail?.profile?.companyId || "",
-                                      persistenceKey: latestAudit.persistenceKey || "",
-                                      page: 1,
-                                      limit: 20,
-                                    })}
+                                        from: "users_detail_latest_audit",
+                                        selected: detail?.profile?.id || "",
+                                        operationId: latestOperation?.id || "",
+                                        candidateId: detail?.profile?.id || "",
+                                        companyId: detail?.profile?.companyId || "",
+                                        persistenceKey: latestAudit.persistenceKey || "",
+                                        page: 1,
+                                        limit: 20,
+                                      })}
                                     className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                                   >
                                     {t.inspectAuditTimeline}
                                   </Link>
                                   <Link
                                     href={buildPlatformReconciliationHref(lang, {
-                                      candidateId: detail?.profile?.id || "",
-                                      companyId: detail?.profile?.companyId || "",
-                                      persistenceKey: latestAudit.persistenceKey || "",
-                                    })}
+                                        from: "users_detail_latest_audit",
+                                        selected: detail?.profile?.id || "",
+                                        operationId: latestOperation?.id || "",
+                                        candidateId: detail?.profile?.id || "",
+                                        companyId: detail?.profile?.companyId || "",
+                                        persistenceKey: latestAudit.persistenceKey || "",
+                                      })}
                                     className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
                                   >
                                     {t.openReviewQueue}
@@ -1044,8 +1095,12 @@ export default function PlatformUsersPage() {
                                 <div className="mt-3">
                                   <Link
                                     href={buildPlatformOperationsHref(lang, {
-                                      selected: row.id,
-                                    })}
+                                        from: "users_recent_operations",
+                                        selected: row.id,
+                                        operationId: row.id,
+                                        companyId: detail?.profile?.companyId || "",
+                                        candidateId: detail?.profile?.id || "",
+                                      })}
                                     className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                                   >
                                     {t.openOperationDetail}
@@ -1082,22 +1137,28 @@ export default function PlatformUsersPage() {
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <Link
                                     href={buildPlatformAuditHref(lang, {
-                                      candidateId: detail?.profile?.id || "",
-                                      companyId: detail?.profile?.companyId || "",
-                                      persistenceKey: row.persistenceKey || "",
-                                      page: 1,
-                                      limit: 20,
-                                    })}
+                                        from: "users_recent_audits",
+                                        selected: detail?.profile?.id || "",
+                                        operationId: latestOperation?.id || "",
+                                        candidateId: detail?.profile?.id || "",
+                                        companyId: detail?.profile?.companyId || "",
+                                        persistenceKey: row.persistenceKey || "",
+                                        page: 1,
+                                        limit: 20,
+                                      })}
                                     className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                                   >
                                     {t.inspectAuditTimeline}
                                   </Link>
                                   <Link
                                     href={buildPlatformReconciliationHref(lang, {
-                                      candidateId: detail?.profile?.id || "",
-                                      companyId: detail?.profile?.companyId || "",
-                                      persistenceKey: row.persistenceKey || "",
-                                    })}
+                                        from: "users_recent_audits",
+                                        selected: detail?.profile?.id || "",
+                                        operationId: latestOperation?.id || "",
+                                        candidateId: detail?.profile?.id || "",
+                                        companyId: detail?.profile?.companyId || "",
+                                        persistenceKey: row.persistenceKey || "",
+                                      })}
                                     className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
                                   >
                                     {t.openReviewQueue}

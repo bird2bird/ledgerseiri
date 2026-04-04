@@ -1,6 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import {
+  buildPlatformAuditHref,
+  buildPlatformQueryString,
+  buildPlatformReconciliationHref,
+  buildPlatformSourceBackLink,
+} from "@/core/platform/drilldown";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -44,14 +50,6 @@ function buildQueryString(params: Record<string, string | number | boolean | nul
   return sp.toString();
 }
 
-function buildAuditHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>
-) {
-  const qs = buildQueryString(params || {});
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
-
 function AuditPageContent() {
   const router = useRouter();
   const params = useParams<{ lang: string }>();
@@ -61,6 +59,8 @@ function AuditPageContent() {
   const q = searchParams.get("q") || "";
   const actionType = searchParams.get("actionType") || "";
   const source = searchParams.get("source") || "";
+  const from = searchParams.get("from") || "";
+  const selected = searchParams.get("selected") || "";
   const changed = searchParams.get("changed") || "";
   const companyId = searchParams.get("companyId") || "";
   const candidateId = searchParams.get("candidateId") || "";
@@ -145,7 +145,7 @@ function AuditPageContent() {
   }, [items, selectedRow]);
 
   const updateFilters = (patch: Record<string, string | number | boolean | null | undefined>) => {
-    const qs = buildQueryString({
+    const qs = buildPlatformQueryString({
       q,
       actionType,
       source,
@@ -172,13 +172,51 @@ function AuditPageContent() {
         actionType ? { key: "actionType", label: "Action", value: actionType } : null,
         source ? { key: "source", label: "Source", value: source } : null,
         changed ? { key: "changed", label: "Changed", value: changed } : null,
+        from ? { key: "from", label: "From", value: from } : null,
+        selected ? { key: "selected", label: "Selected", value: selected } : null,
         companyId ? { key: "companyId", label: "Company", value: companyId } : null,
         candidateId ? { key: "candidateId", label: "Candidate", value: candidateId } : null,
         persistenceKey ? { key: "persistenceKey", label: "Persistence", value: persistenceKey } : null,
         operationId ? { key: "operationId", label: "Operation", value: operationId } : null,
       ].filter(Boolean) as ActiveFilter[],
-    [q, actionType, source, changed, companyId, candidateId, persistenceKey, operationId]
+    [q, actionType, source, from, selected, changed, companyId, candidateId, persistenceKey, operationId]
   );
+
+  const sourceLink = useMemo(
+    () =>
+      buildPlatformSourceBackLink(lang, {
+        from,
+        selected,
+        operationId,
+        companyId,
+        candidateId,
+        persistenceKey,
+      }),
+    [lang, from, selected, operationId, companyId, candidateId, persistenceKey]
+  );
+
+  const isAuditContextMatch = (row: PlatformAuditRow) => {
+    const rowCandidateId = row.candidateId || "";
+    const rowPersistenceKey = row.persistenceKey || "";
+
+    if (operationId && operationLink?.auditIds?.length) {
+      return operationLink.auditIds.includes(row.id);
+    }
+
+    if (selected && rowCandidateId && selected === rowCandidateId) {
+      return true;
+    }
+
+    if (candidateId && rowCandidateId && candidateId === rowCandidateId) {
+      return true;
+    }
+
+    if (persistenceKey && rowPersistenceKey && persistenceKey === rowPersistenceKey) {
+      return true;
+    }
+
+    return false;
+  };
 
   const pageLabel = useMemo(() => {
     if (!data) return "-";
@@ -206,6 +244,11 @@ function AuditPageContent() {
       items: rows,
     }));
   }, [items]);
+
+  const highlightedAuditCount = useMemo(
+    () => groups.reduce((sum, group) => sum + group.items.filter((row) => isAuditContextMatch(row)).length, 0),
+    [groups, operationId, operationLink, selected, candidateId, persistenceKey]
+  );
 
   if (loading) return <div className="text-slate-300">Loading audit...</div>;
 
@@ -263,6 +306,76 @@ function AuditPageContent() {
             </button>
           </div>
         </div>
+
+        {from || selected ? (
+          <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
+            Drill-down context:
+            <span className="ml-2 font-semibold text-slate-100">{from || "-"}</span>
+            {selected ? (
+              <>
+                <span className="mx-2 text-cyan-300">·</span>
+                Selected:
+                <span className="ml-2 font-semibold text-slate-100">{selected}</span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
+        {from || selected ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {sourceLink ? (
+              <Link
+                href={sourceLink.href}
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
+              >
+                {sourceLink.label}
+              </Link>
+            ) : null}
+            {companyId ? (
+                <Link
+                  href={`/${lang}/platform/tenants?selected=${encodeURIComponent(companyId)}`}
+                  className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/15"
+                >
+                  Open Tenant
+                </Link>
+              ) : null}
+              {(candidateId || companyId || persistenceKey) ? (
+              <Link
+                href={buildPlatformReconciliationHref(lang, {
+                  from,
+                  selected,
+                  operationId,
+                  companyId,
+                  candidateId,
+                  persistenceKey,
+                })}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Open Review Queue
+              </Link>
+            ) : null}
+            {operationId ? (
+              <Link
+                href={`/${lang}/platform/operations?selected=${encodeURIComponent(operationId)}`}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Open Operation Detail
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        {(from || selected || operationId || candidateId || persistenceKey) ? (
+          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+            Highlighted rows:
+            <span className="ml-2 font-semibold text-slate-100">{highlightedAuditCount}</span>
+            <span className="mx-2 text-slate-500">·</span>
+            Matching priority:
+            <span className="ml-2 font-semibold text-slate-100">
+              {operationId ? "operation audit links" : persistenceKey ? "persistence key" : candidateId ? "candidate" : selected ? "selected" : "-"}
+            </span>
+          </div>
+        ) : null}
 
         {operationId && operationLink?.found ? (
           <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
@@ -373,25 +486,25 @@ function AuditPageContent() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href={buildAuditHref(lang, { changed: "true", page: 1, limit })}
+            href={buildPlatformAuditHref(lang, { changed: "true", page: 1, limit })}
             className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
           >
             Changed Only
           </Link>
           <Link
-            href={buildAuditHref(lang, { source: "admin", page: 1, limit })}
+            href={buildPlatformAuditHref(lang, { source: "admin", page: 1, limit })}
             className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
           >
             Admin Source
           </Link>
           <Link
-            href={buildAuditHref(lang, { actionType: "override_approve", page: 1, limit })}
+            href={buildPlatformAuditHref(lang, { actionType: "override_approve", page: 1, limit })}
             className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
           >
             Override Approve
           </Link>
           <Link
-            href={buildAuditHref(lang, { actionType: "override_reject", page: 1, limit })}
+            href={buildPlatformAuditHref(lang, { actionType: "override_reject", page: 1, limit })}
             className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
           >
             Override Reject
@@ -456,15 +569,26 @@ function AuditPageContent() {
                       {group.items.map((row: PlatformAuditRow) => (
                         <tr
                           key={row.id}
-                          className="cursor-pointer border-b border-slate-800/70 hover:bg-slate-800/40"
+                          className={
+                              isAuditContextMatch(row)
+                                ? "cursor-pointer border-b border-cyan-500/20 bg-cyan-500/5 hover:bg-cyan-500/10"
+                                : "cursor-pointer border-b border-slate-800/70 hover:bg-slate-800/40"
+                            }
                           onClick={() => {
                             setSelectedRow(row);
                             setDrawerOpen(true);
                           }}
                         >
                           <td className="px-4 py-3">
-                            <span className="rounded-full bg-slate-800 px-2 py-1 text-xs">{row.actionType}</span>
-                          </td>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-slate-800 px-2 py-1 text-xs">{row.actionType}</span>
+                                {isAuditContextMatch(row) ? (
+                                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200">
+                                    Context
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
                           <td className="px-4 py-3">
                             <span
                               className={
@@ -524,7 +648,7 @@ function AuditPageContent() {
               disabled={!data?.hasPrevPage}
               onClick={() =>
                 router.push(
-                  `/${lang}/platform/audit?${buildQueryString({
+                  `/${lang}/platform/audit?${buildPlatformQueryString({
                     q,
                     actionType,
                     source,
@@ -547,7 +671,7 @@ function AuditPageContent() {
               disabled={!data?.hasNextPage}
               onClick={() =>
                 router.push(
-                  `/${lang}/platform/audit?${buildQueryString({
+                  `/${lang}/platform/audit?${buildPlatformQueryString({
                     q,
                     actionType,
                     source,

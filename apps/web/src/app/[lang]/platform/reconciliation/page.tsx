@@ -14,6 +14,10 @@ import {
   retryFailedPlatformOperation,
   type PlatformAuditRow,
 } from "@/core/platform-auth/client";
+import {
+  buildPlatformAuditHref,
+  buildPlatformSourceBackLink,
+} from "@/core/platform/drilldown";
 
 type Row = PlatformAuditRow;
 
@@ -28,18 +32,7 @@ type BatchResult = {
 
 type ViewMode = "all" | "selected" | "changed" | "failed" | "actionable";
 
-function buildAuditHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
+
 
 function PlatformReconciliationPageContent() {
   const router = useRouter();
@@ -69,8 +62,10 @@ function PlatformReconciliationPageContent() {
 
   const [lastBatchDecision, setLastBatchDecision] = useState<"APPROVED" | "REJECTED" | null>(null);
 
-  const companyId = searchParams.get("companyId") || "";
-  const candidateId = searchParams.get("candidateId") || "";
+  const from = searchParams.get("from") || "";
+    const selected = searchParams.get("selected") || "";
+    const companyId = searchParams.get("companyId") || "";
+    const candidateId = searchParams.get("candidateId") || "";
   const persistenceKey = searchParams.get("persistenceKey") || "";
 
   useEffect(() => {
@@ -103,13 +98,56 @@ function PlatformReconciliationPageContent() {
   }, [lang, router, companyId, candidateId, persistenceKey]);
 
   const titleSuffix = useMemo(() => {
-    const parts = [
-      companyId ? `company=${companyId}` : "",
-      candidateId ? `candidate=${candidateId}` : "",
-      persistenceKey ? `persistence=${persistenceKey}` : "",
-    ].filter(Boolean);
-    return parts.length ? ` · ${parts.join(" · ")}` : "";
-  }, [companyId, candidateId, persistenceKey]);
+      const parts = [
+        from ? `from=${from}` : "",
+        selected ? `selected=${selected}` : "",
+        companyId ? `company=${companyId}` : "",
+        candidateId ? `candidate=${candidateId}` : "",
+        persistenceKey ? `persistence=${persistenceKey}` : "",
+      ].filter(Boolean);
+      return parts.length ? ` · ${parts.join(" · ")}` : "";
+    }, [from, selected, companyId, candidateId, persistenceKey]);
+
+  const sourceLink = useMemo(
+    () =>
+      buildPlatformSourceBackLink(lang, {
+        from,
+        selected,
+        operationId: batchResult?.operationId || "",
+        companyId,
+        candidateId,
+        persistenceKey,
+      }),
+    [lang, from, selected, batchResult?.operationId, companyId, candidateId, persistenceKey]
+  );
+
+  const isReconciliationContextMatch = (row: Row) => {
+    const rowCandidateId = row.candidateId || "";
+    const rowPersistenceKey = row.persistenceKey || "";
+
+    if (selected && row.id === selected) {
+      return true;
+    }
+
+    if (selected && rowCandidateId && rowCandidateId === selected) {
+      return true;
+    }
+
+    if (candidateId && rowCandidateId && rowCandidateId === candidateId) {
+      return true;
+    }
+
+    if (persistenceKey && rowPersistenceKey && rowPersistenceKey === persistenceKey) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const contextMatchedRows = useMemo(
+    () => rows.filter((row) => isReconciliationContextMatch(row)),
+    [rows, selected, candidateId, persistenceKey]
+  );
 
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
 
@@ -160,7 +198,7 @@ function PlatformReconciliationPageContent() {
     return "Full review queue for the current investigation scope.";
   }, [viewMode]);
 
-  const failedAuditHref = buildAuditHref(lang, {
+  const failedAuditHref = buildPlatformAuditHref(lang, {
     companyId,
     candidateId,
     persistenceKey,
@@ -220,7 +258,7 @@ function PlatformReconciliationPageContent() {
           decision === "APPROVED" ? "override_approve" : "override_reject";
 
         router.push(
-          buildAuditHref(lang, {
+          buildPlatformAuditHref(lang, {
             companyId,
             candidateId,
             persistenceKey,
@@ -311,8 +349,16 @@ function PlatformReconciliationPageContent() {
           <Link href={`/${lang}/platform/dashboard`} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">
             Dashboard
           </Link>
-          <Link
-            href={buildAuditHref(lang, {
+          {companyId ? (
+              <Link
+                href={`/${lang}/platform/tenants?selected=${encodeURIComponent(companyId)}`}
+                className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/15"
+              >
+                Open Tenant
+              </Link>
+            ) : null}
+            <Link
+            href={buildPlatformAuditHref(lang, {
               companyId,
               candidateId,
               persistenceKey,
@@ -325,6 +371,68 @@ function PlatformReconciliationPageContent() {
           </Link>
         </div>
       </div>
+
+        {from || selected ? (
+          <div className="mb-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
+            Drill-down context:
+            <span className="ml-2 font-semibold text-slate-100">{from || "-"}</span>
+            {selected ? (
+              <>
+                <span className="mx-2 text-cyan-300">·</span>
+                Selected:
+                <span className="ml-2 font-semibold text-slate-100">{selected}</span>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
+        {from || selected ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {sourceLink ? (
+              <Link
+                href={sourceLink.href}
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/15"
+              >
+                {sourceLink.label}
+              </Link>
+            ) : null}
+            <Link
+              href={buildPlatformAuditHref(lang, {
+                from,
+                selected,
+                operationId: batchResult?.operationId || "",
+                companyId,
+                candidateId,
+                persistenceKey,
+                page: 1,
+                limit: 20,
+              })}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Open Audit Timeline
+            </Link>
+            {batchResult?.operationId ? (
+              <Link
+                href={`/${lang}/platform/operations?selected=${encodeURIComponent(batchResult.operationId)}`}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Open Operation Detail
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        {(from || selected || candidateId || persistenceKey) ? (
+          <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
+            Context-matched rows:
+            <span className="ml-2 font-semibold text-slate-100">{contextMatchedRows.length}</span>
+            <span className="mx-2 text-slate-500">·</span>
+            Priority:
+            <span className="ml-2 font-semibold text-slate-100">
+              {persistenceKey ? "persistence key" : candidateId ? "candidate" : selected ? "selected" : "-"}
+            </span>
+          </div>
+        ) : null}
 
         <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-300">
           Current Ops Signal · Total audit rows: <span className="font-semibold text-slate-100">{opsSummary?.totalAuditRows ?? 0}</span> · Failed: <span className="font-semibold text-slate-100">{opsSummary?.failedSignals ?? 0}</span> · Latest audit: <span className="font-semibold text-slate-100">{opsSummary?.latestAuditAt || "-"}</span>
@@ -496,7 +604,14 @@ function PlatformReconciliationPageContent() {
 
         <tbody>
           {visibleRows.map((row) => (
-            <tr key={row.id} className="border-b border-slate-800">
+            <tr
+              key={row.id}
+              className={
+                isReconciliationContextMatch(row)
+                  ? "border-b border-cyan-500/20 bg-cyan-500/5"
+                  : "border-b border-slate-800"
+              }
+            >
               <td className="py-3">
                 <input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} />
               </td>
@@ -509,67 +624,75 @@ function PlatformReconciliationPageContent() {
               <td className="py-3">{row.createdAt}</td>
 
               <td className="py-3">
-                <button
-                  className="mr-2 rounded bg-green-600 px-2 py-1 text-xs disabled:opacity-40"
-                  disabled={busyId === row.id || busyId === "batch"}
-                  onClick={async () => {
-                    try {
-                      setBusyId(row.id);
-                      setNotice("");
-                      setBatchResult(null);
-                      await overridePlatformReconciliationDecision(row.id, "APPROVED", getPlatformAccessToken()!);
-                      setNotice("Override approve success. Redirecting to audit timeline...");
-                      router.push(
-                        buildAuditHref(lang, {
-                          companyId: row.companyId,
-                          candidateId: row.candidateId,
-                          persistenceKey: row.persistenceKey || "",
-                          source: "admin",
-                          actionType: "override_approve",
-                          page: 1,
-                          limit: 20,
-                        })
-                      );
-                    } catch (e) {
-                      setError(String(e));
-                    } finally {
-                      setBusyId(null);
-                    }
-                  }}
-                >
-                  APPROVE
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isReconciliationContextMatch(row) ? (
+                    <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200">
+                      Context
+                    </span>
+                  ) : null}
 
-                <button
-                  className="rounded bg-red-600 px-2 py-1 text-xs disabled:opacity-40"
-                  disabled={busyId === row.id || busyId === "batch"}
-                  onClick={async () => {
-                    try {
-                      setBusyId(row.id);
-                      setNotice("");
-                      setBatchResult(null);
-                      await overridePlatformReconciliationDecision(row.id, "REJECTED", getPlatformAccessToken()!);
-                      setNotice("Override reject success. Redirecting to audit timeline...");
-                      router.push(
-                        buildAuditHref(lang, {
-                          companyId: row.companyId,
-                          candidateId: row.candidateId,
-                          persistenceKey: row.persistenceKey || "",
-                          source: "admin",
-                          actionType: "override_reject",
-                          page: 1,
-                          limit: 20,
-                        })
-                      );
-                    } catch (e) {
-                      setError(String(e));
-                    } finally {
-                      setBusyId(null);
-                    }
-                  }}
-                >
-                  REJECT
-                </button>
+                  <button
+                    className="mr-2 rounded bg-green-600 px-2 py-1 text-xs disabled:opacity-40"
+                    disabled={busyId === row.id || busyId === "batch"}
+                    onClick={async () => {
+                      try {
+                        setBusyId(row.id);
+                        setNotice("");
+                        setBatchResult(null);
+                        await overridePlatformReconciliationDecision(row.id, "APPROVED", getPlatformAccessToken()!);
+                        setNotice("Override approve success. Redirecting to audit timeline...");
+                        router.push(
+                          buildPlatformAuditHref(lang, {
+                            companyId: row.companyId,
+                            candidateId: row.candidateId,
+                            persistenceKey: row.persistenceKey || "",
+                            source: "admin",
+                            actionType: "override_approve",
+                            page: 1,
+                            limit: 20,
+                          })
+                        );
+                      } catch (e) {
+                        setError(String(e));
+                      } finally {
+                        setBusyId(null);
+                      }
+                    }}
+                  >
+                    APPROVE
+                  </button>
+
+                  <button
+                    className="rounded bg-red-600 px-2 py-1 text-xs disabled:opacity-40"
+                    disabled={busyId === row.id || busyId === "batch"}
+                    onClick={async () => {
+                      try {
+                        setBusyId(row.id);
+                        setNotice("");
+                        setBatchResult(null);
+                        await overridePlatformReconciliationDecision(row.id, "REJECTED", getPlatformAccessToken()!);
+                        setNotice("Override reject success. Redirecting to audit timeline...");
+                        router.push(
+                          buildPlatformAuditHref(lang, {
+                            companyId: row.companyId,
+                            candidateId: row.candidateId,
+                            persistenceKey: row.persistenceKey || "",
+                            source: "admin",
+                            actionType: "override_reject",
+                            page: 1,
+                            limit: 20,
+                          })
+                        );
+                      } catch (e) {
+                        setError(String(e));
+                      } finally {
+                        setBusyId(null);
+                      }
+                    }}
+                  >
+                    REJECT
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

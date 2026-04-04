@@ -44,6 +44,722 @@ export class PlatformExecutiveSummaryService {
     return 'healthy';
   }
 
+  private buildMrrDecomposition(args: {
+    latestSubscriptionByCompany: Map<
+      string,
+      {
+        id: string;
+        companyId: string;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }
+    >;
+  }) {
+    const byStatus = {
+      active: 0,
+      trialing: 0,
+      pastDue: 0,
+      canceled: 0,
+      free: 0,
+    };
+
+    const byPlanSeed: Record<PlanCode, {
+      currentMrr: number;
+      atRiskMrr: number;
+      trialingPipelineMrr: number;
+    }> = {
+      free: { currentMrr: 0, atRiskMrr: 0, trialingPipelineMrr: 0 },
+      starter: { currentMrr: 0, atRiskMrr: 0, trialingPipelineMrr: 0 },
+      standard: { currentMrr: 0, atRiskMrr: 0, trialingPipelineMrr: 0 },
+      premium: { currentMrr: 0, atRiskMrr: 0, trialingPipelineMrr: 0 },
+    };
+
+    for (const sub of Array.from(args.latestSubscriptionByCompany.values())) {
+      const planCode = this.normalizePlan(sub.planCode);
+      const status = (sub.status || 'free').toLowerCase();
+      const revenue = PLAN_PRICE_MAP[planCode];
+
+      if (status === 'active') {
+        byStatus.active += revenue;
+        byPlanSeed[planCode].currentMrr += revenue;
+      } else if (status === 'past_due') {
+        byStatus.pastDue += revenue;
+        byPlanSeed[planCode].currentMrr += revenue;
+        byPlanSeed[planCode].atRiskMrr += revenue;
+      } else if (status === 'trialing') {
+        byStatus.trialing += revenue;
+        byPlanSeed[planCode].trialingPipelineMrr += revenue;
+      } else if (status === 'canceled') {
+        byStatus.canceled += revenue;
+        byPlanSeed[planCode].atRiskMrr += revenue;
+      } else {
+        byStatus.free += revenue;
+      }
+    }
+
+    const totalMrr = byStatus.active + byStatus.pastDue;
+    const atRiskMrr = byStatus.pastDue + byStatus.canceled;
+    const trialingPipelineMrr = byStatus.trialing;
+
+    const byPlan = (['free', 'starter', 'standard', 'premium'] as PlanCode[]).map((planCode) => {
+      const row = byPlanSeed[planCode];
+      return {
+        planCode,
+        currentMrr: row.currentMrr,
+        atRiskMrr: row.atRiskMrr,
+        trialingPipelineMrr: row.trialingPipelineMrr,
+        currentSharePct: totalMrr > 0 ? Number(((row.currentMrr / totalMrr) * 100).toFixed(1)) : 0,
+      };
+    });
+
+    return {
+      totalMrr,
+      activeMrr: byStatus.active,
+      pastDueMrr: byStatus.pastDue,
+      canceledMrr: byStatus.canceled,
+      atRiskMrr,
+      trialingPipelineMrr,
+      freeMrr: byStatus.free,
+      byStatus,
+      byPlan,
+    };
+  }
+
+  private buildPlanMovementInsights(args: {
+    subscriptions: Array<{
+      id: string;
+      companyId: string | null;
+      planCode: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    startOfCurrentMonth: Date;
+  }) {
+    const planRank: Record<PlanCode, number> = {
+      free: 0,
+      starter: 1,
+      standard: 2,
+      premium: 3,
+    };
+
+    const groups = new Map<
+      string,
+      Array<{
+        id: string;
+        companyId: string | null;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >();
+
+    for (const sub of args.subscriptions) {
+      if (!sub.companyId) continue;
+      if (!groups.has(sub.companyId)) groups.set(sub.companyId, []);
+      groups.get(sub.companyId)!.push(sub);
+    }
+
+    const byPlanSeed: Record<PlanCode, { entered: number; exited: number; net: number }> = {
+      free: { entered: 0, exited: 0, net: 0 },
+      starter: { entered: 0, exited: 0, net: 0 },
+      standard: { entered: 0, exited: 0, net: 0 },
+      premium: { entered: 0, exited: 0, net: 0 },
+    };
+
+    let upgradesThisMonth = 0;
+    let downgradesThisMonth = 0;
+    let activationsThisMonth = 0;
+    let cancellationsThisMonth = 0;
+    let trialingStartsThisMonth = 0;
+
+    for (const rows of Array.from(groups.values())) {
+      const sorted = [...rows].sort((a, b) => {
+        const bt = new Date(b.updatedAt).getTime();
+        const at = new Date(a.updatedAt).getTime();
+        if (bt !== at) return bt - at;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      const latest = sorted[0];
+      if (!latest || latest.updatedAt < args.startOfCurrentMonth) continue;
+
+      const previous = sorted[1] || null;
+
+      const currentPlan = this.normalizePlan(latest.planCode);
+      const previousPlan = previous ? this.normalizePlan(previous.planCode) : 'free';
+
+      const currentStatus = (latest.status || 'free').toLowerCase();
+      const previousStatus = (previous?.status || 'free').toLowerCase();
+
+      if (planRank[currentPlan] > planRank[previousPlan]) {
+        upgradesThisMonth += 1;
+        byPlanSeed[currentPlan].entered += 1;
+        byPlanSeed[previousPlan].exited += 1;
+      } else if (planRank[currentPlan] < planRank[previousPlan]) {
+        downgradesThisMonth += 1;
+        byPlanSeed[currentPlan].entered += 1;
+        byPlanSeed[previousPlan].exited += 1;
+      }
+
+      if (currentStatus === 'active' && previousStatus !== 'active') {
+        activationsThisMonth += 1;
+      }
+
+      if (currentStatus === 'canceled' && previousStatus !== 'canceled') {
+        cancellationsThisMonth += 1;
+      }
+
+      if (currentStatus === 'trialing' && previousStatus !== 'trialing') {
+        trialingStartsThisMonth += 1;
+      }
+    }
+
+    const byPlan = (['free', 'starter', 'standard', 'premium'] as PlanCode[]).map((planCode) => {
+      const row = byPlanSeed[planCode];
+      return {
+        planCode,
+        entered: row.entered,
+        exited: row.exited,
+        net: row.entered - row.exited,
+      };
+    });
+
+    return {
+      upgradesThisMonth,
+      downgradesThisMonth,
+      activationsThisMonth,
+      cancellationsThisMonth,
+      trialingStartsThisMonth,
+      byPlan,
+    };
+  }
+
+  private buildLifecycleFunnel(args: {
+    subscriptions: Array<{
+      id: string;
+      companyId: string | null;
+      planCode: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    startOfCurrentMonth: Date;
+  }) {
+    const groups = new Map<
+      string,
+      Array<{
+        id: string;
+        companyId: string | null;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >();
+
+    for (const sub of args.subscriptions) {
+      if (!sub.companyId) continue;
+      if (!groups.has(sub.companyId)) groups.set(sub.companyId, []);
+      groups.get(sub.companyId)!.push(sub);
+    }
+
+    let trialingNow = 0;
+    let activeNow = 0;
+    let pastDueNow = 0;
+    let canceledNow = 0;
+
+    let trialToActiveThisMonth = 0;
+    let trialToCanceledThisMonth = 0;
+    let pastDueToActiveThisMonth = 0;
+    let activeToCanceledThisMonth = 0;
+    let trialStartsThisMonth = 0;
+    let recoveryAttemptsThisMonth = 0;
+
+    for (const rows of Array.from(groups.values())) {
+      const sorted = [...rows].sort((a, b) => {
+        const bt = new Date(b.updatedAt).getTime();
+        const at = new Date(a.updatedAt).getTime();
+        if (bt != at) return bt - at;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      const latest = sorted[0];
+      if (!latest) continue;
+
+      const latestStatus = (latest.status || 'free').toLowerCase();
+      if (latestStatus === 'trialing') trialingNow += 1;
+      if (latestStatus === 'active') activeNow += 1;
+      if (latestStatus === 'past_due') pastDueNow += 1;
+      if (latestStatus === 'canceled') canceledNow += 1;
+
+      if (latest.updatedAt < args.startOfCurrentMonth) continue;
+
+      const previous = sorted[1] || null;
+      const previousStatus = (previous?.status || 'free').toLowerCase();
+
+      if (latestStatus === 'trialing' && previousStatus !== 'trialing') {
+        trialStartsThisMonth += 1;
+      }
+      if (previousStatus === 'trialing' && latestStatus === 'active') {
+        trialToActiveThisMonth += 1;
+      }
+      if (previousStatus === 'trialing' && latestStatus === 'canceled') {
+        trialToCanceledThisMonth += 1;
+      }
+      if (previousStatus === 'past_due' && latestStatus === 'active') {
+        pastDueToActiveThisMonth += 1;
+      }
+      if (previousStatus === 'active' && latestStatus === 'canceled') {
+        activeToCanceledThisMonth += 1;
+      }
+      if (previousStatus === 'past_due') {
+        recoveryAttemptsThisMonth += 1;
+      }
+    }
+
+    const trialConversionRatePct =
+      trialStartsThisMonth > 0
+        ? Number(((trialToActiveThisMonth / trialStartsThisMonth) * 100).toFixed(1))
+        : 0;
+
+    const recoverySuccessRatePct =
+      recoveryAttemptsThisMonth > 0
+        ? Number(((pastDueToActiveThisMonth / recoveryAttemptsThisMonth) * 100).toFixed(1))
+        : 0;
+
+    return {
+      current: {
+        trialingNow,
+        activeNow,
+        pastDueNow,
+        canceledNow,
+      },
+      movements: {
+        trialStartsThisMonth,
+        trialToActiveThisMonth,
+        trialToCanceledThisMonth,
+        pastDueToActiveThisMonth,
+        activeToCanceledThisMonth,
+        recoveryAttemptsThisMonth,
+      },
+      rates: {
+        trialConversionRatePct,
+        recoverySuccessRatePct,
+      },
+    };
+  }
+
+  private buildRiskRevenueTrend(args: {
+    subscriptions: Array<{
+      id: string;
+      companyId: string | null;
+      planCode: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    now: Date;
+  }) {
+    const rows: Array<{
+      month: string;
+      atRiskMrr: number;
+      recoveredMrr: number;
+      canceledMrr: number;
+    }> = [];
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthStart = new Date(args.now.getFullYear(), args.now.getMonth() - i, 1);
+      const nextMonthStart = new Date(args.now.getFullYear(), args.now.getMonth() - i + 1, 1);
+
+      let atRiskMrr = 0;
+      let recoveredMrr = 0;
+      let canceledMrr = 0;
+
+      for (const sub of args.subscriptions) {
+        const updatedAt = new Date(sub.updatedAt);
+        if (updatedAt < monthStart || updatedAt >= nextMonthStart) continue;
+
+        const planCode = this.normalizePlan(sub.planCode);
+        const revenue = PLAN_PRICE_MAP[planCode];
+        const status = (sub.status || 'free').toLowerCase();
+
+        if (status === 'past_due') atRiskMrr += revenue;
+        if (status === 'active') recoveredMrr += revenue;
+        if (status === 'canceled') canceledMrr += revenue;
+      }
+
+      rows.push({
+        month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
+        atRiskMrr,
+        recoveredMrr,
+        canceledMrr,
+      });
+    }
+
+    return rows;
+  }
+
+  private buildChurnRecoveryTrend(args: {
+    subscriptions: Array<{
+      id: string;
+      companyId: string | null;
+      planCode: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    now: Date;
+  }) {
+    const rows: Array<{
+      month: string;
+      cancellations: number;
+      recoveries: number;
+      trialConversions: number;
+    }> = [];
+
+    const groups = new Map<
+      string,
+      Array<{
+        id: string;
+        companyId: string | null;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >();
+
+    for (const sub of args.subscriptions) {
+      if (!sub.companyId) continue;
+      if (!groups.has(sub.companyId)) groups.set(sub.companyId, []);
+      groups.get(sub.companyId)!.push(sub);
+    }
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const monthStart = new Date(args.now.getFullYear(), args.now.getMonth() - i, 1);
+      const nextMonthStart = new Date(args.now.getFullYear(), args.now.getMonth() - i + 1, 1);
+
+      let cancellations = 0;
+      let recoveries = 0;
+      let trialConversions = 0;
+
+      for (const rowsByCompany of Array.from(groups.values())) {
+        const sorted = [...rowsByCompany].sort((a, b) => {
+          const bt = new Date(b.updatedAt).getTime();
+          const at = new Date(a.updatedAt).getTime();
+          if (bt !== at) return bt - at;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        for (let idx = 0; idx < sorted.length; idx += 1) {
+          const current = sorted[idx];
+          const previous = sorted[idx + 1] || null;
+          const updatedAt = new Date(current.updatedAt);
+          if (updatedAt < monthStart || updatedAt >= nextMonthStart) continue;
+
+          const currentStatus = (current.status || 'free').toLowerCase();
+          const previousStatus = (previous?.status || 'free').toLowerCase();
+
+          if (currentStatus === 'canceled' && previousStatus !== 'canceled') cancellations += 1;
+          if (previousStatus === 'past_due' && currentStatus === 'active') recoveries += 1;
+          if (previousStatus === 'trialing' && currentStatus === 'active') trialConversions += 1;
+        }
+      }
+
+      rows.push({
+        month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
+        cancellations,
+        recoveries,
+        trialConversions,
+      });
+    }
+
+    return rows;
+  }
+
+  private buildCohortRetentionInsights(args: {
+    users: Array<{
+      id: string;
+      email: string;
+      companyId: string | null;
+      createdAt: Date;
+    }>;
+    companies: Array<{
+      id: string;
+      createdAt: Date;
+    }>;
+    subscriptions: Array<{
+      id: string;
+      companyId: string | null;
+      planCode: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    latestSubscriptionByCompany: Map<
+      string,
+      {
+        id: string;
+        companyId: string;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }
+    >;
+    now: Date;
+  }) {
+    const monthKey = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    const cohortMap = new Map<string, {
+      cohortMonth: string;
+      newUsers: number;
+      retainedPaidUsers: number;
+      churnedUsers: number;
+      currentMrr: number;
+    }>();
+
+    const companyCreatedMonth = new Map<string, string>();
+    for (const company of args.companies) {
+      companyCreatedMonth.set(company.id, monthKey(new Date(company.createdAt)));
+    }
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(args.now.getFullYear(), args.now.getMonth() - i, 1);
+      const key = monthKey(d);
+      cohortMap.set(key, {
+        cohortMonth: key,
+        newUsers: 0,
+        retainedPaidUsers: 0,
+        churnedUsers: 0,
+        currentMrr: 0,
+      });
+    }
+
+    for (const user of args.users) {
+      const key = monthKey(new Date(user.createdAt));
+      if (!cohortMap.has(key)) continue;
+      cohortMap.get(key)!.newUsers += 1;
+
+      const latest = user.companyId ? args.latestSubscriptionByCompany.get(user.companyId) : null;
+      const status = (latest?.status || 'free').toLowerCase();
+      const plan = this.normalizePlan(latest?.planCode);
+
+      if (status === 'active' || status === 'past_due') {
+        if (plan !== 'free') {
+          cohortMap.get(key)!.retainedPaidUsers += 1;
+          cohortMap.get(key)!.currentMrr += PLAN_PRICE_MAP[plan];
+        }
+      } else if (status === 'canceled') {
+        cohortMap.get(key)!.churnedUsers += 1;
+      }
+    }
+
+    const transitionSeed = {
+      expansionMrr: 0,
+      contractionMrr: 0,
+      retainedPaidCompanies: 0,
+      churnedPaidCompanies: 0,
+    };
+
+    const groups = new Map<
+      string,
+      Array<{
+        id: string;
+        companyId: string | null;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>
+    >();
+
+    for (const sub of args.subscriptions) {
+      if (!sub.companyId) continue;
+      if (!groups.has(sub.companyId)) groups.set(sub.companyId, []);
+      groups.get(sub.companyId)!.push(sub);
+    }
+
+    const planRank: Record<PlanCode, number> = {
+      free: 0,
+      starter: 1,
+      standard: 2,
+      premium: 3,
+    };
+
+    for (const rows of Array.from(groups.values())) {
+      const sorted = [...rows].sort((a, b) => {
+        const bt = new Date(b.updatedAt).getTime();
+        const at = new Date(a.updatedAt).getTime();
+        if (bt !== at) return bt - at;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      const latest = sorted[0];
+      const previous = sorted[1] || null;
+      if (!latest) continue;
+
+      const latestPlan = this.normalizePlan(latest.planCode);
+      const latestStatus = (latest.status || 'free').toLowerCase();
+
+      if (latestPlan !== 'free' && (latestStatus === 'active' || latestStatus === 'past_due')) {
+        transitionSeed.retainedPaidCompanies += 1;
+      }
+      if (latestStatus === 'canceled' && latestPlan !== 'free') {
+        transitionSeed.churnedPaidCompanies += 1;
+      }
+
+      if (!previous) continue;
+
+      const previousPlan = this.normalizePlan(previous.planCode);
+      const previousStatus = (previous.status || 'free').toLowerCase();
+
+      if (
+        (latestStatus === 'active' || latestStatus === 'past_due') &&
+        (previousStatus === 'active' || previousStatus === 'past_due')
+      ) {
+        if (planRank[latestPlan] > planRank[previousPlan]) {
+          transitionSeed.expansionMrr += Math.max(0, PLAN_PRICE_MAP[latestPlan] - PLAN_PRICE_MAP[previousPlan]);
+        } else if (planRank[latestPlan] < planRank[previousPlan]) {
+          transitionSeed.contractionMrr += Math.max(0, PLAN_PRICE_MAP[previousPlan] - PLAN_PRICE_MAP[latestPlan]);
+        }
+      }
+    }
+
+    const cohorts = Array.from(cohortMap.values());
+
+    return {
+      cohorts,
+      summary: {
+        retainedPaidCompanies: transitionSeed.retainedPaidCompanies,
+        churnedPaidCompanies: transitionSeed.churnedPaidCompanies,
+        expansionMrr: transitionSeed.expansionMrr,
+        contractionMrr: transitionSeed.contractionMrr,
+      },
+    };
+  }
+
+  private buildForecastInsights(args: {
+    latestSubscriptionByCompany: Map<
+      string,
+      {
+        id: string;
+        companyId: string;
+        planCode: string | null;
+        status: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }
+    >;
+    riskRevenueTrend: Array<{
+      month: string;
+      atRiskMrr: number;
+      recoveredMrr: number;
+      canceledMrr: number;
+    }>;
+    churnRecoveryTrend: Array<{
+      month: string;
+      cancellations: number;
+      recoveries: number;
+      trialConversions: number;
+    }>;
+    mrrDecomposition: {
+      totalMrr: number;
+      activeMrr: number;
+      pastDueMrr: number;
+      canceledMrr: number;
+      atRiskMrr: number;
+      trialingPipelineMrr: number;
+      freeMrr: number;
+      byStatus: {
+        active: number;
+        trialing: number;
+        pastDue: number;
+        canceled: number;
+        free: number;
+      };
+      byPlan: Array<{
+        planCode: PlanCode;
+        currentMrr: number;
+        atRiskMrr: number;
+        trialingPipelineMrr: number;
+        currentSharePct: number;
+      }>;
+    };
+  }) {
+    const riskRows = args.riskRevenueTrend || [];
+    const churnRows = args.churnRecoveryTrend || [];
+
+    const avg = (nums: number[]) =>
+      nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : 0;
+
+    const recentRisk = riskRows.slice(-3);
+    const recentChurn = churnRows.slice(-3);
+
+    const avgAtRiskMrr = avg(recentRisk.map((r) => Number(r.atRiskMrr || 0)));
+    const avgRecoveredMrr = avg(recentRisk.map((r) => Number(r.recoveredMrr || 0)));
+    const avgCanceledMrr = avg(recentRisk.map((r) => Number(r.canceledMrr || 0)));
+
+    const avgRecoveries = avg(recentChurn.map((r) => Number(r.recoveries || 0)));
+    const avgCancellations = avg(recentChurn.map((r) => Number(r.cancellations || 0)));
+    const avgTrialConversions = avg(recentChurn.map((r) => Number(r.trialConversions || 0)));
+
+    const projectedNextMonthMrr =
+      args.mrrDecomposition.activeMrr +
+      args.mrrDecomposition.trialingPipelineMrr * 0.35 -
+      args.mrrDecomposition.atRiskMrr * 0.45;
+
+    const currentAtRiskMrr = Number(args.mrrDecomposition.atRiskMrr || 0);
+    const currentRecoveredMrr = Number(args.mrrDecomposition.activeMrr || 0);
+
+    const anomalyFlags = {
+      riskSpike:
+        avgAtRiskMrr > 0 && currentAtRiskMrr > avgAtRiskMrr * 1.3,
+      recoveryDrop:
+        avgRecoveredMrr > 0 && currentRecoveredMrr < avgRecoveredMrr * 0.7,
+      cancellationSpike:
+        avgCancellations > 0 &&
+        Number((churnRows[churnRows.length - 1]?.cancellations || 0)) > avgCancellations * 1.4,
+      trialConversionDrop:
+        avgTrialConversions > 0 &&
+        Number((churnRows[churnRows.length - 1]?.trialConversions || 0)) < avgTrialConversions * 0.6,
+    };
+
+    const alertLevel =
+      anomalyFlags.riskSpike || anomalyFlags.cancellationSpike
+        ? 'high'
+        : anomalyFlags.recoveryDrop || anomalyFlags.trialConversionDrop
+          ? 'medium'
+          : 'healthy';
+
+    let summary = 'Stable operating baseline';
+    if (alertLevel === 'high') {
+      summary = 'High-risk signal: at-risk MRR or cancellations are materially above recent baseline';
+    } else if (alertLevel === 'medium') {
+      summary = 'Watch signal: recovery or trial conversion is trending below recent baseline';
+    }
+
+    return {
+      projectedNextMonthMrr: Math.max(0, Math.round(projectedNextMonthMrr)),
+      baseline: {
+        avgAtRiskMrr: Math.round(avgAtRiskMrr),
+        avgRecoveredMrr: Math.round(avgRecoveredMrr),
+        avgCanceledMrr: Math.round(avgCanceledMrr),
+        avgRecoveries: Math.round(avgRecoveries * 10) / 10,
+        avgCancellations: Math.round(avgCancellations * 10) / 10,
+        avgTrialConversions: Math.round(avgTrialConversions * 10) / 10,
+      },
+      anomalyFlags,
+      alertLevel,
+      summary,
+    };
+  }
+
   async getSummary() {
     const now = new Date();
     const startOfCurrentMonth = this.startOfMonth(now);
@@ -272,6 +988,45 @@ export class PlatformExecutiveSummaryService {
       totalAtRiskPreview: atRiskUsersPreview.length,
     };
 
+    const mrrDecomposition = this.buildMrrDecomposition({
+      latestSubscriptionByCompany,
+    });
+
+    const planMovementInsights = this.buildPlanMovementInsights({
+      subscriptions,
+      startOfCurrentMonth,
+    });
+
+    const lifecycleFunnel = this.buildLifecycleFunnel({
+      subscriptions,
+      startOfCurrentMonth,
+    });
+
+    const riskRevenueTrend = this.buildRiskRevenueTrend({
+      subscriptions,
+      now,
+    });
+
+    const churnRecoveryTrend = this.buildChurnRecoveryTrend({
+      subscriptions,
+      now,
+    });
+
+    const cohortRetentionInsights = this.buildCohortRetentionInsights({
+      users,
+      companies,
+      subscriptions,
+      latestSubscriptionByCompany,
+      now,
+    });
+
+    const forecastInsights = this.buildForecastInsights({
+      latestSubscriptionByCompany,
+      riskRevenueTrend,
+      churnRecoveryTrend,
+      mrrDecomposition,
+    });
+
     return {
       totals: {
         totalUsers,
@@ -290,8 +1045,15 @@ export class PlatformExecutiveSummaryService {
       ],
       billingOverview,
       paymentEventIntelligence,
-        atRiskUsersPreview,
-        billingRecoveryWorkspace,
+      atRiskUsersPreview,
+      billingRecoveryWorkspace,
+      mrrDecomposition,
+      planMovementInsights,
+      lifecycleFunnel,
+      riskRevenueTrend,
+      churnRecoveryTrend,
+      cohortRetentionInsights,
+      forecastInsights,
       monthlyUserGrowth,
     };
   }

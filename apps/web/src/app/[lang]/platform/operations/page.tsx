@@ -14,6 +14,11 @@ import {
   isPlatformUnauthorizedError,
   retryFailedPlatformOperation,
 } from "@/core/platform-auth/client";
+import {
+  buildPlatformAuditHref,
+  buildPlatformReconciliationHref,
+  buildPlatformUsersHref,
+} from "@/core/platform/drilldown";
 
 type OperationSummary = {
   id: string;
@@ -71,44 +76,6 @@ function itemStatusBadgeClass(status?: string | null) {
     return "rounded-full bg-rose-500/10 px-2 py-1 text-xs text-rose-200";
   }
   return "rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-300";
-}
-
-function buildAuditHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/audit${qs ? `?${qs}` : ""}`;
-}
-
-function buildReconciliationHref(
-  lang: string,
-  detail?: Partial<OperationDetail> | null
-) {
-  const sp = new URLSearchParams();
-  if (detail?.companyId) sp.set("companyId", detail.companyId);
-  if (detail?.candidateId) sp.set("candidateId", detail.candidateId);
-  if (detail?.persistenceKey) sp.set("persistenceKey", detail.persistenceKey);
-  const qs = sp.toString();
-  return `/${lang}/platform/reconciliation${qs ? `?${qs}` : ""}`;
-}
-
-function buildUsersHref(
-  lang: string,
-  params?: Record<string, string | number | boolean | null | undefined>
-) {
-  const sp = new URLSearchParams();
-  Object.entries(params || {}).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    sp.set(k, String(v));
-  });
-  const qs = sp.toString();
-  return `/${lang}/platform/users${qs ? `?${qs}` : ""}`;
 }
 
 function OperationsCenterContent() {
@@ -377,8 +344,6 @@ function OperationsCenterContent() {
             <span className="ml-2 font-semibold text-slate-100">protectedScopeChecked</span>
           </div>
         ) : null}
-
-
 
       {error ? (
         <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -681,13 +646,16 @@ function OperationsCenterContent() {
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
-                  href={buildAuditHref(lang, {
-                    companyId: selectedOperation.companyId || "",
-                    candidateId: selectedOperation.candidateId || "",
-                    persistenceKey: selectedOperation.persistenceKey || "",
-                    page: 1,
-                    limit: 20,
-                  })}
+                  href={buildPlatformAuditHref(lang, {
+                      from: "operations_detail",
+                      selected: selectedOperation.id,
+                      operationId: selectedOperation.id,
+                      companyId: selectedOperation.companyId || "",
+                      candidateId: selectedOperation.candidateId || "",
+                      persistenceKey: selectedOperation.persistenceKey || "",
+                      page: 1,
+                      limit: 20,
+                    })}
                   className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                 >
                   Open Audit
@@ -695,23 +663,35 @@ function OperationsCenterContent() {
 
                 {selectedOperation.scope === "RECONCILIATION" ? (
                   <Link
-                    href={buildReconciliationHref(lang, selectedOperation)}
+                    href={buildPlatformReconciliationHref(lang, {
+                      from: "operations_detail",
+                      selected: selectedOperation.id,
+                      operationId: selectedOperation.id,
+                      companyId: selectedOperation.companyId || "",
+                      candidateId: selectedOperation.candidateId || "",
+                      persistenceKey: selectedOperation.persistenceKey || "",
+                    })}
                     className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                   >
                     Open Review Queue
                   </Link>
-                ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
-                  <Link
-                    href={`/${lang}/platform/tenants`}
-                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
-                  >
-                    Open Tenants
-                  </Link>
+                  ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
+                    <Link
+                      href={`/${lang}/platform/tenants${selectedOperation.companyId ? `?selected=${encodeURIComponent(selectedOperation.companyId)}` : ""}`}
+                      className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-200 hover:bg-violet-500/15"
+                    >
+                      Open Tenant
+                    </Link>
                 ) : selectedOperation.scope === "PLATFORM_USER" ? (
                   <Link
-                    href={buildUsersHref(lang, {
-                      selected: selectedOperation.candidateId || "",
-                    })}
+                    href={buildPlatformUsersHref(lang, {
+                        from: "operations_detail",
+                        selected: selectedOperation.candidateId || "",
+                        operationId: selectedOperation.id,
+                        companyId: selectedOperation.companyId || "",
+                        candidateId: selectedOperation.candidateId || "",
+                        persistenceKey: selectedOperation.persistenceKey || "",
+                      })}
                     className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                   >
                     Open Users
@@ -720,7 +700,16 @@ function OperationsCenterContent() {
 
                 {selectedOperation.scope === "RECONCILIATION" ? (
                   <Link
-                    href={`/${lang}/platform/audit?operationId=${encodeURIComponent(selectedOperation.id)}&page=1&limit=20`}
+                    href={buildPlatformAuditHref(lang, {
+                      from: "operations_detail",
+                      selected: selectedOperation.id,
+                      operationId: selectedOperation.id,
+                      companyId: selectedOperation.companyId || "",
+                      candidateId: selectedOperation.candidateId || "",
+                      persistenceKey: selectedOperation.persistenceKey || "",
+                      page: 1,
+                      limit: 20,
+                    })}
                     className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
                   >
                     Open Matching Audit Rows
@@ -814,36 +803,51 @@ function OperationsCenterContent() {
 
                         <div className="mt-3 flex flex-wrap gap-2">
                           <Link
-                            href={item.auditId ? `/${lang}/platform/audit?operationId=${encodeURIComponent(selectedOperation.id)}&page=1&limit=20` : buildAuditHref(lang, {
-                              companyId: item.companyId || "",
-                              candidateId: item.candidateId || "",
-                              persistenceKey: item.persistenceKey || "",
-                              page: 1,
-                              limit: 20,
-                            })}
+                            href={buildPlatformAuditHref(lang, {
+                                from: "operations_item",
+                                selected: item.targetId || selectedOperation.id,
+                                operationId: selectedOperation.id,
+                                companyId: item.companyId || selectedOperation.companyId || "",
+                                candidateId: item.candidateId || selectedOperation.candidateId || "",
+                                persistenceKey: item.persistenceKey || selectedOperation.persistenceKey || "",
+                                page: 1,
+                                limit: 20,
+                              })}
                             className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                           >
                             {item.auditId ? "Open This Audit" : "Open Audit"}
                           </Link>
                           {selectedOperation.scope === "RECONCILIATION" ? (
                             <Link
-                              href={buildReconciliationHref(lang, item)}
+                              href={buildPlatformReconciliationHref(lang, {
+                                from: "operations_item",
+                                selected: item.targetId || selectedOperation.id,
+                                operationId: selectedOperation.id,
+                                companyId: item.companyId || selectedOperation.companyId || "",
+                                candidateId: item.candidateId || selectedOperation.candidateId || "",
+                                persistenceKey: item.persistenceKey || selectedOperation.persistenceKey || "",
+                              })}
                               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                             >
                               Open Review Queue
                             </Link>
-                          ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
-                            <Link
-                              href={`/${lang}/platform/tenants`}
-                              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
-                            >
-                              Open Tenants
-                            </Link>
+                            ) : selectedOperation.scope === "PLATFORM_TENANT" ? (
+                              <Link
+                                href={`/${lang}/platform/tenants${(item.companyId || selectedOperation.companyId) ? `?selected=${encodeURIComponent(item.companyId || selectedOperation.companyId || "")}` : ""}`}
+                                className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/15"
+                              >
+                                Open Tenant
+                              </Link>
                           ) : selectedOperation.scope === "PLATFORM_USER" ? (
                             <Link
-                              href={buildUsersHref(lang, {
-                                selected: item.candidateId || selectedOperation.candidateId || "",
-                              })}
+                              href={buildPlatformUsersHref(lang, {
+                                  from: "operations_item",
+                                  selected: item.candidateId || selectedOperation.candidateId || "",
+                                  operationId: selectedOperation.id,
+                                  companyId: item.companyId || selectedOperation.companyId || "",
+                                  candidateId: item.candidateId || selectedOperation.candidateId || "",
+                                  persistenceKey: item.persistenceKey || selectedOperation.persistenceKey || "",
+                                })}
                               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
                             >
                               Open Users
