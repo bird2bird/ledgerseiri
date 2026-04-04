@@ -98,6 +98,27 @@ function getPriorityChip(level?: string) {
   }
 }
 
+function getLastLoginBucket(lastLoginAt?: string | null) {
+  if (!lastLoginAt) return "never_logged_in";
+  const ts = new Date(lastLoginAt).getTime();
+  if (Number.isNaN(ts)) return "dormant";
+  const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+  return diffDays <= 7 ? "active" : "dormant";
+}
+
+function getLastLoginBucketChip(bucket?: string) {
+  switch ((bucket || "").toLowerCase()) {
+    case "active":
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+    case "dormant":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+    case "never_logged_in":
+      return "border-slate-600 bg-slate-900/70 text-slate-300";
+    default:
+      return "border-slate-700 bg-slate-900/70 text-slate-300";
+  }
+}
+
 
 
 
@@ -133,6 +154,10 @@ function getLabels(lang: string) {
       loginActivity: "登录活动",
       lastLoginAt: "最近登录时间",
       lastLoginIp: "最近登录IP",
+      lastLoginStatus: "登录活跃度",
+      activeUsers: "活跃用户",
+      dormantUsers: "沉默用户",
+      neverLoggedInUsers: "从未登录",
       loginIp: "登录IP",
       loginMethod: "登录方式",
       userAgent: "User-Agent",
@@ -198,6 +223,10 @@ function getLabels(lang: string) {
     loginActivity: "Login Activity",
     lastLoginAt: "Last Login At",
     lastLoginIp: "Last Login IP",
+    lastLoginStatus: "Login Activity",
+    activeUsers: "Active Users",
+    dormantUsers: "Dormant Users",
+    neverLoggedInUsers: "Never Logged In",
     loginIp: "Login IP",
     loginMethod: "Login Method",
     userAgent: "User-Agent",
@@ -410,6 +439,9 @@ export default function PlatformUsersPage() {
           r.billingRiskLevel === "medium" ||
           r.billingRiskLevel === "watch",
       ).length,
+      active: allRows.filter((r) => getLastLoginBucket(r.lastLoginAt) === "active").length,
+      dormant: allRows.filter((r) => getLastLoginBucket(r.lastLoginAt) === "dormant").length,
+      never_logged_in: allRows.filter((r) => getLastLoginBucket(r.lastLoginAt) === "never_logged_in").length,
       past_due: allRows.filter((r) => (r.planStatus || "").toLowerCase() === "past_due").length,
       canceled: allRows.filter((r) => (r.planStatus || "").toLowerCase() === "canceled").length,
       trialing: allRows.filter((r) => (r.planStatus || "").toLowerCase() === "trialing").length,
@@ -433,6 +465,12 @@ export default function PlatformUsersPage() {
       initialQueue === "trialing"
     ) {
       next = next.filter((row) => (row.planStatus || "").toLowerCase() === initialQueue);
+    } else if (
+      initialQueue === "active" ||
+      initialQueue === "dormant" ||
+      initialQueue === "never_logged_in"
+    ) {
+      next = next.filter((row) => getLastLoginBucket(row.lastLoginAt) === initialQueue);
     }
 
     if (q) {
@@ -445,6 +483,9 @@ export default function PlatformUsersPage() {
           row.planStatus,
           row.billingStatus,
           row.billingRiskLevel || "",
+          row.lastLoginAt || "",
+          row.lastLoginIp || "",
+          getLastLoginBucket(row.lastLoginAt),
         ]
           .join(" ")
           .toLowerCase()
@@ -458,6 +499,22 @@ export default function PlatformUsersPage() {
       const aw = weight(getRecoveryPriority(a));
       const bw = weight(getRecoveryPriority(b));
       if (aw !== bw) return aw - bw;
+
+      const loginBucketWeight = (row: any) => {
+        const bucket = getLastLoginBucket(row.lastLoginAt);
+        if (bucket === "active") return 0;
+        if (bucket === "dormant") return 1;
+        return 2;
+      };
+
+      const awLogin = loginBucketWeight(a);
+      const bwLogin = loginBucketWeight(b);
+      if (awLogin !== bwLogin) return awLogin - bwLogin;
+
+      const atLogin = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
+      const btLogin = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
+      if (atLogin !== btLogin) return btLogin - atLogin;
+
       const at = a.subscriptionUpdatedAt ? new Date(a.subscriptionUpdatedAt).getTime() : 0;
       const bt = b.subscriptionUpdatedAt ? new Date(b.subscriptionUpdatedAt).getTime() : 0;
       return bt - at;
@@ -636,6 +693,36 @@ export default function PlatformUsersPage() {
               >
                 {t.observe} · {workspaceCounts.trialing}
               </Link>
+              <Link
+                href={`/${lang}/platform/users?queue=active`}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  initialQueue === "active"
+                    ? getLastLoginBucketChip("active")
+                    : "border-slate-700 bg-slate-900/70 text-slate-300"
+                }`}
+              >
+                {t.activeUsers} · {workspaceCounts.active}
+              </Link>
+              <Link
+                href={`/${lang}/platform/users?queue=dormant`}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  initialQueue === "dormant"
+                    ? getLastLoginBucketChip("dormant")
+                    : "border-slate-700 bg-slate-900/70 text-slate-300"
+                }`}
+              >
+                {t.dormantUsers} · {workspaceCounts.dormant}
+              </Link>
+              <Link
+                href={`/${lang}/platform/users?queue=never_logged_in`}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  initialQueue === "never_logged_in"
+                    ? getLastLoginBucketChip("never_logged_in")
+                    : "border-slate-700 bg-slate-900/70 text-slate-300"
+                }`}
+              >
+                {t.neverLoggedInUsers} · {workspaceCounts.never_logged_in}
+              </Link>
             </div>
           </div>
 
@@ -658,6 +745,9 @@ export default function PlatformUsersPage() {
                   <th className="px-4 py-3 text-left">{t.billingRisk}</th>
                   <th className="px-4 py-3 text-left">{t.revenue}</th>
                   <th className="px-4 py-3 text-left">{t.lastBillingUpdate}</th>
+                  <th className="px-4 py-3 text-left">{t.lastLoginAt}</th>
+                  <th className="px-4 py-3 text-left">{t.lastLoginIp}</th>
+                  <th className="px-4 py-3 text-left">{t.lastLoginStatus}</th>
                   <th className="px-4 py-3 text-left">{t.actions}</th>
                 </tr>
               </thead>
@@ -700,6 +790,17 @@ export default function PlatformUsersPage() {
                       </td>
                       <td className="px-4 py-3">{formatMoney(row.estimatedMonthlyRevenue)}</td>
                       <td className="px-4 py-3">{formatDateTime(row.subscriptionUpdatedAt, lang)}</td>
+                      <td className="px-4 py-3">{formatDateTime(row.lastLoginAt, lang)}</td>
+                      <td className="px-4 py-3">{row.lastLoginIp || "-"}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-full border px-2 py-1 text-xs ${getLastLoginBucketChip(
+                            getLastLoginBucket(row.lastLoginAt),
+                          )}`}
+                        >
+                          {getLastLoginBucket(row.lastLoginAt)}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           <button

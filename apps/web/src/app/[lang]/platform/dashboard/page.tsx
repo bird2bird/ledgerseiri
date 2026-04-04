@@ -22,6 +22,7 @@ import { PlatformDashboardPaymentIntelPanel } from "@/components/platform/dashbo
 import { PlatformDashboardRevenueSnapshot } from "@/components/platform/dashboard/PlatformDashboardRevenueSnapshot";
 import { PlatformDashboardSectionCard } from "@/components/platform/dashboard/PlatformDashboardSectionCard";
 import { PlatformDashboardVerticalBarTrend } from "@/components/platform/dashboard/PlatformDashboardVerticalBarTrend";
+import { buildPlatformUsersHref } from "@/core/platform/drilldown";
 
 type PlanCode = "free" | "starter" | "standard" | "premium";
 
@@ -124,6 +125,8 @@ function getExtraLabels(lang: string) {
       canceledTenants: "已取消",
       freeTenants: "免费租户",
       activeUsers: "活跃用户",
+      dormantUsers: "沉默用户",
+      neverLoggedInUsers: "从未登录",
       trialingUsers: "试用用户",
       pastDueUsers: "逾期用户",
       canceledUsers: "取消用户",
@@ -245,6 +248,8 @@ function getExtraLabels(lang: string) {
     canceledTenants: "Canceled",
     freeTenants: "Free",
     activeUsers: "Active Users",
+    dormantUsers: "Dormant Users",
+    neverLoggedInUsers: "Never Logged In",
     trialingUsers: "Trialing Users",
     pastDueUsers: "Past Due Users",
     canceledUsers: "Canceled Users",
@@ -699,12 +704,32 @@ export default function PlatformDashboardPage() {
           title={extra.userTrend}
           subtitle={extra.userTrendHint}
           action={
-            <Link
-              href={`/${lang}/platform/users`}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
-            >
-              {extra.openUsers}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={buildPlatformUsersHref(lang, { queue: "all" })}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
+              >
+                {extra.openUsers}
+              </Link>
+              <Link
+                href={buildPlatformUsersHref(lang, { queue: "active" })}
+                className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100 hover:bg-emerald-400/15"
+              >
+                {extra.activeUsers}
+              </Link>
+              <Link
+                href={buildPlatformUsersHref(lang, { queue: "dormant" })}
+                className="rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-400/15"
+              >
+                {extra.dormantUsers}
+              </Link>
+              <Link
+                href={buildPlatformUsersHref(lang, { queue: "never_logged_in" })}
+                className="rounded-xl border border-slate-500/20 bg-slate-500/10 px-3 py-2 text-xs text-slate-200 hover:bg-slate-500/15"
+              >
+                {extra.neverLoggedInUsers}
+              </Link>
+            </div>
           }
         >
           <PlatformDashboardVerticalBarTrend
