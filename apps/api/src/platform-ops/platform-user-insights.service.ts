@@ -212,6 +212,8 @@ export class PlatformUserInsightsService {
         email: true,
         companyId: true,
         createdAt: true,
+        lastLoginAt: true,
+        lastLoginIp: true,
       },
     });
 
@@ -219,11 +221,14 @@ export class PlatformUserInsightsService {
       throw new Error('USER_NOT_FOUND');
     }
 
-    const { latestMap } = await this.getSubscriptionHistoryMap(user.companyId ? [user.companyId] : []);
+    const { latestMap } = await this.getSubscriptionHistoryMap(
+      user.companyId ? [user.companyId] : [],
+    );
     const sub = user.companyId ? latestMap.get(user.companyId) : null;
-    const planCode = sub && ACTIVE_SUBSCRIPTION_STATUSES.has((sub.status || '').toLowerCase())
-      ? this.normalizePlan(sub.planCode)
-      : 'free';
+    const planCode =
+      sub && ACTIVE_SUBSCRIPTION_STATUSES.has((sub.status || '').toLowerCase())
+        ? this.normalizePlan(sub.planCode)
+        : 'free';
 
     const recentOperations = await this.prisma.platformOperation.findMany({
       where: {
@@ -260,6 +265,19 @@ export class PlatformUserInsightsService {
       take: 8,
     });
 
+    const recentLoginEvents = await this.prisma.userLoginEvent.findMany({
+      where: { userId: id },
+      select: {
+        loggedInAt: true,
+        ipAddress: true,
+        userAgent: true,
+        loginMethod: true,
+        success: true,
+      },
+      orderBy: { loggedInAt: 'desc' },
+      take: 10,
+    });
+
     const planStatus = sub?.status || 'free';
     const billingRiskLevel = this.getBillingRiskLevel(planStatus);
 
@@ -269,13 +287,15 @@ export class PlatformUserInsightsService {
         email: user.email,
         companyId: user.companyId,
         joinedAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
+        lastLoginIp: user.lastLoginIp || null,
       },
       subscription: {
         planCode,
         planStatus,
         billingStatus: planStatus,
         estimatedMonthlyRevenue: PLAN_PRICE_MAP[planCode],
-        subscriptionUpdatedAt: sub?.updatedAt || null,
+        subscriptionUpdatedAt: sub?.updatedAt ? sub.updatedAt.toISOString() : null,
       },
       billingIntelligence: {
         billingRiskLevel,
@@ -298,15 +318,32 @@ export class PlatformUserInsightsService {
             ? 'Healthy recurring status'
             : 'No paid subscription',
       },
-      billingTimeline: this.buildBillingTimeline(sub || null),
+      billingTimeline: this.buildBillingTimeline(sub || null).map((row) => ({
+        ...row,
+        at: row.at ? new Date(row.at).toISOString() : null,
+      })),
       paymentEventSummary: {
         latestStatus: planStatus,
-        latestUpdatedAt: sub?.updatedAt || null,
+        latestUpdatedAt: sub?.updatedAt ? sub.updatedAt.toISOString() : null,
         hasRevenue: PLAN_PRICE_MAP[planCode] > 0,
         timelineLength: this.buildBillingTimeline(sub || null).length,
       },
-      recentOperations,
-      recentAudits,
+      recentOperations: recentOperations.map((row) => ({
+        ...row,
+        requestedAt: row.requestedAt.toISOString(),
+        completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+      })),
+      recentAudits: recentAudits.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      loginHistory: recentLoginEvents.map((row) => ({
+        loggedInAt: row.loggedInAt.toISOString(),
+        ipAddress: row.ipAddress || null,
+        userAgent: row.userAgent || null,
+        loginMethod: row.loginMethod || 'password',
+        success: !!row.success,
+      })),
     };
   }
 }
