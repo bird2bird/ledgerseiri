@@ -127,6 +127,13 @@ function getExtraLabels(lang: string) {
       activeUsers: "活跃用户",
       dormantUsers: "沉默用户",
       neverLoggedInUsers: "从未登录",
+      lpOverview: "LP 概览",
+      lpPv7d: "7日 PV",
+      lpUv7d: "7日 UV",
+      lpPv30d: "30日 PV",
+      lpUv30d: "30日 UV",
+      topPaths: "热门落地页",
+      topCtas: "热门 CTA",
       trialingUsers: "试用用户",
       pastDueUsers: "逾期用户",
       canceledUsers: "取消用户",
@@ -250,6 +257,13 @@ function getExtraLabels(lang: string) {
     activeUsers: "Active Users",
     dormantUsers: "Dormant Users",
     neverLoggedInUsers: "Never Logged In",
+    lpOverview: "LP Overview",
+    lpPv7d: "PV 7d",
+    lpUv7d: "UV 7d",
+    lpPv30d: "PV 30d",
+    lpUv30d: "UV 30d",
+    topPaths: "Top Paths",
+    topCtas: "Top CTA",
     trialingUsers: "Trialing Users",
     pastDueUsers: "Past Due Users",
     canceledUsers: "Canceled Users",
@@ -624,6 +638,16 @@ export default function PlatformDashboardPage() {
     summary: "Stable operating baseline",
   };
 
+  const lpOverview = (executive as any)?.lpVisitOverview || {
+    pv7d: 0,
+    uv7d: 0,
+    pv30d: 0,
+    uv30d: 0,
+    topPaths: [],
+    ctaClicks: [],
+    daily: [],
+  };
+
   const paymentIntelRows = [
     { label: extra.newRiskThisMonth, value: formatCompact(paymentIntel.newRiskThisMonth) },
     { label: extra.monthlyReduction, value: formatCompact(paymentIntel.canceledThisMonth) },
@@ -753,6 +777,67 @@ export default function PlatformDashboardPage() {
           renderMeta={(row) => row.meta}
         />
       </div>
+
+        <div className="mt-6">
+          <PlatformDashboardSectionCard title={extra.lpOverview}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <PlatformDashboardMetricCard
+                title={extra.lpPv7d}
+                value={formatCompact(lpOverview.pv7d)}
+              />
+              <PlatformDashboardMetricCard
+                title={extra.lpUv7d}
+                value={formatCompact(lpOverview.uv7d)}
+              />
+              <PlatformDashboardMetricCard
+                title={extra.lpPv30d}
+                value={formatCompact(lpOverview.pv30d)}
+              />
+              <PlatformDashboardMetricCard
+                title={extra.lpUv30d}
+                value={formatCompact(lpOverview.uv30d)}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topPaths}</div>
+                <div className="space-y-2">
+                  {(lpOverview.topPaths || []).length === 0 ? (
+                    <div className="text-sm text-slate-400">-</div>
+                  ) : (
+                    (lpOverview.topPaths || []).map((row: any) => (
+                      <div key={row.path} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate text-slate-200">{row.path}</span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                          {formatCompact(row.count)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topCtas}</div>
+                <div className="space-y-2">
+                  {(lpOverview.ctaClicks || []).length === 0 ? (
+                    <div className="text-sm text-slate-400">-</div>
+                  ) : (
+                    (lpOverview.ctaClicks || []).map((row: any) => (
+                      <div key={row.ctaName} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate text-slate-200">{row.ctaName}</span>
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                          {formatCompact(row.count)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </PlatformDashboardSectionCard>
+        </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <PlatformDashboardSectionCard

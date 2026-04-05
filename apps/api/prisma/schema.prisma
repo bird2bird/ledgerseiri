@@ -420,6 +420,32 @@ model UserLoginEvent {
   @@index([loggedInAt])
 }
 
+model LpVisitEvent {
+  id          String   @id @default(cuid())
+  path        String
+  locale      String?
+  eventType   String   @default("view")
+  ctaName     String?
+  referrer    String?
+  visitorId   String?
+  sessionId   String?
+  ipAddress   String?
+  userAgent   String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path, createdAt])
+  @@index([eventType, createdAt])
+  @@index([locale, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
 enum PlanCode {
   STARTER
   STANDARD

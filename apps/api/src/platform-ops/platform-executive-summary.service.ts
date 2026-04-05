@@ -44,6 +44,74 @@ export class PlatformExecutiveSummaryService {
     return 'healthy';
   }
 
+  private buildLpVisitOverview(
+    events: Array<{
+      path: string;
+      eventType: string;
+      ctaName: string | null;
+      visitorId: string | null;
+      createdAt: Date;
+    }>,
+  ) {
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const start7d = new Date(now.getTime() - 6 * dayMs);
+    const start30d = new Date(now.getTime() - 29 * dayMs);
+
+    const in7d = events.filter((e) => e.createdAt >= start7d);
+    const in30d = events.filter((e) => e.createdAt >= start30d);
+
+    const uniqueVisitors = (rows: Array<{ visitorId: string | null; createdAt: Date }>) =>
+      new Set(rows.map((r) => r.visitorId || `anon:${r.createdAt.getTime()}`)).size;
+
+    const pageViewRows7d = in7d.filter((e) => e.eventType === 'view' || e.eventType === 'redirect');
+    const pageViewRows30d = in30d.filter((e) => e.eventType === 'view' || e.eventType === 'redirect');
+
+    const pathMap = new Map<string, number>();
+    for (const row of pageViewRows30d) {
+      pathMap.set(row.path, (pathMap.get(row.path) || 0) + 1);
+    }
+
+    const ctaMap = new Map<string, number>();
+    for (const row of in30d.filter((e) => e.eventType === 'cta_click')) {
+      const key = row.ctaName || 'unknown';
+      ctaMap.set(key, (ctaMap.get(key) || 0) + 1);
+    }
+
+    const dailyMap = new Map<string, { pv: number; uvSeed: Set<string> }>();
+    for (const row of pageViewRows7d) {
+      const day = row.createdAt.toISOString().slice(0, 10);
+      if (!dailyMap.has(day)) dailyMap.set(day, { pv: 0, uvSeed: new Set<string>() });
+      const bucket = dailyMap.get(day)!;
+      bucket.pv += 1;
+      bucket.uvSeed.add(row.visitorId || `anon:${row.createdAt.getTime()}`);
+    }
+
+    const daily = Array.from(dailyMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([day, row]) => ({
+        day,
+        pv: row.pv,
+        uv: row.uvSeed.size,
+      }));
+
+    return {
+      pv7d: pageViewRows7d.length,
+      uv7d: uniqueVisitors(pageViewRows7d),
+      pv30d: pageViewRows30d.length,
+      uv30d: uniqueVisitors(pageViewRows30d),
+      topPaths: Array.from(pathMap.entries())
+        .map(([path, count]) => ({ path, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      ctaClicks: Array.from(ctaMap.entries())
+        .map(([ctaName, count]) => ({ ctaName, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      daily,
+    };
+  }
+
   private buildMrrDecomposition(args: {
     latestSubscriptionByCompany: Map<
       string,
@@ -934,7 +1002,25 @@ export class PlatformExecutiveSummaryService {
       });
     }
 
-    const paymentEventIntelligence = {
+      const lpVisitEvents = await this.prisma.lpVisitEvent.findMany({
+        where: {
+          createdAt: {
+            gte: new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000),
+          },
+        },
+        select: {
+          path: true,
+          eventType: true,
+          ctaName: true,
+          visitorId: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const lpVisitOverview = this.buildLpVisitOverview(lpVisitEvents);
+
+      const paymentEventIntelligence = {
       newRiskThisMonth: Array.from(latestSubscriptionByCompany.values()).filter(
         (sub) => (sub.status || '').toLowerCase() === 'past_due' && sub.updatedAt >= startOfCurrentMonth,
       ).length,
@@ -1054,6 +1140,7 @@ export class PlatformExecutiveSummaryService {
       churnRecoveryTrend,
       cohortRetentionInsights,
       forecastInsights,
+      lpVisitOverview,
       monthlyUserGrowth,
     };
   }

@@ -813,11 +813,23 @@ export type PlatformExecutiveSummaryResponse = {
       recoveryDrop: boolean;
       cancellationSpike: boolean;
       trialConversionDrop: boolean;
+
+  lpVisitOverview?: {
+    pv7d: number;
+    uv7d: number;
+    pv30d: number;
+    uv30d: number;
+    topPaths: Array<{ path: string; count: number }>;
+    ctaClicks: Array<{ ctaName: string; count: number }>;
+    daily: Array<{ day: string; pv: number; uv: number }>;
+  };
     };
     alertLevel: "healthy" | "medium" | "high" | string;
     summary: string;
   };
 };
+
+
 
 export async function fetchPlatformExecutiveSummary(token: string) {
   const res = await fetch(`${getPlatformApiBase()}/platform/executive-summary`, {

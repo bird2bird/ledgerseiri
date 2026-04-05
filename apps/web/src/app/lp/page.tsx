@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { trackLpEvent } from '@/core/lp-tracking';
 
 function detectLang(): string {
   const al = (navigator.language || '').toLowerCase();
@@ -13,8 +14,11 @@ function detectLang(): string {
 
 export default function LpRedirect() {
   const router = useRouter();
+
   useEffect(() => {
+    trackLpEvent({ path: '/lp', locale: null, eventType: 'redirect' });
     router.replace(`/${detectLang()}/lp`);
   }, [router]);
+
   return null;
 }

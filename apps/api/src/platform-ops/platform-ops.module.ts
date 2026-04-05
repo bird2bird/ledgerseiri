@@ -31,9 +31,11 @@ import { PlatformReconciliationOpsController } from './platform-reconciliation-o
 import { PlatformReconciliationBatchService } from './platform-reconciliation-batch.service';
 import { PlatformExecutiveSummaryService } from './platform-executive-summary.service';
 import { PlatformUserInsightsService } from './platform-user-insights.service';
+import { PlatformLpAnalyticsService } from './platform-lp-analytics.service';
 import { PlatformReconciliationBatchController } from './platform-reconciliation-batch.controller';
 import { PlatformExecutiveSummaryController } from './platform-executive-summary.controller';
 import { PlatformUserInsightsController } from './platform-user-insights.controller';
+import { PlatformLpAnalyticsController } from './platform-lp-analytics.controller';
 import { PlatformReconciliationOperationController } from './platform-reconciliation-operation.controller';
 import { PlatformReconciliationOperationService } from './platform-reconciliation-operation.service';
 import { PlatformOperationController } from './platform-operation.controller';
@@ -49,7 +51,6 @@ import { PlatformOperationService } from './platform-operation.service';
   controllers: [
     PlatformTenantsControlController,
     PlatformUsersControlController,
-
     PlatformTenantsController,
     PlatformUsersController,
     PlatformReconciliationController,
@@ -64,11 +65,11 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformUserInsightsController,
     PlatformOperationController,
     PlatformReconciliationOperationController,
+    PlatformLpAnalyticsController,
   ],
   providers: [
     PlatformTenantsControlService,
     PlatformUsersControlService,
-
     PlatformTenantsService,
     PlatformUsersService,
     PlatformReconciliationService,
@@ -85,6 +86,7 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformReconciliationOperationService,
     PlatformAdminGuard,
     PrismaService,
+    PlatformLpAnalyticsService,
   ],
 })
 export class PlatformOpsModule {}
