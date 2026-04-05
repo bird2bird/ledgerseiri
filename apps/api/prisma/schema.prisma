@@ -446,6 +446,29 @@ model LpVisitEvent {
   @@index([sessionId, createdAt])
 }
 
+model LpConversionEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  email       String?
+  userId      String?
+  ctaName     String?
+  source      String?
+  locale      String?
+  referrer    String?
+  visitorId   String?
+  sessionId   String?
+  path        String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([eventType, createdAt])
+  @@index([ctaName, createdAt])
+  @@index([source, createdAt])
+  @@index([locale, createdAt])
+  @@index([visitorId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
 enum PlanCode {
   STARTER
   STANDARD

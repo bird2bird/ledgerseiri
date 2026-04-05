@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { authDict } from "@/lib/i18n/auth";
+import { trackLpConversionEvent } from "@/core/lp-tracking";
 
-export default function LoginPage() {
+function PageContent() {
   const params = useParams<{ lang: string }>();
   const lang: Lang = normalizeLang(params?.lang);
   const t = authDict(lang);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("fix@example.com");
   const [password, setPassword] = useState("•••••");
   const [show, setShow] = useState(false);
@@ -129,5 +131,22 @@ export default function LoginPage() {
         </div>
       </div>
     </AuthShell>
+  );
+}
+
+
+export default function Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-6 py-12">
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+            Loading...
+          </div>
+        </div>
+      }
+    >
+      <PageContent />
+    </Suspense>
   );
 }

@@ -51,6 +51,10 @@ export class PlatformExecutiveSummaryService {
       ctaName: string | null;
       visitorId: string | null;
       createdAt: Date;
+      locale?: string | null;
+      referrer?: string | null;
+      utmSource?: string | null;
+      utmCampaign?: string | null;
     }>,
   ) {
     const now = new Date();
@@ -76,6 +80,40 @@ export class PlatformExecutiveSummaryService {
     for (const row of in30d.filter((e) => e.eventType === 'cta_click')) {
       const key = row.ctaName || 'unknown';
       ctaMap.set(key, (ctaMap.get(key) || 0) + 1);
+    }
+
+    const localeMap = new Map<string, number>();
+    for (const row of pageViewRows30d) {
+      const key = (row.locale || 'unknown').trim() || 'unknown';
+      localeMap.set(key, (localeMap.get(key) || 0) + 1);
+    }
+
+    const normalizeReferrer = (value?: string | null) => {
+      const raw = (value || '').trim();
+      if (!raw) return 'direct';
+      try {
+        return new URL(raw).hostname || 'direct';
+      } catch {
+        return raw;
+      }
+    };
+
+    const referrerMap = new Map<string, number>();
+    for (const row of pageViewRows30d) {
+      const key = normalizeReferrer(row.referrer);
+      referrerMap.set(key, (referrerMap.get(key) || 0) + 1);
+    }
+
+    const sourceMap = new Map<string, number>();
+    for (const row of pageViewRows30d) {
+      const key = (row.utmSource || 'organic').trim() || 'organic';
+      sourceMap.set(key, (sourceMap.get(key) || 0) + 1);
+    }
+
+    const campaignMap = new Map<string, number>();
+    for (const row of pageViewRows30d) {
+      const key = (row.utmCampaign || 'none').trim() || 'none';
+      campaignMap.set(key, (campaignMap.get(key) || 0) + 1);
     }
 
     const dailyMap = new Map<string, { pv: number; uvSeed: Set<string> }>();
@@ -106,6 +144,22 @@ export class PlatformExecutiveSummaryService {
         .slice(0, 5),
       ctaClicks: Array.from(ctaMap.entries())
         .map(([ctaName, count]) => ({ ctaName, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      topLocales: Array.from(localeMap.entries())
+        .map(([locale, count]) => ({ locale, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      topReferrers: Array.from(referrerMap.entries())
+        .map(([referrer, count]) => ({ referrer, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      topSources: Array.from(sourceMap.entries())
+        .map(([source, count]) => ({ source, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      topCampaigns: Array.from(campaignMap.entries())
+        .map(([campaign, count]) => ({ campaign, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5),
       daily,
@@ -1014,11 +1068,132 @@ export class PlatformExecutiveSummaryService {
           ctaName: true,
           visitorId: true,
           createdAt: true,
+          locale: true,
+          referrer: true,
+          utmSource: true,
+          utmCampaign: true,
         },
         orderBy: { createdAt: 'desc' },
       });
 
       const lpVisitOverview = this.buildLpVisitOverview(lpVisitEvents);
+
+      const lpConversionEvents = await this.prisma.lpConversionEvent.findMany({
+        where: {
+          createdAt: {
+            gte: new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000),
+          },
+        },
+        select: {
+          eventType: true,
+          ctaName: true,
+          source: true,
+          locale: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const conversionTypeCount = (eventType: string) =>
+        lpConversionEvents.filter((row) => row.eventType === eventType).length;
+
+      const aggregateCount = (keyName: 'ctaName' | 'source' | 'locale') => {
+        const map = new Map<string, number>();
+        for (const row of lpConversionEvents) {
+          const key = String((row as any)[keyName] || 'unknown').trim() || 'unknown';
+          map.set(key, (map.get(key) || 0) + 1);
+        }
+        return Array.from(map.entries())
+          .map(([key, count]) => ({ key, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+      };
+
+      const lpConversionIntelligence = {
+        registerConversions30d: conversionTypeCount('register_completed'),
+        loginConversions30d: conversionTypeCount('login_completed'),
+        topConversionCtas: aggregateCount('ctaName').map((row) => ({ ctaName: row.key, count: row.count })),
+        topConversionSources: aggregateCount('source').map((row) => ({ source: row.key, count: row.count })),
+        conversionByLocale: aggregateCount('locale').map((row) => ({ locale: row.key, count: row.count })),
+      };
+
+      const visits30d = lpVisitEvents.filter(
+        (row) => row.eventType === 'view' || row.eventType === 'redirect',
+      ).length;
+
+      const ctaClicks30d = lpVisitEvents.filter(
+        (row) => row.eventType === 'cta_click',
+      ).length;
+
+      const registerCompleted30d = lpConversionEvents.filter(
+        (row) => row.eventType === 'register_completed',
+      ).length;
+
+      const loginCompleted30d = lpConversionEvents.filter(
+        (row) => row.eventType === 'login_completed',
+      ).length;
+
+      const percentage = (num: number, den: number) =>
+        den > 0 ? Number(((num / den) * 100).toFixed(1)) : 0;
+
+      const ctaClickMap = new Map<string, number>();
+      for (const row of lpVisitEvents.filter((row) => row.eventType === 'cta_click')) {
+        const key = String(row.ctaName || 'unknown').trim() || 'unknown';
+        ctaClickMap.set(key, (ctaClickMap.get(key) || 0) + 1);
+      }
+
+      const registerMap = new Map<string, number>();
+      for (const row of lpConversionEvents.filter((row) => row.eventType === 'register_completed')) {
+        const key = String(row.ctaName || 'unknown').trim() || 'unknown';
+        registerMap.set(key, (registerMap.get(key) || 0) + 1);
+      }
+
+      const loginMap = new Map<string, number>();
+      for (const row of lpConversionEvents.filter((row) => row.eventType === 'login_completed')) {
+        const key = String(row.ctaName || 'unknown').trim() || 'unknown';
+        loginMap.set(key, (loginMap.get(key) || 0) + 1);
+      }
+
+      const funnelKeys = Array.from(
+        new Set([
+          ...Array.from(ctaClickMap.keys()),
+          ...Array.from(registerMap.keys()),
+          ...Array.from(loginMap.keys()),
+        ]),
+      );
+
+      const topCtaFunnel = funnelKeys
+        .map((ctaName) => {
+          const clicks = ctaClickMap.get(ctaName) || 0;
+          const registers = registerMap.get(ctaName) || 0;
+          const logins = loginMap.get(ctaName) || 0;
+          return {
+            ctaName,
+            clicks,
+            registers,
+            logins,
+            clickToRegisterRate: percentage(registers, clicks),
+            clickToLoginRate: percentage(logins, clicks),
+          };
+        })
+        .sort((a, b) => {
+          if (b.clickToRegisterRate !== a.clickToRegisterRate) {
+            return b.clickToRegisterRate - a.clickToRegisterRate;
+          }
+          return b.clicks - a.clicks;
+        })
+        .slice(0, 5);
+
+      const lpFunnelIntelligence = {
+        visits30d,
+        ctaClicks30d,
+        registerCompleted30d,
+        loginCompleted30d,
+        visitToCtaRate: percentage(ctaClicks30d, visits30d),
+        ctaToRegisterRate: percentage(registerCompleted30d, ctaClicks30d),
+        ctaToLoginRate: percentage(loginCompleted30d, ctaClicks30d),
+        topCtaFunnel,
+      };
 
       const paymentEventIntelligence = {
       newRiskThisMonth: Array.from(latestSubscriptionByCompany.values()).filter(
@@ -1141,6 +1316,8 @@ export class PlatformExecutiveSummaryService {
       cohortRetentionInsights,
       forecastInsights,
       lpVisitOverview,
+      lpConversionIntelligence,
+      lpFunnelIntelligence,
       monthlyUserGrowth,
     };
   }

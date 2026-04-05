@@ -43,3 +43,34 @@ export async function trackLpEvent(payload: LpTrackPayload) {
     });
   } catch {}
 }
+
+
+export type LpConversionPayload = {
+  eventType: string;
+  email?: string | null;
+  userId?: string | null;
+  ctaName?: string | null;
+  source?: string | null;
+  locale?: string | null;
+  referrer?: string | null;
+  path?: string | null;
+};
+
+export async function trackLpConversionEvent(payload: LpConversionPayload) {
+  if (typeof window === "undefined") return;
+
+  const body = {
+    ...payload,
+    visitorId: window.localStorage.getItem("ls_lp_visitor_id") || null,
+    sessionId: window.localStorage.getItem("ls_lp_session_id") || null,
+  };
+
+  try {
+    await fetch("/api/platform/lp-analytics/conversion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      keepalive: true,
+    });
+  } catch {}
+}

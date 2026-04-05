@@ -821,7 +821,35 @@ export type PlatformExecutiveSummaryResponse = {
     uv30d: number;
     topPaths: Array<{ path: string; count: number }>;
     ctaClicks: Array<{ ctaName: string; count: number }>;
+    topLocales: Array<{ locale: string; count: number }>;
+    topReferrers: Array<{ referrer: string; count: number }>;
+    topSources: Array<{ source: string; count: number }>;
+    topCampaigns: Array<{ campaign: string; count: number }>;
     daily: Array<{ day: string; pv: number; uv: number }>;
+  };
+  lpConversionIntelligence?: {
+    registerConversions30d: number;
+    loginConversions30d: number;
+    topConversionCtas: Array<{ ctaName: string; count: number }>;
+    topConversionSources: Array<{ source: string; count: number }>;
+    conversionByLocale: Array<{ locale: string; count: number }>;
+  };
+  lpFunnelIntelligence?: {
+    visits30d: number;
+    ctaClicks30d: number;
+    registerCompleted30d: number;
+    loginCompleted30d: number;
+    visitToCtaRate: number;
+    ctaToRegisterRate: number;
+    ctaToLoginRate: number;
+    topCtaFunnel: Array<{
+      ctaName: string;
+      clicks: number;
+      registers: number;
+      logins: number;
+      clickToRegisterRate: number;
+      clickToLoginRate: number;
+    }>;
   };
     };
     alertLevel: "healthy" | "medium" | "high" | string;

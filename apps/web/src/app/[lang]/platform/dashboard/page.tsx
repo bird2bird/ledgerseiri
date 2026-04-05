@@ -134,6 +134,25 @@ function getExtraLabels(lang: string) {
       lpUv30d: "30日 UV",
       topPaths: "热门落地页",
       topCtas: "热门 CTA",
+      topLocales: "热门语言",
+      topReferrers: "热门来源站点",
+      topSources: "热门流量来源",
+      topCampaigns: "热门活动",
+      lpConversions: "LP 转化",
+      registerConversions30d: "30日注册转化",
+      loginConversions30d: "30日登录转化",
+      topConversionCtas: "高转化 CTA",
+      topConversionSources: "高转化来源",
+      conversionByLocale: "转化语言分布",
+      lpFunnel: "LP 漏斗",
+      visits30d: "30日访问",
+      ctaClicks30d: "30日 CTA 点击",
+      registerCompleted30d: "30日注册完成",
+      loginCompleted30d: "30日登录完成",
+      visitToCtaRate: "访问→CTA 转化率",
+      ctaToRegisterRate: "CTA→注册转化率",
+      ctaToLoginRate: "CTA→登录转化率",
+      topCtaFunnel: "高效率 CTA 漏斗",
       trialingUsers: "试用用户",
       pastDueUsers: "逾期用户",
       canceledUsers: "取消用户",
@@ -264,6 +283,25 @@ function getExtraLabels(lang: string) {
     lpUv30d: "UV 30d",
     topPaths: "Top Paths",
     topCtas: "Top CTA",
+    topLocales: "Top Locales",
+    topReferrers: "Top Referrers",
+    topSources: "Top Sources",
+    topCampaigns: "Top Campaigns",
+    lpConversions: "LP Conversions",
+    registerConversions30d: "Register Conversions 30d",
+    loginConversions30d: "Login Conversions 30d",
+    topConversionCtas: "Top Conversion CTA",
+    topConversionSources: "Top Conversion Sources",
+    conversionByLocale: "Conversion by Locale",
+    lpFunnel: "LP Funnel",
+    visits30d: "Visits 30d",
+    ctaClicks30d: "CTA Clicks 30d",
+    registerCompleted30d: "Register Completed 30d",
+    loginCompleted30d: "Login Completed 30d",
+    visitToCtaRate: "Visit → CTA Rate",
+    ctaToRegisterRate: "CTA → Register Rate",
+    ctaToLoginRate: "CTA → Login Rate",
+    topCtaFunnel: "Top CTA Funnel",
     trialingUsers: "Trialing Users",
     pastDueUsers: "Past Due Users",
     canceledUsers: "Canceled Users",
@@ -645,7 +683,36 @@ export default function PlatformDashboardPage() {
     uv30d: 0,
     topPaths: [],
     ctaClicks: [],
+    topLocales: [],
+    topReferrers: [],
+    topSources: [],
+    topCampaigns: [],
     daily: [],
+  };
+
+  const lpDailyRows = (lpOverview.daily || []).map((row: any) => ({
+    day: row.day,
+    pv: Number(row.pv || 0),
+    uv: Number(row.uv || 0),
+  }));
+
+  const lpConversionSnapshot = (executive as any)?.lpConversionIntelligence || {
+    registerConversions30d: 0,
+    loginConversions30d: 0,
+    topConversionCtas: [],
+    topConversionSources: [],
+    conversionByLocale: [],
+  };
+
+  const lpFunnelSnapshot = (executive as any)?.lpFunnelIntelligence || {
+    visits30d: 0,
+    ctaClicks30d: 0,
+    registerCompleted30d: 0,
+    loginCompleted30d: 0,
+    visitToCtaRate: 0,
+    ctaToRegisterRate: 0,
+    ctaToLoginRate: 0,
+    topCtaFunnel: [],
   };
 
   const paymentIntelRows = [
@@ -799,6 +866,16 @@ export default function PlatformDashboardPage() {
               />
             </div>
 
+            <div className="mt-4">
+              <PlatformDashboardVerticalBarTrend
+                rows={lpDailyRows}
+                barKey="pv"
+                lineKey="uv"
+                barLabel={extra.lpPv7d}
+                lineLabel={extra.lpUv7d}
+              />
+            </div>
+
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topPaths}</div>
@@ -826,7 +903,12 @@ export default function PlatformDashboardPage() {
                   ) : (
                     (lpOverview.ctaClicks || []).map((row: any) => (
                       <div key={row.ctaName} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate text-slate-200">{row.ctaName}</span>
+                        <Link
+                          href={`/${lang}/lp?cta=${encodeURIComponent(row.ctaName)}`}
+                          className="truncate text-sky-300 hover:text-sky-200"
+                        >
+                          {row.ctaName}
+                        </Link>
                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
                           {formatCompact(row.count)}
                         </span>
@@ -836,6 +918,194 @@ export default function PlatformDashboardPage() {
                 </div>
               </div>
             </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topLocales}</div>
+                  <div className="space-y-2">
+                    {(lpOverview.topLocales || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpOverview.topLocales || []).map((row: any) => (
+                        <div key={row.locale} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate text-slate-200">{row.locale}</span>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                            {formatCompact(row.count)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topReferrers}</div>
+                  <div className="space-y-2">
+                    {(lpOverview.topReferrers || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpOverview.topReferrers || []).map((row: any) => (
+                        <div key={row.referrer} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate text-slate-200">{row.referrer}</span>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                            {formatCompact(row.count)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topSources}</div>
+                  <div className="space-y-2">
+                    {(lpOverview.topSources || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpOverview.topSources || []).map((row: any) => (
+                        <div key={row.source} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate text-slate-200">{row.source}</span>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                            {formatCompact(row.count)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-4 text-sm font-semibold text-slate-200">{extra.lpConversions}</div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+                  <PlatformDashboardMetricCard
+                    title={extra.registerConversions30d}
+                    value={formatCompact(lpConversionSnapshot.registerConversions30d)}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.loginConversions30d}
+                    value={formatCompact(lpConversionSnapshot.loginConversions30d)}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topConversionCtas}</div>
+                    <div className="space-y-2">
+                      {(lpConversionSnapshot.topConversionCtas || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpConversionSnapshot.topConversionCtas || []).map((row: any) => (
+                          <div key={row.ctaName} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate text-slate-200">{row.ctaName}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                              {formatCompact(row.count)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topConversionSources}</div>
+                    <div className="space-y-2">
+                      {(lpConversionSnapshot.topConversionSources || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpConversionSnapshot.topConversionSources || []).map((row: any) => (
+                          <div key={row.source} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate text-slate-200">{row.source}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                              {formatCompact(row.count)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.conversionByLocale}</div>
+                    <div className="space-y-2">
+                      {(lpConversionSnapshot.conversionByLocale || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpConversionSnapshot.conversionByLocale || []).map((row: any) => (
+                          <div key={row.locale} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate text-slate-200">{row.locale}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-slate-300">
+                              {formatCompact(row.count)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-4 text-sm font-semibold text-slate-200">{extra.lpFunnel}</div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <PlatformDashboardMetricCard
+                    title={extra.visits30d}
+                    value={formatCompact(lpFunnelSnapshot.visits30d)}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.ctaClicks30d}
+                    value={formatCompact(lpFunnelSnapshot.ctaClicks30d)}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.registerCompleted30d}
+                    value={formatCompact(lpFunnelSnapshot.registerCompleted30d)}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.loginCompleted30d}
+                    value={formatCompact(lpFunnelSnapshot.loginCompleted30d)}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <PlatformDashboardMetricCard
+                    title={extra.visitToCtaRate}
+                    value={`${lpFunnelSnapshot.visitToCtaRate}%`}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.ctaToRegisterRate}
+                    value={`${lpFunnelSnapshot.ctaToRegisterRate}%`}
+                  />
+                  <PlatformDashboardMetricCard
+                    title={extra.ctaToLoginRate}
+                    value={`${lpFunnelSnapshot.ctaToLoginRate}%`}
+                  />
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topCtaFunnel}</div>
+                  <div className="space-y-2">
+                    {(lpFunnelSnapshot.topCtaFunnel || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpFunnelSnapshot.topCtaFunnel || []).map((row: any) => (
+                        <div key={row.ctaName} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-sm text-slate-200">{row.ctaName}</span>
+                            <span className="text-xs text-slate-400">
+                              {formatCompact(row.clicks)} → {formatCompact(row.registers)} / {formatCompact(row.logins)}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-xs text-slate-400">
+                            {extra.ctaToRegisterRate}: {row.clickToRegisterRate}% · {extra.ctaToLoginRate}: {row.clickToLoginRate}%
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
           </PlatformDashboardSectionCard>
         </div>
 

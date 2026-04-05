@@ -32,10 +32,12 @@ import { PlatformReconciliationBatchService } from './platform-reconciliation-ba
 import { PlatformExecutiveSummaryService } from './platform-executive-summary.service';
 import { PlatformUserInsightsService } from './platform-user-insights.service';
 import { PlatformLpAnalyticsService } from './platform-lp-analytics.service';
+import { PlatformLpConversionService } from './platform-lp-conversion.service';
 import { PlatformReconciliationBatchController } from './platform-reconciliation-batch.controller';
 import { PlatformExecutiveSummaryController } from './platform-executive-summary.controller';
 import { PlatformUserInsightsController } from './platform-user-insights.controller';
 import { PlatformLpAnalyticsController } from './platform-lp-analytics.controller';
+import { PlatformLpConversionController } from './platform-lp-conversion.controller';
 import { PlatformReconciliationOperationController } from './platform-reconciliation-operation.controller';
 import { PlatformReconciliationOperationService } from './platform-reconciliation-operation.service';
 import { PlatformOperationController } from './platform-operation.controller';
@@ -66,6 +68,7 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformOperationController,
     PlatformReconciliationOperationController,
     PlatformLpAnalyticsController,
+    PlatformLpConversionController,
   ],
   providers: [
     PlatformTenantsControlService,
@@ -87,6 +90,7 @@ import { PlatformOperationService } from './platform-operation.service';
     PlatformAdminGuard,
     PrismaService,
     PlatformLpAnalyticsService,
+    PlatformLpConversionService,
   ],
 })
 export class PlatformOpsModule {}
