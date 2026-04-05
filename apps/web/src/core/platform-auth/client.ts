@@ -851,6 +851,62 @@ export type PlatformExecutiveSummaryResponse = {
       clickToLoginRate: number;
     }>;
   };
+  lpAttributionIntelligence?: {
+    bySource: Array<{
+      source: string;
+      key: string;
+      visits: number;
+      ctaClicks: number;
+      registers: number;
+      logins: number;
+      visitToCtaRate: number;
+      ctaToRegisterRate: number;
+      ctaToLoginRate: number;
+    }>;
+    byLocale: Array<{
+      locale: string;
+      key: string;
+      visits: number;
+      ctaClicks: number;
+      registers: number;
+      logins: number;
+      visitToCtaRate: number;
+      ctaToRegisterRate: number;
+      ctaToLoginRate: number;
+    }>;
+    byCta: Array<{
+      ctaName: string;
+      key: string;
+      visits: number;
+      ctaClicks: number;
+      registers: number;
+      logins: number;
+      visitToCtaRate: number;
+      ctaToRegisterRate: number;
+      ctaToLoginRate: number;
+    }>;
+    dailyCohorts: Array<{
+      day: string;
+      visits: number;
+      ctaClicks: number;
+      registers: number;
+      logins: number;
+      visitToCtaRate: number;
+      ctaToRegisterRate: number;
+      ctaToLoginRate: number;
+    }>;
+  };
+  lpExecutiveSummary?: {
+    summary: string;
+    alertLevel: string;
+    anomalyFlags: {
+      lowCtaRate: boolean;
+      lowRegisterRate: boolean;
+      lowLoginRate: boolean;
+      weakSourceCoverage: boolean;
+    };
+    recommendedAction: string;
+  };
     };
     alertLevel: "healthy" | "medium" | "high" | string;
     summary: string;

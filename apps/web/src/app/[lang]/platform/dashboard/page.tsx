@@ -153,6 +153,18 @@ function getExtraLabels(lang: string) {
       ctaToRegisterRate: "CTA→注册转化率",
       ctaToLoginRate: "CTA→登录转化率",
       topCtaFunnel: "高效率 CTA 漏斗",
+      lpAttribution: "LP 归因 / Cohort",
+      topSourceFunnel: "来源漏斗",
+      topLocaleFunnel: "语言漏斗",
+      topCtaAttribution: "CTA 归因明细",
+      dailyCohorts: "日 Cohort",
+      lpExecutiveSummary: "LP 执行摘要",
+      recommendedAction: "建议动作",
+      openLpWorkspace: "打开 LP 工作台",
+      lowCtaRate: "CTA 偏低",
+      lowRegisterRate: "注册偏低",
+      lowLoginRate: "登录偏低",
+      weakSourceCoverage: "来源过少",
       trialingUsers: "试用用户",
       pastDueUsers: "逾期用户",
       canceledUsers: "取消用户",
@@ -302,6 +314,18 @@ function getExtraLabels(lang: string) {
     ctaToRegisterRate: "CTA → Register Rate",
     ctaToLoginRate: "CTA → Login Rate",
     topCtaFunnel: "Top CTA Funnel",
+    lpAttribution: "LP Attribution / Cohort",
+    topSourceFunnel: "Source Funnel",
+    topLocaleFunnel: "Locale Funnel",
+    topCtaAttribution: "CTA Attribution Detail",
+    dailyCohorts: "Daily Cohorts",
+    lpExecutiveSummary: "LP Executive Summary",
+    recommendedAction: "Recommended Action",
+    openLpWorkspace: "Open LP Workspace",
+    lowCtaRate: "Low CTA Rate",
+    lowRegisterRate: "Low Register Rate",
+    lowLoginRate: "Low Login Rate",
+    weakSourceCoverage: "Weak Source Coverage",
     trialingUsers: "Trialing Users",
     pastDueUsers: "Past Due Users",
     canceledUsers: "Canceled Users",
@@ -715,6 +739,25 @@ export default function PlatformDashboardPage() {
     topCtaFunnel: [],
   };
 
+  const lpAttributionSnapshot = (executive as any)?.lpAttributionIntelligence || {
+    bySource: [],
+    byLocale: [],
+    byCta: [],
+    dailyCohorts: [],
+  };
+
+  const lpExecutiveSummarySnapshot = (executive as any)?.lpExecutiveSummary || {
+    summary: "No LP summary available.",
+    alertLevel: "healthy",
+    anomalyFlags: {
+      lowCtaRate: false,
+      lowRegisterRate: false,
+      lowLoginRate: false,
+      weakSourceCoverage: false,
+    },
+    recommendedAction: "Keep monitoring.",
+  };
+
   const paymentIntelRows = [
     { label: extra.newRiskThisMonth, value: formatCompact(paymentIntel.newRiskThisMonth) },
     { label: extra.monthlyReduction, value: formatCompact(paymentIntel.canceledThisMonth) },
@@ -844,6 +887,65 @@ export default function PlatformDashboardPage() {
           renderMeta={(row) => row.meta}
         />
       </div>
+
+          <div className="mt-6">
+            <PlatformDashboardSectionCard
+              title={extra.lpExecutiveSummary}
+              action={
+                <Link
+                  href={`/${lang}/lp`}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 hover:bg-white/10"
+                >
+                  {extra.openLpWorkspace}
+                </Link>
+              }
+            >
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={
+                      lpExecutiveSummarySnapshot.alertLevel === "high"
+                        ? "rounded-full border border-rose-400/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-200"
+                        : lpExecutiveSummarySnapshot.alertLevel === "medium"
+                        ? "rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200"
+                        : "rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200"
+                    }
+                  >
+                    {lpExecutiveSummarySnapshot.alertLevel}
+                  </span>
+
+                  {lpExecutiveSummarySnapshot.anomalyFlags.lowCtaRate ? (
+                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200">
+                      {extra.lowCtaRate}
+                    </span>
+                  ) : null}
+                  {lpExecutiveSummarySnapshot.anomalyFlags.lowRegisterRate ? (
+                    <span className="rounded-full border border-rose-400/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-200">
+                      {extra.lowRegisterRate}
+                    </span>
+                  ) : null}
+                  {lpExecutiveSummarySnapshot.anomalyFlags.lowLoginRate ? (
+                    <span className="rounded-full border border-rose-400/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-200">
+                      {extra.lowLoginRate}
+                    </span>
+                  ) : null}
+                  {lpExecutiveSummarySnapshot.anomalyFlags.weakSourceCoverage ? (
+                    <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-1 text-xs text-sky-200">
+                      {extra.weakSourceCoverage}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 text-sm text-slate-200">
+                  {lpExecutiveSummarySnapshot.summary}
+                </div>
+
+                <div className="mt-3 text-xs text-slate-400">
+                  {extra.recommendedAction}: {lpExecutiveSummarySnapshot.recommendedAction}
+                </div>
+              </div>
+            </PlatformDashboardSectionCard>
+          </div>
 
         <div className="mt-6">
           <PlatformDashboardSectionCard title={extra.lpOverview}>
@@ -1099,6 +1201,104 @@ export default function PlatformDashboardPage() {
                           </div>
                           <div className="mt-2 text-xs text-slate-400">
                             {extra.ctaToRegisterRate}: {row.clickToRegisterRate}% · {extra.ctaToLoginRate}: {row.clickToLoginRate}%
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="mb-4 text-sm font-semibold text-slate-200">{extra.lpAttribution}</div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topSourceFunnel}</div>
+                    <div className="space-y-2">
+                      {(lpAttributionSnapshot.bySource || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpAttributionSnapshot.bySource || []).map((row: any) => (
+                          <div key={row.source} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="truncate text-sm text-slate-200">{row.source}</span>
+                              <span className="text-xs text-slate-400">
+                                {formatCompact(row.visits)} / {formatCompact(row.ctaClicks)}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              {extra.ctaToRegisterRate}: {row.ctaToRegisterRate}% · {extra.ctaToLoginRate}: {row.ctaToLoginRate}%
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topLocaleFunnel}</div>
+                    <div className="space-y-2">
+                      {(lpAttributionSnapshot.byLocale || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpAttributionSnapshot.byLocale || []).map((row: any) => (
+                          <div key={row.locale} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="truncate text-sm text-slate-200">{row.locale}</span>
+                              <span className="text-xs text-slate-400">
+                                {formatCompact(row.visits)} / {formatCompact(row.ctaClicks)}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              {extra.ctaToRegisterRate}: {row.ctaToRegisterRate}% · {extra.ctaToLoginRate}: {row.ctaToLoginRate}%
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="mb-3 text-sm font-semibold text-slate-200">{extra.topCtaAttribution}</div>
+                    <div className="space-y-2">
+                      {(lpAttributionSnapshot.byCta || []).length === 0 ? (
+                        <div className="text-sm text-slate-400">-</div>
+                      ) : (
+                        (lpAttributionSnapshot.byCta || []).map((row: any) => (
+                          <div key={row.ctaName} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="truncate text-sm text-slate-200">{row.ctaName}</span>
+                              <span className="text-xs text-slate-400">
+                                {formatCompact(row.ctaClicks)} → {formatCompact(row.registers)} / {formatCompact(row.logins)}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              {extra.visitToCtaRate}: {row.visitToCtaRate}% · {extra.ctaToRegisterRate}: {row.ctaToRegisterRate}%
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.dailyCohorts}</div>
+                  <div className="space-y-2">
+                    {(lpAttributionSnapshot.dailyCohorts || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpAttributionSnapshot.dailyCohorts || []).slice(-8).reverse().map((row: any) => (
+                        <div key={row.day} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm text-slate-200">{row.day}</span>
+                            <span className="text-xs text-slate-400">
+                              {formatCompact(row.visits)} / {formatCompact(row.ctaClicks)} / {formatCompact(row.registers)} / {formatCompact(row.logins)}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {extra.visitToCtaRate}: {row.visitToCtaRate}% · {extra.ctaToRegisterRate}: {row.ctaToRegisterRate}% · {extra.ctaToLoginRate}: {row.ctaToLoginRate}%
                           </div>
                         </div>
                       ))

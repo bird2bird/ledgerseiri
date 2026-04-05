@@ -1195,6 +1195,164 @@ export class PlatformExecutiveSummaryService {
         topCtaFunnel,
       };
 
+      const buildAttributedFunnelRows = (
+        dimension: 'source' | 'locale' | 'cta',
+      ) => {
+        const visitMap = new Map<string, number>();
+        const clickMap = new Map<string, number>();
+        const registerMap = new Map<string, number>();
+        const loginMap = new Map<string, number>();
+
+        const visitKeyOf = (row: any) => {
+          if (dimension === 'source') return String(row.utmSource || 'organic').trim() || 'organic';
+          if (dimension === 'locale') return String(row.locale || 'unknown').trim() || 'unknown';
+          return String(row.ctaName || 'unknown').trim() || 'unknown';
+        };
+
+        const convKeyOf = (row: any) => {
+          if (dimension === 'source') return String(row.source || 'organic').trim() || 'organic';
+          if (dimension === 'locale') return String(row.locale || 'unknown').trim() || 'unknown';
+          return String(row.ctaName || 'unknown').trim() || 'unknown';
+        };
+
+        for (const row of lpVisitEvents.filter((row) => row.eventType === 'view' || row.eventType === 'redirect')) {
+          const key = visitKeyOf(row);
+          visitMap.set(key, (visitMap.get(key) || 0) + 1);
+        }
+
+        for (const row of lpVisitEvents.filter((row) => row.eventType === 'cta_click')) {
+          const key = visitKeyOf(row);
+          clickMap.set(key, (clickMap.get(key) || 0) + 1);
+        }
+
+        for (const row of lpConversionEvents.filter((row) => row.eventType === 'register_completed')) {
+          const key = convKeyOf(row);
+          registerMap.set(key, (registerMap.get(key) || 0) + 1);
+        }
+
+        for (const row of lpConversionEvents.filter((row) => row.eventType === 'login_completed')) {
+          const key = convKeyOf(row);
+          loginMap.set(key, (loginMap.get(key) || 0) + 1);
+        }
+
+        const keys = Array.from(
+          new Set([
+            ...Array.from(visitMap.keys()),
+            ...Array.from(clickMap.keys()),
+            ...Array.from(registerMap.keys()),
+            ...Array.from(loginMap.keys()),
+          ]),
+        );
+
+        return keys
+          .map((key) => {
+            const visits = visitMap.get(key) || 0;
+            const ctaClicks = clickMap.get(key) || 0;
+            const registers = registerMap.get(key) || 0;
+            const logins = loginMap.get(key) || 0;
+            return {
+              key,
+              visits,
+              ctaClicks,
+              registers,
+              logins,
+              visitToCtaRate: percentage(ctaClicks, visits),
+              ctaToRegisterRate: percentage(registers, ctaClicks),
+              ctaToLoginRate: percentage(logins, ctaClicks),
+            };
+          })
+          .sort((a, b) => {
+            if (b.ctaToRegisterRate != a.ctaToRegisterRate) return b.ctaToRegisterRate - a.ctaToRegisterRate;
+            if (b.ctaClicks != a.ctaClicks) return b.ctaClicks - a.ctaClicks;
+            return b.visits - a.visits;
+          })
+          .slice(0, 8);
+      };
+
+      const dailyCohortMap = new Map<
+        string,
+        { visits: number; ctaClicks: number; registers: number; logins: number }
+      >();
+
+      for (const row of lpVisitEvents.filter((row) => row.eventType === 'view' || row.eventType === 'redirect')) {
+        const day = row.createdAt.toISOString().slice(0, 10);
+        const bucket = dailyCohortMap.get(day) || { visits: 0, ctaClicks: 0, registers: 0, logins: 0 };
+        bucket.visits += 1;
+        dailyCohortMap.set(day, bucket);
+      }
+
+      for (const row of lpVisitEvents.filter((row) => row.eventType === 'cta_click')) {
+        const day = row.createdAt.toISOString().slice(0, 10);
+        const bucket = dailyCohortMap.get(day) || { visits: 0, ctaClicks: 0, registers: 0, logins: 0 };
+        bucket.ctaClicks += 1;
+        dailyCohortMap.set(day, bucket);
+      }
+
+      for (const row of lpConversionEvents.filter((row) => row.eventType === 'register_completed')) {
+        const day = row.createdAt.toISOString().slice(0, 10);
+        const bucket = dailyCohortMap.get(day) || { visits: 0, ctaClicks: 0, registers: 0, logins: 0 };
+        bucket.registers += 1;
+        dailyCohortMap.set(day, bucket);
+      }
+
+      for (const row of lpConversionEvents.filter((row) => row.eventType === 'login_completed')) {
+        const day = row.createdAt.toISOString().slice(0, 10);
+        const bucket = dailyCohortMap.get(day) || { visits: 0, ctaClicks: 0, registers: 0, logins: 0 };
+        bucket.logins += 1;
+        dailyCohortMap.set(day, bucket);
+      }
+
+      const lpAttributionIntelligence = {
+        bySource: buildAttributedFunnelRows('source').map((row) => ({ source: row.key, ...row })),
+        byLocale: buildAttributedFunnelRows('locale').map((row) => ({ locale: row.key, ...row })),
+        byCta: buildAttributedFunnelRows('cta').map((row) => ({ ctaName: row.key, ...row })),
+        dailyCohorts: Array.from(dailyCohortMap.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([day, row]) => ({
+            day,
+            visits: row.visits,
+            ctaClicks: row.ctaClicks,
+            registers: row.registers,
+            logins: row.logins,
+            visitToCtaRate: percentage(row.ctaClicks, row.visits),
+            ctaToRegisterRate: percentage(row.registers, row.ctaClicks),
+            ctaToLoginRate: percentage(row.logins, row.ctaClicks),
+          })),
+      };
+
+      const anomalyFlags = {
+        lowCtaRate: visits30d >= 20 && percentage(ctaClicks30d, visits30d) < 5,
+        lowRegisterRate: ctaClicks30d >= 10 && percentage(registerCompleted30d, ctaClicks30d) < 10,
+        lowLoginRate: ctaClicks30d >= 10 && percentage(loginCompleted30d, ctaClicks30d) < 10,
+        weakSourceCoverage: (lpAttributionIntelligence.bySource || []).length <= 1,
+      };
+
+      const alertLevel =
+        anomalyFlags.lowRegisterRate || anomalyFlags.lowLoginRate
+          ? 'high'
+          : anomalyFlags.lowCtaRate || anomalyFlags.weakSourceCoverage
+          ? 'medium'
+          : 'healthy';
+
+      const summary =
+        visits30d === 0
+          ? 'No LP traffic in the last 30 days.'
+          : `30d LP traffic ${visits30d}, CTA clicks ${ctaClicks30d}, register ${registerCompleted30d}, login ${loginCompleted30d}.`;
+
+      const recommendedAction =
+        alertLevel === 'high'
+          ? 'Review CTA effectiveness and auth conversion flow.'
+          : alertLevel === 'medium'
+          ? 'Review source mix and CTA engagement.'
+          : 'Keep monitoring funnel and attribution mix.';
+
+      const lpExecutiveSummary = {
+        summary,
+        alertLevel,
+        anomalyFlags,
+        recommendedAction,
+      };
+
       const paymentEventIntelligence = {
       newRiskThisMonth: Array.from(latestSubscriptionByCompany.values()).filter(
         (sub) => (sub.status || '').toLowerCase() === 'past_due' && sub.updatedAt >= startOfCurrentMonth,
@@ -1318,6 +1476,8 @@ export class PlatformExecutiveSummaryService {
       lpVisitOverview,
       lpConversionIntelligence,
       lpFunnelIntelligence,
+      lpAttributionIntelligence,
+      lpExecutiveSummary,
       monthlyUserGrowth,
     };
   }
