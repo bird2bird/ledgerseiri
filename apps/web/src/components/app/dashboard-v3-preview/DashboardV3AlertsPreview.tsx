@@ -1,5 +1,7 @@
 import React from "react";
+import Link from "next/link";
 import type { DashboardV3Alert } from "@/core/dashboard-v3/types";
+import { getDashboardV3AlertHref } from "@/core/dashboard-v3/drilldown";
 
 function severityClasses(severity: "low" | "medium" | "high"): string {
   if (severity === "high") {
@@ -12,6 +14,7 @@ function severityClasses(severity: "low" | "medium" | "high"): string {
 }
 
 type Props = {
+  lang: string;
   items: DashboardV3Alert[];
 };
 
@@ -57,6 +60,15 @@ export function DashboardV3AlertsPreview(props: Props) {
               >
                 {item.severity.toUpperCase()}
               </span>
+            </div>
+
+            <div className="mt-4">
+              <Link
+                href={getDashboardV3AlertHref(props.lang, item)}
+                className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+              >
+                詳細を見る
+              </Link>
             </div>
           </div>
         ))}

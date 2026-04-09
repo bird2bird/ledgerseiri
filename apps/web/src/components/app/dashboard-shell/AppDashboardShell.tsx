@@ -28,6 +28,7 @@ type ContractPreview = {
 };
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   contractPreview?: ContractPreview;
   previewKpis?: DashboardV3Kpi[];
@@ -62,7 +63,7 @@ export function AppDashboardShell(props: Props) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               Current dashboard content still uses DashboardHomeV2.
               <br />
-              Step85-K 以降で drill-down 連携を整理します。
+              Step86 以降で V3 preview を本体化していきます。
             </div>
           </div>
 
@@ -114,11 +115,11 @@ export function AppDashboardShell(props: Props) {
       ) : null}
 
       {props.previewAlerts && props.previewAlerts.length > 0 ? (
-        <DashboardV3AlertsPreview items={props.previewAlerts} />
+        <DashboardV3AlertsPreview lang={props.lang} items={props.previewAlerts} />
       ) : null}
 
       {props.previewExplains && props.previewExplains.length > 0 ? (
-        <DashboardV3ExplainPreview items={props.previewExplains} />
+        <DashboardV3ExplainPreview lang={props.lang} items={props.previewExplains} />
       ) : null}
 
       {props.children}

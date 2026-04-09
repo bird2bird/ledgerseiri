@@ -1,7 +1,10 @@
 import React from "react";
+import Link from "next/link";
 import type { DashboardV3ExplainSummary } from "@/core/dashboard-v3/types";
+import { getDashboardV3ExplainHref } from "@/core/dashboard-v3/drilldown";
 
 type Props = {
+  lang: string;
   items: DashboardV3ExplainSummary[];
 };
 
@@ -34,6 +37,15 @@ export function DashboardV3ExplainPreview(props: Props) {
             </div>
             <div className="mt-2 text-sm leading-6 text-slate-600">
               {item.summary}
+            </div>
+
+            <div className="mt-4">
+              <Link
+                href={getDashboardV3ExplainHref(props.lang, item)}
+                className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
+              >
+                関連画面へ
+              </Link>
             </div>
           </div>
         ))}
