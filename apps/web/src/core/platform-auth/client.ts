@@ -907,6 +907,28 @@ export type PlatformExecutiveSummaryResponse = {
     };
     recommendedAction: string;
   };
+  lpTrackingDebugPanel?: {
+    lastLpEventAt: string | null;
+    lastConversionAt: string | null;
+    pv24h: number;
+    cta24h: number;
+    register24h: number;
+    login24h: number;
+    recentVisitEvents: Array<{
+      path: string;
+      locale: string | null;
+      eventType: string;
+      ctaName: string | null;
+      createdAt: string;
+    }>;
+    recentConversionEvents: Array<{
+      eventType: string;
+      ctaName: string | null;
+      source: string | null;
+      locale: string | null;
+      createdAt: string;
+    }>;
+  };
     };
     alertLevel: "healthy" | "medium" | "high" | string;
     summary: string;

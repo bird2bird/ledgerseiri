@@ -1353,6 +1353,43 @@ export class PlatformExecutiveSummaryService {
         recommendedAction,
       };
 
+      const start24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const lpTrackingDebugPanel = {
+        lastLpEventAt:
+          lpVisitEvents.length > 0 ? lpVisitEvents[0]?.createdAt?.toISOString?.() || null : null,
+        lastConversionAt:
+          lpConversionEvents.length > 0 ? lpConversionEvents[0]?.createdAt?.toISOString?.() || null : null,
+        pv24h: lpVisitEvents.filter(
+          (row) =>
+            row.createdAt >= start24h &&
+            (row.eventType === 'view' || row.eventType === 'redirect'),
+        ).length,
+        cta24h: lpVisitEvents.filter(
+          (row) => row.createdAt >= start24h && row.eventType === 'cta_click',
+        ).length,
+        register24h: lpConversionEvents.filter(
+          (row) => row.createdAt >= start24h && row.eventType === 'register_completed',
+        ).length,
+        login24h: lpConversionEvents.filter(
+          (row) => row.createdAt >= start24h && row.eventType === 'login_completed',
+        ).length,
+        recentVisitEvents: lpVisitEvents.slice(0, 5).map((row) => ({
+          path: row.path,
+          locale: row.locale || null,
+          eventType: row.eventType,
+          ctaName: row.ctaName || null,
+          createdAt: row.createdAt.toISOString(),
+        })),
+        recentConversionEvents: lpConversionEvents.slice(0, 5).map((row) => ({
+          eventType: row.eventType,
+          ctaName: row.ctaName || null,
+          source: row.source || null,
+          locale: row.locale || null,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      };
+
       const paymentEventIntelligence = {
       newRiskThisMonth: Array.from(latestSubscriptionByCompany.values()).filter(
         (sub) => (sub.status || '').toLowerCase() === 'past_due' && sub.updatedAt >= startOfCurrentMonth,
@@ -1478,6 +1515,7 @@ export class PlatformExecutiveSummaryService {
       lpFunnelIntelligence,
       lpAttributionIntelligence,
       lpExecutiveSummary,
+      lpTrackingDebugPanel,
       monthlyUserGrowth,
     };
   }

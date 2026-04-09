@@ -165,6 +165,15 @@ function getExtraLabels(lang: string) {
       lowRegisterRate: "注册偏低",
       lowLoginRate: "登录偏低",
       weakSourceCoverage: "来源过少",
+      lpTrackingDebug: "LP Tracking Debug",
+      lastLpEventAt: "最近 LP 事件",
+      lastConversionAt: "最近转化事件",
+      pv24h: "24h PV",
+      cta24h: "24h CTA",
+      register24h: "24h 注册",
+      login24h: "24h 登录",
+      recentVisitEvents: "最近访问事件",
+      recentConversionEvents: "最近转化事件列表",
       trialingUsers: "试用用户",
       pastDueUsers: "逾期用户",
       canceledUsers: "取消用户",
@@ -326,6 +335,15 @@ function getExtraLabels(lang: string) {
     lowRegisterRate: "Low Register Rate",
     lowLoginRate: "Low Login Rate",
     weakSourceCoverage: "Weak Source Coverage",
+    lpTrackingDebug: "LP Tracking Debug",
+    lastLpEventAt: "Last LP Event",
+    lastConversionAt: "Last Conversion",
+    pv24h: "PV 24h",
+    cta24h: "CTA 24h",
+    register24h: "Register 24h",
+    login24h: "Login 24h",
+    recentVisitEvents: "Recent Visit Events",
+    recentConversionEvents: "Recent Conversion Events",
     trialingUsers: "Trialing Users",
     pastDueUsers: "Past Due Users",
     canceledUsers: "Canceled Users",
@@ -758,6 +776,17 @@ export default function PlatformDashboardPage() {
     recommendedAction: "Keep monitoring.",
   };
 
+  const lpTrackingDebugSnapshot = (executive as any)?.lpTrackingDebugPanel || {
+    lastLpEventAt: null,
+    lastConversionAt: null,
+    pv24h: 0,
+    cta24h: 0,
+    register24h: 0,
+    login24h: 0,
+    recentVisitEvents: [],
+    recentConversionEvents: [],
+  };
+
   const paymentIntelRows = [
     { label: extra.newRiskThisMonth, value: formatCompact(paymentIntel.newRiskThisMonth) },
     { label: extra.monthlyReduction, value: formatCompact(paymentIntel.canceledThisMonth) },
@@ -942,6 +971,81 @@ export default function PlatformDashboardPage() {
 
                 <div className="mt-3 text-xs text-slate-400">
                   {extra.recommendedAction}: {lpExecutiveSummarySnapshot.recommendedAction}
+                </div>
+              </div>
+            </PlatformDashboardSectionCard>
+          </div>
+
+          <div className="mt-6">
+            <PlatformDashboardSectionCard title={extra.lpTrackingDebug}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <PlatformDashboardMetricCard
+                  title={extra.lastLpEventAt}
+                  value={lpTrackingDebugSnapshot.lastLpEventAt || "-"}
+                />
+                <PlatformDashboardMetricCard
+                  title={extra.lastConversionAt}
+                  value={lpTrackingDebugSnapshot.lastConversionAt || "-"}
+                />
+                <PlatformDashboardMetricCard
+                  title={extra.pv24h}
+                  value={formatCompact(lpTrackingDebugSnapshot.pv24h)}
+                />
+                <PlatformDashboardMetricCard
+                  title={extra.cta24h}
+                  value={formatCompact(lpTrackingDebugSnapshot.cta24h)}
+                />
+                <PlatformDashboardMetricCard
+                  title={extra.register24h}
+                  value={formatCompact(lpTrackingDebugSnapshot.register24h)}
+                />
+                <PlatformDashboardMetricCard
+                  title={extra.login24h}
+                  value={formatCompact(lpTrackingDebugSnapshot.login24h)}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.recentVisitEvents}</div>
+                  <div className="space-y-2">
+                    {(lpTrackingDebugSnapshot.recentVisitEvents || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpTrackingDebugSnapshot.recentVisitEvents || []).map((row: any, idx: number) => (
+                        <div key={`${row.createdAt}_${idx}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-sm text-slate-200">{row.eventType}</span>
+                            <span className="text-xs text-slate-400">{row.createdAt}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {row.path} · {row.locale || "-"} · {row.ctaName || "-"}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-200">{extra.recentConversionEvents}</div>
+                  <div className="space-y-2">
+                    {(lpTrackingDebugSnapshot.recentConversionEvents || []).length === 0 ? (
+                      <div className="text-sm text-slate-400">-</div>
+                    ) : (
+                      (lpTrackingDebugSnapshot.recentConversionEvents || []).map((row: any, idx: number) => (
+                        <div key={`${row.createdAt}_${idx}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="truncate text-sm text-slate-200">{row.eventType}</span>
+                            <span className="text-xs text-slate-400">{row.createdAt}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {row.locale || "-"} · {row.source || "-"} · {row.ctaName || "-"}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </PlatformDashboardSectionCard>
