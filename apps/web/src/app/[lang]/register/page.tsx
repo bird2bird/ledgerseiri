@@ -19,6 +19,7 @@ function PageContent() {
   const [password, setPassword] = useState("");
   const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const canSubmit = useMemo(
     () => email.trim().length > 3 && password.length >= 8 && agree && !loading,
@@ -28,10 +29,33 @@ function PageContent() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+
+    setErr(null);
     setLoading(true);
+
     try {
-      // TODO: call real API register
-      router.push(`/${lang}/app`);
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text);
+      }
+
+      await res.json().catch(() => ({}));
+      router.push(`/${lang}/onboarding/business-type`);
+    } catch (e: any) {
+      console.error(e);
+      setErr("REGISTER_FAILED");
     } finally {
       setLoading(false);
     }
@@ -85,14 +109,16 @@ function PageContent() {
           </span>
         </label>
 
+        {err && <div className="text-sm text-red-600">{err}</div>}
+
         <button
-          disabled={!canSubmit}
+          disabled={!canSubmit || loading}
           className={
             "w-full rounded-xl py-3 font-medium text-white " +
-            (!canSubmit ? "bg-slate-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700")
+            (!canSubmit || loading ? "bg-slate-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700")
           }
         >
-          {t.register}
+          {loading ? "Loading..." : t.register}
         </button>
       </form>
     </AuthShell>
