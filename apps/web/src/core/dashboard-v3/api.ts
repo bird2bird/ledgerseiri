@@ -2,7 +2,7 @@ import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit, DashboardV3Range } from "@/core/dashboard-v3/types";
 import { makeDashboardV3CockpitMock } from "@/core/dashboard-v3/mock";
 
-export async function fetchDashboardCockpitV3Mock(args: {
+export async function fetchDashboardCockpitV3(args: {
   businessView: BusinessViewType;
   range?: DashboardV3Range;
 }): Promise<DashboardV3Cockpit> {
@@ -10,4 +10,11 @@ export async function fetchDashboardCockpitV3Mock(args: {
     businessView: args.businessView,
     range: args.range ?? "30d",
   });
+}
+
+export async function fetchDashboardCockpitV3Mock(args: {
+  businessView: BusinessViewType;
+  range?: DashboardV3Range;
+}): Promise<DashboardV3Cockpit> {
+  return fetchDashboardCockpitV3(args);
 }

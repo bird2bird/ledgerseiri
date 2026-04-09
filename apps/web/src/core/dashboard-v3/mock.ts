@@ -2,7 +2,6 @@ import type { BusinessViewType } from "@/core/business-view";
 import type {
   DashboardV3Cockpit,
   DashboardV3DistributionBlock,
-  DashboardV3ExplainSummary,
   DashboardV3Kpi,
   DashboardV3Range,
   DashboardV3TrendSeries,
@@ -23,9 +22,9 @@ function makeBaseKpis(view: BusinessViewType): DashboardV3Kpi[] {
   if (view === "ec") {
     return [
       { key: "sales", label: "売上", value: 460000, unit: "JPY", deltaLabel: "+5.1%" },
-      { key: "payout", label: "入金", value: 398000, unit: "JPY", deltaLabel: "+4.0%" },
-      { key: "gap", label: "差額", value: 62000, unit: "JPY", deltaLabel: "-1.3%" },
-      { key: "orders", label: "注文数", value: 154, unit: "count", deltaLabel: "+3.9%" },
+      { key: "payout", label: "回収", value: 398000, unit: "JPY", deltaLabel: "+4.0%" },
+      { key: "gap", label: "未回収差額", value: 62000, unit: "JPY", deltaLabel: "-1.3%" },
+      { key: "orders", label: "受注数", value: 154, unit: "count", deltaLabel: "+3.9%" },
     ];
   }
 
@@ -33,8 +32,8 @@ function makeBaseKpis(view: BusinessViewType): DashboardV3Kpi[] {
     return [
       { key: "sales", label: "売上", value: 680000, unit: "JPY", deltaLabel: "+3.5%" },
       { key: "payout", label: "入金", value: 655000, unit: "JPY", deltaLabel: "+3.1%" },
-      { key: "gap", label: "差額", value: 25000, unit: "JPY", deltaLabel: "-0.6%" },
-      { key: "orders", label: "注文数", value: 920, unit: "count", deltaLabel: "+2.2%" },
+      { key: "gap", label: "利益圧力", value: 25000, unit: "JPY", deltaLabel: "-0.6%" },
+      { key: "orders", label: "来店/注文", value: 920, unit: "count", deltaLabel: "+2.2%" },
     ];
   }
 
@@ -47,6 +46,35 @@ function makeBaseKpis(view: BusinessViewType): DashboardV3Kpi[] {
 }
 
 function makeBaseTrends(view: BusinessViewType): DashboardV3TrendSeries[] {
+  if (view === "restaurant") {
+    return [
+      {
+        key: "sales-orders",
+        title: "売上 / 来店トレンド",
+        primaryLabel: "売上",
+        secondaryLabel: "来店/注文",
+        points: [
+          { label: "W1", value: 150000, secondaryValue: 210 },
+          { label: "W2", value: 168000, secondaryValue: 225 },
+          { label: "W3", value: 176000, secondaryValue: 235 },
+          { label: "W4", value: 186000, secondaryValue: 250 },
+        ],
+      },
+      {
+        key: "payout-gap",
+        title: "入金 / 利益圧力トレンド",
+        primaryLabel: "入金",
+        secondaryLabel: "利益圧力",
+        points: [
+          { label: "W1", value: 158000, secondaryValue: 7000 },
+          { label: "W2", value: 161000, secondaryValue: 5000 },
+          { label: "W3", value: 166000, secondaryValue: 6000 },
+          { label: "W4", value: 170000, secondaryValue: 7000 },
+        ],
+      },
+    ];
+  }
+
   return [
     {
       key: "sales-orders",
@@ -99,6 +127,29 @@ function makeBaseDistributions(view: BusinessViewType): DashboardV3DistributionB
     ];
   }
 
+  if (view === "ec") {
+    return [
+      {
+        key: "cost-breakdown",
+        title: "費用構成",
+        items: [
+          { key: "shipping", label: "配送費", value: 32000 },
+          { key: "ads", label: "広告費", value: 21000 },
+          { key: "returns", label: "返品", value: 9000 },
+          { key: "other", label: "その他", value: 12000 },
+        ],
+      },
+      {
+        key: "channel-breakdown",
+        title: "チャネル構成",
+        items: [
+          { key: "shop", label: "自社EC", value: 260000 },
+          { key: "mall", label: "モール", value: 200000 },
+        ],
+      },
+    ];
+  }
+
   return [
     {
       key: "cost-breakdown",
@@ -146,6 +197,29 @@ function makeBaseAlerts(view: BusinessViewType): DashboardV3Alert[] {
         title: "原価率が上昇しています",
         severity: "high",
         summary: "一部週で食材原価率が通常範囲を超えています。",
+      },
+      {
+        key: "labor-pressure",
+        title: "人件費圧力が上昇しています",
+        severity: "medium",
+        summary: "ピーク時間帯の人件費負担が増えています。",
+      },
+    ];
+  }
+
+  if (view === "ec") {
+    return [
+      {
+        key: "cash-ops-watch",
+        title: "回収タイミングの確認が必要です",
+        severity: "medium",
+        summary: "売上計上と実際の回収タイミングの差が広がっています。",
+      },
+      {
+        key: "cost-pressure",
+        title: "配送・返品コストが増加しています",
+        severity: "high",
+        summary: "配送費と返品コストが粗利を圧迫しています。",
       },
     ];
   }
