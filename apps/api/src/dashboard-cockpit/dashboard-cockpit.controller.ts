@@ -1,8 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import {
+import { DashboardCockpitService } from './dashboard-cockpit.service';
+import type {
   DashboardCockpitBusinessView,
   DashboardCockpitRange,
-  DashboardCockpitService,
 } from './dashboard-cockpit.service';
 
 @Controller('dashboard-cockpit')
