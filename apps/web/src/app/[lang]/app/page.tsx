@@ -4,7 +4,7 @@ import { DashboardV3Workspace } from "@/components/app/dashboard-v3/DashboardV3W
 import { LegacyDashboardFallback } from "@/components/app/dashboard-v3/LegacyDashboardFallback";
 import { AppDashboardShell } from "@/components/app/dashboard-shell/AppDashboardShell";
 import { normalizeBusinessView } from "@/core/business-view";
-import { fetchDashboardCockpitV3Mock } from "@/core/dashboard-v3/api";
+import { fetchDashboardCockpitV3 } from "@/core/dashboard-v3/api";
 import { getWorkspaceContext } from "@/core/workspace/repository";
 
 function rangeLabel(range: "today" | "7d" | "30d" | "month"): string {
@@ -33,9 +33,12 @@ export default async function AppHomePage({
     locale: lang,
   });
 
-  const cockpit = await fetchDashboardCockpitV3Mock({
+  const providerMode = businessView === "amazon" ? "real" : "mock";
+
+  const cockpit = await fetchDashboardCockpitV3({
     businessView,
     range: "30d",
+    mode: providerMode,
   });
 
   return (

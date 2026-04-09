@@ -1,6 +1,7 @@
 import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit, DashboardV3Range } from "@/core/dashboard-v3/types";
 import { makeDashboardV3CockpitMock } from "@/core/dashboard-v3/mock";
+import { adaptLoosePayloadToDashboardV3Cockpit } from "@/core/dashboard-v3/adapter";
 
 export type DashboardV3ProviderMode = "mock" | "real";
 
@@ -14,18 +15,45 @@ export async function loadDashboardCockpitV3(
   args: DashboardV3ProviderArgs
 ): Promise<DashboardV3Cockpit> {
   const mode = args.mode ?? "mock";
-
-  if (mode === "real") {
-    // Real provider seam placeholder.
-    // Step89 では interface を固定し、fallback を mock に残します。
-    return makeDashboardV3CockpitMock({
-      businessView: args.businessView,
-      range: args.range ?? "30d",
-    });
-  }
-
-  return makeDashboardV3CockpitMock({
+  const fallback = makeDashboardV3CockpitMock({
     businessView: args.businessView,
     range: args.range ?? "30d",
   });
+
+  if (mode === "real") {
+    try {
+      const params = new URLSearchParams({
+        businessType: args.businessView,
+        range: args.range ?? "30d",
+      });
+
+      const res = await fetch(`http://localhost:3000/api/dashboard/cockpit-v3?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        throw new Error(`cockpit-v3 real request failed: ${res.status}`);
+      }
+
+      const payload = await res.json();
+
+      return adaptLoosePayloadToDashboardV3Cockpit({
+        businessView: args.businessView,
+        payload,
+        fallback: {
+          ...fallback,
+          source: "mock",
+        },
+      });
+    } catch (err) {
+      console.error("[dashboard-v3] real provider failed, fallback to mock", err);
+      return {
+        ...fallback,
+        source: "mock",
+      };
+    }
+  }
+
+  return fallback;
 }
