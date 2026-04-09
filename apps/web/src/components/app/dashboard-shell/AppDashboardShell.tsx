@@ -43,9 +43,9 @@ export function AppDashboardShell(props: Props) {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              Dashboard V3 is now the primary workspace.
+              Dashboard V3 is the primary workspace.
               <br />
-              Legacy DashboardHomeV2 remains available below as fallback.
+              Legacy DashboardHomeV2 remains as fallback below.
             </div>
           </div>
 

@@ -5,6 +5,8 @@ import { DashboardV3TrendPreview } from "@/components/app/dashboard-v3-preview/D
 import { DashboardV3DistributionPreview } from "@/components/app/dashboard-v3-preview/DashboardV3DistributionPreview";
 import { DashboardV3AlertsPreview } from "@/components/app/dashboard-v3-preview/DashboardV3AlertsPreview";
 import { DashboardV3ExplainPreview } from "@/components/app/dashboard-v3-preview/DashboardV3ExplainPreview";
+import { DashboardV3AnomalyWorkspace } from "@/components/app/dashboard-v3/DashboardV3AnomalyWorkspace";
+import { getDashboardMetricSemantics } from "@/core/dashboard-v3/semantics";
 
 type Props = {
   lang: string;
@@ -20,6 +22,7 @@ function rangeLabel(range: DashboardV3Cockpit["range"]): string {
 
 export function DashboardV3Workspace(props: Props) {
   const { cockpit, lang } = props;
+  const semantics = getDashboardMetricSemantics();
 
   return (
     <div className="space-y-6">
@@ -54,9 +57,33 @@ export function DashboardV3Workspace(props: Props) {
         </div>
       </div>
 
+      <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
+        <div className="text-sm font-semibold text-slate-900">
+          Metrics semantics
+        </div>
+        <div className="mt-1 text-xs text-slate-500">
+          KPI の意味を先に固定し、後続の chart-first cockpit と整合させます。
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {semantics.map((item) => (
+            <div key={item.key} className="rounded-2xl border border-black/5 bg-slate-50 p-4">
+              <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+              <div className="mt-2 text-sm leading-6 text-slate-600">
+                {item.definition}
+              </div>
+              <div className="mt-2 text-xs leading-5 text-slate-500">
+                {item.whyItMatters}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <DashboardV3KpiRow items={cockpit.summaryKpis} />
       <DashboardV3TrendPreview items={cockpit.trendSeries} />
       <DashboardV3DistributionPreview items={cockpit.distributions} />
+      <DashboardV3AnomalyWorkspace items={cockpit.alerts} />
       <DashboardV3AlertsPreview lang={lang} items={cockpit.alerts} />
       <DashboardV3ExplainPreview lang={lang} items={cockpit.explainSummaries} />
     </div>

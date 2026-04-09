@@ -13,6 +13,12 @@ function severityClasses(severity: "low" | "medium" | "high"): string {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function actionHint(severity: "low" | "medium" | "high"): string {
+  if (severity === "high") return "早めの確認を推奨";
+  if (severity === "medium") return "推移を確認";
+  return "経過観察";
+}
+
 type Props = {
   lang: string;
   items: DashboardV3Alert[];
@@ -49,6 +55,9 @@ export function DashboardV3AlertsPreview(props: Props) {
                 </div>
                 <div className="mt-1 text-sm leading-6 text-slate-600">
                   {item.summary}
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {actionHint(item.severity)}
                 </div>
               </div>
 

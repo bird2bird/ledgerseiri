@@ -8,17 +8,45 @@ import type {
   DashboardV3TrendSeries,
   DashboardV3Alert,
 } from "@/core/dashboard-v3/types";
+import { getDashboardV3ExplainSummaries } from "@/core/dashboard-v3/explain-provider";
 
-function makeBaseKpis(): DashboardV3Kpi[] {
+function makeBaseKpis(view: BusinessViewType): DashboardV3Kpi[] {
+  if (view === "amazon") {
+    return [
+      { key: "sales", label: "売上", value: 520000, unit: "JPY", deltaLabel: "+8.2%" },
+      { key: "payout", label: "入金", value: 412000, unit: "JPY", deltaLabel: "+5.0%" },
+      { key: "gap", label: "差額", value: 108000, unit: "JPY", deltaLabel: "-2.1%" },
+      { key: "orders", label: "注文数", value: 182, unit: "count", deltaLabel: "+6.4%" },
+    ];
+  }
+
+  if (view === "ec") {
+    return [
+      { key: "sales", label: "売上", value: 460000, unit: "JPY", deltaLabel: "+5.1%" },
+      { key: "payout", label: "入金", value: 398000, unit: "JPY", deltaLabel: "+4.0%" },
+      { key: "gap", label: "差額", value: 62000, unit: "JPY", deltaLabel: "-1.3%" },
+      { key: "orders", label: "注文数", value: 154, unit: "count", deltaLabel: "+3.9%" },
+    ];
+  }
+
+  if (view === "restaurant") {
+    return [
+      { key: "sales", label: "売上", value: 680000, unit: "JPY", deltaLabel: "+3.5%" },
+      { key: "payout", label: "入金", value: 655000, unit: "JPY", deltaLabel: "+3.1%" },
+      { key: "gap", label: "差額", value: 25000, unit: "JPY", deltaLabel: "-0.6%" },
+      { key: "orders", label: "注文数", value: 920, unit: "count", deltaLabel: "+2.2%" },
+    ];
+  }
+
   return [
-    { key: "sales", label: "売上", value: 520000, unit: "JPY", deltaLabel: "+8.2%" },
-    { key: "payout", label: "入金", value: 412000, unit: "JPY", deltaLabel: "+5.0%" },
-    { key: "gap", label: "差額", value: 108000, unit: "JPY", deltaLabel: "-2.1%" },
-    { key: "orders", label: "注文数", value: 182, unit: "count", deltaLabel: "+6.4%" },
+    { key: "sales", label: "売上", value: 390000, unit: "JPY", deltaLabel: "+4.0%" },
+    { key: "payout", label: "入金", value: 352000, unit: "JPY", deltaLabel: "+2.8%" },
+    { key: "gap", label: "差額", value: 38000, unit: "JPY", deltaLabel: "-0.9%" },
+    { key: "orders", label: "案件数", value: 96, unit: "count", deltaLabel: "+2.1%" },
   ];
 }
 
-function makeBaseTrends(): DashboardV3TrendSeries[] {
+function makeBaseTrends(view: BusinessViewType): DashboardV3TrendSeries[] {
   return [
     {
       key: "sales-orders",
@@ -47,7 +75,30 @@ function makeBaseTrends(): DashboardV3TrendSeries[] {
   ];
 }
 
-function makeBaseDistributions(): DashboardV3DistributionBlock[] {
+function makeBaseDistributions(view: BusinessViewType): DashboardV3DistributionBlock[] {
+  if (view === "restaurant") {
+    return [
+      {
+        key: "cost-breakdown",
+        title: "費用構成",
+        items: [
+          { key: "food", label: "食材原価", value: 120000 },
+          { key: "labor", label: "人件費", value: 180000 },
+          { key: "rent", label: "家賃等", value: 70000 },
+          { key: "other", label: "その他", value: 30000 },
+        ],
+      },
+      {
+        key: "channel-breakdown",
+        title: "売上構成",
+        items: [
+          { key: "in-store", label: "店内", value: 520000 },
+          { key: "delivery", label: "配達", value: 160000 },
+        ],
+      },
+    ];
+  }
+
   return [
     {
       key: "cost-breakdown",
@@ -70,34 +121,41 @@ function makeBaseDistributions(): DashboardV3DistributionBlock[] {
   ];
 }
 
-function makeBaseAlerts(): DashboardV3Alert[] {
-  return [
-    {
-      key: "refund-risk",
-      title: "返金率の高い商品があります",
-      severity: "medium",
-      summary: "一部 SKU で返金率が直近平均を上回っています。",
-    },
-    {
-      key: "ads-efficiency",
-      title: "広告効率が低下しています",
-      severity: "high",
-      summary: "広告費は増加していますが、入金改善への寄与が限定的です。",
-    },
-  ];
-}
+function makeBaseAlerts(view: BusinessViewType): DashboardV3Alert[] {
+  if (view === "amazon") {
+    return [
+      {
+        key: "refund-risk",
+        title: "返金率の高い商品があります",
+        severity: "medium",
+        summary: "一部 SKU で返金率が直近平均を上回っています。",
+      },
+      {
+        key: "ads-efficiency",
+        title: "広告効率が低下しています",
+        severity: "high",
+        summary: "広告費は増加していますが、入金改善への寄与が限定的です。",
+      },
+    ];
+  }
 
-function makeBaseExplainSummaries(): DashboardV3ExplainSummary[] {
+  if (view === "restaurant") {
+    return [
+      {
+        key: "food-cost-pressure",
+        title: "原価率が上昇しています",
+        severity: "high",
+        summary: "一部週で食材原価率が通常範囲を超えています。",
+      },
+    ];
+  }
+
   return [
     {
-      key: "sales-vs-payout",
-      title: "売上と入金の差額",
-      summary: "主因は FBA手数料、広告費、返金です。",
-    },
-    {
-      key: "margin-pressure",
-      title: "利益率の圧迫要因",
-      summary: "広告費と返金コストが利益を押し下げています。",
+      key: "cash-ops-watch",
+      title: "資金繰り確認が必要です",
+      severity: "medium",
+      summary: "入金タイミングと費用発生タイミングの差を確認してください。",
     },
   ];
 }
@@ -110,10 +168,12 @@ export function makeDashboardV3CockpitMock(args: {
     businessView: args.businessView,
     range: args.range ?? "30d",
     source: "mock",
-    summaryKpis: makeBaseKpis(),
-    trendSeries: makeBaseTrends(),
-    distributions: makeBaseDistributions(),
-    alerts: makeBaseAlerts(),
-    explainSummaries: makeBaseExplainSummaries(),
+    summaryKpis: makeBaseKpis(args.businessView),
+    trendSeries: makeBaseTrends(args.businessView),
+    distributions: makeBaseDistributions(args.businessView),
+    alerts: makeBaseAlerts(args.businessView),
+    explainSummaries: getDashboardV3ExplainSummaries({
+      businessView: args.businessView,
+    }),
   };
 }
