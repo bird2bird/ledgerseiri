@@ -1,5 +1,6 @@
 import React from "react";
 import { DashboardHomeV2 } from "@/components/app/dashboard-v2/DashboardHomeV2";
+import { DashboardV3Workspace } from "@/components/app/dashboard-v3/DashboardV3Workspace";
 import { AppDashboardShell } from "@/components/app/dashboard-shell/AppDashboardShell";
 import { normalizeBusinessView } from "@/core/business-view";
 import { fetchDashboardCockpitV3Mock } from "@/core/dashboard-v3/api";
@@ -21,13 +22,14 @@ export default async function AppHomePage({
 }) {
   const p = await params;
   const sp = await searchParams;
+  const lang = p?.lang || "ja";
 
   const businessView = normalizeBusinessView(sp?.businessType);
 
   const ctx = await getWorkspaceContext({
     slug: "weiwei",
     plan: sp?.plan,
-    locale: p?.lang,
+    locale: lang,
   });
 
   const cockpit = await fetchDashboardCockpitV3Mock({
@@ -37,7 +39,6 @@ export default async function AppHomePage({
 
   return (
     <AppDashboardShell
-      lang={p?.lang || "ja"}
       businessView={businessView}
       contractPreview={{
         source: cockpit.source,
@@ -48,13 +49,17 @@ export default async function AppHomePage({
         alertCount: cockpit.alerts.length,
         explainCount: cockpit.explainSummaries.length,
       }}
-      previewKpis={cockpit.summaryKpis}
-      previewTrends={cockpit.trendSeries}
-      previewDistributions={cockpit.distributions}
-      previewAlerts={cockpit.alerts}
-      previewExplains={cockpit.explainSummaries}
     >
-      <DashboardHomeV2 />
+      <DashboardV3Workspace lang={lang} cockpit={cockpit} />
+
+      <details className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+          Legacy DashboardHomeV2 fallback
+        </summary>
+        <div className="mt-5">
+          <DashboardHomeV2 />
+        </div>
+      </details>
     </AppDashboardShell>
   );
 }
