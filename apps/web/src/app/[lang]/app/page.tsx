@@ -47,6 +47,8 @@ export default async function AppHomePage({
         alertCount: cockpit.alerts.length,
         explainCount: cockpit.explainSummaries.length,
       }}
+      previewKpis={cockpit.summaryKpis}
+      previewTrends={cockpit.trendSeries}
     >
       <DashboardHomeV2 />
     </AppDashboardShell>

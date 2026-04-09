@@ -4,6 +4,9 @@ import {
   getBusinessViewDescription,
   getBusinessViewLabel,
 } from "@/core/business-view";
+import type { DashboardV3Kpi, DashboardV3TrendSeries } from "@/core/dashboard-v3/types";
+import { DashboardV3KpiRow } from "@/components/app/dashboard-v3-preview/DashboardV3KpiRow";
+import { DashboardV3TrendPreview } from "@/components/app/dashboard-v3-preview/DashboardV3TrendPreview";
 
 type ContractPreview = {
   source: string;
@@ -18,6 +21,8 @@ type ContractPreview = {
 type Props = {
   businessView: BusinessViewType;
   contractPreview?: ContractPreview;
+  previewKpis?: DashboardV3Kpi[];
+  previewTrends?: DashboardV3TrendSeries[];
   children: React.ReactNode;
 };
 
@@ -45,7 +50,7 @@ export function AppDashboardShell(props: Props) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               Current dashboard content still uses DashboardHomeV2.
               <br />
-              Step85-G 以降で section / chart-first cockpit へ移行します。
+              Step85-H 以降で distribution / alerts / explain preview を追加します。
             </div>
           </div>
 
@@ -83,6 +88,14 @@ export function AppDashboardShell(props: Props) {
           ) : null}
         </div>
       </div>
+
+      {props.previewKpis && props.previewKpis.length > 0 ? (
+        <DashboardV3KpiRow items={props.previewKpis} />
+      ) : null}
+
+      {props.previewTrends && props.previewTrends.length > 0 ? (
+        <DashboardV3TrendPreview items={props.previewTrends} />
+      ) : null}
 
       {props.children}
     </div>
