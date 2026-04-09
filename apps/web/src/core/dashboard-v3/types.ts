@@ -52,7 +52,7 @@ export type DashboardV3ExplainSummary = {
 export type DashboardV3Cockpit = {
   businessView: BusinessViewType;
   range: DashboardV3Range;
-  source: "mock";
+  source: "mock" | "real" | "mock-fallback";
   summaryKpis: DashboardV3Kpi[];
   trendSeries: DashboardV3TrendSeries[];
   distributions: DashboardV3DistributionBlock[];
