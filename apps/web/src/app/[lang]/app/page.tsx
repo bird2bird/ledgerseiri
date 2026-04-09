@@ -51,8 +51,8 @@ export default async function AppHomePage({
         explainCount: cockpit.explainSummaries.length,
       }}
     >
-      <DashboardV3Workspace lang={lang} cockpit={cockpit} />
-      <LegacyDashboardFallback>
+      <DashboardV3Workspace lang={lang} businessView={businessView} cockpit={cockpit} />
+      <LegacyDashboardFallback businessView={businessView}>
         <DashboardHomeV2 />
       </LegacyDashboardFallback>
     </AppDashboardShell>

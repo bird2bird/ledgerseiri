@@ -1,4 +1,5 @@
 import React from "react";
+import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import { DashboardV3KpiRow } from "@/components/app/dashboard-v3-preview/DashboardV3KpiRow";
 import { DashboardV3TrendPreview } from "@/components/app/dashboard-v3-preview/DashboardV3TrendPreview";
@@ -7,9 +8,11 @@ import { DashboardV3AlertsPreview } from "@/components/app/dashboard-v3-preview/
 import { DashboardV3ExplainPreview } from "@/components/app/dashboard-v3-preview/DashboardV3ExplainPreview";
 import { DashboardV3AnomalyWorkspace } from "@/components/app/dashboard-v3/DashboardV3AnomalyWorkspace";
 import { getDashboardMetricSemantics } from "@/core/dashboard-v3/semantics";
+import { getBusinessViewConfig } from "@/core/business-view/config";
 
 type Props = {
   lang: string;
+  businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
 };
 
@@ -21,8 +24,9 @@ function rangeLabel(range: DashboardV3Cockpit["range"]): string {
 }
 
 export function DashboardV3Workspace(props: Props) {
-  const { cockpit, lang } = props;
+  const { cockpit, lang, businessView } = props;
   const semantics = getDashboardMetricSemantics();
+  const cfg = getBusinessViewConfig(businessView);
 
   return (
     <div className="space-y-6">
@@ -30,10 +34,13 @@ export function DashboardV3Workspace(props: Props) {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-sm font-semibold text-slate-900">
-              Dashboard V3 workspace
+              {cfg.workspaceTitle}
             </div>
             <div className="mt-1 text-xs text-slate-600">
               source: {cockpit.source} · range: {rangeLabel(cockpit.range)}
+            </div>
+            <div className="mt-2 text-sm leading-6 text-slate-700">
+              {cfg.workspaceSubtitle}
             </div>
           </div>
 
@@ -59,10 +66,10 @@ export function DashboardV3Workspace(props: Props) {
 
       <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
         <div className="text-sm font-semibold text-slate-900">
-          Metrics semantics
+          {cfg.metricsSemanticsTitle}
         </div>
         <div className="mt-1 text-xs text-slate-500">
-          KPI の意味を先に固定し、後続の chart-first cockpit と整合させます。
+          {cfg.metricsSemanticsSubtitle}
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -83,7 +90,7 @@ export function DashboardV3Workspace(props: Props) {
       <DashboardV3KpiRow items={cockpit.summaryKpis} />
       <DashboardV3TrendPreview items={cockpit.trendSeries} />
       <DashboardV3DistributionPreview items={cockpit.distributions} />
-      <DashboardV3AnomalyWorkspace items={cockpit.alerts} />
+      <DashboardV3AnomalyWorkspace businessView={businessView} items={cockpit.alerts} />
       <DashboardV3AlertsPreview lang={lang} items={cockpit.alerts} />
       <DashboardV3ExplainPreview lang={lang} items={cockpit.explainSummaries} />
     </div>

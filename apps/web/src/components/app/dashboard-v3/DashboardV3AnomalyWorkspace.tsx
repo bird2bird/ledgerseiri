@@ -1,7 +1,10 @@
 import React from "react";
+import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Alert } from "@/core/dashboard-v3/types";
+import { getBusinessViewConfig } from "@/core/business-view/config";
 
 type Props = {
+  businessView: BusinessViewType;
   items: DashboardV3Alert[];
 };
 
@@ -21,16 +24,17 @@ function countBySeverity(items: DashboardV3Alert[]) {
 
 export function DashboardV3AnomalyWorkspace(props: Props) {
   const counts = countBySeverity(props.items);
+  const cfg = getBusinessViewConfig(props.businessView);
 
   return (
     <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-sm font-semibold text-slate-900">
-            Anomaly workspace
+            {cfg.anomalyTitle}
           </div>
           <div className="mt-1 text-xs text-slate-500">
-            重大度ごとの異常件数と次のアクションを整理します。
+            {cfg.anomalySubtitle}
           </div>
         </div>
 
@@ -51,21 +55,21 @@ export function DashboardV3AnomalyWorkspace(props: Props) {
         <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
           <div className="text-sm font-semibold text-red-900">High priority</div>
           <div className="mt-2 text-sm leading-6 text-red-800">
-            利益や入金への影響が大きい項目から優先対応します。
+            {cfg.highPriorityText}
           </div>
         </div>
 
         <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
           <div className="text-sm font-semibold text-amber-900">Medium priority</div>
           <div className="mt-2 text-sm leading-6 text-amber-800">
-            直近推移を確認しつつ、悪化トレンドを追います。
+            {cfg.mediumPriorityText}
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-sm font-semibold text-slate-900">Low priority</div>
           <div className="mt-2 text-sm leading-6 text-slate-600">
-            経過観察とし、異常の蓄積を防ぎます。
+            {cfg.lowPriorityText}
           </div>
         </div>
       </div>
