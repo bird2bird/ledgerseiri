@@ -26,6 +26,16 @@ function sourceTone(source: DashboardV3Cockpit["source"]) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function sourceDescription(source: DashboardV3Cockpit["source"]) {
+  if (source === "real") {
+    return "API aggregate source is active.";
+  }
+  if (source === "mock-fallback") {
+    return "Real fetch failed; currently showing fallback data.";
+  }
+  return "Mock source is active.";
+}
+
 export function DashboardV3HeaderSection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
   const viewCfg = getDashboardV3ViewConfig(props.businessView);
@@ -57,6 +67,10 @@ export function DashboardV3HeaderSection(props: Props) {
           >
             source: {props.cockpit.source}
           </span>
+
+          <div className="text-[11px] text-slate-500">
+            {sourceDescription(props.cockpit.source)}
+          </div>
 
           <div className="flex flex-wrap gap-2 text-xs text-slate-700">
             <span className="rounded-full border border-white bg-white px-3 py-1">
