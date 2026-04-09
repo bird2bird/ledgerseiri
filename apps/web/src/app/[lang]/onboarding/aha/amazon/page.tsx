@@ -4,12 +4,18 @@ import React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
-import { formatJPY, getAmazonAhaMock } from "@/core/onboarding/amazon-aha";
+import { formatJPY, getAmazonAhaViewModelMock } from "@/core/onboarding/amazon-aha";
+
+function confidenceLabel(value: "low" | "medium" | "high"): string {
+  if (value === "low") return "Low";
+  if (value === "medium") return "Medium";
+  return "High";
+}
 
 export default function AmazonAhaPage() {
   const params = useParams<{ lang: string }>();
   const lang: Lang = normalizeLang(params?.lang);
-  const data = getAmazonAhaMock();
+  const data = getAmazonAhaViewModelMock();
 
   return (
     <div className="min-h-screen bg-[#f8fafc] px-6 py-10">
@@ -83,6 +89,20 @@ export default function AmazonAhaPage() {
                     </div>
                   </div>
                 ))}
+
+                {data.unexplainedRemainder > 0 ? (
+                  <div className="flex items-start justify-between gap-4 rounded-2xl border border-dashed border-amber-300 bg-amber-50 px-4 py-4">
+                    <div>
+                      <div className="text-sm font-semibold text-amber-900">未説明の差額</div>
+                      <div className="mt-1 text-xs leading-5 text-amber-800">
+                        今後のデータ連携や説明ロジック拡張で補完予定です。
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold text-amber-900">
+                      {formatJPY(data.unexplainedRemainder)}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -99,7 +119,20 @@ export default function AmazonAhaPage() {
               </div>
 
               <div className="rounded-3xl border border-black/5 bg-slate-50 p-6">
-                <div className="text-sm font-semibold text-slate-900">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Explain status
+                  </div>
+                  <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                    Confidence: {confidenceLabel(data.confidence)}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-black/5 bg-white px-4 py-3 text-sm text-slate-600">
+                  {data.coverageNote}
+                </div>
+
+                <div className="mt-4 text-sm font-semibold text-slate-900">
                   データの見え方 / Trust
                 </div>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
