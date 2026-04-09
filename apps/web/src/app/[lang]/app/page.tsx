@@ -50,6 +50,7 @@ export default async function AppHomePage({
       previewKpis={cockpit.summaryKpis}
       previewTrends={cockpit.trendSeries}
       previewDistributions={cockpit.distributions}
+      previewAlerts={cockpit.alerts}
     >
       <DashboardHomeV2 />
     </AppDashboardShell>

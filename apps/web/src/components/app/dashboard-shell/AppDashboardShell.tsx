@@ -5,6 +5,7 @@ import {
   getBusinessViewLabel,
 } from "@/core/business-view";
 import type {
+  DashboardV3Alert,
   DashboardV3DistributionBlock,
   DashboardV3Kpi,
   DashboardV3TrendSeries,
@@ -12,6 +13,7 @@ import type {
 import { DashboardV3KpiRow } from "@/components/app/dashboard-v3-preview/DashboardV3KpiRow";
 import { DashboardV3TrendPreview } from "@/components/app/dashboard-v3-preview/DashboardV3TrendPreview";
 import { DashboardV3DistributionPreview } from "@/components/app/dashboard-v3-preview/DashboardV3DistributionPreview";
+import { DashboardV3AlertsPreview } from "@/components/app/dashboard-v3-preview/DashboardV3AlertsPreview";
 
 type ContractPreview = {
   source: string;
@@ -29,6 +31,7 @@ type Props = {
   previewKpis?: DashboardV3Kpi[];
   previewTrends?: DashboardV3TrendSeries[];
   previewDistributions?: DashboardV3DistributionBlock[];
+  previewAlerts?: DashboardV3Alert[];
   children: React.ReactNode;
 };
 
@@ -56,7 +59,7 @@ export function AppDashboardShell(props: Props) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               Current dashboard content still uses DashboardHomeV2.
               <br />
-              Step85-I 以降で alerts / explain preview を追加します。
+              Step85-J 以降で explain preview を追加します。
             </div>
           </div>
 
@@ -105,6 +108,10 @@ export function AppDashboardShell(props: Props) {
 
       {props.previewDistributions && props.previewDistributions.length > 0 ? (
         <DashboardV3DistributionPreview items={props.previewDistributions} />
+      ) : null}
+
+      {props.previewAlerts && props.previewAlerts.length > 0 ? (
+        <DashboardV3AlertsPreview items={props.previewAlerts} />
       ) : null}
 
       {props.children}
