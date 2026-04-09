@@ -15,6 +15,9 @@ export function LegacyDashboardFallback(props: Props) {
       <summary className="cursor-pointer text-sm font-semibold text-slate-900">
         {cfg.legacyTitle}
       </summary>
+      <div className="mt-5 text-xs text-slate-500">
+        この領域は段階的に縮小予定です。必要時のみ参照してください。
+      </div>
       <div className="mt-5">{props.children}</div>
     </details>
   );

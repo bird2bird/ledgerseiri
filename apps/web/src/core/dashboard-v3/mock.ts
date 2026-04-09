@@ -187,6 +187,12 @@ function makeBaseAlerts(view: BusinessViewType): DashboardV3Alert[] {
         severity: "high",
         summary: "広告費は増加していますが、入金改善への寄与が限定的です。",
       },
+      {
+        key: "payout-gap-pressure",
+        title: "差額圧力が継続しています",
+        severity: "high",
+        summary: "差額が高止まりしており、利益と入金の圧迫が続いています。",
+      },
     ];
   }
 

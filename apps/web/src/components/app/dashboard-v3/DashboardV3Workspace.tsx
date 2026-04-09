@@ -8,6 +8,7 @@ import { DashboardV3TrendSection } from "@/components/app/dashboard-v3/sections/
 import { DashboardV3DistributionSection } from "@/components/app/dashboard-v3/sections/DashboardV3DistributionSection";
 import { DashboardV3AnomalySection } from "@/components/app/dashboard-v3/sections/DashboardV3AnomalySection";
 import { DashboardV3ExplainSection } from "@/components/app/dashboard-v3/sections/DashboardV3ExplainSection";
+import { DashboardV3MigrationPanel } from "@/components/app/dashboard-v3/DashboardV3MigrationPanel";
 
 type Props = {
   lang: string;
@@ -27,6 +28,7 @@ export function DashboardV3Workspace(props: Props) {
       <DashboardV3DistributionSection items={cockpit.distributions} />
       <DashboardV3AnomalySection lang={lang} businessView={businessView} items={cockpit.alerts} />
       <DashboardV3ExplainSection lang={lang} items={cockpit.explainSummaries} />
+      <DashboardV3MigrationPanel lang={lang} businessView={businessView} />
     </div>
   );
 }
