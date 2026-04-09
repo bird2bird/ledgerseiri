@@ -43,17 +43,20 @@ export async function loadDashboardCockpitV3(
         payload,
         fallback: {
           ...fallback,
-          source: "mock",
+          source: "mock-fallback",
         },
       });
     } catch (err) {
       console.error("[dashboard-v3] real provider failed, fallback to mock", err);
       return {
         ...fallback,
-        source: "mock",
+        source: "mock-fallback",
       };
     }
   }
 
-  return fallback;
+  return {
+    ...fallback,
+    source: "mock",
+  };
 }

@@ -7,18 +7,33 @@ export async function GET(req: NextRequest) {
   const businessType = normalizeBusinessView(url.searchParams.get("businessType"));
   const range = (url.searchParams.get("range") || "30d") as "today" | "7d" | "30d" | "month";
 
-  // Step90 baseline:
-  // 1) 先用 web route 固定 real seam 入口
-  // 2) 未来可在这里转发到真正的 API 聚合接口
-  // 3) 当前先回传 mock，但 source 标成 real-ready，方便 provider seam 落地
+  try {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+    const upstream = `${apiBase}/dashboard-cockpit?businessView=${businessType}&range=${range}`;
 
-  const mock = makeDashboardV3CockpitMock({
-    businessView: businessType,
-    range,
-  });
+    const res = await fetch(upstream, {
+      method: "GET",
+      cache: "no-store",
+    });
 
-  return NextResponse.json({
-    ...mock,
-    source: "mock",
-  });
+    if (!res.ok) {
+      throw new Error(`dashboard-cockpit upstream failed: ${res.status}`);
+    }
+
+    const payload = await res.json();
+
+    return NextResponse.json(payload);
+  } catch (err) {
+    console.error("[cockpit-v3 route] fallback to mock", err);
+
+    const mock = makeDashboardV3CockpitMock({
+      businessView: businessType,
+      range,
+    });
+
+    return NextResponse.json({
+      ...mock,
+      source: "mock-fallback",
+    });
+  }
 }

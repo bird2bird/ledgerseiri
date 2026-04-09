@@ -23,10 +23,12 @@ import { BillingModule } from './billing/billing.module';
 import { ReconciliationDecisionModule } from "./reconciliation-decision/reconciliation-decision.module";
 import { PlatformAuthModule } from './platform-auth/platform-auth.module';
 import { PlatformOpsModule } from './platform-ops/platform-ops.module';
+import { DashboardCockpitModule } from './dashboard-cockpit/dashboard-cockpit.module';
 
 
 @Module({
       imports: [
+    DashboardCockpitModule,
     ReconciliationDecisionModule,
       WorkspaceModule,
       AuthModule,
