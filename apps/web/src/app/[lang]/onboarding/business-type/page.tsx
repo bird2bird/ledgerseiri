@@ -42,7 +42,7 @@ function getNextHref(lang: Lang, type: BusinessType): string {
   if (type === "amazon") {
     return `/${lang}/onboarding/aha/amazon`;
   }
-  return `/${lang}/app`;
+  return `/${lang}/app?businessType=${type}`;
 }
 
 export default function BusinessTypePage() {

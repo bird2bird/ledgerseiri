@@ -156,7 +156,7 @@ export default function AmazonAhaPage() {
             </Link>
 
             <Link
-              href={`/${lang}/app`}
+              href={`/${lang}/app?businessType=amazon`}
               className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95"
             >
               ダッシュボードへ進む
