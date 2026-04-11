@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
   type BusinessType,
   readBusinessTypeFromStorage,
   writeBusinessTypeToStorage,
 } from "@/core/onboarding/business-type";
+import { writeBusinessViewCookie } from "@/core/business-view/storage";
 
 type BusinessTypeOption = {
   value: BusinessType;
@@ -38,16 +39,20 @@ const OPTIONS: BusinessTypeOption[] = [
   },
 ];
 
-function getNextHref(lang: Lang, type: BusinessType): string {
+function getNextHref(lang: Lang, type: BusinessType, nextPath?: string | null): string {
+  const fallback = nextPath && nextPath.trim() ? nextPath : `/${lang}/app`;
+
   if (type === "amazon") {
-    return `/${lang}/onboarding/aha/amazon`;
+    return `/${lang}/onboarding/aha/amazon?next=${encodeURIComponent(fallback)}`;
   }
-  return `/${lang}/app?businessType=${type}`;
+
+  return fallback;
 }
 
-export default function BusinessTypePage() {
+function PageContent() {
   const params = useParams<{ lang: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const lang: Lang = normalizeLang(params?.lang);
 
   const [selected, setSelected] = useState<BusinessType | null>(null);
@@ -68,7 +73,8 @@ export default function BusinessTypePage() {
     setSubmitting(true);
     try {
       writeBusinessTypeToStorage(selected);
-      router.push(getNextHref(lang, selected));
+      writeBusinessViewCookie(selected);
+      router.push(getNextHref(lang, selected, searchParams.get("next")));
     } finally {
       setSubmitting(false);
     }
@@ -116,9 +122,10 @@ export default function BusinessTypePage() {
                   <div
                     className={
                       "mt-1 h-5 w-5 rounded-full border " +
-                      (active ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white")
+                      (active
+                        ? "border-blue-500 bg-blue-500"
+                        : "border-slate-300 bg-white")
                     }
-                    aria-hidden="true"
                   />
                 </div>
               </button>
@@ -126,20 +133,33 @@ export default function BusinessTypePage() {
           })}
         </div>
 
-        <div className="mx-auto mt-8 flex max-w-4xl items-center justify-end">
+        <div className="mx-auto mt-8 flex max-w-4xl justify-end">
           <button
             type="button"
             onClick={onContinue}
             disabled={!canContinue}
-            className={
-              "inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white shadow-sm transition " +
-              (!canContinue ? "cursor-not-allowed bg-slate-300" : "bg-[#2b5cff] hover:opacity-95")
-            }
+            className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? "Loading..." : "続ける"}
+            {submitting ? "処理中..." : "続ける"}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BusinessTypePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-6 py-12">
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+            Loading...
+          </div>
+        </div>
+      }
+    >
+      <PageContent />
+    </Suspense>
   );
 }

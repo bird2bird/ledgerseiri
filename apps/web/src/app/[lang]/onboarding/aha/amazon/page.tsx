@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import { formatJPY, getAmazonAhaViewModelMock } from "@/core/onboarding/amazon-aha";
 
@@ -12,8 +12,9 @@ function confidenceLabel(value: "low" | "medium" | "high"): string {
   return "High";
 }
 
-export default function AmazonAhaPage() {
+function PageContent() {
   const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
   const lang: Lang = normalizeLang(params?.lang);
   const data = getAmazonAhaViewModelMock();
 
@@ -156,7 +157,7 @@ export default function AmazonAhaPage() {
             </Link>
 
             <Link
-              href={`/${lang}/app?businessType=amazon`}
+              href={searchParams.get("next") || `/${lang}/app`}
               className="inline-flex items-center justify-center rounded-full bg-[#2b5cff] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-95"
             >
               ダッシュボードへ進む
@@ -165,5 +166,21 @@ export default function AmazonAhaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AmazonAhaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-6 py-12">
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+            Loading...
+          </div>
+        </div>
+      }
+    >
+      <PageContent />
+    </Suspense>
   );
 }

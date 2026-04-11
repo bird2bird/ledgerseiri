@@ -1,9 +1,12 @@
 import React from "react";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { DashboardHomeV2 } from "@/components/app/dashboard-v2/DashboardHomeV2";
 import { DashboardV3Workspace } from "@/components/app/dashboard-v3/DashboardV3Workspace";
 import { LegacyDashboardFallback } from "@/components/app/dashboard-v3/LegacyDashboardFallback";
 import { AppDashboardShell } from "@/components/app/dashboard-shell/AppDashboardShell";
 import { normalizeBusinessView } from "@/core/business-view";
+import { BUSINESS_VIEW_COOKIE, readBusinessViewFromUnknown } from "@/core/business-view/storage";
 import { fetchDashboardCockpitV3 } from "@/core/dashboard-v3/api";
 import { getWorkspaceContext } from "@/core/workspace/repository";
 
@@ -25,9 +28,22 @@ export default async function AppHomePage({
   const sp = await searchParams;
   const lang = p?.lang || "ja";
 
-  const businessView = normalizeBusinessView(sp?.businessType);
+  const cookieStore = await cookies();
+  const cookieBusinessView = readBusinessViewFromUnknown(
+    cookieStore.get(BUSINESS_VIEW_COOKIE)?.value
+  );
 
-  const ctx = await getWorkspaceContext({
+  const queryBusinessView = sp?.businessType
+    ? normalizeBusinessView(sp.businessType)
+    : null;
+
+  const businessView = queryBusinessView || cookieBusinessView;
+
+  if (!businessView) {
+    redirect(`/${lang}/onboarding/business-type?next=/${lang}/app`);
+  }
+
+  await getWorkspaceContext({
     slug: "weiwei",
     plan: sp?.plan,
     locale: lang,
