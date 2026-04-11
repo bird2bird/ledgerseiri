@@ -2,6 +2,7 @@ import React from "react";
 import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import { DashboardV3HeaderSection } from "@/components/app/dashboard-v3/sections/DashboardV3HeaderSection";
+import { DashboardV3OnboardingBridgeSection } from "@/components/app/dashboard-v3/sections/DashboardV3OnboardingBridgeSection";
 import { DashboardV3MetricsSemanticsSection } from "@/components/app/dashboard-v3/sections/DashboardV3MetricsSemanticsSection";
 import { DashboardV3KpiSection } from "@/components/app/dashboard-v3/sections/DashboardV3KpiSection";
 import { DashboardV3TrendSection } from "@/components/app/dashboard-v3/sections/DashboardV3TrendSection";
@@ -26,13 +27,41 @@ export function DashboardV3Workspace(props: Props) {
         businessView={businessView}
         cockpit={cockpit}
       />
-      <DashboardV3KpiSection businessView={businessView} items={cockpit.summaryKpis} />
-      <DashboardV3TrendSection businessView={businessView} items={cockpit.trendSeries} />
-      <DashboardV3DistributionSection businessView={businessView} items={cockpit.distributions} />
-      <DashboardV3AnomalySection lang={lang} businessView={businessView} items={cockpit.alerts} />
-      <DashboardV3ExplainSection lang={lang} items={cockpit.explainSummaries} />
+
+      <DashboardV3OnboardingBridgeSection businessView={businessView} />
+
+      <DashboardV3KpiSection
+        businessView={businessView}
+        items={cockpit.summaryKpis}
+      />
+
+      <DashboardV3TrendSection
+        businessView={businessView}
+        items={cockpit.trendSeries}
+      />
+
+      <DashboardV3DistributionSection
+        businessView={businessView}
+        items={cockpit.distributions}
+      />
+
+      <DashboardV3AnomalySection
+        lang={lang}
+        businessView={businessView}
+        items={cockpit.alerts}
+      />
+
+      <DashboardV3ExplainSection
+        lang={lang}
+        items={cockpit.explainSummaries}
+      />
+
       <DashboardV3MetricsSemanticsSection businessView={businessView} />
-      <DashboardV3MigrationPanel lang={lang} businessView={businessView} />
+
+      <DashboardV3MigrationPanel
+        lang={lang}
+        businessView={businessView}
+      />
     </div>
   );
 }
