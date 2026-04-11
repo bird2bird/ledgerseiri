@@ -7,6 +7,7 @@ import { getDashboardV3ViewConfig } from "@/core/dashboard-v3/view-config";
 import { getDashboardTheme } from "@/core/dashboard-v3/theme";
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
 };
@@ -80,7 +81,7 @@ export function DashboardV3HeaderSection(props: Props) {
             </div>
 
             <Link
-              href="/ja/app/settings/profile"
+              href={`/${props.lang}/app/settings/profile`}
               className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-white/15"
             >
               切り替える

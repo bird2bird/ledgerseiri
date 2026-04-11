@@ -21,7 +21,11 @@ export function DashboardV3Workspace(props: Props) {
 
   return (
     <div className="space-y-6">
-      <DashboardV3HeaderSection businessView={businessView} cockpit={cockpit} />
+      <DashboardV3HeaderSection
+        lang={lang}
+        businessView={businessView}
+        cockpit={cockpit}
+      />
       <DashboardV3KpiSection businessView={businessView} items={cockpit.summaryKpis} />
       <DashboardV3TrendSection businessView={businessView} items={cockpit.trendSeries} />
       <DashboardV3DistributionSection businessView={businessView} items={cockpit.distributions} />
