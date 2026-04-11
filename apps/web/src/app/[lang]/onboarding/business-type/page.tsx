@@ -39,14 +39,8 @@ const OPTIONS: BusinessTypeOption[] = [
   },
 ];
 
-function getNextHref(lang: Lang, type: BusinessType, nextPath?: string | null): string {
-  const fallback = nextPath && nextPath.trim() ? nextPath : `/${lang}/app`;
-
-  if (type === "amazon") {
-    return `/${lang}/onboarding/aha/amazon?next=${encodeURIComponent(fallback)}`;
-  }
-
-  return fallback;
+function getNextHref(lang: Lang, _type: BusinessType, nextPath?: string | null): string {
+  return nextPath && nextPath.trim() ? nextPath : `/${lang}/app`;
 }
 
 function PageContent() {

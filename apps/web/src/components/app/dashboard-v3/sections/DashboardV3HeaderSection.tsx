@@ -3,6 +3,7 @@ import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import type { BusinessViewType } from "@/core/business-view";
 import { getBusinessViewConfig } from "@/core/business-view/config";
 import { getDashboardV3ViewConfig } from "@/core/dashboard-v3/view-config";
+import { getDashboardTheme } from "@/core/dashboard-v3/theme";
 
 type Props = {
   businessView: BusinessViewType;
@@ -18,76 +19,84 @@ function rangeLabel(range: DashboardV3Cockpit["range"]): string {
 
 function sourceTone(source: DashboardV3Cockpit["source"]) {
   if (source === "real") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-emerald-300/40 bg-emerald-400/15 text-emerald-50";
   }
   if (source === "mock-fallback") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-amber-300/40 bg-amber-400/15 text-amber-50";
   }
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  return "border-white/20 bg-white/10 text-white/90";
 }
 
 function sourceDescription(source: DashboardV3Cockpit["source"]) {
-  if (source === "real") {
-    return "API aggregate source is active.";
-  }
-  if (source === "mock-fallback") {
-    return "Real fetch failed; currently showing fallback data.";
-  }
+  if (source === "real") return "API aggregate source is active.";
+  if (source === "mock-fallback") return "Real fetch failed; currently showing fallback data.";
   return "Mock source is active.";
 }
 
 export function DashboardV3HeaderSection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
   const viewCfg = getDashboardV3ViewConfig(props.businessView);
+  const theme = getDashboardTheme(props.businessView);
 
   return (
-    <div className="rounded-3xl border border-violet-100 bg-violet-50 p-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">
+    <div className={"rounded-[28px] border p-6 shadow-sm md:p-8 " + theme.heroClass}>
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+        <div className="max-w-3xl">
+          <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium">
+            Dashboard Shell / Business View Layer
+          </div>
+
+          <div className="mt-5 text-3xl font-semibold tracking-tight">
             {cfg.workspaceTitle}
           </div>
-          <div className="mt-1 text-xs text-slate-600">
+
+          <div className="mt-2 text-sm text-white/80">
             source: {props.cockpit.source} · range: {rangeLabel(props.cockpit.range)}
           </div>
-          <div className="mt-2 text-sm leading-6 text-slate-700">
+
+          <div className="mt-4 text-sm leading-7 text-white/90">
             {cfg.workspaceSubtitle}
           </div>
-          <div className="mt-2 text-xs text-slate-500">
+
+          <div className="mt-3 text-sm text-white/75">
+            {theme.accentText}
+          </div>
+
+          <div className="mt-4 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
             primary focus: {viewCfg.primaryFocus}
           </div>
         </div>
 
-        <div className="flex flex-col items-start gap-2 md:items-end">
-          <span
+        <div className="flex min-w-[260px] flex-col gap-3">
+          <div
             className={
-              "inline-flex rounded-full border px-3 py-1 text-xs font-medium " +
+              "inline-flex w-fit rounded-full border px-3 py-1 text-xs font-medium " +
               sourceTone(props.cockpit.source)
             }
           >
             source: {props.cockpit.source}
-          </span>
+          </div>
 
-          <div className="text-[11px] text-slate-500">
+          <div className="text-xs text-white/75">
             {sourceDescription(props.cockpit.source)}
           </div>
 
-          <div className="flex flex-wrap gap-2 text-xs text-slate-700">
-            <span className="rounded-full border border-white bg-white px-3 py-1">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
               KPI {props.cockpit.summaryKpis.length}
-            </span>
-            <span className="rounded-full border border-white bg-white px-3 py-1">
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
               Trends {props.cockpit.trendSeries.length}
-            </span>
-            <span className="rounded-full border border-white bg-white px-3 py-1">
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
               Distributions {props.cockpit.distributions.length}
-            </span>
-            <span className="rounded-full border border-white bg-white px-3 py-1">
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3">
               Alerts {props.cockpit.alerts.length}
-            </span>
-            <span className="rounded-full border border-white bg-white px-3 py-1">
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3 col-span-2">
               Explain {props.cockpit.explainSummaries.length}
-            </span>
+            </div>
           </div>
         </div>
       </div>

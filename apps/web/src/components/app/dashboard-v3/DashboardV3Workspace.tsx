@@ -22,12 +22,12 @@ export function DashboardV3Workspace(props: Props) {
   return (
     <div className="space-y-6">
       <DashboardV3HeaderSection businessView={businessView} cockpit={cockpit} />
-      <DashboardV3MetricsSemanticsSection businessView={businessView} />
-      <DashboardV3KpiSection items={cockpit.summaryKpis} />
-      <DashboardV3TrendSection items={cockpit.trendSeries} />
-      <DashboardV3DistributionSection items={cockpit.distributions} />
+      <DashboardV3KpiSection businessView={businessView} items={cockpit.summaryKpis} />
+      <DashboardV3TrendSection businessView={businessView} items={cockpit.trendSeries} />
+      <DashboardV3DistributionSection businessView={businessView} items={cockpit.distributions} />
       <DashboardV3AnomalySection lang={lang} businessView={businessView} items={cockpit.alerts} />
       <DashboardV3ExplainSection lang={lang} items={cockpit.explainSummaries} />
+      <DashboardV3MetricsSemanticsSection businessView={businessView} />
       <DashboardV3MigrationPanel lang={lang} businessView={businessView} />
     </div>
   );
