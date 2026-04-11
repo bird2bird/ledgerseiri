@@ -20,9 +20,22 @@ function severityTone(severity: "low" | "medium" | "high") {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
+function priorityWidth(severity: "low" | "medium" | "high") {
+  if (severity === "high") return "w-[88%]";
+  if (severity === "medium") return "w-[58%]";
+  return "w-[28%]";
+}
+
+function priorityColor(severity: "low" | "medium" | "high") {
+  if (severity === "high") return "bg-red-500";
+  if (severity === "medium") return "bg-amber-500";
+  return "bg-slate-500";
+}
+
 export function DashboardV3AnomalySection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
+  const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
 
   return (
     <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
@@ -81,6 +94,17 @@ export function DashboardV3AnomalySection(props: Props) {
                 {item.severity.toUpperCase()}
               </span>
             </div>
+
+            {isEnhanced ? (
+              <div className="mt-5 flex items-center gap-3">
+                <div className="h-2 flex-1 rounded-full bg-slate-200">
+                  <div
+                    className={"h-2 rounded-full " + priorityColor(item.severity) + " " + priorityWidth(item.severity)}
+                  />
+                </div>
+                <span className="text-xs text-slate-500">priority</span>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

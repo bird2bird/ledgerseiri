@@ -9,9 +9,109 @@ type Props = {
   items: DashboardV3TrendSeries[];
 };
 
+function getMax(values: number[]) {
+  return Math.max(1, ...values);
+}
+
+function getPolyline(values: number[], width = 360, height = 150) {
+  const max = getMax(values);
+  const stepX = values.length > 1 ? width / (values.length - 1) : width;
+  return values
+    .map((value, index) => {
+      const x = index * stepX;
+      const y = height - (value / max) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
+function renderEnhancedChart(series: DashboardV3TrendSeries) {
+  const values = series.points.map((p) => Number(p.value) || 0);
+  const max = getMax(values);
+  const polyline = getPolyline(values, 360, 150);
+
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="flex h-[220px] items-end justify-between gap-3">
+          {series.points.map((point, index) => {
+            const value = Number(point.value) || 0;
+            const height = Math.max(20, Math.round((value / max) * 150));
+
+            return (
+              <div key={`${series.key}-${index}`} className="flex flex-1 flex-col items-center gap-3">
+                <div className="flex h-[160px] items-end">
+                  <div
+                    className="w-full rounded-t-[18px] bg-white/65"
+                    style={{ height: `${height}px`, minWidth: "18px" }}
+                  />
+                </div>
+                <div className="text-xs text-white/75">{point.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-3">
+          <svg viewBox="0 0 360 170" className="h-[190px] w-full overflow-visible">
+            <polyline
+              fill="none"
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth="3"
+              points={polyline}
+            />
+            {values.map((value, index) => {
+              const x = values.length > 1 ? (index * 360) / (values.length - 1) : 0;
+              const y = 150 - (value / max) * 150;
+              return (
+                <g key={`${series.key}-dot-${index}`}>
+                  <circle cx={x} cy={y} r="4.5" fill="white" />
+                </g>
+              );
+            })}
+          </svg>
+          <div className="mt-2 text-xs text-white/70">
+            line overlay preview
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderBasicChart(series: DashboardV3TrendSeries) {
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
+      <div className="flex h-[180px] items-end justify-between gap-3">
+        {series.points.map((point, index) => {
+          const value = Number(point.value) || 0;
+          const max = Math.max(
+            1,
+            ...series.points.map((p) => Number(p.value) || 0)
+          );
+          const height = Math.max(20, Math.round((value / max) * 120));
+
+          return (
+            <div key={`${series.key}-${index}`} className="flex flex-1 flex-col items-center gap-3">
+              <div className="flex h-[130px] items-end">
+                <div
+                  className="w-full rounded-t-[18px] bg-white/65"
+                  style={{ height: `${height}px`, minWidth: "18px" }}
+                />
+              </div>
+              <div className="text-xs text-white/75">{point.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function DashboardV3TrendSection(props: Props) {
   const theme = getDashboardTheme(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
+  const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
 
   return (
     <div className="space-y-4">
@@ -39,34 +139,11 @@ export function DashboardV3TrendSection(props: Props) {
                 </div>
               </div>
               <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
-                trend
+                {isEnhanced ? "chart+" : "trend"}
               </div>
             </div>
 
-            <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
-              <div className="flex h-[180px] items-end justify-between gap-3">
-                {series.points.map((point, index) => {
-                  const value = Number(point.value) || 0;
-                  const max = Math.max(
-                    1,
-                    ...series.points.map((p) => Number(p.value) || 0)
-                  );
-                  const height = Math.max(20, Math.round((value / max) * 120));
-
-                  return (
-                    <div key={`${series.key}-${index}`} className="flex flex-1 flex-col items-center gap-3">
-                      <div className="flex h-[130px] items-end">
-                        <div
-                          className="w-full rounded-t-[18px] bg-white/65"
-                          style={{ height: `${height}px`, minWidth: "18px" }}
-                        />
-                      </div>
-                      <div className="text-xs text-white/75">{point.label}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {isEnhanced ? renderEnhancedChart(series) : renderBasicChart(series)}
           </div>
         ))}
       </div>
