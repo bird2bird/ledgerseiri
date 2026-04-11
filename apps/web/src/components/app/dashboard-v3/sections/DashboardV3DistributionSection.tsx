@@ -42,6 +42,16 @@ function getConicGradient(segments: { start: number; end: number }[]) {
   return `conic-gradient(${parts.join(",")})`;
 }
 
+function blockTitle(businessView: BusinessViewType, index: number, fallback: string) {
+  if (businessView === "amazon") {
+    return index === 0 ? "差額構成" : "チャネル構成";
+  }
+  if (businessView === "ec") {
+    return index === 0 ? "費用構成" : "チャネル構成";
+  }
+  return fallback;
+}
+
 export function DashboardV3DistributionSection(props: Props) {
   const theme = getDashboardTheme(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
@@ -59,8 +69,9 @@ export function DashboardV3DistributionSection(props: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {props.items.map((block) => {
+        {props.items.map((block, index) => {
           const values = block.items.map((item) => Number(item.value) || 0);
+          const total = values.reduce((sum, n) => sum + n, 0) || 1;
           const maxValue = Math.max(1, ...values);
           const segments = getRingSegments(values);
 
@@ -71,7 +82,9 @@ export function DashboardV3DistributionSection(props: Props) {
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-2xl font-semibold">{block.title}</div>
+                  <div className="text-2xl font-semibold">
+                    {isEnhanced ? blockTitle(props.businessView, index, block.title) : block.title}
+                  </div>
                   <div className="mt-2 text-sm text-white/75">
                     {isEnhanced ? "distribution + composition" : "distribution view"}
                   </div>
@@ -84,16 +97,17 @@ export function DashboardV3DistributionSection(props: Props) {
               <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <div className="space-y-4">
                   {block.items.map((item) => {
-                    const width = Math.max(
-                      8,
-                      Math.round(((Number(item.value) || 0) / maxValue) * 100)
-                    );
+                    const value = Number(item.value) || 0;
+                    const width = Math.max(8, Math.round((value / maxValue) * 100));
+                    const ratio = ((value / total) * 100).toFixed(1);
+
                     return (
                       <div key={item.key}>
                         <div className="flex items-center justify-between gap-4 text-sm">
                           <div className="font-medium text-white">{item.label}</div>
-                          <div className="text-white/90">
-                            ¥{Number(item.value).toLocaleString("ja-JP")}
+                          <div className="text-right text-white/90">
+                            <div>¥{value.toLocaleString("ja-JP")}</div>
+                            {isEnhanced ? <div className="text-xs text-white/70">{ratio}%</div> : null}
                           </div>
                         </div>
                         <div className="mt-3 h-3 rounded-full bg-white/15">
@@ -115,18 +129,21 @@ export function DashboardV3DistributionSection(props: Props) {
                     <div className="absolute inset-[28px] rounded-full bg-slate-950/35 backdrop-blur-sm" />
                   </div>
 
-                  {isEnhanced ? (
-                    <div className="grid w-full grid-cols-2 gap-2 text-xs text-white/80">
-                      {block.items.slice(0, 4).map((item) => (
+                  <div className="grid w-full grid-cols-2 gap-2 text-xs text-white/80">
+                    {block.items.slice(0, 4).map((item) => {
+                      const value = Number(item.value) || 0;
+                      const ratio = ((value / total) * 100).toFixed(1);
+                      return (
                         <div
                           key={`${block.key}-${item.key}-legend`}
                           className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
                         >
-                          {item.label}
+                          <div>{item.label}</div>
+                          {isEnhanced ? <div className="mt-1 text-white/65">{ratio}%</div> : null}
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

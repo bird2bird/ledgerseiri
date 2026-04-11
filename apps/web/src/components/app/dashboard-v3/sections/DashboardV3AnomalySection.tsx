@@ -32,6 +32,20 @@ function priorityColor(severity: "low" | "medium" | "high") {
   return "bg-slate-500";
 }
 
+function actionHint(view: BusinessViewType, severity: "low" | "medium" | "high") {
+  if (view === "amazon") {
+    if (severity === "high") return "差額構成と explain preview を先に確認";
+    if (severity === "medium") return "広告費・返金項目を確認";
+    return "推移を継続監視";
+  }
+  if (view === "ec") {
+    if (severity === "high") return "費用構成と alerts を先に確認";
+    if (severity === "medium") return "回收との差を確認";
+    return "推移を継続監視";
+  }
+  return "";
+}
+
 export function DashboardV3AnomalySection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
@@ -96,14 +110,20 @@ export function DashboardV3AnomalySection(props: Props) {
             </div>
 
             {isEnhanced ? (
-              <div className="mt-5 flex items-center gap-3">
-                <div className="h-2 flex-1 rounded-full bg-slate-200">
-                  <div
-                    className={"h-2 rounded-full " + priorityColor(item.severity) + " " + priorityWidth(item.severity)}
-                  />
+              <>
+                <div className="mt-5 flex items-center gap-3">
+                  <div className="h-2 flex-1 rounded-full bg-slate-200">
+                    <div
+                      className={"h-2 rounded-full " + priorityColor(item.severity) + " " + priorityWidth(item.severity)}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-500">priority</span>
                 </div>
-                <span className="text-xs text-slate-500">priority</span>
-              </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-600">
+                  {actionHint(props.businessView, item.severity)}
+                </div>
+              </>
             ) : null}
           </div>
         ))}
