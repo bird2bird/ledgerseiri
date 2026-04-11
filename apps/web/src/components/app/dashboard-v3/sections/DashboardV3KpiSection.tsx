@@ -2,6 +2,7 @@ import React from "react";
 import type { DashboardV3Kpi } from "@/core/dashboard-v3/types";
 import type { BusinessViewType } from "@/core/business-view";
 import { getDashboardTheme } from "@/core/dashboard-v3/theme";
+import { getDashboardSectionStructure } from "@/core/dashboard-v3/structure";
 
 type Props = {
   businessView: BusinessViewType;
@@ -15,43 +16,18 @@ function formatValue(item: DashboardV3Kpi): string {
   return Number(item.value).toLocaleString("ja-JP");
 }
 
-function getSectionCopy(view: BusinessViewType) {
-  if (view === "amazon") {
-    return {
-      title: "Key metrics for Amazon operations",
-      summary: "売上・入金・差額を起点に、Amazon運営の状態を最初に把握します。",
-    };
-  }
-  if (view === "ec") {
-    return {
-      title: "Key metrics for cash conversion",
-      summary: "回収・費用・受注のバランスを最初に把握します。",
-    };
-  }
-  if (view === "restaurant") {
-    return {
-      title: "Key metrics for restaurant pressure",
-      summary: "原価・人件費・利益圧力を最初に把握します。",
-    };
-  }
-  return {
-    title: "Key metrics for business overview",
-    summary: "売上・入金・費用・案件進行の全体像を最初に把握します。",
-  };
-}
-
 export function DashboardV3KpiSection(props: Props) {
   const theme = getDashboardTheme(props.businessView);
-  const copy = getSectionCopy(props.businessView);
+  const structure = getDashboardSectionStructure(props.businessView);
 
   return (
     <div className="space-y-4">
       <div className="rounded-[24px] border border-black/5 bg-white px-5 py-4 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">
-          {copy.title}
+          {structure.kpiTitle}
         </div>
         <div className="mt-1 text-sm text-slate-600">
-          {copy.summary}
+          {structure.kpiSummary}
         </div>
       </div>
 

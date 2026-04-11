@@ -2,6 +2,7 @@ import React from "react";
 import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Alert } from "@/core/dashboard-v3/types";
 import { getBusinessViewConfig } from "@/core/business-view/config";
+import { getDashboardSectionStructure } from "@/core/dashboard-v3/structure";
 
 type Props = {
   lang: string;
@@ -21,13 +22,18 @@ function severityTone(severity: "low" | "medium" | "high") {
 
 export function DashboardV3AnomalySection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
+  const structure = getDashboardSectionStructure(props.businessView);
 
   return (
     <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <div className="text-2xl font-semibold text-slate-900">{cfg.anomalyTitle}</div>
-          <div className="mt-2 text-sm text-slate-600">{cfg.anomalySubtitle}</div>
+          <div className="text-2xl font-semibold text-slate-900">
+            {structure.anomalyTitle}
+          </div>
+          <div className="mt-2 text-sm text-slate-600">
+            {structure.anomalySummary}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
@@ -74,22 +80,6 @@ export function DashboardV3AnomalySection(props: Props) {
               >
                 {item.severity.toUpperCase()}
               </span>
-            </div>
-
-            <div className="mt-5 flex items-center gap-3">
-              <div className="h-2 flex-1 rounded-full bg-slate-200">
-                <div
-                  className={
-                    "h-2 rounded-full " +
-                    (item.severity === "high"
-                      ? "bg-red-500 w-[88%]"
-                      : item.severity === "medium"
-                      ? "bg-amber-500 w-[58%]"
-                      : "bg-slate-500 w-[28%]")
-                  }
-                />
-              </div>
-              <span className="text-xs text-slate-500">priority</span>
             </div>
           </div>
         ))}

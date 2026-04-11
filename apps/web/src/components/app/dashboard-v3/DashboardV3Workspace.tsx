@@ -53,6 +53,7 @@ export function DashboardV3Workspace(props: Props) {
 
       <DashboardV3ExplainSection
         lang={lang}
+        businessView={businessView}
         items={cockpit.explainSummaries}
       />
 
