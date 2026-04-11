@@ -59,6 +59,7 @@ export default async function AppHomePage({
 
   return (
     <AppDashboardShell
+      lang={lang}
       businessView={businessView}
       contractPreview={{
         source: cockpit.source,

@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import type { BusinessViewType } from "@/core/business-view";
 import { getBusinessViewConfig } from "@/core/business-view/config";
@@ -33,6 +34,13 @@ function sourceDescription(source: DashboardV3Cockpit["source"]) {
   return "Mock source is active.";
 }
 
+function businessTypeLabel(view: BusinessViewType): string {
+  if (view === "amazon") return "Amazon";
+  if (view === "ec") return "EC";
+  if (view === "restaurant") return "飲食店";
+  return "その他";
+}
+
 export function DashboardV3HeaderSection(props: Props) {
   const cfg = getBusinessViewConfig(props.businessView);
   const viewCfg = getDashboardV3ViewConfig(props.businessView);
@@ -62,8 +70,21 @@ export function DashboardV3HeaderSection(props: Props) {
             {theme.accentText}
           </div>
 
-          <div className="mt-4 inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
-            primary focus: {viewCfg.primaryFocus}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
+              primary focus: {viewCfg.primaryFocus}
+            </div>
+
+            <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
+              current type: {businessTypeLabel(props.businessView)}
+            </div>
+
+            <Link
+              href="/ja/app/settings/profile"
+              className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-white/15"
+            >
+              切り替える
+            </Link>
           </div>
         </div>
 

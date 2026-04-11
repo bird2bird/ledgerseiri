@@ -4,6 +4,7 @@ import {
   getBusinessViewDescription,
   getBusinessViewLabel,
 } from "@/core/business-view";
+import { DashboardUserQuickMenu } from "@/components/app/dashboard-shell/DashboardUserQuickMenu";
 
 type ContractPreview = {
   source: string;
@@ -16,6 +17,7 @@ type ContractPreview = {
 };
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   contractPreview?: ContractPreview;
   children: React.ReactNode;
@@ -27,6 +29,11 @@ export function AppDashboardShell(props: Props) {
 
   return (
     <div className="space-y-6">
+      <DashboardUserQuickMenu
+        lang={props.lang}
+        businessView={props.businessView}
+      />
+
       <div className="rounded-[28px] border border-black/5 bg-white px-6 py-5 shadow-sm">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
