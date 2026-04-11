@@ -14,12 +14,8 @@ function count(items: DashboardV3Alert[], severity: "low" | "medium" | "high") {
 }
 
 function severityTone(severity: "low" | "medium" | "high") {
-  if (severity === "high") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-  if (severity === "medium") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
+  if (severity === "high") return "border-red-200 bg-red-50 text-red-700";
+  if (severity === "medium") return "border-amber-200 bg-amber-50 text-amber-700";
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
@@ -62,49 +58,41 @@ export function DashboardV3AnomalySection(props: Props) {
         </div>
       </div>
 
-      <div className="mt-6 rounded-3xl border border-black/5 bg-slate-50 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xl font-semibold text-slate-900">Alerts / anomaly preview</div>
-            <div className="mt-2 text-sm text-slate-600">
-              Dashboard が現在検知している主要アラート
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {props.items.map((item) => (
+          <div key={item.key} className="rounded-3xl border border-black/5 bg-slate-50 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-slate-900">{item.title}</div>
+                <div className="mt-3 text-sm leading-7 text-slate-600">{item.summary}</div>
+              </div>
+              <span
+                className={
+                  "inline-flex rounded-full border px-3 py-1 text-xs font-medium " +
+                  severityTone(item.severity)
+                }
+              >
+                {item.severity.toUpperCase()}
+              </span>
             </div>
-          </div>
-          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
-            {props.items.length} alerts
-          </div>
-        </div>
 
-        <div className="mt-5 space-y-4">
-          {props.items.map((item) => (
-            <div key={item.key} className="rounded-3xl border border-black/5 bg-white p-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div>
-                  <div className="text-lg font-semibold text-slate-900">{item.title}</div>
-                  <div className="mt-3 text-sm leading-7 text-slate-600">{item.summary}</div>
-                  <div className="mt-3 text-sm text-slate-500">推移を確認</div>
-                </div>
-                <span
+            <div className="mt-5 flex items-center gap-3">
+              <div className="h-2 flex-1 rounded-full bg-slate-200">
+                <div
                   className={
-                    "inline-flex rounded-full border px-3 py-1 text-xs font-medium " +
-                    severityTone(item.severity)
+                    "h-2 rounded-full " +
+                    (item.severity === "high"
+                      ? "bg-red-500 w-[88%]"
+                      : item.severity === "medium"
+                      ? "bg-amber-500 w-[58%]"
+                      : "bg-slate-500 w-[28%]")
                   }
-                >
-                  {item.severity.toUpperCase()}
-                </span>
+                />
               </div>
-
-              <div className="mt-5">
-                <a
-                  href="#"
-                  className="inline-flex items-center justify-center rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
-                >
-                  詳細を見る
-                </a>
-              </div>
+              <span className="text-xs text-slate-500">priority</span>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );

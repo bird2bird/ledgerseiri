@@ -8,13 +8,27 @@ type Props = {
   items: DashboardV3TrendSeries[];
 };
 
+function getPolyline(points: number[], width: number, height: number) {
+  const max = Math.max(...points, 1);
+  const stepX = points.length > 1 ? width / (points.length - 1) : width;
+  return points
+    .map((value, index) => {
+      const x = index * stepX;
+      const y = height - (value / max) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
 export function DashboardV3TrendSection(props: Props) {
   const theme = getDashboardTheme(props.businessView);
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {props.items.map((series) => {
-        const maxValue = Math.max(1, ...series.points.map((p) => Number(p.value) || 0));
+        const values = series.points.map((p) => Number(p.value) || 0);
+        const maxValue = Math.max(1, ...values);
+        const polyline = getPolyline(values, 320, 120);
 
         return (
           <div
@@ -30,26 +44,57 @@ export function DashboardV3TrendSection(props: Props) {
                 </div>
               </div>
               <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
-                preview
+                chart
               </div>
             </div>
 
-            <div className="mt-10 flex min-h-[220px] items-end justify-between gap-6">
-              {series.points.map((point) => {
-                const height = Math.max(36, Math.round((Number(point.value) / maxValue) * 120));
+            <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="flex h-[220px] items-end gap-4">
+                <div className="flex flex-1 items-end justify-between gap-3">
+                  {series.points.map((point) => {
+                    const height = Math.max(
+                      20,
+                      Math.round(((Number(point.value) || 0) / maxValue) * 130)
+                    );
 
-                return (
-                  <div key={point.label} className="flex flex-1 flex-col items-center gap-4">
-                    <div className="flex h-[140px] items-end">
-                      <div
-                        className="w-12 rounded-t-[18px] bg-white/90 shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
-                        style={{ height: `${height}px` }}
-                      />
-                    </div>
-                    <div className="text-sm text-white/80">{point.label}</div>
-                  </div>
-                );
-              })}
+                    return (
+                      <div key={point.label} className="flex flex-1 flex-col items-center gap-3">
+                        <div className="flex h-[140px] items-end">
+                          <div
+                            className="w-full rounded-t-[18px] bg-white/65"
+                            style={{ height: `${height}px`, minWidth: "18px" }}
+                          />
+                        </div>
+                        <div className="text-xs text-white/75">{point.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden w-[340px] xl:block">
+                  <svg viewBox="0 0 320 140" className="h-[160px] w-full overflow-visible">
+                    <polyline
+                      fill="none"
+                      stroke="rgba(255,255,255,0.85)"
+                      strokeWidth="3"
+                      points={polyline}
+                    />
+                    {values.map((value, index) => {
+                      const x = values.length > 1 ? (index * 320) / (values.length - 1) : 0;
+                      const y = 120 - (value / maxValue) * 120;
+                      return (
+                        <circle
+                          key={`${series.key}-${index}`}
+                          cx={x}
+                          cy={y}
+                          r="4"
+                          fill="white"
+                        />
+                      );
+                    })}
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         );
