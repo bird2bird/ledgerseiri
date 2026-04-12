@@ -9,6 +9,7 @@ import { normalizeBusinessView } from "@/core/business-view";
 import { BUSINESS_VIEW_COOKIE, readBusinessViewFromUnknown } from "@/core/business-view/storage";
 import { fetchDashboardCockpitV3 } from "@/core/dashboard-v3/api";
 import { getWorkspaceContext } from "@/core/workspace/repository";
+import { makeBillingPlanPreview } from "@/core/billing/plan-config";
 
 function rangeLabel(range: "today" | "7d" | "30d" | "month"): string {
   if (range === "today") return "Today";
@@ -22,7 +23,7 @@ export default async function AppHomePage({
   searchParams,
 }: {
   params: Promise<{ lang: string }>;
-  searchParams: Promise<{ plan?: string; businessType?: string }>;
+  searchParams: Promise<{ plan?: string; businessType?: string; readonly?: string }>;
 }) {
   const p = await params;
   const sp = await searchParams;
@@ -57,6 +58,21 @@ export default async function AppHomePage({
     mode: providerMode,
   });
 
+  const normalizedPlan =
+    sp?.plan === "premium" || sp?.plan === "standard" || sp?.plan === "starter"
+      ? sp.plan
+      : "starter";
+
+  const planPreview = makeBillingPlanPreview({
+    currentPlan: normalizedPlan,
+    accessMode: sp?.readonly === "1"
+      ? "readonly"
+      : normalizedPlan === "premium"
+        ? "trial"
+        : "active",
+    trialDaysRemaining: normalizedPlan === "premium" ? 30 : 0,
+  });
+
   return (
     <AppDashboardShell
       lang={lang}
@@ -71,7 +87,12 @@ export default async function AppHomePage({
         explainCount: cockpit.explainSummaries.length,
       }}
     >
-      <DashboardV3Workspace lang={lang} businessView={businessView} cockpit={cockpit} />
+      <DashboardV3Workspace
+        lang={lang}
+        businessView={businessView}
+        cockpit={cockpit}
+        planPreview={planPreview}
+      />
       <LegacyDashboardFallback businessView={businessView}>
         <DashboardHomeV2 />
       </LegacyDashboardFallback>

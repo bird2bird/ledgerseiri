@@ -1,24 +1,89 @@
 import React from "react";
 import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
+import type { BillingPlanPreview } from "@/core/billing/plan-config";
+import { DashboardV3PlanStatusBar } from "@/components/app/dashboard-v3/sections/DashboardV3PlanStatusBar";
+import { DashboardV3GlobalStatusBar } from "@/components/app/dashboard-v3/sections/DashboardV3GlobalStatusBar";
 import { DashboardV3HeaderSection } from "@/components/app/dashboard-v3/sections/DashboardV3HeaderSection";
 import { DashboardV3OnboardingBridgeSection } from "@/components/app/dashboard-v3/sections/DashboardV3OnboardingBridgeSection";
 import { DashboardV3MetricsSemanticsSection } from "@/components/app/dashboard-v3/sections/DashboardV3MetricsSemanticsSection";
 import { DashboardV3KpiSection } from "@/components/app/dashboard-v3/sections/DashboardV3KpiSection";
 import { DashboardV3TrendSection } from "@/components/app/dashboard-v3/sections/DashboardV3TrendSection";
+import { DashboardV3ProfitBridgeSection } from "@/components/app/dashboard-v3/sections/DashboardV3ProfitBridgeSection";
 import { DashboardV3DistributionSection } from "@/components/app/dashboard-v3/sections/DashboardV3DistributionSection";
 import { DashboardV3AnomalySection } from "@/components/app/dashboard-v3/sections/DashboardV3AnomalySection";
+import { DashboardV3ReconciliationSection } from "@/components/app/dashboard-v3/sections/DashboardV3ReconciliationSection";
 import { DashboardV3ExplainSection } from "@/components/app/dashboard-v3/sections/DashboardV3ExplainSection";
+import { DashboardV3AccountantSection } from "@/components/app/dashboard-v3/sections/DashboardV3AccountantSection";
 import { DashboardV3MigrationPanel } from "@/components/app/dashboard-v3/DashboardV3MigrationPanel";
 
 type Props = {
   lang: string;
   businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
+  planPreview: BillingPlanPreview;
 };
 
 export function DashboardV3Workspace(props: Props) {
-  const { cockpit, lang, businessView } = props;
+  const { cockpit, lang, businessView, planPreview } = props;
+  const isAmazon = businessView === "amazon";
+
+  if (isAmazon) {
+    return (
+      <div className="space-y-6">
+        <DashboardV3PlanStatusBar planPreview={planPreview} />
+
+        <DashboardV3GlobalStatusBar
+          lang={lang}
+          businessView={businessView}
+          cockpit={cockpit}
+          planPreview={planPreview}
+        />
+
+        <DashboardV3KpiSection
+          businessView={businessView}
+          items={cockpit.summaryKpis}
+        />
+
+        <DashboardV3TrendSection
+          businessView={businessView}
+          items={cockpit.trendSeries}
+        />
+
+        <DashboardV3ProfitBridgeSection
+          businessView={businessView}
+          cockpit={cockpit}
+        />
+
+        <DashboardV3DistributionSection
+          businessView={businessView}
+          items={cockpit.distributions}
+        />
+
+        <DashboardV3AnomalySection
+          lang={lang}
+          businessView={businessView}
+          items={cockpit.alerts}
+        />
+
+        <DashboardV3ReconciliationSection
+          businessView={businessView}
+          cockpit={cockpit}
+        />
+
+        <DashboardV3ExplainSection
+          lang={lang}
+          businessView={businessView}
+          items={cockpit.explainSummaries}
+        />
+
+        <DashboardV3AccountantSection
+          businessView={businessView}
+          cockpit={cockpit}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
