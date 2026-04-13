@@ -2,6 +2,7 @@ import React from "react";
 import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import type { BillingPlanPreview } from "@/core/billing/plan-config";
+import type { DashboardSubscriptionAccess } from "@/core/dashboard-v3/subscription-access";
 import { DashboardV3PlanStatusBar } from "@/components/app/dashboard-v3/sections/DashboardV3PlanStatusBar";
 import { DashboardV3GlobalStatusBar } from "@/components/app/dashboard-v3/sections/DashboardV3GlobalStatusBar";
 import { DashboardV3HeaderSection } from "@/components/app/dashboard-v3/sections/DashboardV3HeaderSection";
@@ -22,10 +23,11 @@ type Props = {
   businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
   planPreview: BillingPlanPreview;
+  subscriptionAccess: DashboardSubscriptionAccess;
 };
 
 export function DashboardV3Workspace(props: Props) {
-  const { cockpit, lang, businessView, planPreview } = props;
+  const { cockpit, lang, businessView, planPreview, subscriptionAccess } = props;
   const isAmazon = businessView === "amazon";
 
   if (isAmazon) {
@@ -77,12 +79,14 @@ export function DashboardV3Workspace(props: Props) {
           businessView={businessView}
           cockpit={cockpit}
           drilldownHints={cockpit.drilldownHints}
+          subscriptionAccess={subscriptionAccess}
         />
 
         <DashboardV3ExplainSection
           lang={lang}
           businessView={businessView}
           items={cockpit.explainSummaries}
+          subscriptionAccess={subscriptionAccess}
         />
 
         <DashboardV3AccountantSection
@@ -90,6 +94,7 @@ export function DashboardV3Workspace(props: Props) {
           businessView={businessView}
           cockpit={cockpit}
           drilldownHints={cockpit.drilldownHints}
+          subscriptionAccess={subscriptionAccess}
         />
       </div>
     );
@@ -134,6 +139,7 @@ export function DashboardV3Workspace(props: Props) {
         lang={lang}
         businessView={businessView}
         items={cockpit.explainSummaries}
+        subscriptionAccess={subscriptionAccess}
       />
 
       <DashboardV3MetricsSemanticsSection businessView={businessView} />

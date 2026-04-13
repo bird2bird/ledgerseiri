@@ -9,7 +9,10 @@ import { normalizeBusinessView } from "@/core/business-view";
 import { BUSINESS_VIEW_COOKIE, readBusinessViewFromUnknown } from "@/core/business-view/storage";
 import { fetchDashboardCockpitV3 } from "@/core/dashboard-v3/api";
 import { getWorkspaceContext } from "@/core/workspace/repository";
-import { makeBillingPlanPreview } from "@/core/billing/plan-config";
+import {
+  makePlanPreviewFromWorkspaceSubscription,
+  resolveDashboardSubscriptionAccess,
+} from "@/core/dashboard-v3/subscription-access";
 
 function rangeLabel(range: "today" | "7d" | "30d" | "month"): string {
   if (range === "today") return "Today";
@@ -44,7 +47,7 @@ export default async function AppHomePage({
     redirect(`/${lang}/onboarding/business-type?next=/${lang}/app`);
   }
 
-  await getWorkspaceContext({
+  const workspaceContext = await getWorkspaceContext({
     slug: "weiwei",
     plan: sp?.plan,
     locale: lang,
@@ -60,20 +63,13 @@ export default async function AppHomePage({
     companyId,
   });
 
-  const normalizedPlan =
-    sp?.plan === "premium" || sp?.plan === "standard" || sp?.plan === "starter"
-      ? sp.plan
-      : "starter";
+  const planPreview = makePlanPreviewFromWorkspaceSubscription(
+    workspaceContext.subscription
+  );
 
-  const planPreview = makeBillingPlanPreview({
-    currentPlan: normalizedPlan,
-    accessMode: sp?.readonly === "1"
-      ? "readonly"
-      : normalizedPlan === "premium"
-        ? "trial"
-        : "active",
-    trialDaysRemaining: normalizedPlan === "premium" ? 30 : 0,
-  });
+  const subscriptionAccess = resolveDashboardSubscriptionAccess(
+    workspaceContext.subscription
+  );
 
   return (
     <AppDashboardShell
@@ -94,6 +90,7 @@ export default async function AppHomePage({
         businessView={businessView}
         cockpit={cockpit}
         planPreview={planPreview}
+        subscriptionAccess={subscriptionAccess}
       />
       <LegacyDashboardFallback businessView={businessView}>
         <DashboardHomeV2 />
