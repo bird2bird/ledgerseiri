@@ -3,12 +3,14 @@ import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
 import type { BillingPlanPreview } from "@/core/billing/plan-config";
 import { getDashboardCopy } from "@/core/dashboard-copy";
+import { resolveDashboardSourceStatus } from "@/core/dashboard-v3/source-status";
 
 type Props = {
   lang: string;
   businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
   planPreview: BillingPlanPreview;
+  companyId?: string;
 };
 
 function formatBusinessViewLabel(businessView: BusinessViewType, lang: string) {
@@ -16,9 +18,24 @@ function formatBusinessViewLabel(businessView: BusinessViewType, lang: string) {
   return c.businessLabels[businessView];
 }
 
+function toneClasses(tone: "emerald" | "amber" | "slate") {
+  if (tone === "emerald") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+  if (tone === "amber") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
 export function DashboardV3GlobalStatusBar(props: Props) {
-  const { lang, businessView, cockpit, planPreview } = props;
+  const { lang, businessView, cockpit, planPreview, companyId } = props;
   const copy = getDashboardCopy(lang);
+  const sourceStatus = resolveDashboardSourceStatus({
+    lang,
+    cockpit,
+    companyId,
+  });
 
   return (
     <div className="rounded-[24px] border border-black/5 bg-white px-5 py-4 shadow-sm">
@@ -35,6 +52,14 @@ export function DashboardV3GlobalStatusBar(props: Props) {
           </div>
           <div className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
             {copy.cockpitSummary}
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2">
+            <div className={"inline-flex w-fit rounded-full border px-3 py-1 text-xs font-medium " + toneClasses(sourceStatus.tone)}>
+              {sourceStatus.badge}
+            </div>
+            <div className="text-sm text-slate-700">{sourceStatus.summary}</div>
+            <div className="text-xs text-slate-500">{sourceStatus.detail}</div>
           </div>
         </div>
 

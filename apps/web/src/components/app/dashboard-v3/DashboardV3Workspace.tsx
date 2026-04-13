@@ -24,10 +24,11 @@ type Props = {
   cockpit: DashboardV3Cockpit;
   planPreview: BillingPlanPreview;
   subscriptionAccess: DashboardSubscriptionAccess;
+  companyId?: string;
 };
 
 export function DashboardV3Workspace(props: Props) {
-  const { cockpit, lang, businessView, planPreview, subscriptionAccess } = props;
+  const { cockpit, lang, businessView, planPreview, subscriptionAccess, companyId } = props;
   const isAmazon = businessView === "amazon";
 
   if (isAmazon) {
@@ -40,6 +41,7 @@ export function DashboardV3Workspace(props: Props) {
           businessView={businessView}
           cockpit={cockpit}
           planPreview={planPreview}
+          companyId={companyId}
         />
 
         <DashboardV3KpiSection

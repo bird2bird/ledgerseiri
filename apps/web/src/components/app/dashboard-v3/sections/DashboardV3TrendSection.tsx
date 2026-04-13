@@ -31,9 +31,19 @@ function getPolyline(values: number[], width = 360, height = 150) {
     .join(" ");
 }
 
+function getLastNonZero(values: number[]) {
+  const filtered = values.filter((v) => v > 0);
+  return filtered.length ? filtered[filtered.length - 1] : 0;
+}
+
+function getFirstNonZero(values: number[]) {
+  const filtered = values.filter((v) => v > 0);
+  return filtered.length ? filtered[0] : 0;
+}
+
 function getTrendSummary(values: number[]) {
-  const first = values[0] ?? 0;
-  const last = values[values.length - 1] ?? 0;
+  const first = getFirstNonZero(values);
+  const last = getLastNonZero(values);
   const max = getMax(values);
   const min = getMin(values);
   const delta = last - first;
@@ -68,6 +78,14 @@ function trendHint(lang: string, businessView: BusinessViewType, index: number) 
   return "";
 }
 
+function renderEmptyState() {
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 px-4 py-10 text-center text-sm text-white/75">
+      No time-series data is available for this range yet.
+    </div>
+  );
+}
+
 function renderEnhancedChart(
   lang: string,
   businessView: BusinessViewType,
@@ -76,6 +94,12 @@ function renderEnhancedChart(
 ) {
   const c = getDashboardCopy(lang);
   const values = series.points.map((p) => Number(p.value) || 0);
+  const hasData = values.some((v) => v > 0);
+
+  if (!hasData) {
+    return renderEmptyState();
+  }
+
   const max = getMax(values);
   const polyline = getPolyline(values, 360, 150);
   const summary = getTrendSummary(values);
@@ -101,14 +125,14 @@ function renderEnhancedChart(
         <div className="flex h-[220px] items-end justify-between gap-3">
           {series.points.map((point, pointIndex) => {
             const value = Number(point.value) || 0;
-            const height = Math.max(20, Math.round((value / max) * 150));
+            const height = value > 0 ? Math.max(20, Math.round((value / max) * 150)) : 12;
 
             return (
               <div key={`${series.key}-${pointIndex}`} className="flex flex-1 flex-col items-center gap-3">
                 <div className="flex h-[160px] items-end">
                   <div
                     className="w-full rounded-t-[18px] bg-white/65"
-                    style={{ height: `${height}px`, minWidth: "18px" }}
+                    style={{ height: `${height}px`, minWidth: "18px", opacity: value > 0 ? 1 : 0.3 }}
                     title={`${point.label}: ${value.toLocaleString("ja-JP")}`}
                   />
                 </div>
@@ -135,7 +159,7 @@ function renderEnhancedChart(
               const y = 150 - (value / max) * 150;
               return (
                 <g key={`${series.key}-dot-${pointIndex}`}>
-                  <circle cx={x} cy={y} r="4.5" fill="white" />
+                  <circle cx={x} cy={y} r="4.5" fill="white" opacity={value > 0 ? 1 : 0.45} />
                 </g>
               );
             })}
@@ -150,6 +174,13 @@ function renderEnhancedChart(
 }
 
 function renderBasicChart(series: DashboardV3TrendSeries) {
+  const values = series.points.map((p) => Number(p.value) || 0);
+  const hasData = values.some((v) => v > 0);
+
+  if (!hasData) {
+    return renderEmptyState();
+  }
+
   return (
     <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
       <div className="flex h-[180px] items-end justify-between gap-3">
@@ -159,14 +190,14 @@ function renderBasicChart(series: DashboardV3TrendSeries) {
             1,
             ...series.points.map((p) => Number(p.value) || 0)
           );
-          const height = Math.max(20, Math.round((value / max) * 120));
+          const height = value > 0 ? Math.max(20, Math.round((value / max) * 120)) : 12;
 
           return (
             <div key={`${series.key}-${index}`} className="flex flex-1 flex-col items-center gap-3">
               <div className="flex h-[130px] items-end">
                 <div
                   className="w-full rounded-t-[18px] bg-white/65"
-                  style={{ height: `${height}px`, minWidth: "18px" }}
+                  style={{ height: `${height}px`, minWidth: "18px", opacity: value > 0 ? 1 : 0.3 }}
                 />
               </div>
               <div className="text-xs text-white/75">{point.label}</div>

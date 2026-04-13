@@ -91,6 +91,7 @@ export default async function AppHomePage({
         cockpit={cockpit}
         planPreview={planPreview}
         subscriptionAccess={subscriptionAccess}
+        companyId={companyId}
       />
       <LegacyDashboardFallback businessView={businessView}>
         <DashboardHomeV2 />
