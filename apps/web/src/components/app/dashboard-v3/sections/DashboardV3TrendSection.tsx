@@ -181,7 +181,7 @@ function renderBasicChart(series: DashboardV3TrendSeries) {
 export function DashboardV3TrendSection(props: Props) {
   const c = getDashboardCopy(props.lang);
   const theme = getDashboardTheme(props.businessView);
-  const structure = getDashboardSectionStructure(props.businessView);
+  const structure = getDashboardSectionStructure(props.businessView, props.lang);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
 
   return (

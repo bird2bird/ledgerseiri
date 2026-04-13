@@ -51,7 +51,7 @@ function actionHint(lang: string, view: BusinessViewType, severity: "low" | "med
 export function DashboardV3AnomalySection(props: Props) {
   const c = getDashboardCopy(props.lang);
   const cfg = getBusinessViewConfig(props.businessView);
-  const structure = getDashboardSectionStructure(props.businessView);
+  const structure = getDashboardSectionStructure(props.businessView, props.lang);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
 
   return (

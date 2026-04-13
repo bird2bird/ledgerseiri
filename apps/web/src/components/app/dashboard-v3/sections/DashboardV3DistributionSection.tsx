@@ -58,7 +58,7 @@ function blockTitle(lang: string, businessView: BusinessViewType, index: number,
 export function DashboardV3DistributionSection(props: Props) {
   const c = getDashboardCopy(props.lang);
   const theme = getDashboardTheme(props.businessView);
-  const structure = getDashboardSectionStructure(props.businessView);
+  const structure = getDashboardSectionStructure(props.businessView, props.lang);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
 
   return (

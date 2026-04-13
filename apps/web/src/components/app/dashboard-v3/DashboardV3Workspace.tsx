@@ -33,7 +33,7 @@ export function DashboardV3Workspace(props: Props) {
   if (isAmazon) {
     return (
       <div className="space-y-6">
-        <DashboardV3PlanStatusBar planPreview={planPreview} />
+        <DashboardV3PlanStatusBar lang={lang} planPreview={planPreview} />
 
         <DashboardV3GlobalStatusBar
           lang={lang}
@@ -47,6 +47,7 @@ export function DashboardV3Workspace(props: Props) {
           businessView={businessView}
           items={cockpit.summaryKpis}
           drilldownHints={cockpit.drilldownHints}
+          subscriptionAccess={subscriptionAccess}
         />
 
         <DashboardV3TrendSection
@@ -60,6 +61,7 @@ export function DashboardV3Workspace(props: Props) {
           businessView={businessView}
           cockpit={cockpit}
           drilldownHints={cockpit.drilldownHints}
+          subscriptionAccess={subscriptionAccess}
         />
 
         <DashboardV3DistributionSection
@@ -115,6 +117,7 @@ export function DashboardV3Workspace(props: Props) {
         businessView={businessView}
         items={cockpit.summaryKpis}
         drilldownHints={cockpit.drilldownHints}
+        subscriptionAccess={subscriptionAccess}
       />
 
       <DashboardV3TrendSection

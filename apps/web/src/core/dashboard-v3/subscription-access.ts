@@ -5,6 +5,9 @@ export type DashboardSubscriptionAccess = {
   planCode: WorkspaceSubscription["planCode"];
   status: WorkspaceSubscription["status"];
   accessMode: BillingAccessMode;
+  isReadonly: boolean;
+  canOpenKpiDrilldown: boolean;
+  canOpenProfitDrilldown: boolean;
   canOpenReconciliation: boolean;
   canOpenAccountantHandoff: boolean;
   canUseExplainSection: boolean;
@@ -48,16 +51,19 @@ export function resolveDashboardSubscriptionAccess(
 ): DashboardSubscriptionAccess {
   const accessMode = resolveAccessMode(subscription.status);
   const entitlements = subscription.entitlements;
-
+  const isReadonly = accessMode === "readonly";
   const isWritable = accessMode === "active" || accessMode === "trial";
 
   return {
     planCode: subscription.planCode,
     status: subscription.status,
     accessMode,
+    isReadonly,
+    canOpenKpiDrilldown: isWritable,
+    canOpenProfitDrilldown: isWritable,
     canOpenReconciliation: isWritable && Boolean(entitlements?.invoiceManagement),
     canOpenAccountantHandoff: isWritable && Boolean(entitlements?.invoiceManagement),
     canUseExplainSection: isWritable && Boolean(entitlements?.aiInsights),
-    showUpgradeHints: subscription.planCode !== "premium",
+    showUpgradeHints: subscription.planCode !== "premium" || isReadonly,
   };
 }

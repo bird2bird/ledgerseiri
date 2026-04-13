@@ -54,10 +54,6 @@ export function getDashboardActionLabel(args: {
 }): string {
   const lang = normalizeDashboardLocale(args.lang);
 
-  if (args.fallback && args.fallback.trim()) {
-    return args.fallback.trim();
-  }
-
   const table = {
     "zh-CN": {
       detail: "查看详情",
