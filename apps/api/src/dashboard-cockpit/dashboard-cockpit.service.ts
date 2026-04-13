@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
 
 export type DashboardCockpitRange = 'today' | '7d' | '30d' | 'month';
 export type DashboardCockpitBusinessView =
@@ -48,8 +49,52 @@ type ExplainSummary = {
   summary: string;
 };
 
+type ReconciliationSummary = {
+  missingInvoices: number;
+  missingBankProofs: number;
+  pendingReview: number;
+  unmatchedPayoutItems: number;
+};
+
+type AccountantChecklistItem = {
+  key: string;
+  label: string;
+  done: boolean;
+};
+
+type AccountantReadiness = {
+  invoiceReadinessPercent: number;
+  explainCoverageCount: number;
+  reviewBlockersCount: number;
+  checklist: AccountantChecklistItem[];
+};
+
+type DrilldownHint = {
+  key: string;
+  route: string;
+  label: string;
+  params?: Record<string, string>;
+};
+
+type DrilldownHints = {
+  sales?: DrilldownHint;
+  payout?: DrilldownHint;
+  profit?: DrilldownHint;
+  reconciliation?: DrilldownHint;
+  accountant?: DrilldownHint;
+};
+
+type DataCompleteness = {
+  score: number;
+  missingInvoiceCount: number;
+  missingBankProofCount: number;
+  unmatchedCount: number;
+};
+
 @Injectable()
 export class DashboardCockpitService {
+  constructor(private readonly prisma: PrismaService) {}
+
   private getAmazonBaselineNumbers() {
     const sales = 520000;
     const payout = 412000;
@@ -189,7 +234,183 @@ export class DashboardCockpitService {
     ];
   }
 
-  getAmazonCockpit(args: { range: DashboardCockpitRange }) {
+  private async buildAmazonRealProxy(args: { companyId: string }) {
+    const companyId = args.companyId;
+
+    const [
+      totalInvoices,
+      paidInvoices,
+      overdueInvoices,
+      paymentReceiptCount,
+      reconciliationTotal,
+      reconciliationApproved,
+      reconciliationRejected,
+    ] = await this.prisma.$transaction([
+      this.prisma.invoice.count({
+        where: { companyId },
+      }),
+      this.prisma.invoice.count({
+        where: { companyId, status: 'PAID' },
+      }),
+      this.prisma.invoice.count({
+        where: { companyId, status: 'OVERDUE' },
+      }),
+      this.prisma.paymentReceipt.count({
+        where: { companyId },
+      }),
+      this.prisma.reconciliationDecision.count({
+        where: { companyId },
+      }),
+      this.prisma.reconciliationDecision.count({
+        where: { companyId, decision: 'approved' },
+      }),
+      this.prisma.reconciliationDecision.count({
+        where: { companyId, decision: 'rejected' },
+      }),
+    ]);
+
+    const unpaidInvoices = Math.max(0, totalInvoices - paidInvoices);
+    const missingInvoicesProxy = overdueInvoices;
+    const missingBankProofsProxy = Math.max(0, unpaidInvoices - paymentReceiptCount);
+    const pendingReviewProxy = Math.max(0, totalInvoices - reconciliationTotal);
+    const unmatchedPayoutProxy = reconciliationRejected;
+
+    const invoiceReadinessPercent =
+      totalInvoices > 0
+        ? Math.max(0, Math.min(100, Math.round((paidInvoices / totalInvoices) * 100)))
+        : 100;
+
+    const reviewBlockersCount = overdueInvoices + reconciliationRejected;
+    const explainCoverageCount = this.buildAmazonExplainSummaries().length;
+
+    const missingCount =
+      missingInvoicesProxy + missingBankProofsProxy + unmatchedPayoutProxy;
+    const completenessScore = Math.max(
+      52,
+      100 - missingCount * 4 - pendingReviewProxy * 3,
+    );
+
+    return {
+      invoiceCounts: {
+        totalInvoices,
+        paidInvoices,
+        unpaidInvoices,
+        overdueInvoices,
+      },
+      paymentReceiptCount,
+      reconciliationCounts: {
+        total: reconciliationTotal,
+        approved: reconciliationApproved,
+        rejected: reconciliationRejected,
+      },
+      reconciliationSummary: {
+        missingInvoices: missingInvoicesProxy,
+        missingBankProofs: missingBankProofsProxy,
+        pendingReview: pendingReviewProxy,
+        unmatchedPayoutItems: unmatchedPayoutProxy,
+      } as ReconciliationSummary,
+      accountantReadiness: {
+        invoiceReadinessPercent,
+        explainCoverageCount,
+        reviewBlockersCount,
+        checklist: [
+          { key: 'sales', label: 'Sales summary prepared', done: totalInvoices > 0 },
+          { key: 'expense', label: 'Expense attachments reviewed', done: paymentReceiptCount > 0 },
+          { key: 'invoice', label: 'Missing invoice queue checked', done: missingInvoicesProxy === 0 },
+          { key: 'payout', label: 'Payout mismatch queue checked', done: unmatchedPayoutProxy === 0 },
+          { key: 'inventory', label: 'Inventory reference exported', done: true },
+          { key: 'profit', label: 'Profit reference reviewed', done: reviewBlockersCount === 0 },
+        ],
+      } as AccountantReadiness,
+      dataCompleteness: {
+        score: completenessScore,
+        missingInvoiceCount: missingInvoicesProxy,
+        missingBankProofCount: missingBankProofsProxy,
+        unmatchedCount: unmatchedPayoutProxy,
+      } as DataCompleteness,
+    };
+  }
+
+  private buildAmazonReconciliationSummary(): ReconciliationSummary {
+    return {
+      missingInvoices: 4,
+      missingBankProofs: 3,
+      pendingReview: 5,
+      unmatchedPayoutItems: 2,
+    };
+  }
+
+  private buildAmazonAccountantReadiness(): AccountantReadiness {
+    return {
+      invoiceReadinessPercent: 82,
+      explainCoverageCount: 2,
+      reviewBlockersCount: 5,
+      checklist: [
+        { key: 'sales', label: 'Sales summary prepared', done: true },
+        { key: 'expense', label: 'Expense attachments reviewed', done: false },
+        { key: 'invoice', label: 'Missing invoice queue checked', done: false },
+        { key: 'payout', label: 'Payout mismatch queue checked', done: false },
+        { key: 'inventory', label: 'Inventory reference exported', done: true },
+        { key: 'profit', label: 'Profit reference reviewed', done: true },
+      ],
+    };
+  }
+
+  private buildAmazonDrilldownHints(): DrilldownHints {
+    return {
+      sales: {
+        key: 'sales',
+        route: '/app/reports/income',
+        label: 'Open sales detail',
+        params: { businessType: 'amazon' },
+      },
+      payout: {
+        key: 'payout',
+        route: '/app/payments',
+        label: 'Open payout detail',
+        params: { businessType: 'amazon' },
+      },
+      profit: {
+        key: 'profit',
+        route: '/app/reports/profit',
+        label: 'Open profit detail',
+        params: { businessType: 'amazon' },
+      },
+      reconciliation: {
+        key: 'reconciliation',
+        route: '/app/amazon-reconciliation',
+        label: 'Open reconciliation',
+        params: { businessType: 'amazon' },
+      },
+      accountant: {
+        key: 'accountant',
+        route: '/app/invoices',
+        label: 'Open accountant handoff',
+        params: { businessType: 'amazon' },
+      },
+    };
+  }
+
+  private buildAmazonDataCompleteness(): DataCompleteness {
+    const summary = this.buildAmazonReconciliationSummary();
+    const missingCount =
+      summary.missingInvoices + summary.missingBankProofs + summary.unmatchedPayoutItems;
+    const score = Math.max(52, 100 - missingCount * 4 - summary.pendingReview * 3);
+
+    return {
+      score,
+      missingInvoiceCount: summary.missingInvoices,
+      missingBankProofCount: summary.missingBankProofs,
+      unmatchedCount: summary.unmatchedPayoutItems,
+    };
+  }
+
+  async getAmazonCockpit(args: { range: DashboardCockpitRange; companyId?: string }) {
+    const realProxy =
+      args.companyId && String(args.companyId).trim()
+        ? await this.buildAmazonRealProxy({ companyId: String(args.companyId).trim() })
+        : null;
+
     return {
       businessView: 'amazon',
       range: args.range,
@@ -199,15 +420,23 @@ export class DashboardCockpitService {
       distributions: this.buildAmazonDistributions(),
       alerts: this.buildAmazonAlerts(),
       explainSummaries: this.buildAmazonExplainSummaries(),
+      reconciliationSummary: realProxy?.reconciliationSummary ?? this.buildAmazonReconciliationSummary(),
+      accountantReadiness: realProxy?.accountantReadiness ?? this.buildAmazonAccountantReadiness(),
+      drilldownHints: this.buildAmazonDrilldownHints(),
+      dataCompleteness: realProxy?.dataCompleteness ?? this.buildAmazonDataCompleteness(),
     };
   }
 
   getCockpit(args: {
     businessView: DashboardCockpitBusinessView;
     range: DashboardCockpitRange;
+    companyId?: string;
   }) {
     if (args.businessView === 'amazon') {
-      return this.getAmazonCockpit({ range: args.range });
+      return this.getAmazonCockpit({
+        range: args.range,
+        companyId: args.companyId,
+      });
     }
 
     return {
@@ -219,6 +448,25 @@ export class DashboardCockpitService {
       distributions: [],
       alerts: [],
       explainSummaries: [],
+      reconciliationSummary: {
+        missingInvoices: 0,
+        missingBankProofs: 0,
+        pendingReview: 0,
+        unmatchedPayoutItems: 0,
+      },
+      accountantReadiness: {
+        invoiceReadinessPercent: 0,
+        explainCoverageCount: 0,
+        reviewBlockersCount: 0,
+        checklist: [],
+      },
+      drilldownHints: {},
+      dataCompleteness: {
+        score: 100,
+        missingInvoiceCount: 0,
+        missingBankProofCount: 0,
+        unmatchedCount: 0,
+      },
     };
   }
 }

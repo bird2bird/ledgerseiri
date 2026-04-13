@@ -3,8 +3,10 @@ import type { DashboardV3TrendSeries } from "@/core/dashboard-v3/types";
 import type { BusinessViewType } from "@/core/business-view";
 import { getDashboardTheme } from "@/core/dashboard-v3/theme";
 import { getDashboardSectionStructure } from "@/core/dashboard-v3/structure";
+import { getDashboardCopy } from "@/core/dashboard-copy";
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   items: DashboardV3TrendSeries[];
 };
@@ -44,21 +46,35 @@ function getTrendSummary(values: number[]) {
   };
 }
 
-function businessTrendTitle(businessView: BusinessViewType, index: number, fallback: string) {
+function businessTrendTitle(lang: string, businessView: BusinessViewType, index: number, fallback: string) {
+  const c = getDashboardCopy(lang);
   if (businessView === "amazon") {
-    return index === 0 ? "売上 / 入金トレンド" : "注文 / 差額トレンド";
+    return index === 0 ? c.trendAmazonPrimary : c.trendAmazonSecondary;
   }
   if (businessView === "ec") {
-    return index === 0 ? "売上 / 回收トレンド" : "未回收 / 費用トレンド";
+    return index === 0 ? c.trendEcPrimary : c.trendEcSecondary;
   }
   return fallback;
 }
 
+function trendHint(lang: string, businessView: BusinessViewType, index: number) {
+  const c = getDashboardCopy(lang);
+  if (businessView === "amazon") {
+    return index === 0 ? c.trendAmazonPrimaryHint : c.trendAmazonSecondaryHint;
+  }
+  if (businessView === "ec") {
+    return index === 0 ? c.trendEcPrimaryHint : c.trendEcSecondaryHint;
+  }
+  return "";
+}
+
 function renderEnhancedChart(
+  lang: string,
   businessView: BusinessViewType,
   series: DashboardV3TrendSeries,
   index: number
 ) {
+  const c = getDashboardCopy(lang);
   const values = series.points.map((p) => Number(p.value) || 0);
   const max = getMax(values);
   const polyline = getPolyline(values, 360, 150);
@@ -68,16 +84,16 @@ function renderEnhancedChart(
     <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4">
       <div className="mb-4 flex flex-wrap gap-2 text-xs text-white/80">
         <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-          latest {summary.last.toLocaleString("ja-JP")}
+          {c.trendLatest} {summary.last.toLocaleString("ja-JP")}
         </span>
         <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-          max {summary.max.toLocaleString("ja-JP")}
+          {c.trendMax} {summary.max.toLocaleString("ja-JP")}
         </span>
         <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-          min {summary.min.toLocaleString("ja-JP")}
+          {c.trendMin} {summary.min.toLocaleString("ja-JP")}
         </span>
         <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
-          delta {summary.delta >= 0 ? "+" : ""}{summary.delta.toLocaleString("ja-JP")}
+          {c.trendDelta} {summary.delta >= 0 ? "+" : ""}{summary.delta.toLocaleString("ja-JP")}
         </span>
       </div>
 
@@ -125,13 +141,7 @@ function renderEnhancedChart(
             })}
           </svg>
           <div className="mt-2 text-xs text-white/70">
-            {businessView === "amazon"
-              ? index === 0
-                ? "売上と入金の距離感を確認"
-                : "注文推移と差額変化を確認"
-              : index === 0
-              ? "売上と回收の距離感を確認"
-              : "未回收と費用変化を確認"}
+            {trendHint(lang, businessView, index)}
           </div>
         </div>
       </div>
@@ -169,6 +179,7 @@ function renderBasicChart(series: DashboardV3TrendSeries) {
 }
 
 export function DashboardV3TrendSection(props: Props) {
+  const c = getDashboardCopy(props.lang);
   const theme = getDashboardTheme(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
@@ -194,7 +205,7 @@ export function DashboardV3TrendSection(props: Props) {
               <div>
                 <div className="text-2xl font-semibold">
                   {isEnhanced
-                    ? businessTrendTitle(props.businessView, index, series.title)
+                    ? businessTrendTitle(props.lang, props.businessView, index, series.title)
                     : series.title}
                 </div>
                 <div className="mt-2 text-sm text-white/75">
@@ -203,12 +214,12 @@ export function DashboardV3TrendSection(props: Props) {
                 </div>
               </div>
               <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">
-                {isEnhanced ? "report chart" : "trend"}
+                {isEnhanced ? c.trendReportChart : c.trendSimpleChart}
               </div>
             </div>
 
             {isEnhanced
-              ? renderEnhancedChart(props.businessView, series, index)
+              ? renderEnhancedChart(props.lang, props.businessView, series, index)
               : renderBasicChart(series)}
           </div>
         ))}

@@ -6,6 +6,10 @@ import type {
   DashboardV3Range,
   DashboardV3TrendSeries,
   DashboardV3Alert,
+  DashboardV3ReconciliationSummary,
+  DashboardV3AccountantReadiness,
+  DashboardV3DrilldownHints,
+  DashboardV3DataCompleteness,
 } from "@/core/dashboard-v3/types";
 import { getDashboardV3ExplainSummaries } from "@/core/dashboard-v3/explain-provider";
 
@@ -240,6 +244,123 @@ function makeBaseAlerts(view: BusinessViewType): DashboardV3Alert[] {
   ];
 }
 
+function makeReconciliationSummary(view: BusinessViewType): DashboardV3ReconciliationSummary {
+  if (view === "amazon") {
+    return {
+      missingInvoices: 4,
+      missingBankProofs: 3,
+      pendingReview: 5,
+      unmatchedPayoutItems: 2,
+    };
+  }
+
+  if (view === "ec") {
+    return {
+      missingInvoices: 3,
+      missingBankProofs: 2,
+      pendingReview: 4,
+      unmatchedPayoutItems: 1,
+    };
+  }
+
+  if (view === "restaurant") {
+    return {
+      missingInvoices: 2,
+      missingBankProofs: 1,
+      pendingReview: 2,
+      unmatchedPayoutItems: 0,
+    };
+  }
+
+  return {
+    missingInvoices: 1,
+    missingBankProofs: 1,
+    pendingReview: 1,
+    unmatchedPayoutItems: 0,
+  };
+}
+
+function makeAccountantReadiness(view: BusinessViewType): DashboardV3AccountantReadiness {
+  if (view === "amazon") {
+    return {
+      invoiceReadinessPercent: 82,
+      explainCoverageCount: 2,
+      reviewBlockersCount: 5,
+      checklist: [
+        { key: "sales", label: "Sales summary prepared", done: true },
+        { key: "expense", label: "Expense attachments reviewed", done: false },
+        { key: "invoice", label: "Missing invoice queue checked", done: false },
+        { key: "payout", label: "Payout mismatch queue checked", done: false },
+        { key: "inventory", label: "Inventory reference exported", done: true },
+        { key: "profit", label: "Profit reference reviewed", done: true },
+      ],
+    };
+  }
+
+  return {
+    invoiceReadinessPercent: 74,
+    explainCoverageCount: 1,
+    reviewBlockersCount: 2,
+    checklist: [
+      { key: "sales", label: "Sales summary prepared", done: true },
+      { key: "expense", label: "Expense attachments reviewed", done: true },
+      { key: "invoice", label: "Missing invoice queue checked", done: false },
+      { key: "payout", label: "Payout mismatch queue checked", done: true },
+      { key: "inventory", label: "Inventory reference exported", done: false },
+      { key: "profit", label: "Profit reference reviewed", done: true },
+    ],
+  };
+}
+
+function makeDrilldownHints(view: BusinessViewType): DashboardV3DrilldownHints {
+  return {
+    sales: {
+      key: "sales",
+      route: "/app/reports/income",
+      label: "Open sales detail",
+      params: { businessType: view },
+    },
+    payout: {
+      key: "payout",
+      route: "/app/payments",
+      label: "Open payout detail",
+      params: { businessType: view },
+    },
+    profit: {
+      key: "profit",
+      route: "/app/reports/profit",
+      label: "Open profit detail",
+      params: { businessType: view },
+    },
+    reconciliation: {
+      key: "reconciliation",
+      route: "/app/amazon-reconciliation",
+      label: "Open reconciliation",
+      params: { businessType: view },
+    },
+    accountant: {
+      key: "accountant",
+      route: "/app/invoices",
+      label: "Open accountant handoff",
+      params: { businessType: view },
+    },
+  };
+}
+
+function makeDataCompleteness(view: BusinessViewType): DashboardV3DataCompleteness {
+  const summary = makeReconciliationSummary(view);
+  const missingCount =
+    summary.missingInvoices + summary.missingBankProofs + summary.unmatchedPayoutItems;
+  const score = Math.max(52, 100 - missingCount * 4 - summary.pendingReview * 3);
+
+  return {
+    score,
+    missingInvoiceCount: summary.missingInvoices,
+    missingBankProofCount: summary.missingBankProofs,
+    unmatchedCount: summary.unmatchedPayoutItems,
+  };
+}
+
 export function makeDashboardV3CockpitMock(args: {
   businessView: BusinessViewType;
   range?: DashboardV3Range;
@@ -255,5 +376,9 @@ export function makeDashboardV3CockpitMock(args: {
     explainSummaries: getDashboardV3ExplainSummaries({
       businessView: args.businessView,
     }),
+    reconciliationSummary: makeReconciliationSummary(args.businessView),
+    accountantReadiness: makeAccountantReadiness(args.businessView),
+    drilldownHints: makeDrilldownHints(args.businessView),
+    dataCompleteness: makeDataCompleteness(args.businessView),
   };
 }

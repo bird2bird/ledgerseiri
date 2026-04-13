@@ -13,10 +13,12 @@ export class DashboardCockpitController {
   getCockpit(
     @Query('businessView') businessView?: DashboardCockpitBusinessView,
     @Query('range') range?: DashboardCockpitRange,
+    @Query('companyId') companyId?: string,
   ) {
     return this.dashboardCockpitService.getCockpit({
       businessView: (businessView ?? 'amazon') as DashboardCockpitBusinessView,
       range: (range ?? '30d') as DashboardCockpitRange,
+      companyId: String(companyId ?? '').trim() || undefined,
     });
   }
 }

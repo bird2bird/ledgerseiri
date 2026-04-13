@@ -24,5 +24,13 @@ export function adaptLoosePayloadToDashboardV3Cockpit(args: {
     explainSummaries: Array.isArray(payload.explainSummaries)
       ? payload.explainSummaries
       : fallback.explainSummaries,
+    reconciliationSummary:
+      payload.reconciliationSummary ?? fallback.reconciliationSummary,
+    accountantReadiness:
+      payload.accountantReadiness ?? fallback.accountantReadiness,
+    drilldownHints:
+      payload.drilldownHints ?? fallback.drilldownHints,
+    dataCompleteness:
+      payload.dataCompleteness ?? fallback.dataCompleteness,
   };
 }

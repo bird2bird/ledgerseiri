@@ -41,21 +41,27 @@ export function DashboardV3Workspace(props: Props) {
         />
 
         <DashboardV3KpiSection
+          lang={lang}
           businessView={businessView}
           items={cockpit.summaryKpis}
+          drilldownHints={cockpit.drilldownHints}
         />
 
         <DashboardV3TrendSection
+          lang={lang}
           businessView={businessView}
           items={cockpit.trendSeries}
         />
 
         <DashboardV3ProfitBridgeSection
+          lang={lang}
           businessView={businessView}
           cockpit={cockpit}
+          drilldownHints={cockpit.drilldownHints}
         />
 
         <DashboardV3DistributionSection
+          lang={lang}
           businessView={businessView}
           items={cockpit.distributions}
         />
@@ -67,8 +73,10 @@ export function DashboardV3Workspace(props: Props) {
         />
 
         <DashboardV3ReconciliationSection
+          lang={lang}
           businessView={businessView}
           cockpit={cockpit}
+          drilldownHints={cockpit.drilldownHints}
         />
 
         <DashboardV3ExplainSection
@@ -78,8 +86,10 @@ export function DashboardV3Workspace(props: Props) {
         />
 
         <DashboardV3AccountantSection
+          lang={lang}
           businessView={businessView}
           cockpit={cockpit}
+          drilldownHints={cockpit.drilldownHints}
         />
       </div>
     );
@@ -96,16 +106,20 @@ export function DashboardV3Workspace(props: Props) {
       <DashboardV3OnboardingBridgeSection businessView={businessView} />
 
       <DashboardV3KpiSection
+        lang={lang}
         businessView={businessView}
         items={cockpit.summaryKpis}
+        drilldownHints={cockpit.drilldownHints}
       />
 
       <DashboardV3TrendSection
+        lang={lang}
         businessView={businessView}
         items={cockpit.trendSeries}
       />
 
       <DashboardV3DistributionSection
+        lang={lang}
         businessView={businessView}
         items={cockpit.distributions}
       />

@@ -3,6 +3,7 @@ import type { BusinessViewType } from "@/core/business-view";
 import type { DashboardV3Alert } from "@/core/dashboard-v3/types";
 import { getBusinessViewConfig } from "@/core/business-view/config";
 import { getDashboardSectionStructure } from "@/core/dashboard-v3/structure";
+import { getDashboardCopy } from "@/core/dashboard-copy";
 
 type Props = {
   lang: string;
@@ -32,21 +33,23 @@ function priorityColor(severity: "low" | "medium" | "high") {
   return "bg-slate-500";
 }
 
-function actionHint(view: BusinessViewType, severity: "low" | "medium" | "high") {
+function actionHint(lang: string, view: BusinessViewType, severity: "low" | "medium" | "high") {
+  const c = getDashboardCopy(lang);
   if (view === "amazon") {
-    if (severity === "high") return "差額構成と explain preview を先に確認";
-    if (severity === "medium") return "広告費・返金項目を確認";
-    return "推移を継続監視";
+    if (severity === "high") return c.anomalyHintAmazonHigh;
+    if (severity === "medium") return c.anomalyHintAmazonMedium;
+    return c.anomalyHintAmazonLow;
   }
   if (view === "ec") {
-    if (severity === "high") return "費用構成と alerts を先に確認";
-    if (severity === "medium") return "回收との差を確認";
-    return "推移を継続監視";
+    if (severity === "high") return c.anomalyHintEcHigh;
+    if (severity === "medium") return c.anomalyHintEcMedium;
+    return c.anomalyHintEcLow;
   }
   return "";
 }
 
 export function DashboardV3AnomalySection(props: Props) {
+  const c = getDashboardCopy(props.lang);
   const cfg = getBusinessViewConfig(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
@@ -78,15 +81,15 @@ export function DashboardV3AnomalySection(props: Props) {
 
       <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="rounded-3xl border border-red-200 bg-red-50 p-5">
-          <div className="text-lg font-semibold text-red-900">High priority</div>
+          <div className="text-lg font-semibold text-red-900">{c.anomalyHigh}</div>
           <div className="mt-3 text-sm leading-7 text-red-800">{cfg.highPriorityText}</div>
         </div>
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-          <div className="text-lg font-semibold text-amber-900">Medium priority</div>
+          <div className="text-lg font-semibold text-amber-900">{c.anomalyMedium}</div>
           <div className="mt-3 text-sm leading-7 text-amber-800">{cfg.mediumPriorityText}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-          <div className="text-lg font-semibold text-slate-900">Low priority</div>
+          <div className="text-lg font-semibold text-slate-900">{c.anomalyLow}</div>
           <div className="mt-3 text-sm leading-7 text-slate-600">{cfg.lowPriorityText}</div>
         </div>
       </div>
@@ -117,11 +120,11 @@ export function DashboardV3AnomalySection(props: Props) {
                       className={"h-2 rounded-full " + priorityColor(item.severity) + " " + priorityWidth(item.severity)}
                     />
                   </div>
-                  <span className="text-xs text-slate-500">priority</span>
+                  <span className="text-xs text-slate-500">{c.anomalyPriority}</span>
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs leading-6 text-slate-600">
-                  {actionHint(props.businessView, item.severity)}
+                  {actionHint(props.lang, props.businessView, item.severity)}
                 </div>
               </>
             ) : null}

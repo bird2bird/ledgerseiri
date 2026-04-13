@@ -6,11 +6,13 @@ export async function fetchDashboardCockpitV3(args: {
   businessView: BusinessViewType;
   range?: DashboardV3Range;
   mode?: DashboardV3ProviderMode;
+  companyId?: string;
 }): Promise<DashboardV3Cockpit> {
   return loadDashboardCockpitV3({
     businessView: args.businessView,
     range: args.range ?? "30d",
     mode: args.mode ?? "mock",
+    companyId: args.companyId,
   });
 }
 

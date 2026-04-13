@@ -3,8 +3,10 @@ import type { DashboardV3DistributionBlock } from "@/core/dashboard-v3/types";
 import type { BusinessViewType } from "@/core/business-view";
 import { getDashboardTheme } from "@/core/dashboard-v3/theme";
 import { getDashboardSectionStructure } from "@/core/dashboard-v3/structure";
+import { getDashboardCopy } from "@/core/dashboard-copy";
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   items: DashboardV3DistributionBlock[];
 };
@@ -42,17 +44,19 @@ function getConicGradient(segments: { start: number; end: number }[]) {
   return `conic-gradient(${parts.join(",")})`;
 }
 
-function blockTitle(businessView: BusinessViewType, index: number, fallback: string) {
+function blockTitle(lang: string, businessView: BusinessViewType, index: number, fallback: string) {
+  const c = getDashboardCopy(lang);
   if (businessView === "amazon") {
-    return index === 0 ? "差額構成" : "チャネル構成";
+    return index === 0 ? c.distributionAmazonPrimary : c.distributionAmazonSecondary;
   }
   if (businessView === "ec") {
-    return index === 0 ? "費用構成" : "チャネル構成";
+    return index === 0 ? c.distributionEcPrimary : c.distributionEcSecondary;
   }
   return fallback;
 }
 
 export function DashboardV3DistributionSection(props: Props) {
+  const c = getDashboardCopy(props.lang);
   const theme = getDashboardTheme(props.businessView);
   const structure = getDashboardSectionStructure(props.businessView);
   const isEnhanced = props.businessView === "amazon" || props.businessView === "ec";
@@ -83,10 +87,10 @@ export function DashboardV3DistributionSection(props: Props) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-2xl font-semibold">
-                    {isEnhanced ? blockTitle(props.businessView, index, block.title) : block.title}
+                    {isEnhanced ? blockTitle(props.lang, props.businessView, index, block.title) : block.title}
                   </div>
                   <div className="mt-2 text-sm text-white/75">
-                    {isEnhanced ? "distribution + composition" : "distribution view"}
+                    {isEnhanced ? c.distributionEnhanced : c.distributionBasic}
                   </div>
                 </div>
                 <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/90">

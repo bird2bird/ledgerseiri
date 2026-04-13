@@ -1,10 +1,20 @@
 import React from "react";
+import Link from "next/link";
 import type { BusinessViewType } from "@/core/business-view";
-import type { DashboardV3Cockpit } from "@/core/dashboard-v3/types";
+import type {
+  DashboardV3Cockpit,
+  DashboardV3DrilldownHints,
+} from "@/core/dashboard-v3/types";
+import {
+  buildDashboardDrilldownHref,
+  getDashboardActionLabel,
+} from "@/core/dashboard-v3/drilldown-map";
 
 type Props = {
+  lang: string;
   businessView: BusinessViewType;
   cockpit: DashboardV3Cockpit;
+  drilldownHints?: DashboardV3DrilldownHints;
 };
 
 function findKpi(cockpit: DashboardV3Cockpit, keys: string[]) {
@@ -18,11 +28,22 @@ function formatValue(value: number, unit: "JPY" | "count" | "percent") {
 }
 
 export function DashboardV3ProfitBridgeSection(props: Props) {
-  const { cockpit } = props;
+  const { cockpit, drilldownHints } = props;
   const sales = findKpi(cockpit, ["sales"]);
   const payout = findKpi(cockpit, ["payout"]);
   const gap = findKpi(cockpit, ["gap"]);
   const costBlock = cockpit.distributions[0];
+
+  const detailCards = [
+    { item: sales, hint: drilldownHints?.sales },
+    { item: payout, hint: drilldownHints?.payout },
+    { item: gap, hint: drilldownHints?.profit },
+  ].filter((x) => x.item);
+
+  const profitHref = buildDashboardDrilldownHref({
+    lang: props.lang,
+    hint: drilldownHints?.profit,
+  });
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -34,26 +55,61 @@ export function DashboardV3ProfitBridgeSection(props: Props) {
               Understand how sales move through payout, gap, and cost pressure.
             </div>
           </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
-            bridge
-          </div>
+          {profitHref ? (
+            <Link
+              href={profitHref}
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700 hover:bg-slate-100"
+            >
+              {getDashboardActionLabel({
+                lang: props.lang,
+                fallback: drilldownHints?.profit?.label,
+                kind: "detail",
+              })}
+            </Link>
+          ) : (
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
+              bridge
+            </div>
+          )}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[sales, payout, gap].filter(Boolean).map((item) => (
-            <div
-              key={item!.key}
-              className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
-            >
-              <div className="text-sm text-slate-500">{item!.label}</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">
-                {formatValue(item!.value, item!.unit)}
+          {detailCards.map(({ item, hint }) => {
+            const href = buildDashboardDrilldownHref({
+              lang: props.lang,
+              hint,
+            });
+
+            return (
+              <div
+                key={item!.key}
+                className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
+              >
+                <div className="text-sm text-slate-500">{item!.label}</div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">
+                  {formatValue(item!.value, item!.unit)}
+                </div>
+                {item!.deltaLabel ? (
+                  <div className="mt-2 text-xs text-slate-500">{item!.deltaLabel}</div>
+                ) : null}
+
+                {href ? (
+                  <div className="mt-4">
+                    <Link
+                      href={href}
+                      className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                    >
+                      {getDashboardActionLabel({
+                        lang: props.lang,
+                        fallback: hint?.label,
+                        kind: "detail",
+                      })}
+                    </Link>
+                  </div>
+                ) : null}
               </div>
-              {item!.deltaLabel ? (
-                <div className="mt-2 text-xs text-slate-500">{item!.deltaLabel}</div>
-              ) : null}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

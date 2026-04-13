@@ -23,7 +23,7 @@ export default async function AppHomePage({
   searchParams,
 }: {
   params: Promise<{ lang: string }>;
-  searchParams: Promise<{ plan?: string; businessType?: string; readonly?: string }>;
+  searchParams: Promise<{ plan?: string; businessType?: string; readonly?: string; companyId?: string }>;
 }) {
   const p = await params;
   const sp = await searchParams;
@@ -51,11 +51,13 @@ export default async function AppHomePage({
   });
 
   const providerMode = businessView === "amazon" ? "real" : "mock";
+  const companyId = String(sp?.companyId || "").trim() || undefined;
 
   const cockpit = await fetchDashboardCockpitV3({
     businessView,
     range: "30d",
     mode: providerMode,
+    companyId,
   });
 
   const normalizedPlan =

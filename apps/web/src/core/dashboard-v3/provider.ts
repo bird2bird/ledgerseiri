@@ -9,6 +9,7 @@ export type DashboardV3ProviderArgs = {
   businessView: BusinessViewType;
   range?: DashboardV3Range;
   mode?: DashboardV3ProviderMode;
+  companyId?: string;
 };
 
 export async function loadDashboardCockpitV3(
@@ -26,6 +27,10 @@ export async function loadDashboardCockpitV3(
         businessType: args.businessView,
         range: args.range ?? "30d",
       });
+
+      if (args.companyId && String(args.companyId).trim()) {
+        params.set("companyId", String(args.companyId).trim());
+      }
 
       const res = await fetch(`http://localhost:3000/api/dashboard/cockpit-v3?${params.toString()}`, {
         method: "GET",

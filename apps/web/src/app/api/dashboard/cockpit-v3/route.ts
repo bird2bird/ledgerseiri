@@ -6,10 +6,20 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const businessType = normalizeBusinessView(url.searchParams.get("businessType"));
   const range = (url.searchParams.get("range") || "30d") as "today" | "7d" | "30d" | "month";
+  const companyId = String(url.searchParams.get("companyId") || "").trim();
 
   try {
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
-    const upstream = `${apiBase}/dashboard-cockpit?businessView=${businessType}&range=${range}`;
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://api:3001";
+    const upstreamParams = new URLSearchParams({
+      businessView: businessType,
+      range,
+    });
+
+    if (companyId) {
+      upstreamParams.set("companyId", companyId);
+    }
+
+    const upstream = `${apiBase}/dashboard-cockpit?${upstreamParams.toString()}`;
 
     const res = await fetch(upstream, {
       method: "GET",

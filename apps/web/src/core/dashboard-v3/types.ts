@@ -49,6 +49,48 @@ export type DashboardV3ExplainSummary = {
   summary: string;
 };
 
+export type DashboardV3ReconciliationSummary = {
+  missingInvoices: number;
+  missingBankProofs: number;
+  pendingReview: number;
+  unmatchedPayoutItems: number;
+};
+
+export type DashboardV3AccountantChecklistItem = {
+  key: string;
+  label: string;
+  done: boolean;
+};
+
+export type DashboardV3AccountantReadiness = {
+  invoiceReadinessPercent: number;
+  explainCoverageCount: number;
+  reviewBlockersCount: number;
+  checklist: DashboardV3AccountantChecklistItem[];
+};
+
+export type DashboardV3DrilldownHint = {
+  key: string;
+  route: string;
+  label: string;
+  params?: Record<string, string>;
+};
+
+export type DashboardV3DrilldownHints = {
+  sales?: DashboardV3DrilldownHint;
+  payout?: DashboardV3DrilldownHint;
+  profit?: DashboardV3DrilldownHint;
+  reconciliation?: DashboardV3DrilldownHint;
+  accountant?: DashboardV3DrilldownHint;
+};
+
+export type DashboardV3DataCompleteness = {
+  score: number;
+  missingInvoiceCount: number;
+  missingBankProofCount: number;
+  unmatchedCount: number;
+};
+
 export type DashboardV3Cockpit = {
   businessView: BusinessViewType;
   range: DashboardV3Range;
@@ -58,4 +100,8 @@ export type DashboardV3Cockpit = {
   distributions: DashboardV3DistributionBlock[];
   alerts: DashboardV3Alert[];
   explainSummaries: DashboardV3ExplainSummary[];
+  reconciliationSummary: DashboardV3ReconciliationSummary;
+  accountantReadiness: DashboardV3AccountantReadiness;
+  drilldownHints: DashboardV3DrilldownHints;
+  dataCompleteness: DashboardV3DataCompleteness;
 };
