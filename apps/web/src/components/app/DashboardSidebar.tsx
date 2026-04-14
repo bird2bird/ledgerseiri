@@ -117,6 +117,7 @@ type MenuGroup = {
   kind: "group";
   key: string;
   label: string;
+  href?: string;
   items: Array<MenuLeaf | MenuGroup>;
   locked?: boolean;
   requiredPlan?: "standard" | "premium";
@@ -401,9 +402,10 @@ function leaf(
 function group(
   key: string,
   label: string,
-  items: Array<MenuLeaf | MenuGroup>
+  items: Array<MenuLeaf | MenuGroup>,
+  href?: string
 ): MenuGroup {
-  return { kind: "group", key, label, items };
+  return { kind: "group", key, label, items, href };
 }
 
 export function DashboardSidebar() {
@@ -451,13 +453,13 @@ export function DashboardSidebar() {
           leaf("cash-income", t.cashIncome, "/app/income/cash"),
           leaf("store-orders", t.storeOrders, "/app/income/store-orders"),
           leaf("other-income", t.otherIncome, "/app/income/other"),
-        ]),
+        ], "/app/income"),
         group("expense", t.expense, [
-          leaf("store-ops", t.storeOpsExpense, "/app/expenses"),
-          leaf("company-ops", t.companyOpsExpense, "/app/expenses"),
-          leaf("salary", t.salary, "/app/expenses"),
-          leaf("other-expense", t.otherExpense, "/app/expenses"),
-        ]),
+          leaf("store-ops", t.storeOpsExpense, "/app/expenses/store-operation"),
+          leaf("company-ops", t.companyOpsExpense, "/app/expenses?category=other"),
+          leaf("salary", t.salary, "/app/expenses?category=payroll"),
+          leaf("other-expense", t.otherExpense, "/app/expenses?category=other"),
+        ], "/app/expenses"),
       ]),
 
       group("inventory", t.inventory, [
@@ -608,23 +610,43 @@ export function DashboardSidebar() {
   function GroupNode({ node, depth = 0 }: { node: MenuGroup; depth?: number }) {
     const childHasActive = node.items.some((it) => {
       if (it.kind === "leaf") return isActive(it.href);
-      return it.items.some((x) => (x.kind === "leaf" ? isActive(x.href) : false));
+      return isActive(it.href) || it.items.some((x) => (x.kind === "leaf" ? isActive(x.href) : false));
     });
 
+    const groupActive = isActive(node.href);
+    const defaultOpen = childHasActive || groupActive || depth === 0;
+
     return (
-      <details className={cls("group", depth > 0 && "ml-3")} open={childHasActive || depth === 0}>
-        <summary className="list-none cursor-pointer select-none rounded-xl px-3 py-2 hover:bg-black/[0.03]">
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+      <details className={cls("group", depth > 0 && "ml-3")} open={defaultOpen}>
+        <summary className="list-none">
+          <div className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-black/[0.03]">
+            {node.href ? (
+              <Link
+                href={withLang(node.href)}
+                className={cls(
+                  "flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold",
+                  groupActive ? "text-slate-900" : "text-slate-900"
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-xl bg-slate-100 text-[12px] text-slate-500">
                   {menuGlyph(node.key)}
                 </span>
-                <span>{node.label}</span>
+                <span className="truncate">{node.label}</span>
+              </Link>
+            ) : (
+              <span className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold text-slate-900">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-xl bg-slate-100 text-[12px] text-slate-500">
+                  {menuGlyph(node.key)}
+                </span>
+                <span className="truncate">{node.label}</span>
               </span>
-            <span className="group-open:hidden">
+            )}
+
+            <span className="pointer-events-none group-open:hidden">
               <Caret open={false} />
             </span>
-            <span className="hidden group-open:inline">
+            <span className="pointer-events-none hidden group-open:inline">
               <Caret open={true} />
             </span>
           </div>

@@ -176,7 +176,7 @@ export function AmazonStoreOrdersImportCard(props: {
               店舗注文ページで確認
             </Link>
             <Link
-              href={`/${lang}/app/expenses`}
+              href={`/${lang}/app/expenses/store-operation`}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               店舗運営費を確認

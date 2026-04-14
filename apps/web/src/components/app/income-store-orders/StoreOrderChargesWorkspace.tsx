@@ -99,16 +99,22 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
           <div className="flex flex-wrap gap-2">
             <Link
+              href={`/${lang}/app/expenses`}
+              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              支出 root へ戻る
+            </Link>
+            <Link
               href={`/${lang}/app/income/store-orders`}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              店舗注文（収入確認）へ戻る
+              店舗注文へ戻る
             </Link>
             <Link
               href={`/${lang}/app/data/import?module=income`}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Import / CSV確認へ戻る
+              Import へ戻る
             </Link>
           </div>
         </div>
