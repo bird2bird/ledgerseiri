@@ -19,6 +19,17 @@ type Props = {
   totalTaxAmount: number;
   totalShippingAmount: number;
   totalPromotionAmount: number;
+  stageChargeSummary: {
+    orderSale: number;
+    adFee: number;
+    storageFee: number;
+    subscriptionFee: number;
+    fbaFee: number;
+    tax: number;
+    payout: number;
+    adjustment: number;
+    other: number;
+  };
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -84,6 +95,7 @@ function buildSampleBars(rows: IncomeRow[]) {
 
 export function StoreOrdersWorkspace(props: Props) {
   const {
+    lang,
     rows,
     visibleRows,
     selectedRowId,
@@ -97,6 +109,7 @@ export function StoreOrdersWorkspace(props: Props) {
     totalTaxAmount,
     totalShippingAmount,
     totalPromotionAmount,
+    stageChargeSummary,
     pageSize,
     setPageSize,
     currentPage,
@@ -147,6 +160,56 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="mt-3 text-4xl font-semibold">{uniqueStores}</div>
           <div className="mt-4 text-sm text-slate-700">
             {topStore ? `Top: ${topStore.store}` : "店舗データなし"}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
+        <div className="text-xl font-semibold text-slate-900">Amazon Transaction Charges Overview</div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-slate-500">
+            transaction CSV から分類した費用 / 税金 / 振込 / 調整の概況です。
+          </div>
+          <Link
+            href={`/${lang}/app/income/store-orders/charges`}
+            className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            店舗運営費 View
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">広告費</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.adFee)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">月額登録料</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.subscriptionFee)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">倉庫費用</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.storageFee)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">FBA費用</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.fbaFee)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">税金</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.tax)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">振込</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.payout)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">調整</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.adjustment)}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="text-xs text-slate-500">その他</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatIncomeJPY(stageChargeSummary.other)}</div>
           </div>
         </div>
       </div>

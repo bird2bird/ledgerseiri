@@ -24,12 +24,27 @@ type AmazonPreviewFact = {
   shippingAmount: number;
   promotionAmount: number;
 
+  rawTransactionType?: string | null;
+  signedAmount?: number | null;
+  description?: string | null;
+
   store?: string | null;
   fulfillment?: string | null;
   rawLabel: string;
 };
 
-type AmazonPreviewCharge = {
+type AmazonTransactionChargeKind =
+  | 'ORDER_SALE'
+  | 'AD_FEE'
+  | 'STORAGE_FEE'
+  | 'SUBSCRIPTION_FEE'
+  | 'FBA_FEE'
+  | 'TAX'
+  | 'PAYOUT'
+  | 'ADJUSTMENT'
+  | 'OTHER';
+
+type AmazonTransactionCharge = {
   id: string;
   rowNo: number;
   occurredAt?: string | null;
@@ -37,20 +52,12 @@ type AmazonPreviewCharge = {
   sku?: string | null;
   transactionType: string;
   description: string;
-  kind:
-    | 'ORDER_SALE'
-    | 'AD_FEE'
-    | 'STORAGE_FEE'
-    | 'SUBSCRIPTION_FEE'
-    | 'FBA_FEE'
-    | 'TAX'
-    | 'PAYOUT'
-    | 'ADJUSTMENT'
-    | 'OTHER';
+  kind: AmazonTransactionChargeKind;
   signedAmount: number;
 };
 
-type AmazonPreviewChargeSummary = {
+type AmazonTransactionChargeSummary = {
+  orderSale: number;
   adFee: number;
   storageFee: number;
   subscriptionFee: number;
@@ -74,8 +81,8 @@ type AmazonPreviewResult = {
   };
   rawRows: AmazonPreviewRawRow[];
   facts: AmazonPreviewFact[];
-  charges: AmazonPreviewCharge[];
-  chargeSummary: AmazonPreviewChargeSummary;
+  charges: AmazonTransactionCharge[];
+  chargeSummary: AmazonTransactionChargeSummary;
 };
 
 @Injectable()
@@ -153,6 +160,12 @@ export class JobService {
     return Math.trunc(num);
   }
 
+  private parseSignedTotalAmount(row: Record<string, string>): number {
+    return this.parseAmount(
+      this.pickField(row, ['合計', 'total', 'transaction total', 'net total']),
+    );
+  }
+
   private parseAmazonOrderRevenue(row: Record<string, string>): number {
     const productSales = this.parseAmount(
       this.pickField(row, [
@@ -164,160 +177,79 @@ export class JobService {
         'principal',
         '売上',
         '金額',
-      ])
+      ]),
     );
 
     const shippingSales = this.parseAmount(
-      this.pickField(row, [
-        '配送料',
-        '送料',
-        'shipping',
-        'shipping credits',
-      ])
+      this.pickField(row, ['配送料', '送料', 'shipping', 'shipping credits']),
     );
 
     const giftWrapSales = this.parseAmount(
-      this.pickField(row, [
-        'ギフト包装料',
-        'ギフト包装',
-        'gift wrap',
-        'giftwrap',
-      ])
+      this.pickField(row, ['ギフト包装料', 'ギフト包装', 'gift wrap', 'giftwrap']),
     );
 
     return productSales + shippingSales + giftWrapSales;
   }
 
-  private absAmount(value: number): number {
-    return Math.abs(Number(value || 0));
-  }
+  private parseAmazonBridgeAmounts(row: Record<string, string>, kind: AmazonTransactionChargeKind, signedAmount: number) {
+    const grossAmount = this.parseAmazonOrderRevenue(row);
 
-  private sumSignedFields(row: Record<string, string>, aliases: string[]): number {
-    return aliases.reduce((sum, alias) => sum + this.parseAmount(this.pickField(row, [alias])), 0);
-  }
-
-  private classifyAmazonTransactionKind(transactionType: string, description: string) {
-    const t = String(transactionType || '').trim();
-    const d = String(description || '').trim();
-    const merged = `${t} ${d}`;
-
-    if (/注文|order/i.test(merged)) return 'ORDER_SALE' as const;
-    if (/広告|ads?|advertising/i.test(merged)) return 'AD_FEE' as const;
-    if (/在庫保管|在庫関連|storage/i.test(merged)) return 'STORAGE_FEE' as const;
-    if (/月額|月租|subscription|register|登録料/i.test(merged)) return 'SUBSCRIPTION_FEE' as const;
-    if (/FBA|販売手数料|出品手数料|referral fee|fulfillment fee/i.test(merged)) return 'FBA_FEE' as const;
-    if (/税|源泉|tax/i.test(merged)) return 'TAX' as const;
-    if (/振込|入金|payout|transfer|送金|amazonチャージ/i.test(merged)) return 'PAYOUT' as const;
-    if (/調整|adjust/i.test(merged)) return 'ADJUSTMENT' as const;
-    return 'OTHER' as const;
-  }
-
-  private parseAmazonOrderBridge(row: Record<string, string>) {
-    const productSales = this.parseAmount(
-      this.pickField(row, [
-        '商品売上',
-        '商品の売上',
-        'product sales',
-        'item price',
-        'item-price',
-        'principal',
-      ])
+    const taxAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          '商品売上の税',
+          '配送料の税',
+          'ギフト包装の税',
+          '税金',
+          'tax',
+          'taxes',
+          'プロモーション割引の税',
+        ]),
+      ),
     );
 
-    const productTax = this.absAmount(
-      this.sumSignedFields(row, [
-        '商品の売上税',
-        '商品売上税',
-      ])
+    const shippingAmount =
+      this.parseAmount(this.pickField(row, ['配送料', '送料', 'shipping', 'shipping credits'])) +
+      this.parseAmount(this.pickField(row, ['ギフト包装料', 'ギフト包装', 'gift wrap', 'giftwrap']));
+
+    const promotionAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          'Amazonポイントの費用',
+          'プロモーション',
+          'プロモーション割引',
+          'プロモーション割引額',
+          'promotion',
+          'discount',
+          'amazon points',
+        ]),
+      ),
     );
 
-    const shippingRevenue = this.parseAmount(
-      this.pickField(row, [
-        '配送料',
-        '送料',
-        'shipping',
-        'shipping credits',
-      ])
+    const feeAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          '売上にかかる取引手数料',
+          '販売手数料',
+          '出品手数料',
+          'Amazon出品サービスの料金',
+          'referral fee',
+          'selling fees',
+          'FBA手数料',
+          'fba fees',
+          'fulfillment fees',
+          'トランザクションのその他',
+          'その他各種手数料',
+          'other transaction fees',
+        ]),
+      ),
     );
 
-    const shippingTax = this.absAmount(
-      this.sumSignedFields(row, [
-        '配送料の税',
-      ])
-    );
+    let netAmount = signedAmount;
 
-    const giftWrapRevenue = this.parseAmount(
-      this.pickField(row, [
-        'ギフト包装料',
-        'ギフト包装',
-        'gift wrap',
-        'giftwrap',
-      ])
-    );
-
-    const giftWrapTax = this.absAmount(
-      this.sumSignedFields(row, [
-        'ギフト包装の税',
-      ])
-    );
-
-    const amazonPoints = this.absAmount(
-      this.sumSignedFields(row, [
-        'Amazonポイント',
-        'Amazonポイントの費用',
-      ])
-    );
-
-    const promotion = this.absAmount(
-      this.sumSignedFields(row, [
-        'プロモーション',
-        'プロモーション割引',
-        'promotion',
-        'discount',
-      ])
-    );
-
-    const withholdingTax = this.absAmount(
-      this.sumSignedFields(row, [
-        '源泉徴収税',
-        '税金',
-        'tax',
-      ])
-    );
-
-    const transactionOther = this.absAmount(
-      this.sumSignedFields(row, [
-        'トランザクションその他',
-        'トランザクションその他の手数料',
-        'その他各種手数料',
-        'other transaction fees',
-      ])
-    );
-
-    const fbaFee = this.absAmount(
-      this.sumSignedFields(row, [
-        'FBA手数料',
-        'フルフィルメント手数料',
-        'fba fees',
-        'fulfillment fees',
-      ])
-    );
-
-    const sellingFee = this.absAmount(
-      this.sumSignedFields(row, [
-        '出品手数料',
-        '販売手数料',
-        'referral fee',
-        'selling fees',
-      ])
-    );
-
-    const grossAmount = productSales + shippingRevenue + giftWrapRevenue;
-    const shippingAmount = shippingRevenue + giftWrapRevenue;
-    const feeAmount = fbaFee + sellingFee + transactionOther;
-    const taxAmount = productTax + shippingTax + giftWrapTax + withholdingTax;
-    const promotionAmount = amazonPoints + promotion;
-    const netAmount = grossAmount - feeAmount - taxAmount - promotionAmount;
+    if (kind === 'ORDER_SALE') {
+      netAmount = signedAmount !== 0 ? signedAmount : grossAmount - feeAmount - taxAmount - promotionAmount;
+    }
 
     return {
       grossAmount,
@@ -327,6 +259,28 @@ export class JobService {
       shippingAmount,
       promotionAmount,
     };
+  }
+
+  private classifyAmazonChargeKind(args: {
+    transactionType: string;
+    description: string;
+    signedAmount: number;
+  }): AmazonTransactionChargeKind {
+    const t = String(args.transactionType || '').toLowerCase();
+    const d = String(args.description || '').toLowerCase();
+
+    const has = (...keywords: string[]) =>
+      keywords.some((k) => t.includes(k) || d.includes(k));
+
+    if (has('注文', 'order')) return 'ORDER_SALE';
+    if (has('広告', 'ads', 'advertising')) return 'AD_FEE';
+    if (has('月額登録料', 'subscription')) return 'SUBSCRIPTION_FEE';
+    if (has('保管', 'storage', '倉庫')) return 'STORAGE_FEE';
+    if (has('fba', 'フルフィルメント')) return 'FBA_FEE';
+    if (has('税', 'tax')) return 'TAX';
+    if (has('振込', 'disbursement', 'payout', 'transfer')) return 'PAYOUT';
+    if (has('調整', 'adjustment', '返金', 'refund')) return 'ADJUSTMENT';
+    return 'OTHER';
   }
 
   private parseAmazonStoreOrdersCsv(filename: string, csvText: string): AmazonPreviewResult {
@@ -363,17 +317,20 @@ export class JobService {
       'purchase-date',
       'order-date',
       '日付',
+      '日付/時間',
       '商品名',
       'item-name',
       'product-name',
       'sku',
       'seller-sku',
-      'quantity',
       '数量',
-      'item-price',
-      'amount',
-      'principal',
-      '金額',
+      'quantity',
+      'トランザクション種別',
+      'transaction type',
+      '説明',
+      'description',
+      '合計',
+      'total',
     ].map((x) => this.normalizeHeader(x));
 
     for (let i = 0; i < Math.min(lines.length, 20); i += 1) {
@@ -399,13 +356,10 @@ export class JobService {
 
     const rawRows: AmazonPreviewRawRow[] = [];
     const facts: AmazonPreviewFact[] = [];
-    const charges: AmazonPreviewCharge[] = [];
+    const charges: AmazonTransactionCharge[] = [];
 
-    let totalAmount = 0;
-    let totalQuantity = 0;
-    let failedRows = 0;
-
-    const chargeSummary: AmazonPreviewChargeSummary = {
+    const chargeSummary: AmazonTransactionChargeSummary = {
+      orderSale: 0,
       adFee: 0,
       storageFee: 0,
       subscriptionFee: 0,
@@ -415,6 +369,10 @@ export class JobService {
       adjustment: 0,
       other: 0,
     };
+
+    let totalAmount = 0;
+    let totalQuantity = 0;
+    let failedRows = 0;
 
     for (let i = headerIndex + 1; i < lines.length; i += 1) {
       const cells = this.splitDelimitedLine(lines[i], delimiterChar);
@@ -433,17 +391,15 @@ export class JobService {
       });
 
       const transactionType = this.pickField(headerToValue, [
-        'トランザクションの種類',
-        '取引タイプ',
+        'トランザクション種別',
         'transaction type',
         'type',
-        '種類',
       ]);
 
       const description = this.pickField(headerToValue, [
         '説明',
         'description',
-        'memo',
+        'details',
       ]);
 
       const orderId = this.pickField(headerToValue, [
@@ -481,14 +437,8 @@ export class JobService {
       ]);
 
       const quantity = this.parseQuantity(
-        this.pickField(headerToValue, [
-          'quantity',
-          'qty',
-          '数量',
-        ])
+        this.pickField(headerToValue, ['quantity', 'qty', '数量']),
       );
-
-      const amount = this.parseAmazonOrderRevenue(headerToValue);
 
       const store = this.pickField(headerToValue, [
         'store',
@@ -503,72 +453,80 @@ export class JobService {
         'fulfillment',
         '配送チャネル',
         '発送区分',
+        'フルフィルメント',
       ]);
 
-      const signedTotal = this.parseAmount(
-        this.pickField(headerToValue, [
-          '合計',
-          'total',
-          'amount',
-        ])
-      );
+      const signedAmount = this.parseSignedTotalAmount(headerToValue);
+      const kind = this.classifyAmazonChargeKind({
+        transactionType,
+        description,
+        signedAmount,
+      });
 
-      const kind = this.classifyAmazonTransactionKind(transactionType, description);
+      charges.push({
+        id: `${rowNo}-${orderId || 'na'}-${sku || 'na'}-${kind}`,
+        rowNo,
+        occurredAt: orderDate || null,
+        orderId: orderId || null,
+        sku: sku || null,
+        transactionType: transactionType || '-',
+        description: description || '',
+        kind,
+        signedAmount,
+      });
 
-      if (!(orderId || sku || productName)) {
-        if (signedTotal !== 0 || kind !== 'OTHER') {
-          const charge: AmazonPreviewCharge = {
-            id: `${kind}-${rowNo}`,
-            rowNo,
-            occurredAt: orderDate || null,
-            orderId: orderId || null,
-            sku: sku || null,
-            transactionType,
-            description,
-            kind,
-            signedAmount: signedTotal,
-          };
-          charges.push(charge);
+      if (kind === 'ORDER_SALE') chargeSummary.orderSale += signedAmount;
+      else if (kind === 'AD_FEE') chargeSummary.adFee += signedAmount;
+      else if (kind === 'STORAGE_FEE') chargeSummary.storageFee += signedAmount;
+      else if (kind === 'SUBSCRIPTION_FEE') chargeSummary.subscriptionFee += signedAmount;
+      else if (kind === 'FBA_FEE') chargeSummary.fbaFee += signedAmount;
+      else if (kind === 'TAX') chargeSummary.tax += signedAmount;
+      else if (kind === 'PAYOUT') chargeSummary.payout += signedAmount;
+      else if (kind === 'ADJUSTMENT') chargeSummary.adjustment += signedAmount;
+      else chargeSummary.other += signedAmount;
 
-          if (kind === 'AD_FEE') chargeSummary.adFee += signedTotal;
-          else if (kind === 'STORAGE_FEE') chargeSummary.storageFee += signedTotal;
-          else if (kind === 'SUBSCRIPTION_FEE') chargeSummary.subscriptionFee += signedTotal;
-          else if (kind === 'FBA_FEE') chargeSummary.fbaFee += signedTotal;
-          else if (kind === 'TAX') chargeSummary.tax += signedTotal;
-          else if (kind === 'PAYOUT') chargeSummary.payout += signedTotal;
-          else if (kind === 'ADJUSTMENT') chargeSummary.adjustment += signedTotal;
-          else chargeSummary.other += signedTotal;
-          continue;
-        }
+      const isOrderLike = kind === 'ORDER_SALE';
 
-        failedRows += 1;
-        continue;
+      if (isOrderLike && (orderId || sku || productName)) {
+        const bridge = this.parseAmazonBridgeAmounts(headerToValue, kind, signedAmount);
+
+        const fact: AmazonPreviewFact = {
+          rowNo,
+          orderId,
+          orderDate: orderDate || null,
+          sku,
+          productName,
+          quantity,
+          amount: bridge.grossAmount,
+          grossAmount: bridge.grossAmount,
+          netAmount: bridge.netAmount,
+          feeAmount: bridge.feeAmount,
+          taxAmount: bridge.taxAmount,
+          shippingAmount: bridge.shippingAmount,
+          promotionAmount: bridge.promotionAmount,
+          rawTransactionType: transactionType || null,
+          signedAmount,
+          description: description || null,
+          store: store || null,
+          fulfillment: fulfillment || null,
+          rawLabel: productName || sku || orderId || '注文',
+        };
+
+        facts.push(fact);
+        totalAmount += bridge.grossAmount;
+        totalQuantity += quantity;
       }
 
-      const bridge = this.parseAmazonOrderBridge(headerToValue);
-
-      const fact: AmazonPreviewFact = {
-        rowNo,
-        orderId,
-        orderDate: orderDate || null,
-        sku,
-        productName,
-        quantity,
-        amount: bridge.grossAmount,
-        grossAmount: bridge.grossAmount,
-        netAmount: bridge.netAmount,
-        feeAmount: bridge.feeAmount,
-        taxAmount: bridge.taxAmount,
-        shippingAmount: bridge.shippingAmount,
-        promotionAmount: bridge.promotionAmount,
-        store: store || null,
-        fulfillment: fulfillment || null,
-        rawLabel: productName || sku || orderId || '注文',
-      };
-
-      facts.push(fact);
-      totalAmount += bridge.grossAmount;
-      totalQuantity += quantity;
+      if (
+        !transactionType &&
+        !description &&
+        !orderId &&
+        !sku &&
+        !productName &&
+        signedAmount === 0
+      ) {
+        failedRows += 1;
+      }
     }
 
     return {
@@ -666,7 +624,7 @@ export class JobService {
 
     return {
       ok: true,
-      domain: 'import-jobs',
+      domain: 'import-jobs' as JobDomain,
       action: 'list',
       items: rows.map((item) => this.mapImportJob(item)),
       total: rows.length,
@@ -703,14 +661,16 @@ export class JobService {
 
     return {
       ok: true,
-      domain: 'import-jobs',
+      domain: 'import-jobs' as JobDomain,
       action: 'meta',
       domains: [
         { value: '', label: 'すべてのドメイン' },
-        ...Array.from(domainSet).sort().map((value) => ({
-          value,
-          label: value,
-        })),
+        ...Array.from(domainSet)
+          .sort()
+          .map((value) => ({
+            value,
+            label: value,
+          })),
       ],
       statuses: [
         { value: '', label: 'すべての状態' },
@@ -740,7 +700,7 @@ export class JobService {
 
     return {
       ok: true,
-      domain: 'export-jobs',
+      domain: 'export-jobs' as JobDomain,
       action: 'list',
       items: rows.map((item) => this.mapExportJob(item)),
       total: rows.length,
@@ -780,21 +740,25 @@ export class JobService {
 
     return {
       ok: true,
-      domain: 'export-jobs',
+      domain: 'export-jobs' as JobDomain,
       action: 'meta',
       domains: [
         { value: '', label: 'すべてのドメイン' },
-        ...Array.from(domainSet).sort().map((value) => ({
-          value,
-          label: value,
-        })),
+        ...Array.from(domainSet)
+          .sort()
+          .map((value) => ({
+            value,
+            label: value,
+          })),
       ],
       formats: [
         { value: '', label: 'すべての形式' },
-        ...Array.from(formatSet).sort().map((value) => ({
-          value,
-          label: value.toUpperCase(),
-        })),
+        ...Array.from(formatSet)
+          .sort()
+          .map((value) => ({
+            value,
+            label: value.toUpperCase(),
+          })),
       ],
       statuses: [
         { value: '', label: 'すべての状態' },
@@ -901,13 +865,14 @@ export class JobService {
           failedRows: 0,
           totalAmount: 0,
           totalQuantity: 0,
-          delimiter: 'comma',
+          delimiter: 'comma' as const,
           headers: [],
         },
         rawRows: [],
         facts: [],
         charges: [],
         chargeSummary: {
+          orderSale: 0,
           adFee: 0,
           storageFee: 0,
           subscriptionFee: 0,

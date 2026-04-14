@@ -108,6 +108,7 @@ export function IncomePageClient(props: {
     totalTaxAmount: state.totalTaxAmount,
     totalShippingAmount: state.totalShippingAmount,
     totalPromotionAmount: state.totalPromotionAmount,
+    stageChargeSummary: state.stageChargeSummary,
 
     pageSize: state.pageSize,
     setPageSize: state.setPageSize,

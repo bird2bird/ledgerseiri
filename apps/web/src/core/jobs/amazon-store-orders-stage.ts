@@ -3,7 +3,7 @@ import type {
   AmazonStoreOrdersPreviewResponse,
   AmazonStoreOrdersPreviewSummary,
   AmazonTransactionCharge,
-  AmazonTransactionChargeSummary,
+  AmazonTransactionChargeSummary
 } from "./types";
 
 export type AmazonStoreOrdersStageSnapshot = {

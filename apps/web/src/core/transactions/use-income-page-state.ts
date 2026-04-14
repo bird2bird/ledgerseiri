@@ -53,6 +53,18 @@ export function useIncomePageState(args: {
   const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const [stageChargeSummary, setStageChargeSummary] = useState({
+    orderSale: 0,
+    adFee: 0,
+    storageFee: 0,
+    subscriptionFee: 0,
+    fbaFee: 0,
+    tax: 0,
+    payout: 0,
+    adjustment: 0,
+    other: 0,
+  });
+
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) ?? null,
     [rows, selectedRowId]
@@ -74,6 +86,19 @@ export function useIncomePageState(args: {
             })
           );
           setRows(stagedRows);
+          setStageChargeSummary(
+            stage.chargeSummary ?? {
+              orderSale: 0,
+              adFee: 0,
+              storageFee: 0,
+              subscriptionFee: 0,
+              fbaFee: 0,
+              tax: 0,
+              payout: 0,
+              adjustment: 0,
+              other: 0,
+            }
+          );
           setAdapterNote(
             `Step105-D2: amazon-store-orders staging を日付降順で優先表示中 · ${stage.filename} · ${stage.savedAt}`
           );
@@ -92,6 +117,17 @@ export function useIncomePageState(args: {
       const nextRows =
         category === "store-order" ? sortStoreOrderIncomeRows(res.rows) : res.rows;
       setRows(nextRows);
+      setStageChargeSummary({
+        orderSale: 0,
+        adFee: 0,
+        storageFee: 0,
+        subscriptionFee: 0,
+        fbaFee: 0,
+        tax: 0,
+        payout: 0,
+        adjustment: 0,
+        other: 0,
+      });
       setAdapterNote(res.meta.note ?? "");
     } catch (e: unknown) {
       setRows([]);
@@ -306,6 +342,7 @@ export function useIncomePageState(args: {
     totalTaxAmount,
     totalShippingAmount,
     totalPromotionAmount,
+    stageChargeSummary,
     totalRows,
     totalQuantity,
     pageSize,

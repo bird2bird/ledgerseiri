@@ -73,6 +73,17 @@ export function renderIncomePageShell(args: {
   totalTaxAmount: number;
   totalShippingAmount: number;
   totalPromotionAmount: number;
+  stageChargeSummary: {
+    orderSale: number;
+    adFee: number;
+    storageFee: number;
+    subscriptionFee: number;
+    fbaFee: number;
+    tax: number;
+    payout: number;
+    adjustment: number;
+    other: number;
+  };
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -154,6 +165,7 @@ export function renderIncomePageShell(args: {
     totalTaxAmount,
     totalShippingAmount,
     totalPromotionAmount,
+    stageChargeSummary,
 
     pageSize,
     setPageSize,
@@ -547,6 +559,7 @@ export function renderIncomePageShell(args: {
           totalTaxAmount={totalTaxAmount}
           totalShippingAmount={totalShippingAmount}
           totalPromotionAmount={totalPromotionAmount}
+          stageChargeSummary={stageChargeSummary}
           pageSize={pageSize}
           setPageSize={setPageSize}
           currentPage={currentPage}

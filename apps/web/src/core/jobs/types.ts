@@ -102,6 +102,10 @@ export type AmazonStoreOrderFact = {
   shippingAmount: number;
   promotionAmount: number;
 
+  rawTransactionType?: string | null;
+  signedAmount?: number | null;
+  description?: string | null;
+
   store?: string | null;
   fulfillment?: string | null;
   rawLabel: string;
@@ -116,20 +120,6 @@ export type AmazonStoreOrdersPreviewSummary = {
   totalQuantity: number;
   delimiter: "comma" | "tab";
   headers: string[];
-};
-
-export type AmazonStoreOrdersPreviewResponse = {
-  ok?: boolean;
-  domain?: string;
-  action?: string;
-  mode?: string;
-  summary: AmazonStoreOrdersPreviewSummary;
-  rawRows: AmazonStoreOrderRawRow[];
-  facts: AmazonStoreOrderFact[];
-  charges: AmazonTransactionCharge[];
-  chargeSummary: AmazonTransactionChargeSummary;
-  job?: ImportJobItem | null;
-  message?: string;
 };
 
 export type AmazonTransactionChargeKind =
@@ -156,6 +146,7 @@ export type AmazonTransactionCharge = {
 };
 
 export type AmazonTransactionChargeSummary = {
+  orderSale: number;
   adFee: number;
   storageFee: number;
   subscriptionFee: number;
@@ -166,3 +157,16 @@ export type AmazonTransactionChargeSummary = {
   other: number;
 };
 
+export type AmazonStoreOrdersPreviewResponse = {
+  ok?: boolean;
+  domain?: string;
+  action?: string;
+  mode?: string;
+  summary: AmazonStoreOrdersPreviewSummary;
+  rawRows: AmazonStoreOrderRawRow[];
+  facts: AmazonStoreOrderFact[];
+  charges: AmazonTransactionCharge[];
+  chargeSummary: AmazonTransactionChargeSummary;
+  job?: ImportJobItem | null;
+  message?: string;
+};
