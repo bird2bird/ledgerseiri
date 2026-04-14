@@ -46,7 +46,6 @@ function makeLimits(planCode: WorkspacePlanCode): WorkspaceLimits {
       historyMonths: 24,
       aiChatMonthly: 50,
       aiInvoiceOcrMonthly: 100,
-
       stores: 10,
       invoiceStorageMb: 1024,
       aiChatPerMonth: 50,
@@ -60,7 +59,6 @@ function makeLimits(planCode: WorkspacePlanCode): WorkspaceLimits {
       historyMonths: 24,
       aiChatMonthly: 0,
       aiInvoiceOcrMonthly: 0,
-
       stores: 3,
       invoiceStorageMb: 500,
       aiChatPerMonth: 0,
@@ -73,7 +71,6 @@ function makeLimits(planCode: WorkspacePlanCode): WorkspaceLimits {
     historyMonths: 12,
     aiChatMonthly: 0,
     aiInvoiceOcrMonthly: 0,
-
     stores: 1,
     invoiceStorageMb: 100,
     aiChatPerMonth: 0,
@@ -101,9 +98,7 @@ function makeSubscription(planCode: WorkspacePlanCode): WorkspaceSubscription {
 }
 
 function resolveCompanyIdBySlug(slug: string): string | null {
-  if (slug === "weiwei") {
-    return "cmnx527ro0000ms678wqrvyh1";
-  }
+  if (slug === "weiwei") return "cmnx527ro0000ms678wqrvyh1";
   return null;
 }
 

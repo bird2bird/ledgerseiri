@@ -35,6 +35,8 @@ function buildFallbackContext(args: {
   locale: string;
   source: "mock-default" | "mock-query";
 }): WorkspaceContextValue {
+  const limits = getPlanLimits(args.planCode);
+
   return {
     workspace: {
       slug: "default",
@@ -46,8 +48,9 @@ function buildFallbackContext(args: {
       planCode: args.planCode,
       status: "active",
       source: args.source,
-      limits: getPlanLimits(args.planCode),
+      limits,
     },
+    limits,
   };
 }
 

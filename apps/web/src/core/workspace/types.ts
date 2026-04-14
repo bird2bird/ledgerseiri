@@ -11,17 +11,11 @@ export type WorkspaceEntitlements = {
 };
 
 export type WorkspaceLimits = {
-  /**
-   * 旧字段：现有页面仍在使用
-   */
   maxStores?: number;
   aiChatMonthly?: number;
   aiInvoiceOcrMonthly?: number;
   historyMonths?: number;
 
-  /**
-   * 新字段：给 dashboard-v3 / 后续模型使用
-   */
   stores?: number;
   invoiceStorageMb?: number;
   aiChatPerMonth?: number;
@@ -36,9 +30,6 @@ export type WorkspaceSubscription = {
   currentPeriodEnd?: string | null;
 };
 
-/**
- * Step104-N server-side workspace context
- */
 export type WorkspaceContext = {
   slug: string;
   locale: string;
@@ -46,9 +37,6 @@ export type WorkspaceContext = {
   subscription: WorkspaceSubscription;
 };
 
-/**
- * 旧前端页面仍在使用的 workspace view
- */
 export type WorkspaceView = {
   slug: string;
   displayName: string;
@@ -56,9 +44,6 @@ export type WorkspaceView = {
   locale: string;
 };
 
-/**
- * 旧前端页面仍在使用的 subscription view
- */
 export type WorkspaceSubscriptionValue = {
   planCode: WorkspacePlanCode;
   status: WorkspaceSubscriptionStatus;
@@ -68,9 +53,6 @@ export type WorkspaceSubscriptionValue = {
   currentPeriodEnd?: string | null;
 };
 
-/**
- * billing/change 等页面仍在依赖的旧上下文类型
- */
 export type WorkspaceContextValue = {
   workspace: WorkspaceView;
   subscription: WorkspaceSubscriptionValue;

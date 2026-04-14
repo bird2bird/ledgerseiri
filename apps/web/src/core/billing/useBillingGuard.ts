@@ -9,7 +9,15 @@ export function useBillingGuard() {
   const usage = useUsage();
 
   const plan = workspace?.subscription?.planCode ?? "starter";
-  const entitlements: FeatureMatrix = workspace?.subscription?.entitlements ?? getPlanFeatures(plan);
+
+  const planFeatures = getPlanFeatures(plan);
+  const partialEntitlements = workspace?.subscription?.entitlements ?? {};
+
+  const entitlements: FeatureMatrix = {
+    ...planFeatures,
+    ...partialEntitlements,
+  };
+
   const limits = usage?.effectiveLimits ?? {};
   const overLimit = usage?.overLimit ?? {};
 
@@ -17,6 +25,6 @@ export function useBillingGuard() {
     plan,
     entitlements,
     limits,
-    overLimit
+    overLimit,
   };
 }

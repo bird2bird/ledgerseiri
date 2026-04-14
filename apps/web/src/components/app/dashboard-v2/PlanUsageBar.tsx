@@ -13,6 +13,10 @@ type UsageData = {
   aiInvoiceOcrUsedMonthly?: number;
 };
 
+function limitValue(value?: number | null): number {
+  return Number(value ?? 0);
+}
+
 export function PlanUsageBar() {
   const params = useParams<{ lang: string }>();
   const lang = params?.lang || "ja";
@@ -38,6 +42,13 @@ export function PlanUsageBar() {
         historyMonths: 12,
       },
     },
+    limits: {
+      maxStores: 1,
+      invoiceStorageMb: 200,
+      aiChatMonthly: 0,
+      aiInvoiceOcrMonthly: 0,
+      historyMonths: 12,
+    },
   };
 
   const { subscription, limits } = useWorkspaceContext(effectiveCtx);
@@ -57,15 +68,15 @@ export function PlanUsageBar() {
           </span>
 
           <span className="text-slate-600">
-            Stores: {usageData.storesUsed ?? 0} / {limits.maxStores}
+            Stores: {usageData.storesUsed ?? 0} / {limitValue(limits.maxStores)}
           </span>
 
           <span className="text-slate-600">
-            AI: {usageData.aiChatUsedMonthly ?? 0} / {limits.aiChatMonthly}
+            AI: {usageData.aiChatUsedMonthly ?? 0} / {limitValue(limits.aiChatMonthly)}
           </span>
 
           <span className="text-slate-600">
-            OCR: {usageData.aiInvoiceOcrUsedMonthly ?? 0} / {limits.aiInvoiceOcrMonthly}
+            OCR: {usageData.aiInvoiceOcrUsedMonthly ?? 0} / {limitValue(limits.aiInvoiceOcrMonthly)}
           </span>
         </div>
 

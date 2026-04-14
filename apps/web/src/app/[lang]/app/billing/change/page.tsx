@@ -56,8 +56,8 @@ function buildPlanFeatureList(code: PlanCode): string[] {
   const features = getPlanFeatures(code);
 
   const items: string[] = [
-    `${limits.maxStores} 店舗`,
-    `${limits.historyMonths} ヶ月履歴`,
+    `${Number(limits.maxStores ?? 0)} 店舗`,
+    `${Number(limits.historyMonths ?? 0)} ヶ月履歴`,
     "請求アップロード",
   ];
 
@@ -93,6 +93,10 @@ function buildFallbackContext(args: {
     },
     limits,
   };
+}
+
+function storeLimitOf(code: PlanCode): number {
+  return Number(getPlanLimits(code).maxStores ?? 0);
 }
 
 function ChangePlanInner() {
@@ -248,7 +252,7 @@ function ChangePlanInner() {
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Current Plan</div>
               <div className="mt-2 text-lg font-semibold">{planLabel(currentPlan)}</div>
-              <div className="mt-1 text-xs text-slate-500">maxStores: {limits.maxStores}</div>
+              <div className="mt-1 text-xs text-slate-500">maxStores: {Number(limits.maxStores ?? 0)}</div>
             </div>
 
             <div className="rounded-[22px] bg-white/92 p-4 text-slate-900 shadow-sm">
@@ -329,7 +333,7 @@ function ChangePlanInner() {
               <div className="mt-4 rounded-[18px] border border-black/5 bg-white/70 p-3">
                 <div className="text-[11px] font-medium text-slate-500">Store limit</div>
                 <div className="mt-1 text-base font-semibold text-slate-900">
-                  {plan.limits.maxStores} stores
+                  {Number(plan.limits.maxStores ?? 0)} stores
                 </div>
               </div>
 
@@ -379,8 +383,8 @@ function ChangePlanInner() {
           <div className="rounded-[18px] border border-slate-200 bg-white p-4">
             <div className="text-[11px] font-medium text-slate-500">Delta</div>
             <div className="mt-1 text-base font-semibold text-slate-900">
-              {getPlanLimits(target).maxStores - getPlanLimits(currentPlan).maxStores >= 0 ? "+" : ""}
-              {getPlanLimits(target).maxStores - getPlanLimits(currentPlan).maxStores} stores
+              {storeLimitOf(target) - storeLimitOf(currentPlan) >= 0 ? "+" : ""}
+              {storeLimitOf(target) - storeLimitOf(currentPlan)} stores
             </div>
           </div>
         </div>

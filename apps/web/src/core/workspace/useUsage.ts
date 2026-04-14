@@ -9,6 +9,10 @@ function pct(used: number, limit: number): number {
   return Math.min(999, Math.round((used / limit) * 100));
 }
 
+function num(value?: number | null): number {
+  return Number(value ?? 0);
+}
+
 export function useUsage() {
   const { ctx } = useWorkspaceProvider();
 
@@ -29,25 +33,30 @@ export function useUsage() {
       aiInvoiceOcrUsedMonthly: 0,
     };
 
+    const storesLimit = num(effectiveLimits.maxStores);
+    const invoiceStorageLimit = num(effectiveLimits.invoiceStorageMb);
+    const aiChatLimit = num(effectiveLimits.aiChatMonthly);
+    const aiInvoiceOcrLimit = num(effectiveLimits.aiInvoiceOcrMonthly);
+
     return {
       workspace: ctx?.workspace ?? null,
       subscription: subscription ?? null,
       effectiveLimits,
       usage,
       utilization: {
-        storesPct: pct(usage.storesUsed, effectiveLimits.maxStores),
-        invoiceStoragePct: pct(usage.invoiceStorageMbUsed, effectiveLimits.invoiceStorageMb),
-        aiChatPct: pct(usage.aiChatUsedMonthly, effectiveLimits.aiChatMonthly),
-        aiInvoiceOcrPct: pct(usage.aiInvoiceOcrUsedMonthly, effectiveLimits.aiInvoiceOcrMonthly),
+        storesPct: pct(usage.storesUsed, storesLimit),
+        invoiceStoragePct: pct(usage.invoiceStorageMbUsed, invoiceStorageLimit),
+        aiChatPct: pct(usage.aiChatUsedMonthly, aiChatLimit),
+        aiInvoiceOcrPct: pct(usage.aiInvoiceOcrUsedMonthly, aiInvoiceOcrLimit),
       },
       overLimit: {
-        stores: usage.storesUsed > effectiveLimits.maxStores,
-        invoiceStorage: usage.invoiceStorageMbUsed > effectiveLimits.invoiceStorageMb,
-        aiChat: effectiveLimits.aiChatMonthly > 0
-          ? usage.aiChatUsedMonthly > effectiveLimits.aiChatMonthly
+        stores: usage.storesUsed > storesLimit,
+        invoiceStorage: usage.invoiceStorageMbUsed > invoiceStorageLimit,
+        aiChat: aiChatLimit > 0
+          ? usage.aiChatUsedMonthly > aiChatLimit
           : false,
-        aiInvoiceOcr: effectiveLimits.aiInvoiceOcrMonthly > 0
-          ? usage.aiInvoiceOcrUsedMonthly > effectiveLimits.aiInvoiceOcrMonthly
+        aiInvoiceOcr: aiInvoiceOcrLimit > 0
+          ? usage.aiInvoiceOcrUsedMonthly > aiInvoiceOcrLimit
           : false,
       },
       period: {

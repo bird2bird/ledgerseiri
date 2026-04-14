@@ -18,8 +18,36 @@ import {
   formatIncomeJPY,
 } from "@/core/transactions/income-page-constants";
 
+type IncomePageVariant = "root" | "cash" | "store-order" | "other";
+
+function getVariantTitle(variant: IncomePageVariant, category: IncomeCategory) {
+  if (variant === "cash") return "現金収入";
+  if (variant === "store-order") return "店舗注文";
+  if (variant === "other") return "その他収入";
+  return getIncomePageTitle(category);
+}
+
+function getVariantDescription(variant: IncomePageVariant) {
+  if (variant === "cash") {
+    return "現金収入データの確認、絞り込み、登録アクションを一つの画面で管理します。";
+  }
+  if (variant === "store-order") {
+    return "店舗注文データの確認、絞り込み、登録アクションを一つの画面で管理します。";
+  }
+  if (variant === "other") {
+    return "その他収入データの確認、絞り込み、登録アクションを一つの画面で管理します。";
+  }
+  return "収入データの確認、絞り込み、登録アクションを一つの画面で管理します。";
+}
+
+function navTabs(variant: IncomePageVariant): IncomeCategory[] {
+  if (variant === "root") return INCOME_CATEGORY_ITEMS;
+  return ["cash", "store-order", "other"];
+}
+
 export function renderIncomePageShell(args: {
   lang: string;
+  pageVariant: IncomePageVariant;
   isDashboard: boolean;
   rawFrom: string | null;
   from: string;
@@ -80,9 +108,11 @@ export function renderIncomePageShell(args: {
     href?: string;
     disabled?: boolean;
   }>;
+  categoryHrefBuilder: (next: IncomeCategory) => string;
 }) {
   const {
     lang,
+    pageVariant,
     isDashboard,
     rawFrom,
     from,
@@ -139,7 +169,11 @@ export function renderIncomePageShell(args: {
     updateCategory,
     clearActionMode,
     sidebarActions,
+    categoryHrefBuilder,
   } = args;
+
+  const tabs = navTabs(pageVariant);
+  const isRoot = pageVariant === "root";
 
   return (
     <div className="space-y-6">
@@ -147,21 +181,32 @@ export function renderIncomePageShell(args: {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-2xl font-semibold text-slate-900">
-              {getIncomePageTitle(category)}
+              {getVariantTitle(pageVariant, category)}
             </div>
             <div className="mt-2 text-sm text-slate-500">
-              収入データの確認、絞り込み、登録アクションを一つの画面で管理します。
+              {getVariantDescription(pageVariant)}
             </div>
           </div>
 
-          {isDashboard ? (
-            <Link
-              href={`/${lang}/app`}
-              className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-            >
-              Dashboard に戻る
-            </Link>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {!isRoot ? (
+              <Link
+                href={`/${lang}/app/income`}
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                収入 root に戻る
+              </Link>
+            ) : null}
+
+            {isDashboard ? (
+              <Link
+                href={`/${lang}/app`}
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Dashboard に戻る
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
@@ -195,15 +240,34 @@ export function renderIncomePageShell(args: {
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        <div className="text-lg font-semibold text-slate-900">Category Filters</div>
+        <div className="text-lg font-semibold text-slate-900">
+          {isRoot ? "Category Filters" : "Income Section Navigation"}
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {INCOME_CATEGORY_ITEMS.map((item) => {
+          {tabs.map((item) => {
             const active = category === item;
+
+            if (isRoot) {
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => updateCategory(item)}
+                  className={
+                    active
+                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  }
+                >
+                  {INCOME_CATEGORY_LABELS[item]}
+                </button>
+              );
+            }
+
             return (
-              <button
+              <Link
                 key={item}
-                type="button"
-                onClick={() => updateCategory(item)}
+                href={categoryHrefBuilder(item)}
                 className={
                   active
                     ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
@@ -211,7 +275,7 @@ export function renderIncomePageShell(args: {
                 }
               >
                 {INCOME_CATEGORY_LABELS[item]}
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -435,14 +499,16 @@ export function renderIncomePageShell(args: {
 
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <TransactionsPageSidebar
-          metricLabel="Visible Income"
+          metricLabel={isRoot ? "Visible Income" : `${INCOME_CATEGORY_LABELS[category]} Total`}
           metricValue={formatIncomeJPY(totalAmount)}
           rowsCount={rows.length}
           actionItems={sidebarActions}
         />
 
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-          <div className="text-lg font-semibold text-slate-900">Income Rows</div>
+          <div className="text-lg font-semibold text-slate-900">
+            {isRoot ? "Income Rows" : `${INCOME_CATEGORY_LABELS[category]} Rows`}
+          </div>
           <div className="mt-1 text-sm text-slate-500">
             query → state → context → adapter → render
           </div>

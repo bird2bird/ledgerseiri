@@ -102,6 +102,10 @@ function rangeBadgeLabel(range: DashboardRange): "7D" | "30D" | "90D" | "12M" {
   return "30D";
 }
 
+function limitValue(value?: number | null): number {
+  return Number(value ?? 0);
+}
+
 export function DashboardHomeV2() {
   const data = arguments[0]?.data ?? arguments[0] ?? {};
   const params = useParams<{ lang: string }>();
@@ -129,6 +133,13 @@ export function DashboardHomeV2() {
         aiInvoiceOcrMonthly: 0,
         historyMonths: 12,
       },
+    },
+    limits: {
+      maxStores: 1,
+      invoiceStorageMb: 200,
+      aiChatMonthly: 0,
+      aiInvoiceOcrMonthly: 0,
+      historyMonths: 12,
     },
   };
 
@@ -204,9 +215,9 @@ export function DashboardHomeV2() {
           className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-medium ${planBadgeClass(
             subscription.planCode
           )}`}
-          title={`source: ${subscription.source} / workspace: ${workspace.slug} / maxStores: ${limits.maxStores}`}
+          title={`source: ${subscription.source} / workspace: ${workspace.slug} / maxStores: ${limitValue(limits.maxStores)}`}
         >
-          Current Plan: {planLabel(subscription.planCode)} · {limits.maxStores} Stores
+          Current Plan: {planLabel(subscription.planCode)} · {limitValue(limits.maxStores)} Stores
         </span>
 
         {subscription.source !== "db" ? (

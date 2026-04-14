@@ -65,8 +65,8 @@ function featureList(code: PlanCode) {
   const limits = getPlanLimits(code);
 
   const rows = [
-    `${limits.maxStores} 店舗`,
-    `${limits.historyMonths} ヶ月履歴`,
+    `${Number(limits.maxStores ?? 0)} 店舗`,
+    `${Number(limits.historyMonths ?? 0)} ヶ月履歴`,
     "請求アップロード",
   ];
 
@@ -124,6 +124,10 @@ function UsageProgress({
       </div>
     </div>
   );
+}
+
+function limitValue(value?: number | null): number {
+  return Number(value ?? 0);
 }
 
 function BillingPageInner() {
@@ -233,7 +237,7 @@ function BillingPageInner() {
             <div className="rounded-[22px] border border-black/5 bg-white/85 p-4 shadow-sm">
               <div className="text-[11px] font-medium text-slate-500">Store Limit</div>
               <div className="mt-2 text-lg font-semibold text-slate-900">
-                {effectiveLimits.maxStores}
+                {limitValue(effectiveLimits.maxStores)}
               </div>
               <div className="mt-1 text-xs text-slate-500">最大サポート店舗数</div>
             </div>
@@ -276,7 +280,7 @@ function BillingPageInner() {
               label="店舗数"
               helper="現在利用中の店舗数 / 利用上限"
               used={usageData?.storesUsed ?? 0}
-              limit={effectiveLimits.maxStores}
+              limit={limitValue(effectiveLimits.maxStores)}
               pct={util?.storesPct ?? 0}
               over={over?.stores ?? false}
             />
@@ -285,7 +289,7 @@ function BillingPageInner() {
               label="請求保存容量"
               helper="請求書・証憑の保存容量"
               used={usageData?.invoiceStorageMbUsed ?? 0}
-              limit={effectiveLimits.invoiceStorageMb}
+              limit={limitValue(effectiveLimits.invoiceStorageMb)}
               pct={util?.invoiceStoragePct ?? 0}
               over={over?.invoiceStorage ?? false}
             />
@@ -294,7 +298,7 @@ function BillingPageInner() {
               label="AI Chat / 月"
               helper="月次 AI Chat 利用量"
               used={usageData?.aiChatUsedMonthly ?? 0}
-              limit={effectiveLimits.aiChatMonthly}
+              limit={limitValue(effectiveLimits.aiChatMonthly)}
               pct={util?.aiChatPct ?? 0}
               over={over?.aiChat ?? false}
             />
@@ -303,7 +307,7 @@ function BillingPageInner() {
               label="AI OCR / 月"
               helper="月次 AI OCR 利用量"
               used={usageData?.aiInvoiceOcrUsedMonthly ?? 0}
-              limit={effectiveLimits.aiInvoiceOcrMonthly}
+              limit={limitValue(effectiveLimits.aiInvoiceOcrMonthly)}
               pct={util?.aiInvoiceOcrPct ?? 0}
               over={over?.aiInvoiceOcr ?? false}
             />
@@ -359,7 +363,7 @@ function BillingPageInner() {
                   </ul>
 
                   <div className="mt-4 text-xs text-slate-500">
-                    maxStores: {planLimits.maxStores} / history: {planLimits.historyMonths}m
+                    maxStores: {limitValue(planLimits.maxStores)} / history: {limitValue(planLimits.historyMonths)}m
                   </div>
 
                   <div className="mt-5">
