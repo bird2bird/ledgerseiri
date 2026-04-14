@@ -448,9 +448,9 @@ export function DashboardSidebar() {
 
       group("transactions", t.transactions, [
         group("income", t.income, [
-          leaf("cash-income", t.cashIncome, "/app/income"),
-          leaf("store-orders", t.storeOrders, "/app/income"),
-          leaf("other-income", t.otherIncome, "/app/income"),
+          leaf("cash-income", t.cashIncome, "/app/income/cash"),
+          leaf("store-orders", t.storeOrders, "/app/income/store-orders"),
+          leaf("other-income", t.otherIncome, "/app/income/other"),
         ]),
         group("expense", t.expense, [
           leaf("store-ops", t.storeOpsExpense, "/app/expenses"),

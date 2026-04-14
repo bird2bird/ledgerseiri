@@ -47,6 +47,9 @@ export function useIncomePageState(args: {
   const [editUiMessage, setEditUiMessage] = useState("");
   const [editSaveLoading, setEditSaveLoading] = useState(false);
 
+  const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) ?? null,
     [rows, selectedRowId]
@@ -78,6 +81,14 @@ export function useIncomePageState(args: {
   useEffect(() => {
     void loadRows();
   }, [from, storeId, range, category]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [from, storeId, range, category]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   useEffect(() => {
     if (action !== "create") return;
@@ -207,6 +218,23 @@ export function useIncomePageState(args: {
     }
   }
 
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const visibleRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, currentPage, pageSize]);
+
+  const pageStartRow = totalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEndRow = totalRows === 0 ? 0 : Math.min(currentPage * pageSize, totalRows);
+
   const totalAmount = useMemo(
     () => rows.reduce((sum, row) => sum + row.amount, 0),
     [rows]
@@ -214,6 +242,7 @@ export function useIncomePageState(args: {
 
   return {
     rows,
+    visibleRows,
     selectedRowId,
     setSelectedRowId,
     selectedRow,
@@ -221,6 +250,14 @@ export function useIncomePageState(args: {
     loading,
     error,
     totalAmount,
+    totalRows,
+    pageSize,
+    setPageSize,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    pageStartRow,
+    pageEndRow,
     reloadRows: loadRows,
 
     accounts,

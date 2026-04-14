@@ -11,6 +11,7 @@ import { TransactionsInlineActionPanel } from "@/components/app/transactions/Tra
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
 import { renderSharedTransactionEditForm } from "@/core/transactions/transactions-edit-form-shared";
 import { renderTransactionsListTable } from "@/core/transactions/transactions-list-shared";
+import { StoreOrdersWorkspace } from "@/components/app/income-store-orders/StoreOrdersWorkspace";
 import {
   INCOME_CATEGORY_ITEMS,
   INCOME_CATEGORY_LABELS,
@@ -60,12 +61,22 @@ export function renderIncomePageShell(args: {
   action: string;
 
   rows: IncomeRow[];
+  visibleRows: IncomeRow[];
   selectedRowId: string;
   onSelectRow: (id: string) => void;
   selectedRow: IncomeRow | null;
   loading: boolean;
   error: string;
   totalAmount: number;
+
+  pageSize: 20 | 50 | 100;
+  setPageSize: (value: 20 | 50 | 100) => void;
+  currentPage: number;
+  setCurrentPage: (value: number) => void;
+  totalPages: number;
+  totalRows: number;
+  pageStartRow: number;
+  pageEndRow: number;
 
   accounts: AccountItem[];
   txCategories: TransactionCategoryItem[];
@@ -125,12 +136,22 @@ export function renderIncomePageShell(args: {
     action,
 
     rows,
+    visibleRows,
     selectedRowId,
     onSelectRow,
     selectedRow,
     loading,
     error,
     totalAmount,
+
+    pageSize,
+    setPageSize,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    totalRows,
+    pageStartRow,
+    pageEndRow,
 
     accounts,
     txCategories,
@@ -174,6 +195,7 @@ export function renderIncomePageShell(args: {
 
   const tabs = navTabs(pageVariant);
   const isRoot = pageVariant === "root";
+  const isStoreOrderPage = pageVariant === "store-order";
 
   return (
     <div className="space-y-6">
@@ -497,81 +519,104 @@ export function renderIncomePageShell(args: {
         </TransactionsInlineActionPanel>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-        <TransactionsPageSidebar
-          metricLabel={isRoot ? "Visible Income" : `${INCOME_CATEGORY_LABELS[category]} Total`}
-          metricValue={formatIncomeJPY(totalAmount)}
-          rowsCount={rows.length}
-          actionItems={sidebarActions}
+      {isStoreOrderPage ? (
+        <StoreOrdersWorkspace
+          lang={lang}
+          rows={rows}
+          visibleRows={visibleRows}
+          selectedRowId={selectedRowId}
+          onSelectRow={onSelectRow}
+          selectedRow={selectedRow}
+          loading={loading}
+          error={error}
+          totalAmount={totalAmount}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          totalPages={totalPages}
+          totalRows={totalRows}
+          pageStartRow={pageStartRow}
+          pageEndRow={pageEndRow}
+          sidebarActions={sidebarActions}
         />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+          <TransactionsPageSidebar
+            metricLabel={isRoot ? "Visible Income" : `${INCOME_CATEGORY_LABELS[category]} Total`}
+            metricValue={formatIncomeJPY(totalAmount)}
+            rowsCount={rows.length}
+            actionItems={sidebarActions}
+          />
 
-        <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-          <div className="text-lg font-semibold text-slate-900">
-            {isRoot ? "Income Rows" : `${INCOME_CATEGORY_LABELS[category]} Rows`}
-          </div>
-          <div className="mt-1 text-sm text-slate-500">
-            query → state → context → adapter → render
-          </div>
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="text-lg font-semibold text-slate-900">
+              {isRoot ? "Income Rows" : `${INCOME_CATEGORY_LABELS[category]} Rows`}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">
+              query → state → context → adapter → render
+            </div>
 
-          {renderTransactionsSelectedSummary({
-            title: "Selected Row",
-            selected: !!selectedRow,
-            emptyMessage: "行を選択すると、ここに収入明細の要約が表示されます。",
-            items: selectedRow
-              ? [
-                  { label: "ID", value: selectedRow.id },
-                  { label: "Date", value: selectedRow.date },
-                  { label: "Label", value: selectedRow.label },
-                  {
-                    label: "Category",
-                    value: INCOME_CATEGORY_LABELS[selectedRow.category],
-                  },
-                  { label: "Account", value: selectedRow.account },
-                  { label: "Store", value: selectedRow.store },
-                  { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
-                  { label: "Memo", value: selectedRow.memo || "-" },
-                ]
-              : [],
-          })}
+            {renderTransactionsSelectedSummary({
+              title: "Selected Row",
+              selected: !!selectedRow,
+              emptyMessage: "行を選択すると、ここに収入明細の要約が表示されます。",
+              items: selectedRow
+                ? [
+                    { label: "ID", value: selectedRow.id },
+                    { label: "Date", value: selectedRow.date },
+                    { label: "Label", value: selectedRow.label },
+                    {
+                      label: "Category",
+                      value: INCOME_CATEGORY_LABELS[selectedRow.category],
+                    },
+                    { label: "Account", value: selectedRow.account },
+                    { label: "Store", value: selectedRow.store },
+                    { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+                    { label: "Memo", value: selectedRow.memo || "-" },
+                  ]
+                : [],
+            })}
 
-          {renderTransactionsListTable({
-            columns: (
-              <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-                <div>Date</div>
-                <div>Label</div>
-                <div>Category</div>
-                <div>Account</div>
-                <div className="text-right">Amount</div>
-              </div>
-            ),
-            loading,
-            error,
-            isEmpty: rows.length === 0,
-            rows: rows.map((row) => (
-              <div
-                key={row.id}
-                onClick={() => onSelectRow(row.id)}
-                className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
-                  selectedRowId === row.id
-                    ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                    : ""
-                }`}
-              >
-                <div className="text-slate-600">{row.date}</div>
-                <div>
-                  <div className="font-medium text-slate-900">{row.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">{row.store}</div>
+            {renderTransactionsListTable({
+              columns: (
+                <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                  <div>Date</div>
+                  <div>Label</div>
+                  <div>Category</div>
+                  <div>Account</div>
+                  <div className="text-right">Amount</div>
                 </div>
-                <div className="text-slate-600">{INCOME_CATEGORY_LABELS[row.category]}</div>
-                <div className="text-slate-600">{row.account}</div>
-                <div className="text-right font-medium text-slate-900">
-                  {formatIncomeJPY(row.amount)}
+              ),
+              loading,
+              error,
+              isEmpty: rows.length === 0,
+              rows: rows.map((row) => (
+                <div
+                  key={row.id}
+                  onClick={() => onSelectRow(row.id)}
+                  className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                    selectedRowId === row.id
+                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                      : ""
+                  }`}
+                >
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="font-medium text-slate-900">{row.label}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store}</div>
+                  </div>
+                  <div className="text-slate-600">{INCOME_CATEGORY_LABELS[row.category]}</div>
+                  <div className="text-slate-600">{row.account}</div>
+                  <div className="text-right font-medium text-slate-900">
+                    {formatIncomeJPY(row.amount)}
+                  </div>
                 </div>
-              </div>
-            )),
-          })}
+              )),
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

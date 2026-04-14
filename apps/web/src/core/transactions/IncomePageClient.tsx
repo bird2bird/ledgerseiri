@@ -96,12 +96,22 @@ export function IncomePageClient(props: {
     action,
 
     rows: state.rows,
+    visibleRows: state.visibleRows,
     selectedRowId: state.selectedRowId,
     onSelectRow: state.setSelectedRowId,
     selectedRow: state.selectedRow,
     loading: state.loading,
     error: state.error,
     totalAmount: state.totalAmount,
+
+    pageSize: state.pageSize,
+    setPageSize: state.setPageSize,
+    currentPage: state.currentPage,
+    setCurrentPage: state.setCurrentPage,
+    totalPages: state.totalPages,
+    totalRows: state.totalRows,
+    pageStartRow: state.pageStartRow,
+    pageEndRow: state.pageEndRow,
 
     accounts: state.accounts,
     txCategories: state.txCategories,
