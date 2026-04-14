@@ -1,45 +1,79 @@
-import type { PlanCode } from "@/components/app/dashboard-v2/types";
-import type { FeatureMatrix } from "@/core/billing/features";
-
-export type Workspace = {
-  slug: string;
-  displayName: string;
-  companyName: string;
-  locale?: string;
-};
-
+export type WorkspacePlanCode = "starter" | "standard" | "premium";
 export type WorkspaceSubscriptionStatus =
   | "active"
   | "trialing"
   | "past_due"
   | "canceled";
 
-export type WorkspaceEntitlements = FeatureMatrix;
+export type WorkspaceEntitlements = {
+  invoiceManagement: boolean;
+  aiInsights: boolean;
+};
 
 export type WorkspaceLimits = {
-  maxStores: number;
-  invoiceStorageMb: number;
-  aiChatMonthly: number;
-  aiInvoiceOcrMonthly: number;
-  historyMonths: number;
-};
+  /**
+   * 旧字段：现有页面仍在使用
+   */
+  maxStores?: number;
+  aiChatMonthly?: number;
+  aiInvoiceOcrMonthly?: number;
+  historyMonths?: number;
 
-export type SubscriptionSource =
-  | "mock-query"
-  | "mock-default"
-  | "db"
-  | "db+query-override";
+  /**
+   * 新字段：给 dashboard-v3 / 后续模型使用
+   */
+  stores?: number;
+  invoiceStorageMb?: number;
+  aiChatPerMonth?: number;
+  aiInvoiceScanPerMonth?: number;
+};
 
 export type WorkspaceSubscription = {
-  planCode: PlanCode;
+  planCode: WorkspacePlanCode;
   status: WorkspaceSubscriptionStatus;
-  source: SubscriptionSource;
-  currentPeriodEnd?: string | null;
-  entitlements?: WorkspaceEntitlements;
+  entitlements: WorkspaceEntitlements;
   limits: WorkspaceLimits;
+  currentPeriodEnd?: string | null;
 };
 
-export type WorkspaceContextValue = {
-  workspace: Workspace;
+/**
+ * Step104-N server-side workspace context
+ */
+export type WorkspaceContext = {
+  slug: string;
+  locale: string;
+  companyId?: string | null;
   subscription: WorkspaceSubscription;
+};
+
+/**
+ * 旧前端页面仍在使用的 workspace view
+ */
+export type WorkspaceView = {
+  slug: string;
+  displayName: string;
+  companyName?: string;
+  locale: string;
+};
+
+/**
+ * 旧前端页面仍在使用的 subscription view
+ */
+export type WorkspaceSubscriptionValue = {
+  planCode: WorkspacePlanCode;
+  status: WorkspaceSubscriptionStatus;
+  source?: string;
+  limits: WorkspaceLimits;
+  entitlements?: WorkspaceEntitlements;
+  currentPeriodEnd?: string | null;
+};
+
+/**
+ * billing/change 等页面仍在依赖的旧上下文类型
+ */
+export type WorkspaceContextValue = {
+  workspace: WorkspaceView;
+  subscription: WorkspaceSubscriptionValue;
+  limits: WorkspaceLimits;
+  companyId?: string | null;
 };

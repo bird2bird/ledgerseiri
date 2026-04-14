@@ -54,13 +54,17 @@ export default async function AppHomePage({
   });
 
   const providerMode = businessView === "amazon" ? "real" : "mock";
-  const companyId = String(sp?.companyId || "").trim() || undefined;
+
+  const queryCompanyId = String(sp?.companyId || "").trim() || undefined;
+  const resolvedCompanyId =
+    queryCompanyId ||
+    (workspaceContext.companyId ? String(workspaceContext.companyId).trim() : undefined);
 
   const cockpit = await fetchDashboardCockpitV3({
     businessView,
     range: "30d",
     mode: providerMode,
-    companyId,
+    companyId: resolvedCompanyId,
   });
 
   const planPreview = makePlanPreviewFromWorkspaceSubscription(
@@ -91,7 +95,7 @@ export default async function AppHomePage({
         cockpit={cockpit}
         planPreview={planPreview}
         subscriptionAccess={subscriptionAccess}
-        companyId={companyId}
+        companyId={resolvedCompanyId}
       />
       <LegacyDashboardFallback businessView={businessView}>
         <DashboardHomeV2 />

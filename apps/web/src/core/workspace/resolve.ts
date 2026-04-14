@@ -1,91 +1,123 @@
-import type { PlanCode } from "@/components/app/dashboard-v2/types";
-import { getPlanFeatures } from "@/core/billing/features";
 import type {
-  Workspace,
-  WorkspaceSubscription,
-  WorkspaceContextValue,
+  WorkspaceContext,
   WorkspaceEntitlements,
   WorkspaceLimits,
-} from "./types";
+  WorkspacePlanCode,
+  WorkspaceSubscription,
+  WorkspaceSubscriptionStatus,
+} from "@/core/workspace/types";
 
-export function normalizePlanCode(raw?: string | null): PlanCode {
-  if (raw === "starter" || raw === "standard" || raw === "premium") return raw;
+function normalizePlan(plan?: string): WorkspacePlanCode {
+  if (plan === "premium") return "premium";
+  if (plan === "standard") return "standard";
   return "starter";
 }
 
-export function prettifyWorkspaceName(input?: string | null): string {
-  const raw = (input || "").trim();
-  if (!raw) return "Weiwei";
-
-  return raw
-    .replace(/[-_]+/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function resolveStatus(planCode: WorkspacePlanCode): WorkspaceSubscriptionStatus {
+  if (planCode === "premium") return "trialing";
+  return "active";
 }
 
-function buildLimits(planCode: PlanCode): WorkspaceLimits {
-  if (planCode === "starter") {
+function makeEntitlements(planCode: WorkspacePlanCode): WorkspaceEntitlements {
+  if (planCode === "premium") {
     return {
-      maxStores: 1,
-      invoiceStorageMb: 200,
-      aiChatMonthly: 0,
-      aiInvoiceOcrMonthly: 0,
-      historyMonths: 12,
+      invoiceManagement: true,
+      aiInsights: true,
+    };
+  }
+
+  if (planCode === "standard") {
+    return {
+      invoiceManagement: true,
+      aiInsights: false,
+    };
+  }
+
+  return {
+    invoiceManagement: false,
+    aiInsights: false,
+  };
+}
+
+function makeLimits(planCode: WorkspacePlanCode): WorkspaceLimits {
+  if (planCode === "premium") {
+    return {
+      maxStores: 10,
+      historyMonths: 24,
+      aiChatMonthly: 50,
+      aiInvoiceOcrMonthly: 100,
+
+      stores: 10,
+      invoiceStorageMb: 1024,
+      aiChatPerMonth: 50,
+      aiInvoiceScanPerMonth: 100,
     };
   }
 
   if (planCode === "standard") {
     return {
       maxStores: 3,
-      invoiceStorageMb: 1024,
+      historyMonths: 24,
       aiChatMonthly: 0,
       aiInvoiceOcrMonthly: 0,
-      historyMonths: 24,
+
+      stores: 3,
+      invoiceStorageMb: 500,
+      aiChatPerMonth: 0,
+      aiInvoiceScanPerMonth: 0,
     };
   }
 
   return {
-    maxStores: 10,
-    invoiceStorageMb: 5120,
-    aiChatMonthly: 50,
-    aiInvoiceOcrMonthly: 100,
-    historyMonths: 24,
+    maxStores: 1,
+    historyMonths: 12,
+    aiChatMonthly: 0,
+    aiInvoiceOcrMonthly: 0,
+
+    stores: 1,
+    invoiceStorageMb: 100,
+    aiChatPerMonth: 0,
+    aiInvoiceScanPerMonth: 0,
   };
 }
 
-function buildEntitlements(planCode: PlanCode): WorkspaceEntitlements {
-  return getPlanFeatures(planCode);
+function makeCurrentPeriodEnd(status: WorkspaceSubscriptionStatus): string | null {
+  if (status !== "trialing") return null;
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString();
 }
 
-export function resolveWorkspaceContext(args: {
-  slug?: string | null;
-  plan?: string | null;
-  locale?: string | null;
-}): WorkspaceContextValue {
-  const resolvedSlug = (args.slug || "weiwei").trim() || "weiwei";
-  const displayName = prettifyWorkspaceName(resolvedSlug);
-  const planCode = normalizePlanCode(args.plan);
-
-  const workspace: Workspace = {
-    slug: resolvedSlug,
-    displayName,
-    companyName: "LedgerSeiri Demo Company",
-    locale: args.locale || "ja",
-  };
-
-  const subscription: WorkspaceSubscription = {
-    planCode,
-    status: "active",
-    source: args.plan ? "mock-query" : "mock-default",
-    currentPeriodEnd: "2026-04-30T00:00:00.000Z",
-    entitlements: buildEntitlements(planCode),
-    limits: buildLimits(planCode),
-  };
+function makeSubscription(planCode: WorkspacePlanCode): WorkspaceSubscription {
+  const status = resolveStatus(planCode);
 
   return {
-    workspace,
-    subscription,
+    planCode,
+    status,
+    entitlements: makeEntitlements(planCode),
+    limits: makeLimits(planCode),
+    currentPeriodEnd: makeCurrentPeriodEnd(status),
+  };
+}
+
+function resolveCompanyIdBySlug(slug: string): string | null {
+  if (slug === "weiwei") {
+    return "cmnx527ro0000ms678wqrvyh1";
+  }
+  return null;
+}
+
+export async function resolveWorkspaceContext(args: {
+  slug: string;
+  locale: string;
+  plan?: string;
+}): Promise<WorkspaceContext> {
+  const planCode = normalizePlan(args.plan);
+
+  return {
+    slug: args.slug,
+    locale: args.locale,
+    companyId: resolveCompanyIdBySlug(args.slug),
+    subscription: makeSubscription(planCode),
   };
 }
