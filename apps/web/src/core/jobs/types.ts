@@ -80,3 +80,45 @@ export type JobsSnapshot = {
   importMeta: ImportMetaResponse | null;
   exportMeta: ExportMetaResponse | null;
 };
+
+export type AmazonStoreOrderRawRow = {
+  rowNo: number;
+  fields: Record<string, string>;
+};
+
+export type AmazonStoreOrderFact = {
+  rowNo: number;
+  orderId: string;
+  orderDate?: string | null;
+  sku: string;
+  productName: string;
+  quantity: number;
+  amount: number;
+  store?: string | null;
+  fulfillment?: string | null;
+  rawLabel: string;
+};
+
+export type AmazonStoreOrdersPreviewSummary = {
+  filename: string;
+  totalRows: number;
+  successRows: number;
+  failedRows: number;
+  totalAmount: number;
+  totalQuantity: number;
+  delimiter: "comma" | "tab";
+  headers: string[];
+};
+
+export type AmazonStoreOrdersPreviewResponse = {
+  ok?: boolean;
+  domain?: string;
+  action?: string;
+  mode?: string;
+  summary: AmazonStoreOrdersPreviewSummary;
+  rawRows: AmazonStoreOrderRawRow[];
+  facts: AmazonStoreOrderFact[];
+  job?: ImportJobItem | null;
+  message?: string;
+};
+

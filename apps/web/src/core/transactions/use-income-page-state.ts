@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  buildIncomeRowsFromAmazonFacts,
   createTransactionsContext,
   fetchIncomePageData,
   type IncomeCategory,
@@ -12,6 +13,7 @@ import {
   type TransactionCategoryItem,
 } from "@/core/transactions/api";
 import { listAccounts, type AccountItem } from "@/core/funds/api";
+import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { getNowLocalInputValue } from "@/core/transactions/income-page-constants";
 
 export function useIncomePageState(args: {
@@ -60,6 +62,22 @@ export function useIncomePageState(args: {
     setError("");
 
     try {
+      if (category === "store-order") {
+        const stage = loadAmazonStoreOrdersStage();
+        if (stage?.facts?.length) {
+          const stagedRows = buildIncomeRowsFromAmazonFacts({
+            facts: stage.facts,
+            filename: stage.filename,
+            savedAt: stage.savedAt,
+          });
+          setRows(stagedRows);
+          setAdapterNote(
+            `Step105-D: amazon-store-orders staging を優先表示中 · ${stage.filename} · ${stage.savedAt}`
+          );
+          return;
+        }
+      }
+
       const ctx = createTransactionsContext({
         from,
         storeId,

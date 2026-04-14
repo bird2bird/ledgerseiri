@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
   loadImportJobsPageSnapshot,
@@ -14,10 +14,13 @@ import { JobsErrorState } from "@/components/app/jobs/JobsErrorState";
 import { ImportJobsHero } from "@/components/app/jobs/ImportJobsHero";
 import { ImportJobsTableCard } from "@/components/app/jobs/ImportJobsTableCard";
 import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaSummaryCard";
+import { AmazonStoreOrdersImportCard } from "@/components/app/jobs/AmazonStoreOrdersImportCard";
 
 export default function DataImportPage() {
   const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
+  const moduleHint = searchParams.get("module");
 
   const [jobs, setJobs] = useState<ImportJobItem[]>([]);
   const [meta, setMeta] = useState<ImportMetaResponse | null>(null);
@@ -106,10 +109,16 @@ export default function DataImportPage() {
         />
         <JobsMetricCard
           label="現在の状態"
-          value="real baseline"
-          helper="upload/create はまだ stub"
+          value="foundation active"
+          helper="amazon-store-orders preview/create baseline"
         />
       </section>
+
+      <AmazonStoreOrdersImportCard
+        lang={lang}
+        moduleHint={moduleHint}
+        onCreated={load}
+      />
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <ImportJobsTableCard jobs={jobs} />

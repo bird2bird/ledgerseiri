@@ -318,21 +318,28 @@ export function StoreOrdersWorkspace(props: Props) {
             ? [
                 { label: "ID", value: selectedRow.id },
                 { label: "Date", value: selectedRow.date },
-                { label: "Label", value: selectedRow.label },
+                { label: "Order ID", value: selectedRow.externalRef || "-" },
+                { label: "Product", value: selectedRow.productName || selectedRow.label },
+                { label: "SKU", value: selectedRow.sku || "-" },
+                { label: "Qty", value: String(selectedRow.quantity ?? "-") },
                 { label: "Store", value: selectedRow.store },
+                { label: "Fulfillment", value: selectedRow.fulfillment || "-" },
                 { label: "Account", value: selectedRow.account },
                 { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+                { label: "Source", value: selectedRow.sourceType || "-" },
+                { label: "Imported At", value: selectedRow.importedAt || "-" },
                 { label: "Memo", value: selectedRow.memo || "-" },
               ]
             : [],
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[120px_1.2fr_180px_160px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_130px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
             <div>Date</div>
-            <div>Order / Label</div>
+            <div>Order / Product</div>
+            <div>SKU</div>
+            <div className="text-right">Qty</div>
             <div>Store</div>
-            <div>Account</div>
             <div className="text-right">Amount</div>
           </div>
 
@@ -348,17 +355,25 @@ export function StoreOrdersWorkspace(props: Props) {
                 key={row.id}
                 type="button"
                 onClick={() => onSelectRow(row.id)}
-                className={`grid w-full grid-cols-[120px_1.2fr_180px_160px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_130px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
                 <div className="text-slate-600">{row.date}</div>
                 <div>
-                  <div className="font-medium text-slate-900">{row.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">category: 店舗注文</div>
+                  <div className="font-medium text-slate-900">
+                    {row.externalRef || row.label}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {row.productName || row.label}
+                  </div>
                 </div>
-                <div className="text-slate-600">{row.store}</div>
-                <div className="text-slate-600">{row.account}</div>
+                <div className="text-slate-600">{row.sku || "-"}</div>
+                <div className="text-right text-slate-600">{row.quantity ?? "-"}</div>
+                <div>
+                  <div className="text-slate-600">{row.store}</div>
+                  <div className="mt-1 text-xs text-slate-500">{row.fulfillment || "-"}</div>
+                </div>
                 <div className="text-right font-medium text-slate-900">
                   {formatIncomeJPY(row.amount)}
                 </div>

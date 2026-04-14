@@ -1,4 +1,5 @@
 import type {
+  AmazonStoreOrdersPreviewResponse,
   ExportJobsResponse,
   ExportMetaResponse,
   ImportJobsResponse,
@@ -81,3 +82,46 @@ export async function loadJobsSnapshot(): Promise<JobsSnapshot> {
     exportMeta: exportMeta || null,
   };
 }
+
+async function postImportJobJson<T>(payload: unknown): Promise<T> {
+  const res = await fetch("/api/import-jobs", {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await readJson<T & { ok?: boolean; message?: string }>(res, "/api/import-jobs");
+  if (body && body.ok === false) {
+    throw new Error(body.message || "import-jobs request failed");
+  }
+  return body as T;
+}
+
+export async function previewAmazonStoreOrdersCsv(args: {
+  filename: string;
+  csvText: string;
+}): Promise<AmazonStoreOrdersPreviewResponse> {
+  return postImportJobJson<AmazonStoreOrdersPreviewResponse>({
+    domain: "amazon-store-orders",
+    filename: args.filename,
+    csvText: args.csvText,
+    commit: false,
+  });
+}
+
+export async function createAmazonStoreOrdersImportJob(args: {
+  filename: string;
+  csvText: string;
+}): Promise<AmazonStoreOrdersPreviewResponse> {
+  return postImportJobJson<AmazonStoreOrdersPreviewResponse>({
+    domain: "amazon-store-orders",
+    filename: args.filename,
+    csvText: args.csvText,
+    commit: true,
+  });
+}
+

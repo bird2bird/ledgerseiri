@@ -1,5 +1,6 @@
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import { listFundTransfers, type FundTransferItem } from "@/core/funds/api";
+import type { AmazonStoreOrderFact } from "@/core/jobs";
 
 export type IncomeCategory = "all" | "store-order" | "cash" | "other";
 export type ExpenseCategory = "all" | "advertising" | "logistics" | "payroll" | "other";
@@ -27,6 +28,14 @@ export type IncomeRow = {
   account: string;
   store: string;
   memo?: string | null;
+
+  sourceType?: string | null;
+  externalRef?: string | null;
+  sku?: string | null;
+  quantity?: number | null;
+  productName?: string | null;
+  fulfillment?: string | null;
+  importedAt?: string | null;
 };
 
 export type ExpenseRow = {
@@ -212,7 +221,42 @@ function mapIncomeRow(item: TransactionItem): IncomeRow {
     account: item.accountName ?? "-",
     store: item.storeName ?? item.storeId ?? "-",
     memo: item.memo ?? null,
+    sourceType: "api-transaction",
+    externalRef: item.externalRef ?? null,
+    sku: null,
+    quantity: null,
+    productName: item.categoryName ?? item.type ?? "収入",
+    fulfillment: null,
+    importedAt: null,
   };
+}
+
+export function buildIncomeRowsFromAmazonFacts(args: {
+  facts: AmazonStoreOrderFact[];
+  filename?: string | null;
+  savedAt?: string | null;
+}): IncomeRow[] {
+  const { facts, filename, savedAt } = args;
+
+  return (facts ?? []).map((fact, index) => ({
+    id: `${fact.orderId || "order"}-${fact.sku || "sku"}-${fact.rowNo || index + 1}`,
+    date: fact.orderDate
+      ? new Date(fact.orderDate).toLocaleDateString("ja-JP")
+      : "-",
+    category: "store-order",
+    label: fact.productName || fact.rawLabel || fact.sku || fact.orderId || "店舗注文",
+    amount: Number(fact.amount ?? 0),
+    account: "Amazon CSV Stage",
+    store: fact.store || "Amazon",
+    memo: filename ? `imported from ${filename}` : "imported from amazon csv",
+    sourceType: "amazon-store-orders-stage",
+    externalRef: fact.orderId || null,
+    sku: fact.sku || null,
+    quantity: Number(fact.quantity ?? 0),
+    productName: fact.productName || null,
+    fulfillment: fact.fulfillment || null,
+    importedAt: savedAt || null,
+  }));
 }
 
 function mapExpenseRow(item: TransactionItem): ExpenseRow {
