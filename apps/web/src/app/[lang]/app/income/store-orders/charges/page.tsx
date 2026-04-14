@@ -1,11 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useParams } from "next/navigation";
-import { StoreOrderChargesWorkspace } from "@/components/app/income-store-orders/StoreOrderChargesWorkspace";
-
-export default function StoreOrderChargesPage() {
-  const params = useParams<{ lang: string }>();
-  const lang = params?.lang ?? "ja";
-
-  return <StoreOrderChargesWorkspace lang={lang} />;
+export default async function StoreOrderChargesAliasPage(props: {
+  params: Promise<{ lang: string }>;
+}) {
+  const { lang } = await props.params;
+  redirect(`/${lang}/app/expenses`);
 }

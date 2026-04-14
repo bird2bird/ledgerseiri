@@ -171,7 +171,7 @@ export function StoreOrdersWorkspace(props: Props) {
             transaction CSV から分類した費用 / 税金 / 振込 / 調整の概況です。
           </div>
           <Link
-            href={`/${lang}/app/income/store-orders/charges`}
+            href={`/${lang}/app/expenses`}
             className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             店舗運営費 View
