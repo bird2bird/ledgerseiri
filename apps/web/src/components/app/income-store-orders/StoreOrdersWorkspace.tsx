@@ -14,6 +14,11 @@ type Props = {
   loading: boolean;
   error: string;
   totalAmount: number;
+  totalNetAmount: number;
+  totalFeeAmount: number;
+  totalTaxAmount: number;
+  totalShippingAmount: number;
+  totalPromotionAmount: number;
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -21,6 +26,7 @@ type Props = {
   setCurrentPage: (value: number) => void;
   totalPages: number;
   totalRows: number;
+  totalQuantity: number;
   pageStartRow: number;
   pageEndRow: number;
 
@@ -86,12 +92,18 @@ export function StoreOrdersWorkspace(props: Props) {
     loading,
     error,
     totalAmount,
+    totalNetAmount,
+    totalFeeAmount,
+    totalTaxAmount,
+    totalShippingAmount,
+    totalPromotionAmount,
     pageSize,
     setPageSize,
     currentPage,
     setCurrentPage,
     totalPages,
     totalRows,
+    totalQuantity,
     pageStartRow,
     pageEndRow,
     sidebarActions,
@@ -119,13 +131,15 @@ export function StoreOrdersWorkspace(props: Props) {
         <div className="rounded-3xl bg-[linear-gradient(135deg,#06b6d4,#67e8f9)] p-6 text-slate-950 shadow-sm">
           <div className="text-sm text-slate-700">注文行数</div>
           <div className="mt-3 text-4xl font-semibold">{totalRows}</div>
-          <div className="mt-4 text-sm text-slate-700">現在のフィルターで可視化されている注文行数</div>
+          <div className="mt-4 text-sm text-slate-700">全件ベースの注文行数</div>
         </div>
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#f97316,#fb923c)] p-6 text-white shadow-sm">
-          <div className="text-sm text-white/80">平均注文額</div>
-          <div className="mt-3 text-4xl font-semibold">{formatIncomeJPY(avgOrderAmount)}</div>
-          <div className="mt-4 text-sm text-white/80">注文売上 ÷ 注文行数</div>
+          <div className="text-sm text-white/80">総販売数量</div>
+          <div className="mt-3 text-4xl font-semibold">{totalQuantity}</div>
+          <div className="mt-4 text-sm text-white/80">
+            全件ベース数量 / 平均注文額 {formatIncomeJPY(avgOrderAmount)}
+          </div>
         </div>
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#84cc16,#a3e635)] p-6 text-slate-950 shadow-sm">
@@ -133,6 +147,31 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="mt-3 text-4xl font-semibold">{uniqueStores}</div>
           <div className="mt-4 text-sm text-slate-700">
             {topStore ? `Top: ${topStore.store}` : "店舗データなし"}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Gross 売上</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalAmount)}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Net 売上</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalNetAmount)}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Fee 合計</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalFeeAmount)}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Tax 合計</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalTaxAmount)}</div>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="text-sm text-slate-500">Promotion / Shipping</div>
+          <div className="mt-2 text-sm text-slate-700">
+            Promo {formatIncomeJPY(totalPromotionAmount)} / Ship {formatIncomeJPY(totalShippingAmount)}
           </div>
         </div>
       </div>
@@ -188,7 +227,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
               <div className="text-lg font-semibold text-slate-900">注文金額サンプル</div>
-              <div className="mt-1 text-sm text-slate-500">現在データの先頭 6 行を可視化</div>
+              <div className="mt-1 text-sm text-slate-500">日付降順ソート後の最新 6 行を可視化</div>
 
               <div className="mt-5">
                 {sampleBars.length > 0 ? (
@@ -325,7 +364,12 @@ export function StoreOrdersWorkspace(props: Props) {
                 { label: "Store", value: selectedRow.store },
                 { label: "Fulfillment", value: selectedRow.fulfillment || "-" },
                 { label: "Account", value: selectedRow.account },
-                { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+                { label: "Gross", value: formatIncomeJPY(selectedRow.grossAmount ?? selectedRow.amount ?? 0) },
+                { label: "Net", value: formatIncomeJPY(selectedRow.netAmount ?? selectedRow.amount ?? 0) },
+                { label: "Fee", value: formatIncomeJPY(selectedRow.feeAmount ?? 0) },
+                { label: "Tax", value: formatIncomeJPY(selectedRow.taxAmount ?? 0) },
+                { label: "Shipping", value: formatIncomeJPY(selectedRow.shippingAmount ?? 0) },
+                { label: "Promotion", value: formatIncomeJPY(selectedRow.promotionAmount ?? 0) },
                 { label: "Source", value: selectedRow.sourceType || "-" },
                 { label: "Imported At", value: selectedRow.importedAt || "-" },
                 { label: "Memo", value: selectedRow.memo || "-" },
@@ -334,13 +378,13 @@ export function StoreOrdersWorkspace(props: Props) {
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_130px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
             <div>Date</div>
             <div>Order / Product</div>
             <div>SKU</div>
             <div className="text-right">Qty</div>
             <div>Store</div>
-            <div className="text-right">Amount</div>
+            <div className="text-right">Gross / Net / Fee</div>
           </div>
 
           {loading ? (
@@ -355,7 +399,7 @@ export function StoreOrdersWorkspace(props: Props) {
                 key={row.id}
                 type="button"
                 onClick={() => onSelectRow(row.id)}
-                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_130px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
@@ -374,8 +418,13 @@ export function StoreOrdersWorkspace(props: Props) {
                   <div className="text-slate-600">{row.store}</div>
                   <div className="mt-1 text-xs text-slate-500">{row.fulfillment || "-"}</div>
                 </div>
-                <div className="text-right font-medium text-slate-900">
-                  {formatIncomeJPY(row.amount)}
+                <div className="text-right">
+                  <div className="font-medium text-slate-900">
+                    G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} / F {formatIncomeJPY(row.feeAmount ?? 0)}
+                  </div>
                 </div>
               </button>
             ))
@@ -384,7 +433,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="text-sm text-slate-500">
-            全 {totalRows} 件中 {pageStartRow} - {pageEndRow} 件を表示
+            全 {totalRows} 行・総販売数量 {totalQuantity} 点のうち、{pageStartRow} - {pageEndRow} 行を表示
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

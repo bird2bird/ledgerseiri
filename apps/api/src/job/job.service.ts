@@ -16,9 +16,49 @@ type AmazonPreviewFact = {
   productName: string;
   quantity: number;
   amount: number;
+
+  grossAmount: number;
+  netAmount: number;
+  feeAmount: number;
+  taxAmount: number;
+  shippingAmount: number;
+  promotionAmount: number;
+
   store?: string | null;
   fulfillment?: string | null;
   rawLabel: string;
+};
+
+type AmazonPreviewCharge = {
+  id: string;
+  rowNo: number;
+  occurredAt?: string | null;
+  orderId?: string | null;
+  sku?: string | null;
+  transactionType: string;
+  description: string;
+  kind:
+    | 'ORDER_SALE'
+    | 'AD_FEE'
+    | 'STORAGE_FEE'
+    | 'SUBSCRIPTION_FEE'
+    | 'FBA_FEE'
+    | 'TAX'
+    | 'PAYOUT'
+    | 'ADJUSTMENT'
+    | 'OTHER';
+  signedAmount: number;
+};
+
+type AmazonPreviewChargeSummary = {
+  adFee: number;
+  storageFee: number;
+  subscriptionFee: number;
+  fbaFee: number;
+  tax: number;
+  payout: number;
+  adjustment: number;
+  other: number;
 };
 
 type AmazonPreviewResult = {
@@ -34,6 +74,8 @@ type AmazonPreviewResult = {
   };
   rawRows: AmazonPreviewRawRow[];
   facts: AmazonPreviewFact[];
+  charges: AmazonPreviewCharge[];
+  chargeSummary: AmazonPreviewChargeSummary;
 };
 
 @Injectable()
@@ -111,6 +153,182 @@ export class JobService {
     return Math.trunc(num);
   }
 
+  private parseAmazonOrderRevenue(row: Record<string, string>): number {
+    const productSales = this.parseAmount(
+      this.pickField(row, [
+        '商品売上',
+        '商品の売上',
+        'product sales',
+        'item price',
+        'item-price',
+        'principal',
+        '売上',
+        '金額',
+      ])
+    );
+
+    const shippingSales = this.parseAmount(
+      this.pickField(row, [
+        '配送料',
+        '送料',
+        'shipping',
+        'shipping credits',
+      ])
+    );
+
+    const giftWrapSales = this.parseAmount(
+      this.pickField(row, [
+        'ギフト包装料',
+        'ギフト包装',
+        'gift wrap',
+        'giftwrap',
+      ])
+    );
+
+    return productSales + shippingSales + giftWrapSales;
+  }
+
+  private absAmount(value: number): number {
+    return Math.abs(Number(value || 0));
+  }
+
+  private sumSignedFields(row: Record<string, string>, aliases: string[]): number {
+    return aliases.reduce((sum, alias) => sum + this.parseAmount(this.pickField(row, [alias])), 0);
+  }
+
+  private classifyAmazonTransactionKind(transactionType: string, description: string) {
+    const t = String(transactionType || '').trim();
+    const d = String(description || '').trim();
+    const merged = `${t} ${d}`;
+
+    if (/注文|order/i.test(merged)) return 'ORDER_SALE' as const;
+    if (/広告|ads?|advertising/i.test(merged)) return 'AD_FEE' as const;
+    if (/在庫保管|在庫関連|storage/i.test(merged)) return 'STORAGE_FEE' as const;
+    if (/月額|月租|subscription|register|登録料/i.test(merged)) return 'SUBSCRIPTION_FEE' as const;
+    if (/FBA|販売手数料|出品手数料|referral fee|fulfillment fee/i.test(merged)) return 'FBA_FEE' as const;
+    if (/税|源泉|tax/i.test(merged)) return 'TAX' as const;
+    if (/振込|入金|payout|transfer|送金|amazonチャージ/i.test(merged)) return 'PAYOUT' as const;
+    if (/調整|adjust/i.test(merged)) return 'ADJUSTMENT' as const;
+    return 'OTHER' as const;
+  }
+
+  private parseAmazonOrderBridge(row: Record<string, string>) {
+    const productSales = this.parseAmount(
+      this.pickField(row, [
+        '商品売上',
+        '商品の売上',
+        'product sales',
+        'item price',
+        'item-price',
+        'principal',
+      ])
+    );
+
+    const productTax = this.absAmount(
+      this.sumSignedFields(row, [
+        '商品の売上税',
+        '商品売上税',
+      ])
+    );
+
+    const shippingRevenue = this.parseAmount(
+      this.pickField(row, [
+        '配送料',
+        '送料',
+        'shipping',
+        'shipping credits',
+      ])
+    );
+
+    const shippingTax = this.absAmount(
+      this.sumSignedFields(row, [
+        '配送料の税',
+      ])
+    );
+
+    const giftWrapRevenue = this.parseAmount(
+      this.pickField(row, [
+        'ギフト包装料',
+        'ギフト包装',
+        'gift wrap',
+        'giftwrap',
+      ])
+    );
+
+    const giftWrapTax = this.absAmount(
+      this.sumSignedFields(row, [
+        'ギフト包装の税',
+      ])
+    );
+
+    const amazonPoints = this.absAmount(
+      this.sumSignedFields(row, [
+        'Amazonポイント',
+        'Amazonポイントの費用',
+      ])
+    );
+
+    const promotion = this.absAmount(
+      this.sumSignedFields(row, [
+        'プロモーション',
+        'プロモーション割引',
+        'promotion',
+        'discount',
+      ])
+    );
+
+    const withholdingTax = this.absAmount(
+      this.sumSignedFields(row, [
+        '源泉徴収税',
+        '税金',
+        'tax',
+      ])
+    );
+
+    const transactionOther = this.absAmount(
+      this.sumSignedFields(row, [
+        'トランザクションその他',
+        'トランザクションその他の手数料',
+        'その他各種手数料',
+        'other transaction fees',
+      ])
+    );
+
+    const fbaFee = this.absAmount(
+      this.sumSignedFields(row, [
+        'FBA手数料',
+        'フルフィルメント手数料',
+        'fba fees',
+        'fulfillment fees',
+      ])
+    );
+
+    const sellingFee = this.absAmount(
+      this.sumSignedFields(row, [
+        '出品手数料',
+        '販売手数料',
+        'referral fee',
+        'selling fees',
+      ])
+    );
+
+    const grossAmount = productSales + shippingRevenue + giftWrapRevenue;
+    const shippingAmount = shippingRevenue + giftWrapRevenue;
+    const feeAmount = fbaFee + sellingFee + transactionOther;
+    const taxAmount = productTax + shippingTax + giftWrapTax + withholdingTax;
+    const promotionAmount = amazonPoints + promotion;
+    const netAmount = grossAmount - feeAmount - taxAmount - promotionAmount;
+
+    return {
+      grossAmount,
+      netAmount,
+      feeAmount,
+      taxAmount,
+      shippingAmount,
+      promotionAmount,
+    };
+  }
+
   private parseAmazonStoreOrdersCsv(filename: string, csvText: string): AmazonPreviewResult {
     const normalized = String(csvText || '')
       .replace(/\r\n/g, '\n')
@@ -181,10 +399,22 @@ export class JobService {
 
     const rawRows: AmazonPreviewRawRow[] = [];
     const facts: AmazonPreviewFact[] = [];
+    const charges: AmazonPreviewCharge[] = [];
 
     let totalAmount = 0;
     let totalQuantity = 0;
     let failedRows = 0;
+
+    const chargeSummary: AmazonPreviewChargeSummary = {
+      adFee: 0,
+      storageFee: 0,
+      subscriptionFee: 0,
+      fbaFee: 0,
+      tax: 0,
+      payout: 0,
+      adjustment: 0,
+      other: 0,
+    };
 
     for (let i = headerIndex + 1; i < lines.length; i += 1) {
       const cells = this.splitDelimitedLine(lines[i], delimiterChar);
@@ -202,6 +432,20 @@ export class JobService {
         fields: headerOriginalToValue,
       });
 
+      const transactionType = this.pickField(headerToValue, [
+        'トランザクションの種類',
+        '取引タイプ',
+        'transaction type',
+        'type',
+        '種類',
+      ]);
+
+      const description = this.pickField(headerToValue, [
+        '説明',
+        'description',
+        'memo',
+      ]);
+
       const orderId = this.pickField(headerToValue, [
         'amazon-order-id',
         'order-id',
@@ -217,6 +461,8 @@ export class JobService {
         'order date',
         '注文日',
         '日付',
+        '日付/時間',
+        '日時',
       ]);
 
       const sku = this.pickField(headerToValue, [
@@ -242,17 +488,7 @@ export class JobService {
         ])
       );
 
-      const amount = this.parseAmount(
-        this.pickField(headerToValue, [
-          'item-price',
-          'principal',
-          'amount',
-          'item subtotal',
-          'subtotal',
-          '売上',
-          '金額',
-        ])
-      );
+      const amount = this.parseAmazonOrderRevenue(headerToValue);
 
       const store = this.pickField(headerToValue, [
         'store',
@@ -269,10 +505,47 @@ export class JobService {
         '発送区分',
       ]);
 
+      const signedTotal = this.parseAmount(
+        this.pickField(headerToValue, [
+          '合計',
+          'total',
+          'amount',
+        ])
+      );
+
+      const kind = this.classifyAmazonTransactionKind(transactionType, description);
+
       if (!(orderId || sku || productName)) {
+        if (signedTotal !== 0 || kind !== 'OTHER') {
+          const charge: AmazonPreviewCharge = {
+            id: `${kind}-${rowNo}`,
+            rowNo,
+            occurredAt: orderDate || null,
+            orderId: orderId || null,
+            sku: sku || null,
+            transactionType,
+            description,
+            kind,
+            signedAmount: signedTotal,
+          };
+          charges.push(charge);
+
+          if (kind === 'AD_FEE') chargeSummary.adFee += signedTotal;
+          else if (kind === 'STORAGE_FEE') chargeSummary.storageFee += signedTotal;
+          else if (kind === 'SUBSCRIPTION_FEE') chargeSummary.subscriptionFee += signedTotal;
+          else if (kind === 'FBA_FEE') chargeSummary.fbaFee += signedTotal;
+          else if (kind === 'TAX') chargeSummary.tax += signedTotal;
+          else if (kind === 'PAYOUT') chargeSummary.payout += signedTotal;
+          else if (kind === 'ADJUSTMENT') chargeSummary.adjustment += signedTotal;
+          else chargeSummary.other += signedTotal;
+          continue;
+        }
+
         failedRows += 1;
         continue;
       }
+
+      const bridge = this.parseAmazonOrderBridge(headerToValue);
 
       const fact: AmazonPreviewFact = {
         rowNo,
@@ -281,14 +554,20 @@ export class JobService {
         sku,
         productName,
         quantity,
-        amount,
+        amount: bridge.grossAmount,
+        grossAmount: bridge.grossAmount,
+        netAmount: bridge.netAmount,
+        feeAmount: bridge.feeAmount,
+        taxAmount: bridge.taxAmount,
+        shippingAmount: bridge.shippingAmount,
+        promotionAmount: bridge.promotionAmount,
         store: store || null,
         fulfillment: fulfillment || null,
         rawLabel: productName || sku || orderId || '注文',
       };
 
       facts.push(fact);
-      totalAmount += amount;
+      totalAmount += bridge.grossAmount;
       totalQuantity += quantity;
     }
 
@@ -303,8 +582,10 @@ export class JobService {
         delimiter: delimiterKind,
         headers: headerCells,
       },
-      rawRows: rawRows.slice(0, 20),
-      facts: facts.slice(0, 20),
+      rawRows,
+      facts,
+      charges,
+      chargeSummary,
     };
   }
 
@@ -570,6 +851,8 @@ export class JobService {
           summary: parsed.summary,
           rawRows: parsed.rawRows,
           facts: parsed.facts,
+          charges: parsed.charges,
+          chargeSummary: parsed.chargeSummary,
           job: null,
           message: 'amazon store orders csv preview ready',
         };
@@ -600,6 +883,8 @@ export class JobService {
         summary: parsed.summary,
         rawRows: parsed.rawRows,
         facts: parsed.facts,
+        charges: parsed.charges,
+        chargeSummary: parsed.chargeSummary,
         job: this.mapImportJob(created),
         message: 'amazon store orders import job created',
       };
@@ -621,6 +906,17 @@ export class JobService {
         },
         rawRows: [],
         facts: [],
+        charges: [],
+        chargeSummary: {
+          adFee: 0,
+          storageFee: 0,
+          subscriptionFee: 0,
+          fbaFee: 0,
+          tax: 0,
+          payout: 0,
+          adjustment: 0,
+          other: 0,
+        },
         job: null,
         message: error instanceof Error ? error.message : 'amazon store orders csv parse failed',
       };

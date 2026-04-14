@@ -2,6 +2,8 @@ import type {
   AmazonStoreOrderFact,
   AmazonStoreOrdersPreviewResponse,
   AmazonStoreOrdersPreviewSummary,
+  AmazonTransactionCharge,
+  AmazonTransactionChargeSummary,
 } from "./types";
 
 export type AmazonStoreOrdersStageSnapshot = {
@@ -10,6 +12,8 @@ export type AmazonStoreOrdersStageSnapshot = {
   filename: string;
   summary: AmazonStoreOrdersPreviewSummary;
   facts: AmazonStoreOrderFact[];
+  charges: AmazonTransactionCharge[];
+  chargeSummary: AmazonTransactionChargeSummary;
 };
 
 const STORAGE_KEY = "ledgerseiri.amazon-store-orders.stage.v1";
@@ -30,6 +34,17 @@ export function saveAmazonStoreOrdersStage(
     filename: preview.summary.filename,
     summary: preview.summary,
     facts: Array.isArray(preview.facts) ? preview.facts : [],
+    charges: Array.isArray(preview.charges) ? preview.charges : [],
+    chargeSummary: preview.chargeSummary || {
+      adFee: 0,
+      storageFee: 0,
+      subscriptionFee: 0,
+      fbaFee: 0,
+      tax: 0,
+      payout: 0,
+      adjustment: 0,
+      other: 0,
+    },
   };
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));

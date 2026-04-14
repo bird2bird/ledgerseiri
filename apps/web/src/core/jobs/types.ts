@@ -94,6 +94,14 @@ export type AmazonStoreOrderFact = {
   productName: string;
   quantity: number;
   amount: number;
+
+  grossAmount: number;
+  netAmount: number;
+  feeAmount: number;
+  taxAmount: number;
+  shippingAmount: number;
+  promotionAmount: number;
+
   store?: string | null;
   fulfillment?: string | null;
   rawLabel: string;
@@ -118,7 +126,43 @@ export type AmazonStoreOrdersPreviewResponse = {
   summary: AmazonStoreOrdersPreviewSummary;
   rawRows: AmazonStoreOrderRawRow[];
   facts: AmazonStoreOrderFact[];
+  charges: AmazonTransactionCharge[];
+  chargeSummary: AmazonTransactionChargeSummary;
   job?: ImportJobItem | null;
   message?: string;
+};
+
+export type AmazonTransactionChargeKind =
+  | "ORDER_SALE"
+  | "AD_FEE"
+  | "STORAGE_FEE"
+  | "SUBSCRIPTION_FEE"
+  | "FBA_FEE"
+  | "TAX"
+  | "PAYOUT"
+  | "ADJUSTMENT"
+  | "OTHER";
+
+export type AmazonTransactionCharge = {
+  id: string;
+  rowNo: number;
+  occurredAt?: string | null;
+  orderId?: string | null;
+  sku?: string | null;
+  transactionType: string;
+  description: string;
+  kind: AmazonTransactionChargeKind;
+  signedAmount: number;
+};
+
+export type AmazonTransactionChargeSummary = {
+  adFee: number;
+  storageFee: number;
+  subscriptionFee: number;
+  fbaFee: number;
+  tax: number;
+  payout: number;
+  adjustment: number;
+  other: number;
 };
 

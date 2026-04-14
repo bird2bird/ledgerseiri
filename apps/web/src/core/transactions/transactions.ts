@@ -36,6 +36,14 @@ export type IncomeRow = {
   productName?: string | null;
   fulfillment?: string | null;
   importedAt?: string | null;
+  sortAt?: string | null;
+
+  grossAmount?: number | null;
+  netAmount?: number | null;
+  feeAmount?: number | null;
+  taxAmount?: number | null;
+  shippingAmount?: number | null;
+  promotionAmount?: number | null;
 };
 
 export type ExpenseRow = {
@@ -228,6 +236,13 @@ function mapIncomeRow(item: TransactionItem): IncomeRow {
     productName: item.categoryName ?? item.type ?? "収入",
     fulfillment: null,
     importedAt: null,
+    sortAt: item.occurredAt ?? null,
+    grossAmount: Number(item.amount ?? 0),
+    netAmount: Number(item.amount ?? 0),
+    feeAmount: 0,
+    taxAmount: 0,
+    shippingAmount: 0,
+    promotionAmount: 0,
   };
 }
 
@@ -240,9 +255,7 @@ export function buildIncomeRowsFromAmazonFacts(args: {
 
   return (facts ?? []).map((fact, index) => ({
     id: `${fact.orderId || "order"}-${fact.sku || "sku"}-${fact.rowNo || index + 1}`,
-    date: fact.orderDate
-      ? new Date(fact.orderDate).toLocaleDateString("ja-JP")
-      : "-",
+    date: formatAmazonOrderDate(fact.orderDate),
     category: "store-order",
     label: fact.productName || fact.rawLabel || fact.sku || fact.orderId || "店舗注文",
     amount: Number(fact.amount ?? 0),
@@ -256,6 +269,13 @@ export function buildIncomeRowsFromAmazonFacts(args: {
     productName: fact.productName || null,
     fulfillment: fact.fulfillment || null,
     importedAt: savedAt || null,
+    sortAt: fact.orderDate || savedAt || null,
+    grossAmount: Number(fact.grossAmount ?? fact.amount ?? 0),
+    netAmount: Number(fact.netAmount ?? fact.amount ?? 0),
+    feeAmount: Number(fact.feeAmount ?? 0),
+    taxAmount: Number(fact.taxAmount ?? 0),
+    shippingAmount: Number(fact.shippingAmount ?? 0),
+    promotionAmount: Number(fact.promotionAmount ?? 0),
   }));
 }
 
@@ -289,6 +309,82 @@ function mapTransferRow(item: FundTransferItem): TransferRow {
     status: mapTransferStatus(item),
     memo: item.memo ?? null,
   };
+}
+
+function formatAmazonOrderDate(value?: string | null): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) {
+    return direct.toLocaleDateString("ja-JP");
+  }
+
+  const normalized = raw.replace(/\s+JST$/i, "").trim();
+  const m = normalized.match(
+    /^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    const hour = Number(m[4]);
+    const minute = Number(m[5]);
+    const second = Number(m[6] || "0");
+
+    const d = new Date(year, month - 1, day, hour, minute, second);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("ja-JP");
+    }
+  }
+
+  const dateOnly = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]);
+    const day = Number(dateOnly[3]);
+    const d = new Date(year, month - 1, day);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("ja-JP");
+    }
+  }
+
+  return raw;
+}
+
+function parseIncomeRowSortTimestamp(value?: string | null): number {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) {
+    return direct.getTime();
+  }
+
+  const normalized = raw.replace(/\s+JST$/i, "").trim();
+  const m = normalized.match(
+    /^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+  if (!m) return 0;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4] || "0");
+  const minute = Number(m[5] || "0");
+  const second = Number(m[6] || "0");
+
+  const d = new Date(year, month - 1, day, hour, minute, second);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+export function sortStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
+  return [...rows].sort((a, b) => {
+    const diff = parseIncomeRowSortTimestamp(b.sortAt) - parseIncomeRowSortTimestamp(a.sortAt);
+    if (diff !== 0) return diff;
+    return String(b.externalRef || b.id).localeCompare(String(a.externalRef || a.id));
+  });
 }
 
 export async function fetchIncomePageData(

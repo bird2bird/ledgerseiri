@@ -55,6 +55,7 @@ export function AmazonStoreOrdersImportCard(props: {
     const text = await file.text();
     setFilename(file.name || "amazon-store-orders.csv");
     setSelectedFileName(file.name || "");
+    setSelectedFileName(file.name || "");
     setCsvText(text);
     setError("");
     setMessage(`ファイルを読み込みました: ${file.name}`);
@@ -310,6 +311,43 @@ export function AmazonStoreOrdersImportCard(props: {
         </div>
       </div>
 
+      {preview ? (
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">広告費</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.adFee ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">倉庫 / 保管料</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.storageFee ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">月額 / 登録料</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.subscriptionFee ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">FBA / 販売手数料</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.fbaFee ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">税金</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.tax ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">振込 / 入金</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.payout ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">調整</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.adjustment ?? 0)}</div>
+          </div>
+          <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+            <div className="text-[11px] text-slate-500">その他</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{formatJPY(preview.chargeSummary?.other ?? 0)}</div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="rounded-[22px] border border-slate-200 p-4">
           <div className="text-sm font-medium text-slate-900">Raw Rows Sample</div>
@@ -338,6 +376,36 @@ export function AmazonStoreOrdersImportCard(props: {
             </div>
           ) : (
             <div className="mt-3 text-sm text-slate-500">no raw rows</div>
+          )}
+        </div>
+
+        <div className="rounded-[22px] border border-slate-200 p-4">
+          <div className="text-sm font-medium text-slate-900">Non-order Charges Sample</div>
+          {preview?.charges?.length ? (
+            <div className="mt-3 overflow-auto rounded-[18px] border border-slate-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Kind</th>
+                    <th className="px-3 py-2 text-left">Type</th>
+                    <th className="px-3 py-2 text-left">Description</th>
+                    <th className="px-3 py-2 text-right">Signed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.charges.slice(0, 12).map((item) => (
+                    <tr key={item.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 text-slate-700">{item.kind}</td>
+                      <td className="px-3 py-2 text-slate-700">{item.transactionType || "-"}</td>
+                      <td className="px-3 py-2 text-slate-700">{item.description || "-"}</td>
+                      <td className="px-3 py-2 text-right text-slate-700">{formatJPY(item.signedAmount || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="mt-3 text-sm text-slate-500">no charges</div>
           )}
         </div>
 

@@ -103,6 +103,11 @@ export function IncomePageClient(props: {
     loading: state.loading,
     error: state.error,
     totalAmount: state.totalAmount,
+    totalNetAmount: state.totalNetAmount,
+    totalFeeAmount: state.totalFeeAmount,
+    totalTaxAmount: state.totalTaxAmount,
+    totalShippingAmount: state.totalShippingAmount,
+    totalPromotionAmount: state.totalPromotionAmount,
 
     pageSize: state.pageSize,
     setPageSize: state.setPageSize,
@@ -110,6 +115,7 @@ export function IncomePageClient(props: {
     setCurrentPage: state.setCurrentPage,
     totalPages: state.totalPages,
     totalRows: state.totalRows,
+    totalQuantity: state.totalQuantity,
     pageStartRow: state.pageStartRow,
     pageEndRow: state.pageEndRow,
 

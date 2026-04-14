@@ -68,6 +68,11 @@ export function renderIncomePageShell(args: {
   loading: boolean;
   error: string;
   totalAmount: number;
+  totalNetAmount: number;
+  totalFeeAmount: number;
+  totalTaxAmount: number;
+  totalShippingAmount: number;
+  totalPromotionAmount: number;
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -75,6 +80,7 @@ export function renderIncomePageShell(args: {
   setCurrentPage: (value: number) => void;
   totalPages: number;
   totalRows: number;
+  totalQuantity: number;
   pageStartRow: number;
   pageEndRow: number;
 
@@ -143,6 +149,11 @@ export function renderIncomePageShell(args: {
     loading,
     error,
     totalAmount,
+    totalNetAmount,
+    totalFeeAmount,
+    totalTaxAmount,
+    totalShippingAmount,
+    totalPromotionAmount,
 
     pageSize,
     setPageSize,
@@ -150,6 +161,7 @@ export function renderIncomePageShell(args: {
     setCurrentPage,
     totalPages,
     totalRows,
+    totalQuantity,
     pageStartRow,
     pageEndRow,
 
@@ -530,12 +542,18 @@ export function renderIncomePageShell(args: {
           loading={loading}
           error={error}
           totalAmount={totalAmount}
+          totalNetAmount={totalNetAmount}
+          totalFeeAmount={totalFeeAmount}
+          totalTaxAmount={totalTaxAmount}
+          totalShippingAmount={totalShippingAmount}
+          totalPromotionAmount={totalPromotionAmount}
           pageSize={pageSize}
           setPageSize={setPageSize}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           totalPages={totalPages}
           totalRows={totalRows}
+          totalQuantity={totalQuantity}
           pageStartRow={pageStartRow}
           pageEndRow={pageEndRow}
           sidebarActions={sidebarActions}

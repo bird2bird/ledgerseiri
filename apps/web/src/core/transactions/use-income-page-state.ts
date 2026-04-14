@@ -3,6 +3,7 @@ import {
   buildIncomeRowsFromAmazonFacts,
   createTransactionsContext,
   fetchIncomePageData,
+  sortStoreOrderIncomeRows,
   type IncomeCategory,
   type IncomeRow,
 } from "@/core/transactions/transactions";
@@ -65,14 +66,16 @@ export function useIncomePageState(args: {
       if (category === "store-order") {
         const stage = loadAmazonStoreOrdersStage();
         if (stage?.facts?.length) {
-          const stagedRows = buildIncomeRowsFromAmazonFacts({
-            facts: stage.facts,
-            filename: stage.filename,
-            savedAt: stage.savedAt,
-          });
+          const stagedRows = sortStoreOrderIncomeRows(
+            buildIncomeRowsFromAmazonFacts({
+              facts: stage.facts,
+              filename: stage.filename,
+              savedAt: stage.savedAt,
+            })
+          );
           setRows(stagedRows);
           setAdapterNote(
-            `Step105-D: amazon-store-orders staging を優先表示中 · ${stage.filename} · ${stage.savedAt}`
+            `Step105-D2: amazon-store-orders staging を日付降順で優先表示中 · ${stage.filename} · ${stage.savedAt}`
           );
           return;
         }
@@ -86,7 +89,9 @@ export function useIncomePageState(args: {
       });
 
       const res = await fetchIncomePageData(category, ctx);
-      setRows(res.rows);
+      const nextRows =
+        category === "store-order" ? sortStoreOrderIncomeRows(res.rows) : res.rows;
+      setRows(nextRows);
       setAdapterNote(res.meta.note ?? "");
     } catch (e: unknown) {
       setRows([]);
@@ -237,6 +242,34 @@ export function useIncomePageState(args: {
   }
 
   const totalRows = rows.length;
+  const totalNetAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.netAmount ?? row.amount ?? 0), 0),
+    [rows]
+  );
+  const totalFeeAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.feeAmount ?? 0), 0),
+    [rows]
+  );
+  const totalTaxAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.taxAmount ?? 0), 0),
+    [rows]
+  );
+  const totalShippingAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.shippingAmount ?? 0), 0),
+    [rows]
+  );
+  const totalPromotionAmount = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.promotionAmount ?? 0), 0),
+    [rows]
+  );
+  const totalQuantity = useMemo(
+    () =>
+      rows.reduce((sum, row) => {
+        const qty = Number(row.quantity ?? 0);
+        return sum + (Number.isFinite(qty) ? qty : 0);
+      }, 0),
+    [rows]
+  );
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
   useEffect(() => {
@@ -268,7 +301,13 @@ export function useIncomePageState(args: {
     loading,
     error,
     totalAmount,
+    totalNetAmount,
+    totalFeeAmount,
+    totalTaxAmount,
+    totalShippingAmount,
+    totalPromotionAmount,
     totalRows,
+    totalQuantity,
     pageSize,
     setPageSize,
     currentPage,
