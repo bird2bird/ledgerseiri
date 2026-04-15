@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
@@ -51,6 +51,33 @@ type Props = {
     href?: string;
     disabled?: boolean;
   }>;
+};
+
+type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
+type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
+
+const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
+  "ALL",
+  "ORDER",
+  "FEE",
+  "ADJUST",
+  "REFUND",
+  "OTHER",
+];
+
+const BREAKDOWN_FILTER_LABELS: Record<BreakdownFilter, string> = {
+  ALL: "全部",
+  ORDER: "ORDER",
+  FEE: "FEE",
+  ADJUST: "ADJUST",
+  REFUND: "REFUND",
+  OTHER: "OTHER",
+};
+
+const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
+  "date-desc": "日期新→旧",
+  "amount-desc": "金额高→低",
+  "fee-desc": "Fee高→低",
 };
 
 function clampPage(page: number, totalPages: number) {
@@ -129,6 +156,201 @@ function getBreakdownTag(row: IncomeRow) {
   };
 }
 
+function sortBreakdownRows(rows: IncomeRow[], sortMode: BreakdownSortMode) {
+  const next = [...rows];
+
+  if (sortMode === "amount-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.grossAmount ?? b.amount ?? 0) - Number(a.grossAmount ?? a.amount ?? 0)
+    );
+  }
+
+  if (sortMode === "fee-desc") {
+    return next.sort((a, b) => Number(b.feeAmount ?? 0) - Number(a.feeAmount ?? 0));
+  }
+
+  return next.sort((a, b) => {
+    const byDate = String(b.date || "").localeCompare(String(a.date || ""));
+    if (byDate !== 0) return byDate;
+
+    const byImportedAt = String(b.importedAt || "").localeCompare(
+      String(a.importedAt || "")
+    );
+    if (byImportedAt !== 0) return byImportedAt;
+
+    return Number(b.grossAmount ?? b.amount ?? 0) - Number(a.grossAmount ?? a.amount ?? 0);
+  });
+}
+
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return;
+  }
+
+  throw new Error("clipboard unavailable");
+}
+
+function buildBreakdownCopyText(args: {
+  selectedRow: IncomeRow | null;
+  rows: IncomeRow[];
+  filter: BreakdownFilter;
+  sortMode: BreakdownSortMode;
+  grossSum: number;
+  netSum: number;
+  feeSum: number;
+  qtySum: number;
+}) {
+  const { selectedRow, rows, filter, sortMode, grossSum, netSum, feeSum, qtySum } = args;
+
+  if (!selectedRow) return "";
+
+  const lines = [
+    "LedgerSeiri - Transaction Breakdown Audit Summary",
+    `Order ID: ${selectedRow.externalRef || "-"}`,
+    `SKU: ${selectedRow.sku || "-"}`,
+    `Date: ${selectedRow.date || "-"}`,
+    `Filter: ${BREAKDOWN_FILTER_LABELS[filter]}`,
+    `Sort: ${BREAKDOWN_SORT_LABELS[sortMode]}`,
+    `Rows: ${rows.length}`,
+    `Gross Sum: ${formatIncomeJPY(grossSum)}`,
+    `Net Sum: ${formatIncomeJPY(netSum)}`,
+    `Fee Sum: ${formatIncomeJPY(feeSum)}`,
+    `Qty Sum: ${qtySum}`,
+    "",
+    "Details:",
+  ];
+
+  rows.forEach((row, index) => {
+    const tag = getBreakdownTag(row).label;
+    lines.push(
+      `${index + 1}. [${tag}] ${row.date || "-"} | ${row.externalRef || row.label} | SKU ${row.sku || "-"} | Qty ${row.quantity ?? "-"} | G ${formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)} | N ${formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} | F ${formatIncomeJPY(row.feeAmount ?? 0)} | ${row.sourceType || "-"} | ${row.memo || "-"}`
+    );
+  });
+
+  return lines.join("\n");
+}
+
+function getSourceBadge(row: IncomeRow) {
+  const source = String(row.sourceType || "").toLowerCase();
+
+  if (source.includes("amazon-store-orders-stage")) {
+    return {
+      label: "STAGE",
+      className: "bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200",
+    };
+  }
+
+  if (source.includes("csv") || source.includes("import")) {
+    return {
+      label: "CSV",
+      className: "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200",
+    };
+  }
+
+  if (source.includes("api")) {
+    return {
+      label: "API",
+      className: "bg-cyan-50 text-cyan-700 ring-1 ring-inset ring-cyan-200",
+    };
+  }
+
+  if (source.includes("manual")) {
+    return {
+      label: "MANUAL",
+      className: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+    };
+  }
+
+  return {
+    label: "SOURCE",
+    className: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+  };
+}
+
+function buildLinkedChargeHint(row: IncomeRow) {
+  const tag = getBreakdownTag(row).label;
+
+  if (tag === "FEE") {
+    return "该行属于费用类，通常应与 店舗運営費 / Amazon charges 视图联动核对。";
+  }
+
+  if (tag === "ADJUST") {
+    return "该行属于调整类，建议在 店舗運営費 中确认 settlement / adjustment 的落点。";
+  }
+
+  if (tag === "REFUND") {
+    return "该行属于返金类，建议对照订单销售与费用回退是否同时发生。";
+  }
+
+  if (tag === "OTHER") {
+    return "该行不属于标准 ORDER / FEE，建议在 charges 侧进一步确认分类归属。";
+  }
+
+  return "该行属于订单销售类，可与同订单聚合内的 fee / adjust / refund 交叉核对。";
+}
+
+function buildOrderFeeCorrelationHint(args: {
+  row: IncomeRow;
+  relatedRows: IncomeRow[];
+}) {
+  const { row, relatedRows } = args;
+  const tag = getBreakdownTag(row).label;
+
+  const feeRows = relatedRows.filter((item) => getBreakdownTag(item).label === "FEE");
+  const orderRows = relatedRows.filter((item) => getBreakdownTag(item).label === "ORDER");
+  const refundRows = relatedRows.filter((item) => getBreakdownTag(item).label === "REFUND");
+  const adjustRows = relatedRows.filter((item) => getBreakdownTag(item).label === "ADJUST");
+
+  const feeTotal = sumBreakdownFee(feeRows);
+  const gross = Number(row.grossAmount ?? row.amount ?? 0);
+  const net = Number(row.netAmount ?? row.amount ?? 0);
+  const fee = Number(row.feeAmount ?? 0);
+
+  if (tag === "ORDER") {
+    if (feeRows.length > 0) {
+      return `同一订单聚合内存在 ${feeRows.length} 条 FEE，Fee Sum ${formatIncomeJPY(feeTotal)}，可用于核对订单净额。`;
+    }
+    if (fee > 0) {
+      return `该 ORDER 行自带 Fee ${formatIncomeJPY(fee)}，可直接核对 Net ${formatIncomeJPY(net)} 与 Gross ${formatIncomeJPY(gross)} 的关系。`;
+    }
+    return "当前聚合内未发现独立 FEE 行，可继续确认是否为纯销售收入。";
+  }
+
+  if (tag === "FEE") {
+    if (orderRows.length > 0) {
+      return `该 FEE 行与 ${orderRows.length} 条 ORDER 行同属当前订单聚合，通常可视为订单销售的关联费用。`;
+    }
+    return "当前聚合内未发现明显的 ORDER 行，请继续确认该费用是否属于其他 Amazon charge。";
+  }
+
+  if (tag === "REFUND") {
+    return `当前聚合中 ORDER ${orderRows.length} 条 / FEE ${feeRows.length} 条，可继续检查 refund 是否伴随费用回退。`;
+  }
+
+  if (tag === "ADJUST") {
+    return `当前聚合中 ORDER ${orderRows.length} 条 / FEE ${feeRows.length} 条 / REFUND ${refundRows.length} 条，建议检查 adjustment 是否用于冲正。`;
+  }
+
+  return `当前聚合中 ORDER ${orderRows.length} 条 / FEE ${feeRows.length} 条 / ADJUST ${adjustRows.length} 条，可继续判定该行与费用侧的关系。`;
+}
+
 function buildStoreSummary(rows: IncomeRow[]) {
   const map = new Map<string, { store: string; amount: number; count: number }>();
 
@@ -161,6 +383,26 @@ function buildLabelSummary(rows: IncomeRow[]) {
 
 function buildSampleBars(rows: IncomeRow[]) {
   return rows.slice(0, 6);
+}
+
+function buildStoreOperationHref(args: {
+  lang: string;
+  selectedRow: IncomeRow | null;
+  row: IncomeRow;
+}) {
+  const { lang, selectedRow, row } = args;
+
+  const params = new URLSearchParams();
+  params.set("from", "store-order-breakdown");
+  params.set("orderId", String(selectedRow?.externalRef || row.externalRef || ""));
+  params.set("sku", String(selectedRow?.sku || row.sku || ""));
+  params.set("date", String(selectedRow?.date || row.date || ""));
+  params.set("kind", getBreakdownTag(row).label);
+  params.set("transactionId", String(row.id || ""));
+  params.set("sourceType", String(row.sourceType || ""));
+  params.set("view", "charges");
+
+  return `/${lang}/app/expenses/store-operation?${params.toString()}`;
 }
 
 export function StoreOrdersWorkspace(props: Props) {
@@ -215,24 +457,63 @@ export function StoreOrdersWorkspace(props: Props) {
     !!selectedRow &&
     selectedRawTransactionRows.length > 0;
 
+  const [breakdownFilter, setBreakdownFilter] = useState<BreakdownFilter>("ALL");
+  const [breakdownSortMode, setBreakdownSortMode] =
+    useState<BreakdownSortMode>("date-desc");
+  const [copyMessage, setCopyMessage] = useState("");
+
+  const breakdownRows = useMemo(() => {
+    const filtered =
+      breakdownFilter === "ALL"
+        ? selectedRawTransactionRows
+        : selectedRawTransactionRows.filter(
+            (row) => getBreakdownTag(row).label === breakdownFilter
+          );
+
+    return sortBreakdownRows(filtered, breakdownSortMode);
+  }, [selectedRawTransactionRows, breakdownFilter, breakdownSortMode]);
+
   const breakdownGrossSum = useMemo(
-    () => sumBreakdownGross(selectedRawTransactionRows),
-    [selectedRawTransactionRows]
+    () => sumBreakdownGross(breakdownRows),
+    [breakdownRows]
   );
   const breakdownNetSum = useMemo(
-    () => sumBreakdownNet(selectedRawTransactionRows),
-    [selectedRawTransactionRows]
+    () => sumBreakdownNet(breakdownRows),
+    [breakdownRows]
   );
   const breakdownFeeSum = useMemo(
-    () => sumBreakdownFee(selectedRawTransactionRows),
-    [selectedRawTransactionRows]
+    () => sumBreakdownFee(breakdownRows),
+    [breakdownRows]
   );
   const breakdownQtySum = useMemo(
-    () => sumBreakdownQty(selectedRawTransactionRows),
-    [selectedRawTransactionRows]
+    () => sumBreakdownQty(breakdownRows),
+    [breakdownRows]
   );
 
+  async function handleCopyBreakdownSummary() {
+    try {
+      const text = buildBreakdownCopyText({
+        selectedRow,
+        rows: breakdownRows,
+        filter: breakdownFilter,
+        sortMode: breakdownSortMode,
+        grossSum: breakdownGrossSum,
+        netSum: breakdownNetSum,
+        feeSum: breakdownFeeSum,
+        qtySum: breakdownQtySum,
+      });
+
+      await copyTextToClipboard(text);
+      setCopyMessage("核对摘要已复制。");
+      window.setTimeout(() => setCopyMessage(""), 2000);
+    } catch {
+      setCopyMessage("复制失败，请重试。");
+      window.setTimeout(() => setCopyMessage(""), 2000);
+    }
+  }
+
   function closeBreakdownDrawer() {
+    setCopyMessage("");
     onSelectRow("");
   }
 
@@ -768,85 +1049,197 @@ export function StoreOrdersWorkspace(props: Props) {
                   </div>
                 </>
               ) : null}
+
+              <div className="mt-5 space-y-3">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    {BREAKDOWN_FILTER_ITEMS.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setBreakdownFilter(item)}
+                        className={
+                          breakdownFilter === item
+                            ? "rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                            : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        }
+                      >
+                        {BREAKDOWN_FILTER_LABELS[item]}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      value={breakdownSortMode}
+                      onChange={(e) =>
+                        setBreakdownSortMode(e.target.value as BreakdownSortMode)
+                      }
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                    >
+                      <option value="date-desc">日期新→旧</option>
+                      <option value="amount-desc">金额高→低</option>
+                      <option value="fee-desc">Fee高→低</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleCopyBreakdownSummary();
+                      }}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      复制核对摘要
+                    </button>
+                  </div>
+                </div>
+
+                {copyMessage ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {copyMessage}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="space-y-4 px-6 py-6">
-              {selectedRawTransactionRows.map((row) => {
-                const breakdownTag = getBreakdownTag(row);
+              {breakdownRows.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
+                  当前筛选条件下没有 transaction。
+                </div>
+              ) : (
+                breakdownRows.map((row) => {
+                  const breakdownTag = getBreakdownTag(row);
+                  const sourceBadge = getSourceBadge(row);
+                  const linkedChargeHint = buildLinkedChargeHint(row);
+                  const correlationHint = buildOrderFeeCorrelationHint({
+                    row,
+                    relatedRows: selectedRawTransactionRows,
+                  });
+                  const storeOperationHref = buildStoreOperationHref({
+                    lang,
+                    selectedRow,
+                    row,
+                  });
 
-                return (
-                  <div
-                    key={row.id}
-                    className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="mb-2">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${breakdownTag.className}`}
-                          >
-                            {breakdownTag.label}
-                          </span>
+                  return (
+                    <div
+                      key={row.id}
+                      className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${breakdownTag.className}`}
+                            >
+                              {breakdownTag.label}
+                            </span>
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${sourceBadge.className}`}
+                            >
+                              {sourceBadge.label}
+                            </span>
+                          </div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {row.externalRef || row.label}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {row.productName || row.label}
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          {row.externalRef || row.label}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {row.productName || row.label}
+
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-slate-900">
+                            G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} / F {formatIncomeJPY(row.feeAmount ?? 0)}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-slate-900">
-                          G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Date</div>
+                          <div className="mt-1 text-sm text-slate-800">{row.date}</div>
                         </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} / F {formatIncomeJPY(row.feeAmount ?? 0)}
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">SKU</div>
+                          <div className="mt-1 text-sm text-slate-800">{row.sku || "-"}</div>
                         </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Qty</div>
+                          <div className="mt-1 text-sm text-slate-800">{row.quantity ?? "-"}</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Store / Fulfillment</div>
+                          <div className="mt-1 text-sm text-slate-800">
+                            {row.store} / {row.fulfillment || "-"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Tax / Shipping</div>
+                          <div className="mt-1 text-sm text-slate-800">
+                            T {formatIncomeJPY(row.taxAmount ?? 0)} / S {formatIncomeJPY(row.shippingAmount ?? 0)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Promotion</div>
+                          <div className="mt-1 text-sm text-slate-800">
+                            {formatIncomeJPY(row.promotionAmount ?? 0)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Transaction Time</div>
+                          <div className="mt-1 text-sm text-slate-800">
+                            {row.importedAt || row.date || "-"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">Source Detail</div>
+                          <div className="mt-1 text-sm text-slate-800">
+                            {row.sourceType || "-"}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Account {row.account || "-"} / Label {row.label || "-"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Memo / Source</div>
+                        <div className="mt-1 text-sm text-slate-800">{row.memo || "-"}</div>
+                        <div className="mt-1 text-xs text-slate-500">{row.sourceType || "-"}</div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-100 bg-sky-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-sky-500">Linked Charge Hint</div>
+                          <div className="mt-1 text-sm text-slate-800">{linkedChargeHint}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-100 bg-emerald-50 px-4 py-3">
+                          <div className="text-[11px] uppercase tracking-wide text-emerald-500">Order / Fee Correlation Hint</div>
+                          <div className="mt-1 text-sm text-slate-800">{correlationHint}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-xs text-slate-500">
+                          transactionId: {row.id}
+                        </div>
+
+                        <Link
+                          href={storeOperationHref}
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          店舗運営費で確認
+                        </Link>
                       </div>
                     </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Date</div>
-                        <div className="mt-1 text-sm text-slate-800">{row.date}</div>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">SKU</div>
-                        <div className="mt-1 text-sm text-slate-800">{row.sku || "-"}</div>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Qty</div>
-                        <div className="mt-1 text-sm text-slate-800">{row.quantity ?? "-"}</div>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Store / Fulfillment</div>
-                        <div className="mt-1 text-sm text-slate-800">
-                          {row.store} / {row.fulfillment || "-"}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Tax / Shipping</div>
-                        <div className="mt-1 text-sm text-slate-800">
-                          T {formatIncomeJPY(row.taxAmount ?? 0)} / S {formatIncomeJPY(row.shippingAmount ?? 0)}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Promotion</div>
-                        <div className="mt-1 text-sm text-slate-800">
-                          {formatIncomeJPY(row.promotionAmount ?? 0)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Memo / Source</div>
-                      <div className="mt-1 text-sm text-slate-800">{row.memo || "-"}</div>
-                      <div className="mt-1 text-xs text-slate-500">{row.sourceType || "-"}</div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </aside>
         </>
