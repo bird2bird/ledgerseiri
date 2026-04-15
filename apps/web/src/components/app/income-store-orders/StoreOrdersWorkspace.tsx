@@ -4,6 +4,10 @@ import { useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
+import {
+  buildStoreOperationWorkspaceHref,
+  readCrossWorkspaceQuery,
+} from "@/core/income-store-orders/cross-workspace-query";
 
 type Props = {
   lang: string;
@@ -352,18 +356,6 @@ function buildOrderFeeCorrelationHint(args: {
   return `当前聚合中 ORDER ${orderRows.length} 条 / FEE ${feeRows.length} 条 / ADJUST ${adjustRows.length} 条，可继续判定该行与费用侧的关系。`;
 }
 
-function readOrderDrawerQuery(searchParams: URLSearchParams | null) {
-  return {
-    autoDrawer: searchParams?.get("autoDrawer") === "1",
-    orderId: String(searchParams?.get("orderId") || ""),
-    sku: String(searchParams?.get("sku") || ""),
-    date: String(searchParams?.get("date") || ""),
-    transactionId: String(
-      searchParams?.get("transactionId") || searchParams?.get("focusChargeId") || ""
-    ),
-  };
-}
-
 function buildStoreOperationDrawerHref(args: {
   lang: string;
   selectedRow: IncomeRow | null;
@@ -418,29 +410,9 @@ function buildSampleBars(rows: IncomeRow[]) {
   return rows.slice(0, 6);
 }
 
-function buildStoreOperationHref(args: {
-  lang: string;
-  selectedRow: IncomeRow | null;
-  row: IncomeRow;
-}) {
-  const { lang, selectedRow, row } = args;
-
-  const params = new URLSearchParams();
-  params.set("from", "store-order-breakdown");
-  params.set("orderId", String(selectedRow?.externalRef || row.externalRef || ""));
-  params.set("sku", String(selectedRow?.sku || row.sku || ""));
-  params.set("date", String(selectedRow?.date || row.date || ""));
-  params.set("kind", getBreakdownTag(row).label);
-  params.set("transactionId", String(row.id || ""));
-  params.set("sourceType", String(row.sourceType || ""));
-  params.set("view", "charges");
-
-  return `/${lang}/app/expenses/store-operation?${params.toString()}`;
-}
-
 export function StoreOrdersWorkspace(props: Props) {
   const searchParams = useSearchParams();
-  const drawerQuery = readOrderDrawerQuery(searchParams);
+  const crossQuery = readCrossWorkspaceQuery(searchParams);
 
   const {
     lang,
@@ -554,20 +526,20 @@ export function StoreOrdersWorkspace(props: Props) {
   }
 
   React.useEffect(() => {
-    if (!drawerQuery.autoDrawer) return;
+    if (!crossQuery.autoDrawer) return;
     if (storeOrderViewMode !== "aggregated") return;
     if (!rows.length) return;
     if (selectedRowId) return;
 
     const matched = rows.find((row) => {
-      const sameOrder = drawerQuery.orderId
-        ? String(row.externalRef || "") === drawerQuery.orderId
+      const sameOrder = crossQuery.orderId
+        ? String(row.externalRef || "") === crossQuery.orderId
         : true;
-      const sameSku = drawerQuery.sku
-        ? String(row.sku || "") === drawerQuery.sku
+      const sameSku = crossQuery.sku
+        ? String(row.sku || "") === crossQuery.sku
         : true;
-      const sameDate = drawerQuery.date
-        ? String(row.date || "") === drawerQuery.date
+      const sameDate = crossQuery.date
+        ? String(row.date || "") === crossQuery.date
         : true;
       return sameOrder && sameSku && sameDate;
     });
@@ -576,10 +548,10 @@ export function StoreOrdersWorkspace(props: Props) {
       onSelectRow(matched.id);
     }
   }, [
-    drawerQuery.autoDrawer,
-    drawerQuery.orderId,
-    drawerQuery.sku,
-    drawerQuery.date,
+    crossQuery.autoDrawer,
+    crossQuery.orderId,
+    crossQuery.sku,
+    crossQuery.date,
     rows,
     selectedRowId,
     storeOrderViewMode,

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
+import { readCrossWorkspaceQuery } from "@/core/income-store-orders/cross-workspace-query";
 
 type ChargeItem = {
   id: string;
@@ -54,6 +55,23 @@ const EMPTY_SUMMARY: ChargeSummary = {
   adjustment: 0,
   other: 0,
 };
+
+function readInitialFilter(value: string): ChargeFilter {
+  const raw = String(value || "").toUpperCase().trim();
+  const allowed = new Set<ChargeFilter>([
+    "ALL",
+    "AD_FEE",
+    "STORAGE_FEE",
+    "SUBSCRIPTION_FEE",
+    "FBA_FEE",
+    "TAX",
+    "PAYOUT",
+    "ADJUSTMENT",
+    "OTHER",
+    "ORDER_SALE",
+  ]);
+  return allowed.has(raw as ChargeFilter) ? (raw as ChargeFilter) : "ALL";
+}
 
 const FILTER_ITEMS: Array<{ value: ChargeFilter; label: string }> = [
   { value: "ALL", label: "全分類" },
@@ -197,23 +215,6 @@ function clampPage(page: number, totalPages: number) {
   return page;
 }
 
-function readInitialFilter(value: string | null): ChargeFilter {
-  const raw = String(value || "").toUpperCase().trim();
-  const allowed = new Set<ChargeFilter>([
-    "ALL",
-    "AD_FEE",
-    "STORAGE_FEE",
-    "SUBSCRIPTION_FEE",
-    "FBA_FEE",
-    "TAX",
-    "PAYOUT",
-    "ADJUSTMENT",
-    "OTHER",
-    "ORDER_SALE",
-  ]);
-  return allowed.has(raw as ChargeFilter) ? (raw as ChargeFilter) : "ALL";
-}
-
 function buildRelatedCharges(args: {
   selected: ChargeItem | null;
   rows: ChargeItem[];
@@ -301,18 +302,10 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const { lang } = props;
   const searchParams = useSearchParams();
 
-  const queryKind = searchParams.get("kind");
-  const queryTransactionId =
-    searchParams.get("transactionId") || searchParams.get("focusChargeId");
-  const queryOrderId = searchParams.get("orderId");
-  const querySku = searchParams.get("sku");
-  const queryDate = searchParams.get("date");
-  const queryAutoDrawer = searchParams.get("autoDrawer") === "1";
-
   const [charges, setCharges] = useState<ChargeItem[]>([]);
   const [summary, setSummary] = useState<ChargeSummary>(EMPTY_SUMMARY);
   const [selectedFilter, setSelectedFilter] = useState<ChargeFilter>(
-    readInitialFilter(queryKind)
+    readInitialFilter(crossQuery.kind)
   );
   const [stageFilename, setStageFilename] = useState("");
   const [stageSavedAt, setStageSavedAt] = useState("");
@@ -351,31 +344,31 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }, [selectedFilter, pageSize]);
 
   useEffect(() => {
-    if (!queryAutoDrawer) return;
+    if (!crossQuery.autoDrawer) return;
     if (!filteredCharges.length) {
       setSelectedChargeId("");
       return;
     }
     if (selectedChargeId) return;
 
-    if (queryTransactionId) {
-      const exact = filteredCharges.find((item) => item.id === queryTransactionId);
+    if ((crossQuery.transactionId || crossQuery.focusChargeId)) {
+      const exact = filteredCharges.find((item) => item.id === (crossQuery.transactionId || crossQuery.focusChargeId));
       if (exact) {
         setSelectedChargeId(exact.id);
         return;
       }
     }
 
-    if (queryOrderId || querySku || queryDate) {
+    if (crossQuery.orderId || crossQuery.sku || crossQuery.date) {
       const matched = filteredCharges.find((item) => {
-        const sameOrder = queryOrderId
-          ? String(item.orderId || "") === String(queryOrderId)
+        const sameOrder = crossQuery.orderId
+          ? String(item.orderId || "") === String(crossQuery.orderId)
           : true;
-        const sameSku = querySku
-          ? String(item.sku || "") === String(querySku)
+        const sameSku = crossQuery.sku
+          ? String(item.sku || "") === String(crossQuery.sku)
           : true;
-        const sameDate = queryDate
-          ? formatChargeDate(item.occurredAt) === String(queryDate)
+        const sameDate = crossQuery.date
+          ? formatChargeDate(item.occurredAt) === String(crossQuery.date)
           : true;
         return sameOrder && sameSku && sameDate;
       });
@@ -384,12 +377,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
       }
     }
   }, [
-    queryAutoDrawer,
+    crossQuery.autoDrawer,
     filteredCharges,
-    queryTransactionId,
-    queryOrderId,
-    querySku,
-    queryDate,
+    (crossQuery.transactionId || crossQuery.focusChargeId),
+    crossQuery.orderId,
+    crossQuery.sku,
+    crossQuery.date,
     selectedChargeId,
   ]);
 
