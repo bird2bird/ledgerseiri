@@ -30,6 +30,10 @@ type Props = {
     adjustment: number;
     other: number;
   };
+  rawStoreOrderCount: number;
+  aggregatedStoreOrderCount: number;
+  storeOrderViewMode: "aggregated" | "raw";
+  setStoreOrderViewMode: (value: "aggregated" | "raw") => void;
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -110,6 +114,10 @@ export function StoreOrdersWorkspace(props: Props) {
     totalShippingAmount,
     totalPromotionAmount,
     stageChargeSummary,
+    rawStoreOrderCount,
+    aggregatedStoreOrderCount,
+    storeOrderViewMode,
+    setStoreOrderViewMode,
     pageSize,
     setPageSize,
     currentPage,
@@ -132,26 +140,33 @@ export function StoreOrdersWorkspace(props: Props) {
   const maxStoreAmount = Math.max(1, ...storeSummary.map((item) => item.amount), 1);
   const maxBarAmount = Math.max(1, ...sampleBars.map((row) => amountOf(row)), 1);
 
+  const viewModeLabel =
+    storeOrderViewMode === "aggregated" ? "聚合视图" : "原始transaction视图";
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="rounded-3xl bg-[linear-gradient(135deg,#8b5cf6,#a78bfa)] p-6 text-white shadow-sm">
           <div className="text-sm text-white/80">注文売上</div>
           <div className="mt-3 text-4xl font-semibold">{formatIncomeJPY(totalAmount)}</div>
-          <div className="mt-4 text-sm text-white/80">店舗注文として表示中の売上総額</div>
+          <div className="mt-4 text-sm text-white/80">
+            {viewModeLabel}で表示中の売上総額
+          </div>
         </div>
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#06b6d4,#67e8f9)] p-6 text-slate-950 shadow-sm">
-          <div className="text-sm text-slate-700">注文行数</div>
+          <div className="text-sm text-slate-700">表示行数</div>
           <div className="mt-3 text-4xl font-semibold">{totalRows}</div>
-          <div className="mt-4 text-sm text-slate-700">全件ベースの注文行数</div>
+          <div className="mt-4 text-sm text-slate-700">
+            聚合 {aggregatedStoreOrderCount} / 原始 {rawStoreOrderCount}
+          </div>
         </div>
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#f97316,#fb923c)] p-6 text-white shadow-sm">
           <div className="text-sm text-white/80">総販売数量</div>
           <div className="mt-3 text-4xl font-semibold">{totalQuantity}</div>
           <div className="mt-4 text-sm text-white/80">
-            全件ベース数量 / 平均注文額 {formatIncomeJPY(avgOrderAmount)}
+            平均注文額 {formatIncomeJPY(avgOrderAmount)}
           </div>
         </div>
 
@@ -161,6 +176,38 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="mt-4 text-sm text-slate-700">
             {topStore ? `Top: ${topStore.store}` : "店舗データなし"}
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
+        <div className="text-xl font-semibold text-slate-900">表示モード</div>
+        <div className="mt-2 text-sm text-slate-500">
+          聚合视图は date + orderId + SKU 単位で集約します。原始transaction视图は stage の元行をそのまま確認できます。
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => setStoreOrderViewMode("aggregated")}
+            className={
+              storeOrderViewMode === "aggregated"
+                ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            }
+          >
+            聚合视图 ({aggregatedStoreOrderCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStoreOrderViewMode("raw")}
+            className={
+              storeOrderViewMode === "raw"
+                ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            }
+          >
+            原始transaction视图 ({rawStoreOrderCount})
+          </button>
         </div>
       </div>
 
@@ -250,7 +297,7 @@ export function StoreOrdersWorkspace(props: Props) {
             </div>
 
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-              Store Orders
+              {viewModeLabel}
             </div>
           </div>
 
@@ -290,7 +337,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
               <div className="text-lg font-semibold text-slate-900">注文金額サンプル</div>
-              <div className="mt-1 text-sm text-slate-500">日付降順ソート後の最新 6 行を可視化</div>
+              <div className="mt-1 text-sm text-slate-500">現在表示モードの最新 6 行を可視化</div>
 
               <div className="mt-5">
                 {sampleBars.length > 0 ? (
@@ -331,7 +378,7 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
             <div className="text-xl font-semibold text-slate-900">注文タイプ概要</div>
             <div className="mt-2 text-sm text-slate-500">
-              現在の store-order 行からラベル別の分布を要約します。
+              現在の表示モードのラベル別分布を要約します。
             </div>
 
             <div className="mt-5 space-y-3">
@@ -394,7 +441,7 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="min-w-0">
             <div className="text-2xl font-semibold text-slate-900">注文一覧</div>
             <div className="mt-2 text-sm text-slate-500">
-              下半分には店鋪注文の一覧を表示します。ページサイズは 20 / 50 / 100 から選択可能です。
+              下半分には店舗注文の一覧を表示します。ページサイズは 20 / 50 / 100 から選択可能です。
             </div>
           </div>
 

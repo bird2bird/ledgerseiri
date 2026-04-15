@@ -379,6 +379,75 @@ function parseIncomeRowSortTimestamp(value?: string | null): number {
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+export function aggregateStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
+  const map = new Map<string, IncomeRow>();
+
+  for (const row of rows) {
+    const dateKey = String(row.date || "-");
+    const orderKey = String(row.externalRef || row.id || "order");
+    const skuKey = String(row.sku || "sku");
+    const key = `${dateKey}__${orderKey}__${skuKey}`;
+
+    const quantity = Number(row.quantity ?? 0);
+    const amount = Number(row.amount ?? 0);
+    const grossAmount = Number(row.grossAmount ?? row.amount ?? 0);
+    const netAmount = Number(row.netAmount ?? row.amount ?? 0);
+    const feeAmount = Number(row.feeAmount ?? 0);
+    const taxAmount = Number(row.taxAmount ?? 0);
+    const shippingAmount = Number(row.shippingAmount ?? 0);
+    const promotionAmount = Number(row.promotionAmount ?? 0);
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, {
+        ...row,
+        id: key,
+        quantity,
+        amount,
+        grossAmount,
+        netAmount,
+        feeAmount,
+        taxAmount,
+        shippingAmount,
+        promotionAmount,
+      });
+      continue;
+    }
+
+    const nextSortAt =
+      parseIncomeRowSortTimestamp(row.sortAt) > parseIncomeRowSortTimestamp(existing.sortAt)
+        ? row.sortAt
+        : existing.sortAt;
+
+    const nextImportedAt =
+      parseIncomeRowSortTimestamp(row.importedAt) > parseIncomeRowSortTimestamp(existing.importedAt)
+        ? row.importedAt
+        : existing.importedAt;
+
+    map.set(key, {
+      ...existing,
+      date: existing.date !== "-" ? existing.date : row.date,
+      label: existing.label || row.label,
+      amount: Number(existing.amount ?? 0) + amount,
+      quantity: Number(existing.quantity ?? 0) + quantity,
+      grossAmount: Number(existing.grossAmount ?? 0) + grossAmount,
+      netAmount: Number(existing.netAmount ?? 0) + netAmount,
+      feeAmount: Number(existing.feeAmount ?? 0) + feeAmount,
+      taxAmount: Number(existing.taxAmount ?? 0) + taxAmount,
+      shippingAmount: Number(existing.shippingAmount ?? 0) + shippingAmount,
+      promotionAmount: Number(existing.promotionAmount ?? 0) + promotionAmount,
+      productName: existing.productName || row.productName,
+      fulfillment: existing.fulfillment || row.fulfillment,
+      store: existing.store || row.store,
+      memo: existing.memo || row.memo,
+      importedAt: nextImportedAt ?? existing.importedAt ?? row.importedAt ?? null,
+      sortAt: nextSortAt ?? existing.sortAt ?? row.sortAt ?? null,
+    });
+  }
+
+  return Array.from(map.values());
+}
+
 export function sortStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
   return [...rows].sort((a, b) => {
     const diff = parseIncomeRowSortTimestamp(b.sortAt) - parseIncomeRowSortTimestamp(a.sortAt);

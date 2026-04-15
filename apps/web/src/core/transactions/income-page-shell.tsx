@@ -65,6 +65,7 @@ export function renderIncomePageShell(args: {
   selectedRowId: string;
   onSelectRow: (id: string) => void;
   selectedRow: IncomeRow | null;
+  selectedRawTransactionRows: IncomeRow[];
   loading: boolean;
   error: string;
   totalAmount: number;
@@ -84,6 +85,10 @@ export function renderIncomePageShell(args: {
     adjustment: number;
     other: number;
   };
+  rawStoreOrderCount: number;
+  aggregatedStoreOrderCount: number;
+  storeOrderViewMode: "aggregated" | "raw";
+  setStoreOrderViewMode: (value: "aggregated" | "raw") => void;
 
   pageSize: 20 | 50 | 100;
   setPageSize: (value: 20 | 50 | 100) => void;
@@ -157,6 +162,7 @@ export function renderIncomePageShell(args: {
     selectedRowId,
     onSelectRow,
     selectedRow,
+    selectedRawTransactionRows,
     loading,
     error,
     totalAmount,
@@ -166,6 +172,10 @@ export function renderIncomePageShell(args: {
     totalShippingAmount,
     totalPromotionAmount,
     stageChargeSummary,
+    rawStoreOrderCount,
+    aggregatedStoreOrderCount,
+    storeOrderViewMode,
+    setStoreOrderViewMode,
 
     pageSize,
     setPageSize,
@@ -551,6 +561,7 @@ export function renderIncomePageShell(args: {
           selectedRowId={selectedRowId}
           onSelectRow={onSelectRow}
           selectedRow={selectedRow}
+          selectedRawTransactionRows={selectedRawTransactionRows}
           loading={loading}
           error={error}
           totalAmount={totalAmount}
@@ -560,6 +571,10 @@ export function renderIncomePageShell(args: {
           totalShippingAmount={totalShippingAmount}
           totalPromotionAmount={totalPromotionAmount}
           stageChargeSummary={stageChargeSummary}
+          rawStoreOrderCount={rawStoreOrderCount}
+          aggregatedStoreOrderCount={aggregatedStoreOrderCount}
+          storeOrderViewMode={storeOrderViewMode}
+          setStoreOrderViewMode={setStoreOrderViewMode}
           pageSize={pageSize}
           setPageSize={setPageSize}
           currentPage={currentPage}

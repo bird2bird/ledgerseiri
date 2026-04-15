@@ -261,9 +261,105 @@ export class JobService {
     };
   }
 
-  private classifyAmazonChargeKind(args: {
+  private looksLikeOrderSaleRow(args: {
+    row: Record<string, string>;
     transactionType: string;
     description: string;
+    signedAmount: number;
+  }): boolean {
+    const t = String(args.transactionType || '').toLowerCase();
+    const d = String(args.description || '').toLowerCase();
+
+    const grossSales = this.parseAmazonOrderRevenue(args.row);
+    const shippingTax = this.parseAmount(
+      this.pickField(args.row, ['商品売上の税', '配送料の税', 'ギフト包装の税', '税金', 'tax', 'taxes']),
+    );
+    const feeLikeAmount = this.parseAmount(
+      this.pickField(args.row, [
+        '売上にかかる取引手数料',
+        '販売手数料',
+        '出品手数料',
+        'Amazon出品サービスの料金',
+        'referral fee',
+        'selling fees',
+        'FBA手数料',
+        'fba fees',
+        'fulfillment fees',
+        'トランザクションのその他',
+        'その他各種手数料',
+        'other transaction fees',
+      ]),
+    );
+
+    const hasFeeKeywords =
+      t.includes('広告') ||
+      d.includes('広告') ||
+      t.includes('storage') ||
+      d.includes('storage') ||
+      t.includes('保管') ||
+      d.includes('保管') ||
+      t.includes('倉庫') ||
+      d.includes('倉庫') ||
+      t.includes('subscription') ||
+      d.includes('subscription') ||
+      t.includes('月額') ||
+      d.includes('月額') ||
+      t.includes('登録料') ||
+      d.includes('登録料') ||
+      t.includes('fba') ||
+      d.includes('fba') ||
+      t.includes('フルフィルメント') ||
+      d.includes('フルフィルメント') ||
+      t.includes('販売手数料') ||
+      d.includes('販売手数料') ||
+      t.includes('手数料') ||
+      d.includes('手数料') ||
+      t.includes('refund') ||
+      d.includes('refund') ||
+      t.includes('返品') ||
+      d.includes('返品') ||
+      t.includes('返金') ||
+      d.includes('返金') ||
+      t.includes('tax') ||
+      d.includes('tax') ||
+      t.includes('税') ||
+      d.includes('税') ||
+      t.includes('payout') ||
+      d.includes('payout') ||
+      t.includes('disbursement') ||
+      d.includes('disbursement') ||
+      t.includes('transfer') ||
+      d.includes('transfer') ||
+      t.includes('アカウントへ') ||
+      d.includes('アカウントへ') ||
+      t.includes('adjustment') ||
+      d.includes('adjustment') ||
+      t.includes('調整') ||
+      d.includes('調整') ||
+      t.includes('claim') ||
+      d.includes('claim') ||
+      t.includes('chargeback') ||
+      d.includes('chargeback');
+
+    if (hasFeeKeywords) return false;
+
+    const hasOrderToken =
+      t.includes('注文') ||
+      t.includes('order') ||
+      d.includes('注文') ||
+      d.includes('order');
+
+    return grossSales > 0 || (hasOrderToken && feeLikeAmount === 0 && shippingTax >= 0);
+  }
+
+  private classifyAmazonChargeKind(args: {
+    row: Record<string, string>;
+    transactionType: string;
+    description: string;
+    orderId: string;
+    sku: string;
+    productName: string;
+    quantity: number;
     signedAmount: number;
   }): AmazonTransactionChargeKind {
     const t = String(args.transactionType || '').toLowerCase();
@@ -272,14 +368,14 @@ export class JobService {
     const has = (...keywords: string[]) =>
       keywords.some((k) => t.includes(k) || d.includes(k));
 
-    if (has('注文', 'order')) return 'ORDER_SALE';
-    if (has('広告', 'ads', 'advertising')) return 'AD_FEE';
-    if (has('月額登録料', 'subscription')) return 'SUBSCRIPTION_FEE';
-    if (has('保管', 'storage', '倉庫')) return 'STORAGE_FEE';
-    if (has('fba', 'フルフィルメント')) return 'FBA_FEE';
+    if (has('広告', 'ads', 'advertising', 'タイムセールのパフォーマンスに基づく手数料')) return 'AD_FEE';
+    if (has('月額登録料', 'subscription', '月額', '登録料')) return 'SUBSCRIPTION_FEE';
+    if (has('保管', 'storage', '倉庫', '在庫保管', '保管手数料')) return 'STORAGE_FEE';
+    if (has('fba', 'フルフィルメント', '販売手数料', '手数料')) return 'FBA_FEE';
     if (has('税', 'tax')) return 'TAX';
-    if (has('振込', 'disbursement', 'payout', 'transfer')) return 'PAYOUT';
-    if (has('調整', 'adjustment', '返金', 'refund')) return 'ADJUSTMENT';
+    if (has('振込', 'disbursement', 'payout', 'transfer', 'アカウントへ')) return 'PAYOUT';
+    if (has('調整', 'adjustment', 'chargeback', 'claim', '返金', 'refund', '返品')) return 'ADJUSTMENT';
+    if (this.looksLikeOrderSaleRow(args)) return 'ORDER_SALE';
     return 'OTHER';
   }
 
@@ -392,12 +488,18 @@ export class JobService {
 
       const transactionType = this.pickField(headerToValue, [
         'トランザクション種別',
+        'トランザクションの種類',
+        '取引タイプ',
+        '取引種別',
         'transaction type',
+        'transaction type description',
         'type',
       ]);
 
       const description = this.pickField(headerToValue, [
         '説明',
+        '明細',
+        '内容',
         'description',
         'details',
       ]);
@@ -408,6 +510,7 @@ export class JobService {
         'order id',
         '注文番号',
         '注文id',
+        '注文',
       ]);
 
       const orderDate = this.pickField(headerToValue, [
@@ -419,6 +522,8 @@ export class JobService {
         '日付',
         '日付/時間',
         '日時',
+        'posted-date',
+        'posted date',
       ]);
 
       const sku = this.pickField(headerToValue, [
@@ -434,10 +539,11 @@ export class JobService {
         'title',
         'product name',
         '商品名',
+        '説明',
       ]);
 
       const quantity = this.parseQuantity(
-        this.pickField(headerToValue, ['quantity', 'qty', '数量']),
+        this.pickField(headerToValue, ['quantity', 'qty', '数量', '個数']),
       );
 
       const store = this.pickField(headerToValue, [
@@ -458,8 +564,13 @@ export class JobService {
 
       const signedAmount = this.parseSignedTotalAmount(headerToValue);
       const kind = this.classifyAmazonChargeKind({
+        row: headerToValue,
         transactionType,
         description,
+        orderId,
+        sku,
+        productName,
+        quantity,
         signedAmount,
       });
 

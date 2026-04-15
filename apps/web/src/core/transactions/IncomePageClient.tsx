@@ -100,6 +100,7 @@ export function IncomePageClient(props: {
     selectedRowId: state.selectedRowId,
     onSelectRow: state.setSelectedRowId,
     selectedRow: state.selectedRow,
+    selectedRawTransactionRows: state.selectedRawTransactionRows,
     loading: state.loading,
     error: state.error,
     totalAmount: state.totalAmount,
@@ -109,6 +110,10 @@ export function IncomePageClient(props: {
     totalShippingAmount: state.totalShippingAmount,
     totalPromotionAmount: state.totalPromotionAmount,
     stageChargeSummary: state.stageChargeSummary,
+    rawStoreOrderCount: state.rawStoreOrderCount,
+    aggregatedStoreOrderCount: state.aggregatedStoreOrderCount,
+    storeOrderViewMode: state.storeOrderViewMode,
+    setStoreOrderViewMode: state.setStoreOrderViewMode,
 
     pageSize: state.pageSize,
     setPageSize: state.setPageSize,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  aggregateStoreOrderIncomeRows,
   buildIncomeRowsFromAmazonFacts,
   createTransactionsContext,
   fetchIncomePageData,
@@ -16,6 +17,18 @@ import {
 import { listAccounts, type AccountItem } from "@/core/funds/api";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { getNowLocalInputValue } from "@/core/transactions/income-page-constants";
+
+const EMPTY_STAGE_CHARGE_SUMMARY = {
+  orderSale: 0,
+  adFee: 0,
+  storageFee: 0,
+  subscriptionFee: 0,
+  fbaFee: 0,
+  tax: 0,
+  payout: 0,
+  adjustment: 0,
+  other: 0,
+};
 
 export function useIncomePageState(args: {
   from: string;
@@ -53,17 +66,11 @@ export function useIncomePageState(args: {
   const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const [stageChargeSummary, setStageChargeSummary] = useState({
-    orderSale: 0,
-    adFee: 0,
-    storageFee: 0,
-    subscriptionFee: 0,
-    fbaFee: 0,
-    tax: 0,
-    payout: 0,
-    adjustment: 0,
-    other: 0,
-  });
+  const [rawStoreOrderRows, setRawStoreOrderRows] = useState<IncomeRow[]>([]);
+  const [aggregatedStoreOrderRows, setAggregatedStoreOrderRows] = useState<IncomeRow[]>([]);
+  const [storeOrderViewMode, setStoreOrderViewMode] = useState<"aggregated" | "raw">("aggregated");
+
+  const [stageChargeSummary, setStageChargeSummary] = useState(EMPTY_STAGE_CHARGE_SUMMARY);
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) ?? null,
@@ -78,29 +85,23 @@ export function useIncomePageState(args: {
       if (category === "store-order") {
         const stage = loadAmazonStoreOrdersStage();
         if (stage?.facts?.length) {
-          const stagedRows = sortStoreOrderIncomeRows(
+          const rawRows = sortStoreOrderIncomeRows(
             buildIncomeRowsFromAmazonFacts({
               facts: stage.facts,
               filename: stage.filename,
               savedAt: stage.savedAt,
             })
           );
-          setRows(stagedRows);
-          setStageChargeSummary(
-            stage.chargeSummary ?? {
-              orderSale: 0,
-              adFee: 0,
-              storageFee: 0,
-              subscriptionFee: 0,
-              fbaFee: 0,
-              tax: 0,
-              payout: 0,
-              adjustment: 0,
-              other: 0,
-            }
+          const aggregatedRows = sortStoreOrderIncomeRows(
+            aggregateStoreOrderIncomeRows(rawRows)
           );
+
+          setRawStoreOrderRows(rawRows);
+          setAggregatedStoreOrderRows(aggregatedRows);
+          setRows(storeOrderViewMode === "raw" ? rawRows : aggregatedRows);
+          setStageChargeSummary(stage.chargeSummary ?? EMPTY_STAGE_CHARGE_SUMMARY);
           setAdapterNote(
-            `Step105-D2: amazon-store-orders staging を日付降順で優先表示中 · ${stage.filename} · ${stage.savedAt}`
+            `Step105-D4-G3: amazon-store-orders staging を ${storeOrderViewMode === "raw" ? "原始transaction" : "date + orderId + SKU 集約"} で優先表示中 · ${stage.filename} · ${stage.savedAt}`
           );
           return;
         }
@@ -116,21 +117,28 @@ export function useIncomePageState(args: {
       const res = await fetchIncomePageData(category, ctx);
       const nextRows =
         category === "store-order" ? sortStoreOrderIncomeRows(res.rows) : res.rows;
-      setRows(nextRows);
-      setStageChargeSummary({
-        orderSale: 0,
-        adFee: 0,
-        storageFee: 0,
-        subscriptionFee: 0,
-        fbaFee: 0,
-        tax: 0,
-        payout: 0,
-        adjustment: 0,
-        other: 0,
-      });
+
+      if (category === "store-order") {
+        const rawRows = sortStoreOrderIncomeRows(res.rows);
+        const aggregatedRows = sortStoreOrderIncomeRows(
+          aggregateStoreOrderIncomeRows(rawRows)
+        );
+
+        setRawStoreOrderRows(rawRows);
+        setAggregatedStoreOrderRows(aggregatedRows);
+        setRows(storeOrderViewMode === "raw" ? rawRows : aggregatedRows);
+      } else {
+        setRawStoreOrderRows([]);
+        setAggregatedStoreOrderRows([]);
+        setRows(nextRows);
+      }
+
+      setStageChargeSummary(EMPTY_STAGE_CHARGE_SUMMARY);
       setAdapterNote(res.meta.note ?? "");
     } catch (e: unknown) {
       setRows([]);
+      setRawStoreOrderRows([]);
+      setAggregatedStoreOrderRows([]);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
@@ -148,6 +156,16 @@ export function useIncomePageState(args: {
   useEffect(() => {
     setCurrentPage(1);
   }, [pageSize]);
+
+  useEffect(() => {
+    if (category !== "store-order") return;
+
+    const nextRows =
+      storeOrderViewMode === "raw" ? rawStoreOrderRows : aggregatedStoreOrderRows;
+
+    setRows(nextRows);
+    setSelectedRowId("");
+  }, [category, storeOrderViewMode, rawStoreOrderRows, aggregatedStoreOrderRows]);
 
   useEffect(() => {
     if (action !== "create") return;
@@ -278,6 +296,7 @@ export function useIncomePageState(args: {
   }
 
   const totalRows = rows.length;
+
   const totalNetAmount = useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.netAmount ?? row.amount ?? 0), 0),
     [rows]
@@ -306,6 +325,25 @@ export function useIncomePageState(args: {
       }, 0),
     [rows]
   );
+
+  const selectedRawTransactionRows =
+    category === "store-order" &&
+    storeOrderViewMode === "aggregated" &&
+    selectedRow
+      ? rawStoreOrderRows.filter((row) => {
+          const selectedDate = String(selectedRow.date || "-");
+          const selectedOrderId = String(selectedRow.externalRef || "");
+          const selectedSku = String(selectedRow.sku || "");
+          return (
+            String(row.date || "-") === selectedDate &&
+            String(row.externalRef || "") === selectedOrderId &&
+            String(row.sku || "") === selectedSku
+          );
+        })
+      : category === "store-order" && storeOrderViewMode === "raw" && selectedRow
+      ? rawStoreOrderRows.filter((row) => row.id === selectedRow.id)
+      : [];
+
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
   useEffect(() => {
@@ -333,6 +371,7 @@ export function useIncomePageState(args: {
     selectedRowId,
     setSelectedRowId,
     selectedRow,
+    selectedRawTransactionRows,
     adapterNote,
     loading,
     error,
@@ -343,6 +382,10 @@ export function useIncomePageState(args: {
     totalShippingAmount,
     totalPromotionAmount,
     stageChargeSummary,
+    rawStoreOrderCount: rawStoreOrderRows.length,
+    aggregatedStoreOrderCount: aggregatedStoreOrderRows.length,
+    storeOrderViewMode,
+    setStoreOrderViewMode,
     totalRows,
     totalQuantity,
     pageSize,
