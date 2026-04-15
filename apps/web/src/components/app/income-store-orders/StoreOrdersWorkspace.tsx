@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
@@ -351,6 +352,38 @@ function buildOrderFeeCorrelationHint(args: {
   return `当前聚合中 ORDER ${orderRows.length} 条 / FEE ${feeRows.length} 条 / ADJUST ${adjustRows.length} 条，可继续判定该行与费用侧的关系。`;
 }
 
+function readOrderDrawerQuery(searchParams: URLSearchParams | null) {
+  return {
+    autoDrawer: searchParams?.get("autoDrawer") === "1",
+    orderId: String(searchParams?.get("orderId") || ""),
+    sku: String(searchParams?.get("sku") || ""),
+    date: String(searchParams?.get("date") || ""),
+    transactionId: String(
+      searchParams?.get("transactionId") || searchParams?.get("focusChargeId") || ""
+    ),
+  };
+}
+
+function buildStoreOperationDrawerHref(args: {
+  lang: string;
+  selectedRow: IncomeRow | null;
+  row: IncomeRow;
+}) {
+  const { lang, selectedRow, row } = args;
+
+  const params = new URLSearchParams();
+  params.set("from", "store-order-breakdown");
+  params.set("autoDrawer", "1");
+  params.set("orderId", String(selectedRow?.externalRef || row.externalRef || ""));
+  params.set("sku", String(selectedRow?.sku || row.sku || ""));
+  params.set("date", String(selectedRow?.date || row.date || ""));
+  params.set("kind", String(getBreakdownTag(row).label || ""));
+  params.set("transactionId", String(row.id || ""));
+  params.set("focusChargeId", String(row.id || ""));
+
+  return `/${lang}/app/expenses/store-operation?${params.toString()}`;
+}
+
 function buildStoreSummary(rows: IncomeRow[]) {
   const map = new Map<string, { store: string; amount: number; count: number }>();
 
@@ -406,6 +439,9 @@ function buildStoreOperationHref(args: {
 }
 
 export function StoreOrdersWorkspace(props: Props) {
+  const searchParams = useSearchParams();
+  const drawerQuery = readOrderDrawerQuery(searchParams);
+
   const {
     lang,
     rows,
@@ -516,6 +552,39 @@ export function StoreOrdersWorkspace(props: Props) {
     setCopyMessage("");
     onSelectRow("");
   }
+
+  React.useEffect(() => {
+    if (!drawerQuery.autoDrawer) return;
+    if (storeOrderViewMode !== "aggregated") return;
+    if (!rows.length) return;
+    if (selectedRowId) return;
+
+    const matched = rows.find((row) => {
+      const sameOrder = drawerQuery.orderId
+        ? String(row.externalRef || "") === drawerQuery.orderId
+        : true;
+      const sameSku = drawerQuery.sku
+        ? String(row.sku || "") === drawerQuery.sku
+        : true;
+      const sameDate = drawerQuery.date
+        ? String(row.date || "") === drawerQuery.date
+        : true;
+      return sameOrder && sameSku && sameDate;
+    });
+
+    if (matched) {
+      onSelectRow(matched.id);
+    }
+  }, [
+    drawerQuery.autoDrawer,
+    drawerQuery.orderId,
+    drawerQuery.sku,
+    drawerQuery.date,
+    rows,
+    selectedRowId,
+    storeOrderViewMode,
+    onSelectRow,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -1116,7 +1185,7 @@ export function StoreOrdersWorkspace(props: Props) {
                     row,
                     relatedRows: selectedRawTransactionRows,
                   });
-                  const storeOperationHref = buildStoreOperationHref({
+                  const storeOperationHref = buildStoreOperationDrawerHref({
                     lang,
                     selectedRow,
                     row,
