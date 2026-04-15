@@ -11,6 +11,7 @@ type Props = {
   selectedRowId: string;
   onSelectRow: (id: string) => void;
   selectedRow: IncomeRow | null;
+  selectedRawTransactionRows: IncomeRow[];
   loading: boolean;
   error: string;
   totalAmount: number;
@@ -63,6 +64,71 @@ function amountOf(row: IncomeRow) {
   return Number(row.amount ?? 0);
 }
 
+function sumBreakdownGross(rows: IncomeRow[]) {
+  return rows.reduce((sum, row) => sum + Number(row.grossAmount ?? row.amount ?? 0), 0);
+}
+
+function sumBreakdownNet(rows: IncomeRow[]) {
+  return rows.reduce((sum, row) => sum + Number(row.netAmount ?? row.amount ?? 0), 0);
+}
+
+function sumBreakdownFee(rows: IncomeRow[]) {
+  return rows.reduce((sum, row) => sum + Number(row.feeAmount ?? 0), 0);
+}
+
+function sumBreakdownQty(rows: IncomeRow[]) {
+  return rows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+}
+
+function getBreakdownTag(row: IncomeRow) {
+  const memo = String(row.memo || "").toLowerCase();
+  const label = String(row.label || "").toLowerCase();
+  const source = String(row.sourceType || "").toLowerCase();
+  const text = `${memo} ${label} ${source}`;
+
+  const fee = Number(row.feeAmount ?? 0);
+  const gross = Number(row.grossAmount ?? row.amount ?? 0);
+  const net = Number(row.netAmount ?? row.amount ?? 0);
+
+  if (text.includes("refund") || text.includes("返金") || text.includes("返品")) {
+    return {
+      label: "REFUND",
+      className: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200",
+    };
+  }
+
+  if (
+    text.includes("adjust") ||
+    text.includes("調整") ||
+    text.includes("訂正") ||
+    text.includes("取消")
+  ) {
+    return {
+      label: "ADJUST",
+      className: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+    };
+  }
+
+  if (fee > 0 || text.includes("fee") || text.includes("手数料")) {
+    return {
+      label: "FEE",
+      className: "bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200",
+    };
+  }
+
+  if (gross > 0 || net > 0) {
+    return {
+      label: "ORDER",
+      className: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+    };
+  }
+
+  return {
+    label: "OTHER",
+    className: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
+  };
+}
+
 function buildStoreSummary(rows: IncomeRow[]) {
   const map = new Map<string, { store: string; amount: number; count: number }>();
 
@@ -105,6 +171,7 @@ export function StoreOrdersWorkspace(props: Props) {
     selectedRowId,
     onSelectRow,
     selectedRow,
+    selectedRawTransactionRows,
     loading,
     error,
     totalAmount,
@@ -142,6 +209,32 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const viewModeLabel =
     storeOrderViewMode === "aggregated" ? "聚合视图" : "原始transaction视图";
+
+  const drawerOpen =
+    storeOrderViewMode === "aggregated" &&
+    !!selectedRow &&
+    selectedRawTransactionRows.length > 0;
+
+  const breakdownGrossSum = useMemo(
+    () => sumBreakdownGross(selectedRawTransactionRows),
+    [selectedRawTransactionRows]
+  );
+  const breakdownNetSum = useMemo(
+    () => sumBreakdownNet(selectedRawTransactionRows),
+    [selectedRawTransactionRows]
+  );
+  const breakdownFeeSum = useMemo(
+    () => sumBreakdownFee(selectedRawTransactionRows),
+    [selectedRawTransactionRows]
+  );
+  const breakdownQtySum = useMemo(
+    () => sumBreakdownQty(selectedRawTransactionRows),
+    [selectedRawTransactionRows]
+  );
+
+  function closeBreakdownDrawer() {
+    onSelectRow("");
+  }
 
   return (
     <div className="space-y-6">
@@ -589,6 +682,175 @@ export function StoreOrdersWorkspace(props: Props) {
           </div>
         </div>
       </div>
+
+      {drawerOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close transaction breakdown drawer"
+            onClick={closeBreakdownDrawer}
+            className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
+          />
+
+          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[760px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-2xl font-semibold text-slate-900">Transaction Breakdown</div>
+                  <div className="mt-2 text-sm text-slate-500">
+                    選択中の聚合行に紐づく原始 transaction を右側で確認できます。
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeBreakdownDrawer}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  閉じる
+                </button>
+              </div>
+
+              {selectedRow ? (
+                <>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs text-slate-500">Order ID</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedRow.externalRef || "-"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs text-slate-500">SKU</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedRow.sku || "-"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs text-slate-500">Date</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedRow.date || "-"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-xs text-slate-500">Rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedRawTransactionRows.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Gross Sum</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatIncomeJPY(breakdownGrossSum)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Net Sum</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatIncomeJPY(breakdownNetSum)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Fee Sum</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatIncomeJPY(breakdownFeeSum)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Qty Sum</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {breakdownQtySum}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="space-y-4 px-6 py-6">
+              {selectedRawTransactionRows.map((row) => {
+                const breakdownTag = getBreakdownTag(row);
+
+                return (
+                  <div
+                    key={row.id}
+                    className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="mb-2">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${breakdownTag.className}`}
+                          >
+                            {breakdownTag.label}
+                          </span>
+                        </div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {row.externalRef || row.label}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {row.productName || row.label}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-slate-900">
+                          G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} / F {formatIncomeJPY(row.feeAmount ?? 0)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Date</div>
+                        <div className="mt-1 text-sm text-slate-800">{row.date}</div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">SKU</div>
+                        <div className="mt-1 text-sm text-slate-800">{row.sku || "-"}</div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Qty</div>
+                        <div className="mt-1 text-sm text-slate-800">{row.quantity ?? "-"}</div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Store / Fulfillment</div>
+                        <div className="mt-1 text-sm text-slate-800">
+                          {row.store} / {row.fulfillment || "-"}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Tax / Shipping</div>
+                        <div className="mt-1 text-sm text-slate-800">
+                          T {formatIncomeJPY(row.taxAmount ?? 0)} / S {formatIncomeJPY(row.shippingAmount ?? 0)}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">Promotion</div>
+                        <div className="mt-1 text-sm text-slate-800">
+                          {formatIncomeJPY(row.promotionAmount ?? 0)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Memo / Source</div>
+                      <div className="mt-1 text-sm text-slate-800">{row.memo || "-"}</div>
+                      <div className="mt-1 text-xs text-slate-500">{row.sourceType || "-"}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+        </>
+      ) : null}
     </div>
   );
 }
