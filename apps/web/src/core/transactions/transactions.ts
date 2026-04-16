@@ -38,6 +38,11 @@ export type IncomeRow = {
   importedAt?: string | null;
   sortAt?: string | null;
 
+  importJobId?: string | null;
+  businessMonth?: string | null;
+  sourceFileName?: string | null;
+  sourceRowNo?: number | null;
+
   grossAmount?: number | null;
   netAmount?: number | null;
   feeAmount?: number | null;
@@ -191,6 +196,7 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
   const m = String(item.memo ?? "").toLowerCase();
 
   if (
+    m.includes("[imports:store-orders]") ||
     t.includes("sale") ||
     c.includes("売上") ||
     c.includes("sales") ||
@@ -229,14 +235,20 @@ function mapIncomeRow(item: TransactionItem): IncomeRow {
     account: item.accountName ?? "-",
     store: item.storeName ?? item.storeId ?? "-",
     memo: item.memo ?? null,
-    sourceType: "api-transaction",
+    sourceType: item.sourceType ?? "api-transaction",
     externalRef: item.externalRef ?? null,
     sku: null,
     quantity: null,
     productName: item.categoryName ?? item.type ?? "収入",
     fulfillment: null,
-    importedAt: null,
+    importedAt: item.createdAt ?? null,
     sortAt: item.occurredAt ?? null,
+
+    importJobId: item.importJobId ?? null,
+    businessMonth: item.businessMonth ?? null,
+    sourceFileName: item.sourceFileName ?? null,
+    sourceRowNo: item.sourceRowNo ?? null,
+
     grossAmount: Number(item.amount ?? 0),
     netAmount: Number(item.amount ?? 0),
     feeAmount: 0,

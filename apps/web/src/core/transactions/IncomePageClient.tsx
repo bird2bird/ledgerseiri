@@ -58,6 +58,11 @@ export function IncomePageClient(props: {
   const rawFrom = searchParams.get("from");
   const rawStoreId = searchParams.get("storeId");
   const rawRange = searchParams.get("range");
+  const importJobId = String(searchParams.get("importJobId") || "");
+  const importMonths = String(searchParams.get("months") || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
 
   const queryCategory = normalizeIncomeCategoryParam(searchParams.get("category"));
@@ -72,6 +77,8 @@ export function IncomePageClient(props: {
     range,
     category,
     action,
+    importJobId,
+    importMonths,
   });
 
   const orchestration = useIncomePageOrchestration({

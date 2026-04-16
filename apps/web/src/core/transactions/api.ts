@@ -27,6 +27,10 @@ export type TransactionItem = {
   occurredAt: string;
   externalRef?: string | null;
   memo?: string | null;
+  importJobId?: string | null;
+  businessMonth?: string | null;
+  sourceFileName?: string | null;
+  sourceRowNo?: number | null;
   createdAt: string;
 };
 

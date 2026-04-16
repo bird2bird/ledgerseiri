@@ -30,14 +30,67 @@ const EMPTY_STAGE_CHARGE_SUMMARY = {
   other: 0,
 };
 
+function normalizeImportMonths(values: string[]): string[] {
+  return values
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+}
+
+function deriveIncomeRowMonth(row: IncomeRow): string {
+  const businessMonth = String(row.businessMonth || "").trim();
+  if (businessMonth) return businessMonth;
+
+  const raw = String(row.sortAt || row.importedAt || row.date || "").trim();
+  if (!raw) return "";
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) {
+    return `${direct.getFullYear()}-${String(direct.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const match = raw.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
+  if (!match) return "";
+
+  return `${match[1]}-${String(Number(match[2])).padStart(2, "0")}`;
+}
+
+function filterImportAwareStoreOrderRows(args: {
+  rows: IncomeRow[];
+  importFrom: string;
+  importJobId: string;
+  importMonths: string[];
+}): IncomeRow[] {
+  const { rows, importFrom, importJobId, importMonths } = args;
+
+  if (importFrom !== "import-commit") {
+    return rows;
+  }
+
+  const normalizedJobId = String(importJobId || "").trim();
+  const monthSet = new Set(normalizeImportMonths(importMonths));
+
+  return rows.filter((row) => {
+    const sameJob = normalizedJobId
+      ? String(row.importJobId || "").trim() === normalizedJobId
+      : true;
+
+    const sameMonth =
+      monthSet.size > 0 ? monthSet.has(deriveIncomeRowMonth(row)) : true;
+
+    return sameJob && sameMonth;
+  });
+}
+
 export function useIncomePageState(args: {
   from: string;
   storeId: string;
   range: string;
   category: IncomeCategory;
   action: string;
+  importJobId: string;
+  importMonths: string[];
 }) {
-  const { from, storeId, range, category, action } = args;
+  const { from, storeId, range, category, action, importJobId, importMonths } = args;
 
   const [rows, setRows] = useState<IncomeRow[]>([]);
   const [selectedRowId, setSelectedRowId] = useState("");
@@ -82,7 +135,7 @@ export function useIncomePageState(args: {
     setError("");
 
     try {
-      if (category === "store-order") {
+      if (category === "store-order" && from !== "import-commit") {
         const stage = loadAmazonStoreOrdersStage();
         if (stage?.facts?.length) {
           const rawRows = sortStoreOrderIncomeRows(
@@ -119,7 +172,14 @@ export function useIncomePageState(args: {
         category === "store-order" ? sortStoreOrderIncomeRows(res.rows) : res.rows;
 
       if (category === "store-order") {
-        const rawRows = sortStoreOrderIncomeRows(res.rows);
+        const rawRows = sortStoreOrderIncomeRows(
+          filterImportAwareStoreOrderRows({
+            rows: res.rows,
+            importFrom: from,
+            importJobId,
+            importMonths,
+          })
+        );
         const aggregatedRows = sortStoreOrderIncomeRows(
           aggregateStoreOrderIncomeRows(rawRows)
         );
@@ -134,7 +194,14 @@ export function useIncomePageState(args: {
       }
 
       setStageChargeSummary(EMPTY_STAGE_CHARGE_SUMMARY);
-      setAdapterNote(res.meta.note ?? "");
+      if (category === "store-order" && from === "import-commit") {
+        const filteredMonths = normalizeImportMonths(importMonths);
+        setAdapterNote(
+          `Step105-EG: import-aware DB filter active · importJobId=${importJobId || "-"} · months=${filteredMonths.length ? filteredMonths.join(",") : "-"}`
+        );
+      } else {
+        setAdapterNote(res.meta.note ?? "");
+      }
     } catch (e: unknown) {
       setRows([]);
       setRawStoreOrderRows([]);
@@ -147,11 +214,11 @@ export function useIncomePageState(args: {
 
   useEffect(() => {
     void loadRows();
-  }, [from, storeId, range, category]);
+  }, [from, storeId, range, category, importJobId, importMonths]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [from, storeId, range, category]);
+  }, [from, storeId, range, category, importJobId, importMonths]);
 
   useEffect(() => {
     setCurrentPage(1);
