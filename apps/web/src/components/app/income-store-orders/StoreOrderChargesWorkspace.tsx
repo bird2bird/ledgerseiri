@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
-import { readCrossWorkspaceQuery } from "@/core/income-store-orders/cross-workspace-query";
+import {
+  buildStoreOrdersWorkspaceHref,
+  readCrossWorkspaceQuery,
+} from "@/core/income-store-orders/cross-workspace-query";
 
 type ChargeItem = {
   id: string;
@@ -287,20 +290,25 @@ function buildReverseStoreOrdersHref(args: {
   charge: ChargeItem;
 }) {
   const { lang, charge } = args;
-  const params = new URLSearchParams();
-  params.set("from", "store-operation-drawer");
-  params.set("autoDrawer", "1");
-  if (charge.orderId) params.set("orderId", String(charge.orderId));
-  if (charge.sku) params.set("sku", String(charge.sku));
-  if (charge.occurredAt) params.set("date", formatChargeDate(charge.occurredAt));
-  params.set("transactionId", String(charge.id));
-  params.set("focusChargeId", String(charge.id));
-  return `/${lang}/app/income/store-orders?${params.toString()}`;
+
+  return buildStoreOrdersWorkspaceHref({
+    lang,
+    from: "store-operation-drawer",
+    autoDrawer: true,
+    orderId: charge.orderId || "",
+    sku: charge.sku || "",
+    date: charge.occurredAt ? formatChargeDate(charge.occurredAt) : "",
+    transactionId: String(charge.id || ""),
+    focusChargeId: String(charge.id || ""),
+  });
 }
 
 export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const { lang } = props;
   const searchParams = useSearchParams();
+  const crossQuery = readCrossWorkspaceQuery(searchParams);
+  const focusTransactionId =
+    crossQuery.transactionId || crossQuery.focusChargeId;
 
   const [charges, setCharges] = useState<ChargeItem[]>([]);
   const [summary, setSummary] = useState<ChargeSummary>(EMPTY_SUMMARY);
@@ -351,8 +359,8 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     }
     if (selectedChargeId) return;
 
-    if ((crossQuery.transactionId || crossQuery.focusChargeId)) {
-      const exact = filteredCharges.find((item) => item.id === (crossQuery.transactionId || crossQuery.focusChargeId));
+    if (focusTransactionId) {
+      const exact = filteredCharges.find((item) => item.id === focusTransactionId);
       if (exact) {
         setSelectedChargeId(exact.id);
         return;
@@ -379,7 +387,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }, [
     crossQuery.autoDrawer,
     filteredCharges,
-    (crossQuery.transactionId || crossQuery.focusChargeId),
+    focusTransactionId,
     crossQuery.orderId,
     crossQuery.sku,
     crossQuery.date,
@@ -452,7 +460,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
               支出 root へ戻る
             </Link>
             <Link
-              href={`/${lang}/app/income/store-orders`}
+              href={buildStoreOrdersWorkspaceHref({ lang, from: "store-operation-list" })}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               店舗注文へ戻る
@@ -656,7 +664,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                 Import / CSV確認へ移動
               </Link>
               <Link
-                href={`/${lang}/app/income/store-orders`}
+                href={buildStoreOrdersWorkspaceHref({ lang, from: "store-operation-list" })}
                 className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 店舗注文へ戻る
@@ -895,7 +903,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                     ) : null}
 
                     <Link
-                      href={`/${lang}/app/income/store-orders`}
+                      href={buildStoreOrdersWorkspaceHref({ lang, from: "store-operation-list" })}
                       className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                     >
                       店舗注文一覧へ戻る
