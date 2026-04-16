@@ -2,9 +2,11 @@
 
 import React, { useMemo, useRef, useState } from "react";
 import {
+  commitImportSkeleton,
   detectMonthConflicts,
   loadImportHistorySkeleton,
   previewImportSkeleton,
+  type CommitImportResponse,
   type DetectMonthConflictsResponse,
   type ImportHistoryResponse,
   type MonthConflictPolicy,
@@ -42,6 +44,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [historyResult, setHistoryResult] =
     useState<ImportHistoryResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [commitResult, setCommitResult] =
+    useState<CommitImportResponse | null>(null);
+  const [commitLoading, setCommitLoading] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [policy, setPolicy] =
@@ -86,6 +91,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setMessage(`已读取文件: ${file.name}`);
       setDetectResult(null);
       setPreviewResult(null);
+      setCommitResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
     }
@@ -147,6 +153,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       });
 
       setPreviewResult(res);
+      setCommitResult(null);
       setDialogOpen(false);
       setMessage(
         `preview 已生成，策略：${formatPolicyLabel(nextPolicy)} / rows: ${
@@ -158,6 +165,31 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setError(err instanceof Error ? err.message : "preview failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function runCommit() {
+    if (!previewResult?.importJobId) return;
+
+    setCommitLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await commitImportSkeleton(previewResult.importJobId, {
+        monthConflictPolicy: policy,
+      });
+
+      setCommitResult(res);
+      setMessage(
+        `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows}`
+      );
+      await loadHistory(moduleMode);
+    } catch (err) {
+      setCommitResult(null);
+      setError(err instanceof Error ? err.message : "commit failed");
+    } finally {
+      setCommitLoading(false);
     }
   }
 
@@ -337,7 +369,18 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
           />
 
           <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Preview Status</div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="text-sm font-medium text-slate-900">Preview Status</div>
+              <button
+                type="button"
+                onClick={() => void runCommit()}
+                disabled={!previewResult?.importJobId || commitLoading}
+                className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {commitLoading ? "正式导入中..." : "正式导入"}
+              </button>
+            </div>
+
             <div className="mt-2 space-y-2 text-sm text-slate-700">
               <div>
                 <span className="font-medium text-slate-900">Rows：</span>
@@ -352,6 +395,41 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 {formatPolicyLabel(policy)}
               </div>
             </div>
+
+            {commitResult ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-[18px] bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Imported</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {commitResult.importedRows ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Duplicate</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {commitResult.duplicateRows ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Conflict</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {commitResult.conflictRows ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Error</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {commitResult.errorRows ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-[18px] bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Deleted</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {commitResult.deletedRows ?? 0}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

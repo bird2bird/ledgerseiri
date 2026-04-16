@@ -1,4 +1,6 @@
 import type {
+  CommitImportRequest,
+  CommitImportResponse,
   DetectMonthConflictsRequest,
   DetectMonthConflictsResponse,
   ImportHistoryResponse,
@@ -40,6 +42,16 @@ export async function previewImportSkeleton(
   payload: PreviewImportRequest
 ): Promise<PreviewImportResponse> {
   return postJson<PreviewImportResponse>("/api/imports/preview", payload);
+}
+
+export async function commitImportSkeleton(
+  importJobId: string,
+  payload: CommitImportRequest
+): Promise<CommitImportResponse> {
+  return postJson<CommitImportResponse>(
+    `/api/imports/${importJobId}/commit`,
+    payload
+  );
 }
 
 export async function loadImportHistorySkeleton(args?: {

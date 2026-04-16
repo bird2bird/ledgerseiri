@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -210,7 +210,7 @@ export class ImportsService {
   private parseAmazonBridgeAmounts(
     row: Record<string, string>,
     kind: AmazonTransactionChargeKind,
-    signedAmount: number
+    signedAmount: number,
   ) {
     const grossAmount = this.parseAmazonOrderRevenue(row);
 
@@ -691,7 +691,7 @@ export class ImportsService {
     });
 
     if (!firstCompany?.id) {
-      throw new NotFoundException('No company found for imports skeleton');
+      throw new NotFoundException('No company found for imports');
     }
 
     return firstCompany.id;
@@ -767,7 +767,10 @@ export class ImportsService {
       } else if (conflictSet.has(businessMonth) && policy === 'skip_existing_months') {
         matchStatus = 'conflict';
         matchReason = 'month conflict detected and current policy skips existing months';
-      } else if (existingHashSet.has(dedupeHash) && !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')) {
+      } else if (
+        existingHashSet.has(dedupeHash) &&
+        !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')
+      ) {
         matchStatus = 'duplicate';
         matchReason = 'same dedupeHash already exists in Transaction';
       }
@@ -828,7 +831,10 @@ export class ImportsService {
         } else if (conflictSet.has(businessMonth) && policy === 'skip_existing_months') {
           matchStatus = 'conflict';
           matchReason = 'month conflict detected and current policy skips existing months';
-        } else if (existingHashSet.has(dedupeHash) && !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')) {
+        } else if (
+          existingHashSet.has(dedupeHash) &&
+          !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')
+        ) {
           matchStatus = 'duplicate';
           matchReason = 'same dedupeHash already exists in Transaction';
         }
@@ -854,16 +860,12 @@ export class ImportsService {
       });
   }
 
-  private async getExistingMonthStats(companyId: string, months: string[]): Promise<{
-    existingMonths: string[];
-    conflictMonths: string[];
-    monthStats: MonthStat[];
-  }> {
+  private async getExistingMonthStats(companyId: string, months: string[]) {
     if (months.length === 0) {
       return {
-        existingMonths: [],
-        conflictMonths: [],
-        monthStats: [],
+        existingMonths: [] as string[],
+        conflictMonths: [] as string[],
+        monthStats: [] as MonthStat[],
       };
     }
 
@@ -900,6 +902,30 @@ export class ImportsService {
     };
   }
 
+  private normalizeJsonObject(input: unknown): Record<string, unknown> {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return {};
+    }
+    return input as Record<string, unknown>;
+  }
+
+  private parseDateOrNow(raw?: string | null): Date {
+    const value = String(raw || '').trim();
+    if (!value) return new Date();
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    return new Date();
+  }
+
+  private normalizeStringArray(input: unknown): string[] {
+    if (!Array.isArray(input)) return [];
+    return input.map((x) => String(x || '').trim()).filter(Boolean);
+  }
+
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
     const filename = String(dto.filename || 'import-preview.csv');
@@ -917,7 +943,7 @@ export class ImportsService {
         : parsed.facts.map((x) => this.normalizeBusinessMonth(x.orderDate));
 
     const fileMonths = Array.from(
-      new Set(candidateMonths.filter((x): x is string => !!x))
+      new Set(candidateMonths.filter((x): x is string => !!x)),
     ).sort();
 
     const stats = await this.getExistingMonthStats(companyId, fileMonths);
@@ -946,8 +972,7 @@ export class ImportsService {
     const csvText = String(dto.csvText || '');
     const module = dto.module || 'store-orders';
     const sourceType = dto.sourceType || 'amazon-csv';
-    const monthConflictPolicy =
-      dto.monthConflictPolicy || 'skip_existing_months';
+    const monthConflictPolicy = dto.monthConflictPolicy || 'skip_existing_months';
 
     const detect = await this.detectMonthConflicts({
       companyId,
@@ -994,14 +1019,14 @@ export class ImportsService {
             charges: parsed.charges,
             conflictMonths: detect.conflictMonths,
             existingHashSet,
-            policy: monthConflictPolicy,
+            policy: String(monthConflictPolicy),
           })
         : this.buildStoreOrderPreviewRows({
             companyId,
             facts: parsed.facts,
             conflictMonths: detect.conflictMonths,
             existingHashSet,
-            policy: monthConflictPolicy,
+            policy: String(monthConflictPolicy),
           });
 
     const summary = {
@@ -1022,7 +1047,7 @@ export class ImportsService {
         filename,
         fileHash: null,
         status: 'PENDING',
-        monthConflictPolicy,
+        monthConflictPolicy: String(monthConflictPolicy),
         totalRows: summary.totalRows,
         successRows: summary.validRows,
         failedRows: summary.errorRows,
@@ -1084,43 +1109,250 @@ export class ImportsService {
   async commitImport(importJobId: string, dto: CommitImportDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
 
-    const found = await this.prisma.importJob.findFirst({
-      where: {
-        id: importJobId,
-        companyId,
-      },
-      select: {
-        id: true,
-        companyId: true,
-        status: true,
-      },
-    });
+    const result = await this.prisma.$transaction(async (tx) => {
+      const job = await tx.importJob.findFirst({
+        where: {
+          id: importJobId,
+          companyId,
+        },
+        select: {
+          id: true,
+          companyId: true,
+          domain: true,
+          module: true,
+          filename: true,
+          status: true,
+          fileMonthsJson: true,
+          conflictMonthsJson: true,
+          monthConflictPolicy: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-    if (!found) {
-      throw new NotFoundException(`ImportJob not found: ${importJobId}`);
-    }
+      if (!job) {
+        throw new NotFoundException(`ImportJob not found: ${importJobId}`);
+      }
 
-    const updated = await this.prisma.importJob.update({
-      where: { id: importJobId },
-      data: {
-        status: 'SUCCEEDED',
-        monthConflictPolicy: dto.monthConflictPolicy || 'skip_existing_months',
-        importedAt: new Date(),
-      },
-      select: {
-        id: true,
-        companyId: true,
-        domain: true,
-        filename: true,
-        status: true,
-        totalRows: true,
-        successRows: true,
-        failedRows: true,
-        errorMessage: true,
-        createdAt: true,
-        updatedAt: true,
-        importedAt: true,
-      },
+      const module = String(job.module || job.domain || 'store-orders');
+      const policy = String(
+        dto.monthConflictPolicy || job.monthConflictPolicy || 'skip_existing_months',
+      );
+
+      const stagingRows = await tx.importStagingRow.findMany({
+        where: {
+          importJobId,
+          matchStatus: 'new',
+        },
+        orderBy: [{ rowNo: 'asc' }],
+        select: {
+          id: true,
+          rowNo: true,
+          businessMonth: true,
+          dedupeHash: true,
+          matchReason: true,
+          normalizedPayloadJson: true,
+        },
+      });
+
+      const defaultStore = await tx.store.findFirst({
+        where: { companyId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      if (!defaultStore?.id) {
+        throw new NotFoundException(
+          `No store found for company ${companyId}. Commit requires at least one store.`,
+        );
+      }
+
+      const conflictMonths = this.normalizeStringArray(job.conflictMonthsJson);
+      let deletedRows = 0;
+
+      if (policy === 'replace_existing_months' && conflictMonths.length > 0) {
+        const deleted = await tx.transaction.deleteMany({
+          where: {
+            companyId,
+            businessMonth: {
+              in: conflictMonths,
+            },
+            importJob: {
+              is: {
+                module,
+              },
+            },
+          },
+        });
+
+        deletedRows = deleted.count;
+      }
+
+      let importedRows = 0;
+      let duplicateRows = 0;
+      let conflictRows = 0;
+      let errorRows = 0;
+
+      const seenHashes = new Set<string>();
+
+      for (const row of stagingRows) {
+        const payload = this.normalizeJsonObject(row.normalizedPayloadJson);
+        const dedupeHash = String(row.dedupeHash || payload.dedupeHash || '').trim();
+        const businessMonth = String(row.businessMonth || '').trim() || null;
+
+        if (!dedupeHash) {
+          errorRows += 1;
+          await tx.importStagingRow.update({
+            where: { id: row.id },
+            data: {
+              matchReason: 'commit skipped: dedupeHash missing',
+            },
+          });
+          continue;
+        }
+
+        if (seenHashes.has(dedupeHash)) {
+          duplicateRows += 1;
+          await tx.importStagingRow.update({
+            where: { id: row.id },
+            data: {
+              matchReason: 'commit skipped: duplicate dedupeHash inside current import job',
+            },
+          });
+          continue;
+        }
+        seenHashes.add(dedupeHash);
+
+        if (
+          policy === 'skip_existing_months' &&
+          businessMonth &&
+          conflictMonths.includes(businessMonth)
+        ) {
+          conflictRows += 1;
+          await tx.importStagingRow.update({
+            where: { id: row.id },
+            data: {
+              matchReason:
+                'commit skipped: businessMonth is in conflictMonths under skip_existing_months',
+            },
+          });
+          continue;
+        }
+
+        const existing = await tx.transaction.findFirst({
+          where: {
+            companyId,
+            dedupeHash,
+          },
+          select: { id: true },
+        });
+
+        if (existing) {
+          duplicateRows += 1;
+          await tx.importStagingRow.update({
+            where: { id: row.id },
+            data: {
+              targetEntityType: 'transaction',
+              targetEntityId: existing.id,
+              matchReason: 'commit skipped: same dedupeHash already exists in Transaction',
+            },
+          });
+          continue;
+        }
+
+        const isStoreOperation = module === 'store-operation';
+        const occurredAt = this.parseDateOrNow(
+          String(payload.orderDate || payload.occurredAt || ''),
+        );
+        const signedAmount = Number(payload.signedAmount ?? 0);
+        const grossAmount = Number(payload.grossAmount ?? payload.amount ?? 0);
+
+        const resolvedAmount = isStoreOperation
+          ? Math.abs(Math.round(signedAmount || 0))
+          : Math.abs(Math.round(grossAmount || 0));
+
+        const resolvedType =
+          isStoreOperation
+            ? (signedAmount >= 0 ? 'INCOME' : 'EXPENSE')
+            : 'INCOME';
+
+        const externalRef = String(payload.orderId || '').trim() || null;
+
+        const memo = isStoreOperation
+          ? `[imports:${module}] ${String(payload.kind || payload.transactionType || 'charge')} | ${String(payload.description || '-')}`
+          : `[imports:${module}] ${String(payload.productName || payload.rawLabel || 'order')} | SKU ${String(payload.sku || '-')}`;
+
+        const created = await tx.transaction.create({
+          data: {
+            companyId,
+            storeId: defaultStore.id,
+            type: resolvedType as any,
+            sourceType: 'MANUAL' as any,
+            amount: resolvedAmount,
+            occurredAt,
+            externalRef,
+            memo,
+            businessMonth,
+            dedupeHash,
+            importJobId,
+            sourceFileName: job.filename,
+            sourceRowNo: row.rowNo,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        await tx.importStagingRow.update({
+          where: { id: row.id },
+          data: {
+            targetEntityType: 'transaction',
+            targetEntityId: created.id,
+            matchReason: row.matchReason || 'committed to Transaction',
+          },
+        });
+
+        importedRows += 1;
+      }
+
+      const updatedJob = await tx.importJob.update({
+        where: { id: importJobId },
+        data: {
+          status: 'SUCCEEDED',
+          monthConflictPolicy: policy,
+          importedAt: new Date(),
+          deletedRowCount: deletedRows,
+          totalRows: stagingRows.length,
+          successRows: importedRows,
+          failedRows: errorRows + conflictRows,
+          errorMessage: null,
+        },
+        select: {
+          id: true,
+          companyId: true,
+          domain: true,
+          module: true,
+          filename: true,
+          status: true,
+          totalRows: true,
+          successRows: true,
+          failedRows: true,
+          deletedRowCount: true,
+          createdAt: true,
+          updatedAt: true,
+          importedAt: true,
+          monthConflictPolicy: true,
+        },
+      });
+
+      return {
+        job: updatedJob,
+        importedRows,
+        duplicateRows,
+        conflictRows,
+        errorRows,
+        deletedRows,
+      };
     });
 
     return {
@@ -1128,15 +1360,17 @@ export class ImportsService {
       action: 'commit',
       companyId,
       importJobId,
-      monthConflictPolicy: dto.monthConflictPolicy || 'skip_existing_months',
-      importedRows: 0,
-      duplicateRows: 0,
-      conflictRows: 0,
-      errorRows: 0,
-      deletedRows: 0,
-      status: updated.status,
-      job: updated,
-      message: 'imports commit skeleton completed',
+      monthConflictPolicy: String(
+        dto.monthConflictPolicy || result.job.monthConflictPolicy || 'skip_existing_months',
+      ),
+      importedRows: result.importedRows,
+      duplicateRows: result.duplicateRows,
+      conflictRows: result.conflictRows,
+      errorRows: result.errorRows,
+      deletedRows: result.deletedRows,
+      status: result.job.status,
+      job: result.job,
+      message: 'imports commit persisted new staging rows into Transaction',
     };
   }
 

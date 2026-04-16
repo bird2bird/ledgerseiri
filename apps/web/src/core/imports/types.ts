@@ -69,6 +69,36 @@ export type PreviewImportResponse = {
   message?: string;
 };
 
+export type CommitImportRequest = {
+  companyId?: string;
+  monthConflictPolicy?: MonthConflictPolicy | string;
+};
+
+export type CommitImportResponse = {
+  ok?: boolean;
+  action?: string;
+  companyId?: string | null;
+  importJobId?: string;
+  monthConflictPolicy?: string | null;
+  importedRows: number;
+  duplicateRows: number;
+  conflictRows: number;
+  errorRows: number;
+  deletedRows: number;
+  status?: string | null;
+  job?: {
+    id: string;
+    filename?: string | null;
+    status?: string | null;
+    totalRows?: number | null;
+    successRows?: number | null;
+    failedRows?: number | null;
+    deletedRowCount?: number | null;
+    importedAt?: string | null;
+  } | null;
+  message?: string;
+};
+
 export type ImportHistoryResponse = {
   ok?: boolean;
   action?: string;
