@@ -46,6 +46,7 @@ model Company {
   invoices              Invoice[]
   paymentReceipts       PaymentReceipt[]
   importJobs            ImportJob[]
+  importStagingRows     ImportStagingRow[]
   exportJobs            ExportJob[]
 }
 
@@ -125,10 +126,11 @@ model Transaction {
   accountId  String?
   categoryId String?
 
-  company  Company?             @relation(fields: [companyId], references: [id])
-  store    Store                @relation(fields: [storeId], references: [id])
-  account  Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  category TransactionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  company   Company?             @relation(fields: [companyId], references: [id])
+  store     Store                @relation(fields: [storeId], references: [id])
+  account   Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category  TransactionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  importJob ImportJob?           @relation(fields: [importJobId], references: [id], onDelete: SetNull)
 
   type        TransactionType
   direction   TransactionDirection?
@@ -138,8 +140,15 @@ model Transaction {
   occurredAt  DateTime
   externalRef String?
   memo        String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+
+  businessMonth  String?
+  dedupeHash     String?
+  importJobId    String?
+  sourceFileName String?
+  sourceRowNo    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId, occurredAt])
   @@index([storeId, occurredAt])
@@ -147,6 +156,9 @@ model Transaction {
   @@index([categoryId])
   @@index([type])
   @@index([direction])
+  @@index([importJobId])
+  @@index([companyId, businessMonth])
+  @@index([companyId, dedupeHash])
 }
 
 model Account {
@@ -329,22 +341,60 @@ model PaymentReceipt {
 }
 
 model ImportJob {
-  id           String    @id @default(cuid())
-  companyId    String
-  domain       String
-  filename     String
-  status       JobStatus @default(PENDING)
-  totalRows    Int?
-  successRows  Int?
-  failedRows   Int?
+  id         String    @id @default(cuid())
+  companyId  String
+  domain     String
+  module     String?
+  sourceType String?
+  filename   String
+  fileHash   String?
+  status     JobStatus @default(PENDING)
+
+  monthConflictPolicy String?
+  totalRows           Int?
+  successRows         Int?
+  failedRows          Int?
+  deletedRowCount     Int?    @default(0)
+
+  fileMonthsJson     Json?
+  conflictMonthsJson Json?
+
   errorMessage String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  importedAt   DateTime?
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stagingRows  ImportStagingRow[]
+  transactions Transaction[]
 
   @@index([companyId, createdAt])
   @@index([domain, status])
+  @@index([companyId, module, createdAt])
+}
+
+model ImportStagingRow {
+  id                    String   @id @default(cuid())
+  importJobId           String
+  companyId             String
+  module                String
+  rowNo                 Int
+  businessMonth         String?
+  rawPayloadJson        Json
+  normalizedPayloadJson Json
+  dedupeHash            String?
+  matchStatus           String
+  matchReason           String?
+  targetEntityType      String?
+  targetEntityId        String?
+  createdAt             DateTime @default(now())
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, module, businessMonth])
+  @@index([importJobId, matchStatus])
+  @@index([companyId, dedupeHash])
 }
 
 model ExportJob {
@@ -447,18 +497,18 @@ model LpVisitEvent {
 }
 
 model LpConversionEvent {
-  id          String   @id @default(cuid())
-  eventType   String
-  email       String?
-  userId      String?
-  ctaName     String?
-  source      String?
-  locale      String?
-  referrer    String?
-  visitorId   String?
-  sessionId   String?
-  path        String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  eventType String
+  email     String?
+  userId    String?
+  ctaName   String?
+  source    String?
+  locale    String?
+  referrer  String?
+  visitorId String?
+  sessionId String?
+  path      String?
+  createdAt DateTime @default(now())
 
   @@index([createdAt])
   @@index([eventType, createdAt])

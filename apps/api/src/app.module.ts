@@ -10,6 +10,7 @@ import { WorkspaceModule } from './workspace/workspace.module';
 import { StoreModule } from './store/store.module';
 import { HealthController } from './health.controller';
 import { JobModule } from './job/job.module';
+import { ImportsModule } from './imports/imports.module';
 import { PaymentModule } from './payment/payment.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -48,6 +49,7 @@ import { DashboardCockpitModule } from './dashboard-cockpit/dashboard-cockpit.mo
       InvoiceModule,
       PaymentModule,
       JobModule,
+      ImportsModule,
       SecurityModule,
         BillingModule,
       ],

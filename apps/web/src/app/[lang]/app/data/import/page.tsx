@@ -15,6 +15,7 @@ import { ImportJobsHero } from "@/components/app/jobs/ImportJobsHero";
 import { ImportJobsTableCard } from "@/components/app/jobs/ImportJobsTableCard";
 import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaSummaryCard";
 import { AmazonStoreOrdersImportCard } from "@/components/app/jobs/AmazonStoreOrdersImportCard";
+import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceShell";
 
 export default function DataImportPage() {
   const params = useParams<{ lang: string }>();
@@ -113,6 +114,8 @@ export default function DataImportPage() {
           helper="amazon-store-orders preview/create baseline"
         />
       </section>
+
+      <ImportWorkspaceShell moduleHint={moduleHint} />
 
       <AmazonStoreOrdersImportCard
         lang={lang}

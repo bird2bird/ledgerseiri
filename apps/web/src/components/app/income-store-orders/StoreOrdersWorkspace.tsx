@@ -363,17 +363,19 @@ function buildStoreOperationDrawerHref(args: {
 }) {
   const { lang, selectedRow, row } = args;
 
-  const params = new URLSearchParams();
-  params.set("from", "store-order-breakdown");
-  params.set("autoDrawer", "1");
-  params.set("orderId", String(selectedRow?.externalRef || row.externalRef || ""));
-  params.set("sku", String(selectedRow?.sku || row.sku || ""));
-  params.set("date", String(selectedRow?.date || row.date || ""));
-  params.set("kind", String(getBreakdownTag(row).label || ""));
-  params.set("transactionId", String(row.id || ""));
-  params.set("focusChargeId", String(row.id || ""));
-
-  return `/${lang}/app/expenses/store-operation?${params.toString()}`;
+  return buildStoreOperationWorkspaceHref({
+    lang,
+    from: "store-order-breakdown",
+    autoDrawer: true,
+    orderId: selectedRow?.externalRef || row.externalRef || "",
+    sku: selectedRow?.sku || row.sku || "",
+    date: selectedRow?.date || row.date || "",
+    kind: getBreakdownTag(row).label,
+    transactionId: String(row.id || ""),
+    focusChargeId: String(row.id || ""),
+    sourceType: String(row.sourceType || ""),
+    view: "charges",
+  });
 }
 
 function buildStoreSummary(rows: IncomeRow[]) {
