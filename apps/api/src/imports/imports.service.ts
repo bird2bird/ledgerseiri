@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -9,44 +11,674 @@ type MonthStat = {
   existingCount: number;
 };
 
+type AmazonPreviewRawRow = {
+  rowNo: number;
+  fields: Record<string, string>;
+};
+
+type AmazonPreviewFact = {
+  rowNo: number;
+  orderId: string;
+  orderDate?: string | null;
+  sku: string;
+  productName: string;
+  quantity: number;
+  amount: number;
+
+  grossAmount: number;
+  netAmount: number;
+  feeAmount: number;
+  taxAmount: number;
+  shippingAmount: number;
+  promotionAmount: number;
+
+  rawTransactionType?: string | null;
+  signedAmount?: number | null;
+  description?: string | null;
+
+  store?: string | null;
+  fulfillment?: string | null;
+  rawLabel: string;
+};
+
+type AmazonTransactionChargeKind =
+  | 'ORDER_SALE'
+  | 'AD_FEE'
+  | 'STORAGE_FEE'
+  | 'SUBSCRIPTION_FEE'
+  | 'FBA_FEE'
+  | 'TAX'
+  | 'PAYOUT'
+  | 'ADJUSTMENT'
+  | 'OTHER';
+
+type AmazonTransactionCharge = {
+  id: string;
+  rowNo: number;
+  occurredAt?: string | null;
+  orderId?: string | null;
+  sku?: string | null;
+  transactionType: string;
+  description: string;
+  kind: AmazonTransactionChargeKind;
+  signedAmount: number;
+};
+
+type AmazonTransactionChargeSummary = {
+  orderSale: number;
+  adFee: number;
+  storageFee: number;
+  subscriptionFee: number;
+  fbaFee: number;
+  tax: number;
+  payout: number;
+  adjustment: number;
+  other: number;
+};
+
+type AmazonPreviewResult = {
+  summary: {
+    filename: string;
+    totalRows: number;
+    successRows: number;
+    failedRows: number;
+    totalAmount: number;
+    totalQuantity: number;
+    delimiter: 'comma' | 'tab';
+    headers: string[];
+  };
+  rawRows: AmazonPreviewRawRow[];
+  facts: AmazonPreviewFact[];
+  charges: AmazonTransactionCharge[];
+  chargeSummary: AmazonTransactionChargeSummary;
+};
+
+type PreviewRowItem = {
+  rowNo: number;
+  businessMonth: string | null;
+  matchStatus: 'new' | 'duplicate' | 'conflict' | 'error';
+  matchReason?: string;
+  normalizedPayload: Record<string, unknown>;
+};
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private normalizeMonthToken(raw: string): string | null {
-    const normalized = String(raw || '').trim();
-    const match = normalized.match(/(20\d{2})[-_/]?([01]?\d)/);
-    if (!match) return null;
-
-    const year = match[1];
-    const monthNum = Number(match[2]);
-    if (monthNum < 1 || monthNum > 12) return null;
-
-    return `${year}-${String(monthNum).padStart(2, '0')}`;
+  private detectDelimiter(headerLine: string): 'comma' | 'tab' {
+    const tabCount = (headerLine.match(/\t/g) || []).length;
+    const commaCount = (headerLine.match(/,/g) || []).length;
+    return tabCount > commaCount ? 'tab' : 'comma';
   }
 
-  private extractMonths(args: {
-    filename?: string;
-    csvText?: string;
-    workbookBase64?: string;
-  }): string[] {
-    const candidates = [
-      String(args.filename || ''),
-      String(args.csvText || '').slice(0, 5000),
-      String(args.workbookBase64 || '').slice(0, 5000),
-    ];
+  private splitDelimitedLine(line: string, delimiter: string): string[] {
+    const out: string[] = [];
+    let current = '';
+    let inQuotes = false;
 
-    const found = new Set<string>();
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      const next = line[i + 1];
 
-    for (const input of candidates) {
-      const matches = input.match(/20\d{2}[-_/]?(0[1-9]|1[0-2])/g) || [];
-      for (const item of matches) {
-        const month = this.normalizeMonthToken(item);
-        if (month) found.add(month);
+      if (ch === '"') {
+        if (inQuotes && next === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (ch === delimiter && !inQuotes) {
+        out.push(current);
+        current = '';
+        continue;
+      }
+
+      current += ch;
+    }
+
+    out.push(current);
+    return out.map((x) => x.trim());
+  }
+
+  private normalizeHeader(value: string): string {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^[\ufeff]+/, '')
+      .replace(/[\s_\-\/（）()]+/g, '');
+  }
+
+  private pickField(row: Record<string, string>, aliases: string[]): string {
+    for (const alias of aliases) {
+      const key = this.normalizeHeader(alias);
+      const value = row[key];
+      if (value != null && String(value).trim() !== '') {
+        return String(value).trim();
+      }
+    }
+    return '';
+  }
+
+  private parseAmount(value: string): number {
+    const cleaned = String(value || '').replace(/[^0-9.\-]/g, '');
+    const num = Number(cleaned);
+    if (!Number.isFinite(num)) return 0;
+    return Math.round(num);
+  }
+
+  private parseQuantity(value: string): number {
+    const cleaned = String(value || '').replace(/[^0-9\-]/g, '');
+    const num = Number(cleaned);
+    if (!Number.isFinite(num)) return 0;
+    return Math.trunc(num);
+  }
+
+  private parseSignedTotalAmount(row: Record<string, string>): number {
+    return this.parseAmount(
+      this.pickField(row, ['合計', 'total', 'transaction total', 'net total']),
+    );
+  }
+
+  private parseAmazonOrderRevenue(row: Record<string, string>): number {
+    const productSales = this.parseAmount(
+      this.pickField(row, [
+        '商品売上',
+        '商品の売上',
+        'product sales',
+        'item price',
+        'item-price',
+        'principal',
+        '売上',
+        '金額',
+      ]),
+    );
+
+    const shippingSales = this.parseAmount(
+      this.pickField(row, ['配送料', '送料', 'shipping', 'shipping credits']),
+    );
+
+    const giftWrapSales = this.parseAmount(
+      this.pickField(row, ['ギフト包装料', 'ギフト包装', 'gift wrap', 'giftwrap']),
+    );
+
+    return productSales + shippingSales + giftWrapSales;
+  }
+
+  private parseAmazonBridgeAmounts(
+    row: Record<string, string>,
+    kind: AmazonTransactionChargeKind,
+    signedAmount: number
+  ) {
+    const grossAmount = this.parseAmazonOrderRevenue(row);
+
+    const taxAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          '商品売上の税',
+          '配送料の税',
+          'ギフト包装の税',
+          '税金',
+          'tax',
+          'taxes',
+          'プロモーション割引の税',
+        ]),
+      ),
+    );
+
+    const shippingAmount =
+      this.parseAmount(this.pickField(row, ['配送料', '送料', 'shipping', 'shipping credits'])) +
+      this.parseAmount(this.pickField(row, ['ギフト包装料', 'ギフト包装', 'gift wrap', 'giftwrap']));
+
+    const promotionAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          'Amazonポイントの費用',
+          'プロモーション',
+          'プロモーション割引',
+          'プロモーション割引額',
+          'promotion',
+          'discount',
+          'amazon points',
+        ]),
+      ),
+    );
+
+    const feeAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          '売上にかかる取引手数料',
+          '販売手数料',
+          '出品手数料',
+          'Amazon出品サービスの料金',
+          'referral fee',
+          'selling fees',
+          'FBA手数料',
+          'fba fees',
+          'fulfillment fees',
+          'トランザクションのその他',
+          'その他各種手数料',
+          'other transaction fees',
+        ]),
+      ),
+    );
+
+    let netAmount = signedAmount;
+
+    if (kind === 'ORDER_SALE') {
+      netAmount =
+        signedAmount !== 0
+          ? signedAmount
+          : grossAmount - feeAmount - taxAmount - promotionAmount;
+    }
+
+    return {
+      grossAmount,
+      netAmount,
+      feeAmount,
+      taxAmount,
+      shippingAmount,
+      promotionAmount,
+    };
+  }
+
+  private looksLikeOrderSaleRow(args: {
+    row: Record<string, string>;
+    transactionType: string;
+    description: string;
+    signedAmount: number;
+  }): boolean {
+    const t = String(args.transactionType || '').toLowerCase();
+    const d = String(args.description || '').toLowerCase();
+
+    const grossSales = this.parseAmazonOrderRevenue(args.row);
+    const shippingTax = this.parseAmount(
+      this.pickField(args.row, ['商品売上の税', '配送料の税', 'ギフト包装の税', '税金', 'tax', 'taxes']),
+    );
+    const feeLikeAmount = this.parseAmount(
+      this.pickField(args.row, [
+        '売上にかかる取引手数料',
+        '販売手数料',
+        '出品手数料',
+        'Amazon出品サービスの料金',
+        'referral fee',
+        'selling fees',
+        'FBA手数料',
+        'fba fees',
+        'fulfillment fees',
+        'トランザクションのその他',
+        'その他各種手数料',
+        'other transaction fees',
+      ]),
+    );
+
+    const hasFeeKeywords =
+      t.includes('広告') ||
+      d.includes('広告') ||
+      t.includes('storage') ||
+      d.includes('storage') ||
+      t.includes('保管') ||
+      d.includes('保管') ||
+      t.includes('倉庫') ||
+      d.includes('倉庫') ||
+      t.includes('subscription') ||
+      d.includes('subscription') ||
+      t.includes('月額') ||
+      d.includes('月額') ||
+      t.includes('登録料') ||
+      d.includes('登録料') ||
+      t.includes('fba') ||
+      d.includes('fba') ||
+      t.includes('フルフィルメント') ||
+      d.includes('フルフィルメント') ||
+      t.includes('販売手数料') ||
+      d.includes('販売手数料') ||
+      t.includes('手数料') ||
+      d.includes('手数料') ||
+      t.includes('refund') ||
+      d.includes('refund') ||
+      t.includes('返品') ||
+      d.includes('返品') ||
+      t.includes('返金') ||
+      d.includes('返金') ||
+      t.includes('tax') ||
+      d.includes('tax') ||
+      t.includes('税') ||
+      d.includes('税') ||
+      t.includes('payout') ||
+      d.includes('payout') ||
+      t.includes('disbursement') ||
+      d.includes('disbursement') ||
+      t.includes('transfer') ||
+      d.includes('transfer') ||
+      t.includes('アカウントへ') ||
+      d.includes('アカウントへ') ||
+      t.includes('adjustment') ||
+      d.includes('adjustment') ||
+      t.includes('調整') ||
+      d.includes('調整') ||
+      t.includes('claim') ||
+      d.includes('claim') ||
+      t.includes('chargeback') ||
+      d.includes('chargeback');
+
+    if (hasFeeKeywords) return false;
+
+    const hasOrderToken =
+      t.includes('注文') ||
+      t.includes('order') ||
+      d.includes('注文') ||
+      d.includes('order');
+
+    return grossSales > 0 || (hasOrderToken && feeLikeAmount === 0 && shippingTax >= 0);
+  }
+
+  private classifyAmazonChargeKind(args: {
+    row: Record<string, string>;
+    transactionType: string;
+    description: string;
+    orderId: string;
+    sku: string;
+    productName: string;
+    quantity: number;
+    signedAmount: number;
+  }): AmazonTransactionChargeKind {
+    const t = String(args.transactionType || '').toLowerCase();
+    const d = String(args.description || '').toLowerCase();
+
+    const has = (...keywords: string[]) =>
+      keywords.some((k) => t.includes(k) || d.includes(k));
+
+    if (has('広告', 'ads', 'advertising', 'タイムセールのパフォーマンスに基づく手数料')) return 'AD_FEE';
+    if (has('月額登録料', 'subscription', '月額', '登録料')) return 'SUBSCRIPTION_FEE';
+    if (has('保管', 'storage', '倉庫', '在庫保管', '保管手数料')) return 'STORAGE_FEE';
+    if (has('fba', 'フルフィルメント', '販売手数料', '手数料')) return 'FBA_FEE';
+    if (has('税', 'tax')) return 'TAX';
+    if (has('振込', 'disbursement', 'payout', 'transfer', 'アカウントへ')) return 'PAYOUT';
+    if (has('調整', 'adjustment', 'chargeback', 'claim', '返金', 'refund', '返品')) return 'ADJUSTMENT';
+    if (this.looksLikeOrderSaleRow(args)) return 'ORDER_SALE';
+    return 'OTHER';
+  }
+
+  private parseAmazonStoreOrdersCsv(filename: string, csvText: string): AmazonPreviewResult {
+    const normalized = String(csvText || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .trim();
+
+    if (!normalized) {
+      throw new Error('csvText is empty');
+    }
+
+    const lines = normalized
+      .split('\n')
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) {
+      throw new Error('CSV must include header and at least one data row');
+    }
+
+    let headerIndex = -1;
+    let delimiterKind: 'comma' | 'tab' = 'comma';
+    let delimiterChar = ',';
+    let headerCells: string[] = [];
+    let normalizedHeaders: string[] = [];
+
+    const expectedHeaderAliases = [
+      'amazon-order-id',
+      'order-id',
+      'order id',
+      '注文番号',
+      '注文id',
+      'purchase-date',
+      'order-date',
+      '日付',
+      '日付/時間',
+      '商品名',
+      'item-name',
+      'product-name',
+      'sku',
+      'seller-sku',
+      '数量',
+      'quantity',
+      'トランザクション種別',
+      'transaction type',
+      '説明',
+      'description',
+      '合計',
+      'total',
+    ].map((x) => this.normalizeHeader(x));
+
+    for (let i = 0; i < Math.min(lines.length, 20); i += 1) {
+      const probeDelimiterKind = this.detectDelimiter(lines[i]);
+      const probeDelimiterChar = probeDelimiterKind === 'tab' ? '\t' : ',';
+      const probeHeaderCells = this.splitDelimitedLine(lines[i], probeDelimiterChar);
+      const probeNormalizedHeaders = probeHeaderCells.map((x) => this.normalizeHeader(x));
+
+      const score = probeNormalizedHeaders.filter((x) => expectedHeaderAliases.includes(x)).length;
+      if (score >= 2) {
+        headerIndex = i;
+        delimiterKind = probeDelimiterKind;
+        delimiterChar = probeDelimiterChar;
+        headerCells = probeHeaderCells;
+        normalizedHeaders = probeNormalizedHeaders;
+        break;
       }
     }
 
-    return Array.from(found).sort();
+    if (headerIndex < 0) {
+      throw new Error('Could not detect a valid Amazon CSV header row');
+    }
+
+    const rawRows: AmazonPreviewRawRow[] = [];
+    const facts: AmazonPreviewFact[] = [];
+    const charges: AmazonTransactionCharge[] = [];
+
+    const chargeSummary: AmazonTransactionChargeSummary = {
+      orderSale: 0,
+      adFee: 0,
+      storageFee: 0,
+      subscriptionFee: 0,
+      fbaFee: 0,
+      tax: 0,
+      payout: 0,
+      adjustment: 0,
+      other: 0,
+    };
+
+    let totalAmount = 0;
+    let totalQuantity = 0;
+    let failedRows = 0;
+
+    for (let i = headerIndex + 1; i < lines.length; i += 1) {
+      const cells = this.splitDelimitedLine(lines[i], delimiterChar);
+      const headerToValue: Record<string, string> = {};
+      const headerOriginalToValue: Record<string, string> = {};
+
+      for (let j = 0; j < normalizedHeaders.length; j += 1) {
+        headerToValue[normalizedHeaders[j]] = cells[j] ?? '';
+        headerOriginalToValue[headerCells[j] ?? `col_${j + 1}`] = cells[j] ?? '';
+      }
+
+      const rowNo = i;
+      rawRows.push({
+        rowNo,
+        fields: headerOriginalToValue,
+      });
+
+      const transactionType = this.pickField(headerToValue, [
+        'トランザクション種別',
+        'トランザクションの種類',
+        '取引タイプ',
+        '取引種別',
+        'transaction type',
+        'transaction type description',
+        'type',
+      ]);
+
+      const description = this.pickField(headerToValue, [
+        '説明',
+        '明細',
+        '内容',
+        'description',
+        'details',
+      ]);
+
+      const orderId = this.pickField(headerToValue, [
+        'amazon-order-id',
+        'order-id',
+        'order id',
+        '注文番号',
+        '注文id',
+        '注文',
+      ]);
+
+      const orderDate = this.pickField(headerToValue, [
+        'purchase-date',
+        'order-date',
+        'purchase date',
+        'order date',
+        '注文日',
+        '日付',
+        '日付/時間',
+        '日時',
+        'posted-date',
+        'posted date',
+      ]);
+
+      const sku = this.pickField(headerToValue, [
+        'sku',
+        'seller-sku',
+        'merchant-sku',
+        '商品sku',
+      ]);
+
+      const productName = this.pickField(headerToValue, [
+        'product-name',
+        'item-name',
+        'title',
+        'product name',
+        '商品名',
+        '説明',
+      ]);
+
+      const quantity = this.parseQuantity(
+        this.pickField(headerToValue, ['quantity', 'qty', '数量', '個数']),
+      );
+
+      const store = this.pickField(headerToValue, [
+        'store',
+        'marketplace',
+        'store-name',
+        '販売チャネル',
+        '店舗',
+      ]);
+
+      const fulfillment = this.pickField(headerToValue, [
+        'fulfillment-channel',
+        'fulfillment',
+        '配送チャネル',
+        '発送区分',
+        'フルフィルメント',
+      ]);
+
+      const signedAmount = this.parseSignedTotalAmount(headerToValue);
+      const kind = this.classifyAmazonChargeKind({
+        row: headerToValue,
+        transactionType,
+        description,
+        orderId,
+        sku,
+        productName,
+        quantity,
+        signedAmount,
+      });
+
+      charges.push({
+        id: `${rowNo}-${orderId || 'na'}-${sku || 'na'}-${kind}`,
+        rowNo,
+        occurredAt: orderDate || null,
+        orderId: orderId || null,
+        sku: sku || null,
+        transactionType: transactionType || '-',
+        description: description || '',
+        kind,
+        signedAmount,
+      });
+
+      if (kind === 'ORDER_SALE') chargeSummary.orderSale += signedAmount;
+      else if (kind === 'AD_FEE') chargeSummary.adFee += signedAmount;
+      else if (kind === 'STORAGE_FEE') chargeSummary.storageFee += signedAmount;
+      else if (kind === 'SUBSCRIPTION_FEE') chargeSummary.subscriptionFee += signedAmount;
+      else if (kind === 'FBA_FEE') chargeSummary.fbaFee += signedAmount;
+      else if (kind === 'TAX') chargeSummary.tax += signedAmount;
+      else if (kind === 'PAYOUT') chargeSummary.payout += signedAmount;
+      else if (kind === 'ADJUSTMENT') chargeSummary.adjustment += signedAmount;
+      else chargeSummary.other += signedAmount;
+
+      const isOrderLike = kind === 'ORDER_SALE';
+
+      if (isOrderLike && (orderId || sku || productName)) {
+        const bridge = this.parseAmazonBridgeAmounts(headerToValue, kind, signedAmount);
+
+        const fact: AmazonPreviewFact = {
+          rowNo,
+          orderId,
+          orderDate: orderDate || null,
+          sku,
+          productName,
+          quantity,
+          amount: bridge.grossAmount,
+          grossAmount: bridge.grossAmount,
+          netAmount: bridge.netAmount,
+          feeAmount: bridge.feeAmount,
+          taxAmount: bridge.taxAmount,
+          shippingAmount: bridge.shippingAmount,
+          promotionAmount: bridge.promotionAmount,
+          rawTransactionType: transactionType || null,
+          signedAmount,
+          description: description || null,
+          store: store || null,
+          fulfillment: fulfillment || null,
+          rawLabel: productName || sku || orderId || '注文',
+        };
+
+        facts.push(fact);
+        totalAmount += bridge.grossAmount;
+        totalQuantity += quantity;
+      }
+
+      if (
+        !transactionType &&
+        !description &&
+        !orderId &&
+        !sku &&
+        !productName &&
+        signedAmount === 0
+      ) {
+        failedRows += 1;
+      }
+    }
+
+    return {
+      summary: {
+        filename,
+        totalRows: rawRows.length,
+        successRows: facts.length,
+        failedRows,
+        totalAmount,
+        totalQuantity,
+        delimiter: delimiterKind,
+        headers: headerCells,
+      },
+      rawRows,
+      facts,
+      charges,
+      chargeSummary,
+    };
   }
 
   private async resolveCompanyId(explicitCompanyId?: string): Promise<string> {
@@ -65,23 +697,173 @@ export class ImportsService {
     return firstCompany.id;
   }
 
-  async detectMonthConflicts(dto: DetectMonthConflictsDto) {
-    const companyId = await this.resolveCompanyId(dto.companyId);
-    const fileMonths = this.extractMonths(dto);
+  private normalizeBusinessMonth(raw?: string | null): string | null {
+    const value = String(raw || '').trim();
+    if (!value) return null;
 
-    if (fileMonths.length === 0) {
+    const direct = new Date(value);
+    if (!Number.isNaN(direct.getTime())) {
+      return `${direct.getFullYear()}-${String(direct.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    const match = value.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
+    if (!match) return null;
+
+    return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`;
+  }
+
+  private hashPayload(parts: Array<string | number | null | undefined>): string {
+    const raw = parts.map((x) => String(x ?? '')).join('|');
+    return createHash('sha256').update(raw).digest('hex');
+  }
+
+  private buildStoreOrderDedupeHash(companyId: string, fact: AmazonPreviewFact): string {
+    return this.hashPayload([
+      companyId,
+      'store-orders',
+      fact.orderId,
+      fact.sku,
+      this.normalizeBusinessMonth(fact.orderDate),
+      fact.grossAmount,
+      fact.quantity,
+      fact.rawTransactionType,
+    ]);
+  }
+
+  private buildStoreOperationDedupeHash(companyId: string, charge: AmazonTransactionCharge): string {
+    return this.hashPayload([
+      companyId,
+      'store-operation',
+      this.normalizeBusinessMonth(charge.occurredAt),
+      charge.kind,
+      charge.transactionType,
+      charge.orderId,
+      charge.sku,
+      charge.signedAmount,
+      charge.description,
+    ]);
+  }
+
+  private buildStoreOrderPreviewRows(args: {
+    companyId: string;
+    facts: AmazonPreviewFact[];
+    conflictMonths: string[];
+    existingHashSet: Set<string>;
+    policy: string;
+  }): PreviewRowItem[] {
+    const { companyId, facts, conflictMonths, existingHashSet, policy } = args;
+    const conflictSet = new Set(conflictMonths);
+
+    return facts.map((fact) => {
+      const businessMonth = this.normalizeBusinessMonth(fact.orderDate);
+      const dedupeHash = this.buildStoreOrderDedupeHash(companyId, fact);
+
+      let matchStatus: PreviewRowItem['matchStatus'] = 'new';
+      let matchReason = '';
+
+      if (!businessMonth) {
+        matchStatus = 'error';
+        matchReason = 'businessMonth could not be derived from orderDate';
+      } else if (conflictSet.has(businessMonth) && policy === 'skip_existing_months') {
+        matchStatus = 'conflict';
+        matchReason = 'month conflict detected and current policy skips existing months';
+      } else if (existingHashSet.has(dedupeHash) && !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')) {
+        matchStatus = 'duplicate';
+        matchReason = 'same dedupeHash already exists in Transaction';
+      }
+
       return {
-        ok: true,
-        action: 'detect-month-conflicts',
-        module: dto.module || 'store-orders',
-        companyId,
-        sourceType: dto.sourceType || 'amazon-csv',
-        fileMonths: [],
+        rowNo: fact.rowNo,
+        businessMonth,
+        matchStatus,
+        matchReason: matchReason || undefined,
+        normalizedPayload: {
+          entityType: 'transaction',
+          module: 'store-orders',
+          dedupeHash,
+          orderId: fact.orderId,
+          orderDate: fact.orderDate,
+          sku: fact.sku,
+          productName: fact.productName,
+          quantity: fact.quantity,
+          grossAmount: fact.grossAmount,
+          netAmount: fact.netAmount,
+          feeAmount: fact.feeAmount,
+          taxAmount: fact.taxAmount,
+          shippingAmount: fact.shippingAmount,
+          promotionAmount: fact.promotionAmount,
+          rawTransactionType: fact.rawTransactionType,
+          signedAmount: fact.signedAmount,
+          description: fact.description,
+          store: fact.store,
+          fulfillment: fact.fulfillment,
+          rawLabel: fact.rawLabel,
+        },
+      };
+    });
+  }
+
+  private buildStoreOperationPreviewRows(args: {
+    companyId: string;
+    charges: AmazonTransactionCharge[];
+    conflictMonths: string[];
+    existingHashSet: Set<string>;
+    policy: string;
+  }): PreviewRowItem[] {
+    const { companyId, charges, conflictMonths, existingHashSet, policy } = args;
+    const conflictSet = new Set(conflictMonths);
+
+    return charges
+      .filter((charge) => charge.kind !== 'ORDER_SALE')
+      .map((charge) => {
+        const businessMonth = this.normalizeBusinessMonth(charge.occurredAt);
+        const dedupeHash = this.buildStoreOperationDedupeHash(companyId, charge);
+
+        let matchStatus: PreviewRowItem['matchStatus'] = 'new';
+        let matchReason = '';
+
+        if (!businessMonth) {
+          matchStatus = 'error';
+          matchReason = 'businessMonth could not be derived from occurredAt';
+        } else if (conflictSet.has(businessMonth) && policy === 'skip_existing_months') {
+          matchStatus = 'conflict';
+          matchReason = 'month conflict detected and current policy skips existing months';
+        } else if (existingHashSet.has(dedupeHash) && !(conflictSet.has(businessMonth) && policy === 'replace_existing_months')) {
+          matchStatus = 'duplicate';
+          matchReason = 'same dedupeHash already exists in Transaction';
+        }
+
+        return {
+          rowNo: charge.rowNo,
+          businessMonth,
+          matchStatus,
+          matchReason: matchReason || undefined,
+          normalizedPayload: {
+            entityType: 'transaction',
+            module: 'store-operation',
+            dedupeHash,
+            occurredAt: charge.occurredAt,
+            orderId: charge.orderId,
+            sku: charge.sku,
+            transactionType: charge.transactionType,
+            description: charge.description,
+            kind: charge.kind,
+            signedAmount: charge.signedAmount,
+          },
+        };
+      });
+  }
+
+  private async getExistingMonthStats(companyId: string, months: string[]): Promise<{
+    existingMonths: string[];
+    conflictMonths: string[];
+    monthStats: MonthStat[];
+  }> {
+    if (months.length === 0) {
+      return {
         existingMonths: [],
         conflictMonths: [],
-        hasConflict: false,
-        monthStats: [] as MonthStat[],
-        message: 'no month tokens detected in filename/csvText yet',
+        monthStats: [],
       };
     }
 
@@ -89,7 +871,7 @@ export class ImportsService {
       where: {
         companyId,
         businessMonth: {
-          in: fileMonths,
+          in: months,
         },
       },
       select: {
@@ -105,51 +887,166 @@ export class ImportsService {
     }
 
     const existingMonths = Array.from(monthCountMap.keys()).sort();
-    const conflictMonths = fileMonths.filter((month) => monthCountMap.has(month));
-    const monthStats: MonthStat[] = conflictMonths.map((month) => ({
+    const conflictMonths = months.filter((month) => monthCountMap.has(month));
+    const monthStats = conflictMonths.map((month) => ({
       month,
       existingCount: monthCountMap.get(month) || 0,
     }));
 
     return {
-      ok: true,
-      action: 'detect-month-conflicts',
-      module: dto.module || 'store-orders',
-      companyId,
-      sourceType: dto.sourceType || 'amazon-csv',
-      fileMonths,
       existingMonths,
       conflictMonths,
-      hasConflict: conflictMonths.length > 0,
       monthStats,
+    };
+  }
+
+  async detectMonthConflicts(dto: DetectMonthConflictsDto) {
+    const companyId = await this.resolveCompanyId(dto.companyId);
+    const filename = String(dto.filename || 'import-preview.csv');
+    const csvText = String(dto.csvText || '');
+    const module = dto.module || 'store-orders';
+    const sourceType = dto.sourceType || 'amazon-csv';
+
+    const parsed = this.parseAmazonStoreOrdersCsv(filename, csvText);
+
+    const candidateMonths =
+      module === 'store-operation'
+        ? parsed.charges
+            .filter((x) => x.kind !== 'ORDER_SALE')
+            .map((x) => this.normalizeBusinessMonth(x.occurredAt))
+        : parsed.facts.map((x) => this.normalizeBusinessMonth(x.orderDate));
+
+    const fileMonths = Array.from(
+      new Set(candidateMonths.filter((x): x is string => !!x))
+    ).sort();
+
+    const stats = await this.getExistingMonthStats(companyId, fileMonths);
+
+    return {
+      ok: true,
+      action: 'detect-month-conflicts',
+      module,
+      companyId,
+      sourceType,
+      fileMonths,
+      existingMonths: stats.existingMonths,
+      conflictMonths: stats.conflictMonths,
+      hasConflict: stats.conflictMonths.length > 0,
+      monthStats: stats.monthStats,
       message:
-        conflictMonths.length > 0
-          ? 'month conflicts detected'
-          : 'no month conflicts detected',
+        stats.conflictMonths.length > 0
+          ? 'month conflicts detected from parsed business dates'
+          : 'no month conflicts detected from parsed business dates',
     };
   }
 
   async previewImport(dto: PreviewImportDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
-    const detect = await this.detectMonthConflicts(dto);
+    const filename = String(dto.filename || 'import-preview.csv');
+    const csvText = String(dto.csvText || '');
+    const module = dto.module || 'store-orders';
+    const sourceType = dto.sourceType || 'amazon-csv';
+    const monthConflictPolicy =
+      dto.monthConflictPolicy || 'skip_existing_months';
+
+    const detect = await this.detectMonthConflicts({
+      companyId,
+      filename,
+      csvText,
+      workbookBase64: dto.workbookBase64,
+      module,
+      sourceType,
+    });
+
+    const parsed = this.parseAmazonStoreOrdersCsv(filename, csvText);
+
+    const allHashes =
+      module === 'store-operation'
+        ? parsed.charges
+            .filter((x) => x.kind !== 'ORDER_SALE')
+            .map((x) => this.buildStoreOperationDedupeHash(companyId, x))
+        : parsed.facts.map((x) => this.buildStoreOrderDedupeHash(companyId, x));
+
+    const existingTransactions = allHashes.length
+      ? await this.prisma.transaction.findMany({
+          where: {
+            companyId,
+            dedupeHash: {
+              in: allHashes,
+            },
+          },
+          select: {
+            dedupeHash: true,
+          },
+        })
+      : [];
+
+    const existingHashSet = new Set(
+      existingTransactions
+        .map((x) => String(x.dedupeHash || '').trim())
+        .filter(Boolean),
+    );
+
+    const previewRows =
+      module === 'store-operation'
+        ? this.buildStoreOperationPreviewRows({
+            companyId,
+            charges: parsed.charges,
+            conflictMonths: detect.conflictMonths,
+            existingHashSet,
+            policy: monthConflictPolicy,
+          })
+        : this.buildStoreOrderPreviewRows({
+            companyId,
+            facts: parsed.facts,
+            conflictMonths: detect.conflictMonths,
+            existingHashSet,
+            policy: monthConflictPolicy,
+          });
+
+    const summary = {
+      totalRows: previewRows.length,
+      validRows: previewRows.filter((x) => x.matchStatus !== 'error').length,
+      newRows: previewRows.filter((x) => x.matchStatus === 'new').length,
+      duplicateRows: previewRows.filter((x) => x.matchStatus === 'duplicate').length,
+      conflictRows: previewRows.filter((x) => x.matchStatus === 'conflict').length,
+      errorRows: previewRows.filter((x) => x.matchStatus === 'error').length,
+    };
 
     const created = await this.prisma.importJob.create({
       data: {
         companyId,
-        domain: dto.module || 'store-orders',
-        module: dto.module || 'store-orders',
-        sourceType: dto.sourceType || 'amazon-csv',
-        filename: String(dto.filename || 'import-preview.csv'),
+        domain: module,
+        module,
+        sourceType,
+        filename,
         fileHash: null,
         status: 'PENDING',
-        monthConflictPolicy: dto.monthConflictPolicy || 'skip_existing_months',
-        totalRows: 0,
-        successRows: 0,
-        failedRows: 0,
+        monthConflictPolicy,
+        totalRows: summary.totalRows,
+        successRows: summary.validRows,
+        failedRows: summary.errorRows,
         deletedRowCount: 0,
         fileMonthsJson: detect.fileMonths,
         conflictMonthsJson: detect.conflictMonths,
         errorMessage: null,
+        stagingRows: {
+          create: previewRows.map((row) => ({
+            company: {
+              connect: { id: companyId },
+            },
+            module,
+            rowNo: row.rowNo,
+            businessMonth: row.businessMonth,
+            rawPayloadJson: {} as Prisma.InputJsonValue,
+            normalizedPayloadJson: row.normalizedPayload as Prisma.InputJsonValue,
+            dedupeHash: String(row.normalizedPayload?.dedupeHash || '') || null,
+            matchStatus: row.matchStatus,
+            matchReason: row.matchReason || null,
+            targetEntityType: 'transaction',
+            targetEntityId: null,
+          })),
+        },
       },
       select: {
         id: true,
@@ -169,25 +1066,18 @@ export class ImportsService {
     return {
       ok: true,
       action: 'preview',
-      module: dto.module || 'store-orders',
+      module,
       companyId,
-      sourceType: dto.sourceType || 'amazon-csv',
+      sourceType,
       importJobId: created.id,
       job: created,
-      summary: {
-        totalRows: 0,
-        validRows: 0,
-        newRows: 0,
-        duplicateRows: 0,
-        conflictRows: 0,
-        errorRows: 0,
-      },
+      summary,
       fileMonths: detect.fileMonths,
       existingMonths: detect.existingMonths,
       conflictMonths: detect.conflictMonths,
-      monthConflictPolicy: dto.monthConflictPolicy || 'skip_existing_months',
-      rows: [],
-      message: 'imports preview skeleton created',
+      monthConflictPolicy,
+      rows: previewRows,
+      message: 'imports preview created from parsed business dates and staging rows',
     };
   }
 
