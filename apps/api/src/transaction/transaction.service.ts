@@ -115,10 +115,17 @@ export class TransactionService {
         categoryName: t.category?.name ?? null,
         type: t.type,
         direction: t.direction,
+        sourceType: t.sourceType,
         amount: t.amount,
         currency: t.currency,
         occurredAt: t.occurredAt,
+        externalRef: t.externalRef ?? null,
         memo: t.memo,
+        importJobId: t.importJobId ?? null,
+        businessMonth: t.businessMonth ?? null,
+        sourceFileName: t.sourceFileName ?? null,
+        sourceRowNo: t.sourceRowNo ?? null,
+        createdAt: t.createdAt,
       })),
     };
   }
