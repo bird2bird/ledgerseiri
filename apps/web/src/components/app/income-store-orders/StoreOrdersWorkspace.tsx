@@ -416,6 +416,13 @@ export function StoreOrdersWorkspace(props: Props) {
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
 
+  const importFrom = String(searchParams.get("from") || "");
+  const importJobId = String(searchParams.get("importJobId") || "");
+  const importMonths = String(searchParams.get("months") || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
   const {
     lang,
     rows,
@@ -562,6 +569,19 @@ export function StoreOrdersWorkspace(props: Props) {
 
   return (
     <div className="space-y-6">
+      {importFrom === "import-commit" ? (
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <div className="text-sm font-semibold text-emerald-800">
+            导入已完成，已跳转到 店舗注文 工作台
+          </div>
+          <div className="mt-1 text-sm text-emerald-700">
+            importJobId: {importJobId || "-"} / months: {importMonths.length ? importMonths.join(", ") : "-"}
+          </div>
+          <div className="mt-2 text-xs text-emerald-700">
+            当前步骤先提供导入上下文提示。由于该组件的数据、分页与总数由外部 props 提供，真正的 importJobId 级过滤需要在上游数据源层继续接入。
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="rounded-3xl bg-[linear-gradient(135deg,#8b5cf6,#a78bfa)] p-6 text-white shadow-sm">
           <div className="text-sm text-white/80">注文売上</div>

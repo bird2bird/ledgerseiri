@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   commitImportSkeleton,
   detectMonthConflicts,
@@ -27,6 +28,7 @@ type ModuleMode = "store-orders" | "store-operation";
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
+  const router = useRouter();
 
   const [moduleMode, setModuleMode] = useState<ModuleMode>(
     moduleHint === "income" ? "store-orders" : "store-orders"
@@ -91,6 +93,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setMessage(`已读取文件: ${file.name}`);
       setDetectResult(null);
       setPreviewResult(null);
+      setCommitResult(null);
       setCommitResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
@@ -185,6 +188,64 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows}`
       );
       await loadHistory(moduleMode);
+    } catch (err) {
+      setCommitResult(null);
+      setError(err instanceof Error ? err.message : "commit failed");
+    } finally {
+      setCommitLoading(false);
+    }
+  }
+
+  function buildPostCommitHref(args: {
+    moduleMode: ModuleMode;
+    importJobId: string;
+    months: string[];
+  }) {
+    const params = new URLSearchParams();
+    params.set("from", "import-commit");
+    params.set("importJobId", args.importJobId);
+    if (args.months.length > 0) {
+      params.set("months", args.months.join(","));
+    }
+    params.set("module", args.moduleMode);
+
+    const base =
+      args.moduleMode === "store-operation"
+        ? "/app/expenses/store-operation"
+        : "/app/income/store-orders";
+
+    return `${base}?${params.toString()}`;
+  }
+
+  async function runCommit() {
+    if (!previewResult?.importJobId) return;
+
+    setCommitLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await commitImportSkeleton(previewResult.importJobId, {
+        monthConflictPolicy: policy,
+      });
+
+      setCommitResult(res);
+      setMessage(
+        `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows}`
+      );
+
+      await loadHistory(moduleMode);
+
+      const months = Array.isArray(previewResult.fileMonths)
+        ? previewResult.fileMonths
+        : [];
+      const href = buildPostCommitHref({
+        moduleMode,
+        importJobId: previewResult.importJobId,
+        months,
+      });
+
+      router.push(href);
     } catch (err) {
       setCommitResult(null);
       setError(err instanceof Error ? err.message : "commit failed");
@@ -301,6 +362,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCsvText("");
                     setDetectResult(null);
                     setPreviewResult(null);
+                    setCommitResult(null);
                     setError("");
                     setMessage("已清空当前导入草稿。");
                   }}

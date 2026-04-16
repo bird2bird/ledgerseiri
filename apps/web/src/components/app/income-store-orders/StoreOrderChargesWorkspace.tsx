@@ -310,6 +310,13 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const focusTransactionId =
     crossQuery.transactionId || crossQuery.focusChargeId;
 
+  const importFrom = String(searchParams.get("from") || "");
+  const importJobId = String(searchParams.get("importJobId") || "");
+  const importMonths = String(searchParams.get("months") || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
   const [charges, setCharges] = useState<ChargeItem[]>([]);
   const [summary, setSummary] = useState<ChargeSummary>(EMPTY_SUMMARY);
   const [selectedFilter, setSelectedFilter] = useState<ChargeFilter>(
@@ -332,10 +339,23 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     setStageSavedAt(stage?.savedAt ?? "");
   }, []);
 
-  const expenseOnlyCharges = useMemo(
-    () => charges.filter((item) => item.kind !== "ORDER_SALE"),
-    [charges]
-  );
+  const expenseOnlyCharges = useMemo(() => {
+    const base = charges.filter((item) => item.kind !== "ORDER_SALE");
+    if (importFrom !== "import-commit" || importMonths.length === 0) {
+      return base;
+    }
+    const monthSet = new Set(importMonths);
+    return base.filter((item) => {
+      const raw = formatChargeDate(item.occurredAt);
+      const normalized = String(raw || "");
+      const direct = String(item.occurredAt || "");
+      const match = direct.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
+      const month = match
+        ? `${match[1]}-${String(Number(match[2])).padStart(2, "0")}`
+        : "";
+      return month ? monthSet.has(month) : false;
+    });
+  }, [charges, importFrom, importMonths]);
 
   const sortedCharges = useMemo(() => sortCharges(expenseOnlyCharges), [expenseOnlyCharges]);
 
@@ -443,6 +463,19 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
   return (
     <div className="space-y-6">
+      {importFrom === "import-commit" ? (
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
+          <div className="text-sm font-semibold text-emerald-800">
+            导入已完成，已跳转到 店舗運営費 工作台
+          </div>
+          <div className="mt-1 text-sm text-emerald-700">
+            importJobId: {importJobId || "-"} / months: {importMonths.length ? importMonths.join(", ") : "-"}
+          </div>
+          <div className="mt-2 text-xs text-emerald-700">
+            当前列表已按 months 做前端筛选。importJobId 级别的严格过滤还需要后续把 charges 数据源从 browser stage 升级为 DB-backed import results。
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
