@@ -217,43 +217,6 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     return `${base}?${params.toString()}`;
   }
 
-  async function runCommit() {
-    if (!previewResult?.importJobId) return;
-
-    setCommitLoading(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const res = await commitImportSkeleton(previewResult.importJobId, {
-        monthConflictPolicy: policy,
-      });
-
-      setCommitResult(res);
-      setMessage(
-        `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows}`
-      );
-
-      await loadHistory(moduleMode);
-
-      const months = Array.isArray(previewResult.fileMonths)
-        ? previewResult.fileMonths
-        : [];
-      const href = buildPostCommitHref({
-        moduleMode,
-        importJobId: previewResult.importJobId,
-        months,
-      });
-
-      router.push(href);
-    } catch (err) {
-      setCommitResult(null);
-      setError(err instanceof Error ? err.message : "commit failed");
-    } finally {
-      setCommitLoading(false);
-    }
-  }
-
   React.useEffect(() => {
     void loadHistory(moduleMode);
   }, [moduleMode]);
