@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
+import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import {
   buildStoreOrdersWorkspaceHref,
   readCrossWorkspaceQuery,
@@ -32,6 +33,141 @@ type ChargeSummary = {
   adjustment: number;
   other: number;
 };
+
+function normalizeImportMonths(values: string[]) {
+  return values.map((x) => String(x || "").trim()).filter(Boolean);
+}
+
+function deriveTransactionMonth(item: TransactionItem): string {
+  const businessMonth = String(item.businessMonth || "").trim();
+  if (businessMonth) return businessMonth;
+
+  const raw = String(item.occurredAt || "").trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  const m = raw.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
+  if (!m) return "";
+  return `${m[1]}-${String(Number(m[2])).padStart(2, "0")}`;
+}
+
+function parseStoreOperationMemo(memo?: string | null) {
+  const raw = String(memo || "");
+  const prefix = "[imports:store-operation]";
+  if (!raw.startsWith(prefix)) {
+    return {
+      isStoreOperationImport: false,
+      kind: "OTHER",
+      description: raw || "",
+    };
+  }
+
+  const body = raw.slice(prefix.length).trim();
+  const [kindPart, ...rest] = body.split("|");
+  const kind = String(kindPart || "OTHER").trim() || "OTHER";
+  const description = rest.join("|").trim() || body || "-";
+
+  return {
+    isStoreOperationImport: true,
+    kind,
+    description,
+  };
+}
+
+function buildChargeSummaryFromItems(items: ChargeItem[]): ChargeSummary {
+  const summary: ChargeSummary = {
+    orderSale: 0,
+    adFee: 0,
+    storageFee: 0,
+    subscriptionFee: 0,
+    fbaFee: 0,
+    tax: 0,
+    payout: 0,
+    adjustment: 0,
+    other: 0,
+  };
+
+  for (const item of items) {
+    const value = Number(item.signedAmount || 0);
+    switch (String(item.kind || "")) {
+      case "ORDER_SALE":
+        summary.orderSale = Number(summary.orderSale || 0) + value;
+        break;
+      case "AD_FEE":
+        summary.adFee += value;
+        break;
+      case "STORAGE_FEE":
+        summary.storageFee += value;
+        break;
+      case "SUBSCRIPTION_FEE":
+        summary.subscriptionFee += value;
+        break;
+      case "FBA_FEE":
+        summary.fbaFee += value;
+        break;
+      case "TAX":
+        summary.tax += value;
+        break;
+      case "PAYOUT":
+        summary.payout += value;
+        break;
+      case "ADJUSTMENT":
+        summary.adjustment += value;
+        break;
+      default:
+        summary.other += value;
+        break;
+    }
+  }
+
+  return summary;
+}
+
+function mapTransactionsToChargeItems(args: {
+  items: TransactionItem[];
+  importJobId: string;
+  importMonths: string[];
+}) {
+  const { items, importJobId, importMonths } = args;
+  const monthSet = new Set(normalizeImportMonths(importMonths));
+
+  return items
+    .filter((item) => {
+      const parsed = parseStoreOperationMemo(item.memo);
+      if (!parsed.isStoreOperationImport) return false;
+
+      const sameJob = importJobId
+        ? String(item.importJobId || "").trim() === importJobId
+        : true;
+
+      const sameMonth =
+        monthSet.size > 0 ? monthSet.has(deriveTransactionMonth(item)) : true;
+
+      return sameJob && sameMonth;
+    })
+    .map((item, index) => {
+      const parsed = parseStoreOperationMemo(item.memo);
+      const signedAmount =
+        String(item.direction || "") === "INCOME"
+          ? Number(item.amount || 0)
+          : -Math.abs(Number(item.amount || 0));
+
+      return {
+        id: String(item.id || `tx-${index + 1}`),
+        rowNo: Number(item.sourceRowNo || index + 1),
+        occurredAt: item.occurredAt || null,
+        orderId: item.externalRef || null,
+        sku: null,
+        transactionType: parsed.kind || "OTHER",
+        description: parsed.description || "-",
+        kind: parsed.kind || "OTHER",
+        signedAmount,
+      } as ChargeItem;
+    });
+}
 
 type ChargeFilter =
   | "ALL"
@@ -331,13 +467,54 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const [selectedChargeId, setSelectedChargeId] = useState("");
 
   useEffect(() => {
-    const stage = loadAmazonStoreOrdersStage();
-    setHasStage(!!stage);
-    setCharges(Array.isArray(stage?.charges) ? stage!.charges : []);
-    setSummary(stage?.chargeSummary ?? EMPTY_SUMMARY);
-    setStageFilename(stage?.filename ?? "");
-    setStageSavedAt(stage?.savedAt ?? "");
-  }, []);
+    let mounted = true;
+
+    async function loadInitialData() {
+      if (importFrom === "import-commit") {
+        try {
+          const res = await listTransactions();
+          if (!mounted) return;
+
+          const items = Array.isArray(res.items) ? res.items : [];
+          const mapped = sortCharges(
+            mapTransactionsToChargeItems({
+              items,
+              importJobId,
+              importMonths,
+            })
+          );
+
+          setHasStage(false);
+          setCharges(mapped);
+          setSummary(buildChargeSummaryFromItems(mapped));
+          setStageFilename(importJobId ? `importJob:${importJobId}` : "db-backed import result");
+          setStageSavedAt("");
+        } catch (_err) {
+          if (!mounted) return;
+          setHasStage(false);
+          setCharges([]);
+          setSummary(EMPTY_SUMMARY);
+          setStageFilename(importJobId ? `importJob:${importJobId}` : "db-backed import result");
+          setStageSavedAt("");
+        }
+        return;
+      }
+
+      const stage = loadAmazonStoreOrdersStage();
+      if (!mounted) return;
+      setHasStage(!!stage);
+      setCharges(Array.isArray(stage?.charges) ? stage!.charges : []);
+      setSummary(stage?.chargeSummary ?? EMPTY_SUMMARY);
+      setStageFilename(stage?.filename ?? "");
+      setStageSavedAt(stage?.savedAt ?? "");
+    }
+
+    void loadInitialData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [importFrom, importJobId, importMonths]);
 
   const expenseOnlyCharges = useMemo(() => {
     const base = charges.filter((item) => item.kind !== "ORDER_SALE");
@@ -472,7 +649,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
             importJobId: {importJobId || "-"} / months: {importMonths.length ? importMonths.join(", ") : "-"}
           </div>
           <div className="mt-2 text-xs text-emerald-700">
-            当前列表已按 months 做前端筛选。importJobId 级别的严格过滤还需要后续把 charges 数据源从 browser stage 升级为 DB-backed import results。
+            当前列表已切换为 DB-backed import-aware results，并按 importJobId / months 进行过滤，不再依赖 browser stage。
           </div>
         </div>
       ) : null}
