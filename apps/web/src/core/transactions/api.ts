@@ -1,4 +1,6 @@
 import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
+
 export type TransactionCategoryItem = {
   id: string;
   companyId: string;
@@ -36,23 +38,31 @@ export type TransactionItem = {
 
 async function readJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
-      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
-      throw new Error(`${res.status} ${text}`);
-    }
+    const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+    throw new Error(`${res.status} ${text}`);
+  }
   return (await res.json()) as T;
 }
 
-export async function listTransactionCategories(direction?: "INCOME" | "EXPENSE" | "TRANSFER") {
+export async function listTransactionCategories(
+  direction?: "INCOME" | "EXPENSE" | "TRANSFER"
+) {
   const qs = direction ? `?direction=${direction}` : "";
   return readJson<{ ok: boolean; items: TransactionCategoryItem[] }>(
-    await fetch(`/api/transaction-categories${qs}`, { cache: "no-store" })
+    await fetchWithAutoRefresh(`/api/transaction-categories${qs}`, {
+      cache: "no-store",
+    })
   );
 }
 
-export async function listTransactions(direction?: "INCOME" | "EXPENSE" | "TRANSFER") {
+export async function listTransactions(
+  direction?: "INCOME" | "EXPENSE" | "TRANSFER"
+) {
   const qs = direction ? `?direction=${direction}` : "";
   return readJson<{ ok: boolean; items: TransactionItem[] }>(
-    await fetch(`/api/transactions${qs}`, { cache: "no-store" })
+    await fetchWithAutoRefresh(`/api/transactions${qs}`, {
+      cache: "no-store",
+    })
   );
 }
 
@@ -67,14 +77,13 @@ export async function createTransaction(payload: {
   memo?: string;
 }) {
   return readJson(
-    await fetch("/api/transactions", {
+    await fetchWithAutoRefresh("/api/transactions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     })
   );
 }
-
 
 export async function updateTransaction(
   id: string,
@@ -84,7 +93,7 @@ export async function updateTransaction(
   }
 ) {
   return readJson<{ ok: boolean; item: TransactionItem; message: string }>(
-    await fetch(`/api/transactions/${id}`, {
+    await fetchWithAutoRefresh(`/api/transactions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -100,5 +109,7 @@ export async function getDashboardSummary() {
     profit: number;
     cash: number;
     message?: string;
-  }>(await fetch("/dashboard/summary", { cache: "no-store" }));
+  }>(
+    await fetch("/dashboard/summary", { cache: "no-store" })
+  );
 }

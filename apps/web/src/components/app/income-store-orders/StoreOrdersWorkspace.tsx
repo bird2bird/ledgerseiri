@@ -542,6 +542,7 @@ export function StoreOrdersWorkspace(props: Props) {
     useState<BreakdownSortMode>("date-desc");
   const [copyMessage, setCopyMessage] = useState("");
   const [drawerRowId, setDrawerRowId] = useState("");
+  const [isBreakdownDrawerOpen, setIsBreakdownDrawerOpen] = useState(false);
   const drawerOpenedAtRef = React.useRef(0);
 
   const drawerSelectedRow =
@@ -549,6 +550,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const drawerOpen =
     storeOrderViewMode === "aggregated" &&
+    isBreakdownDrawerOpen &&
     !!drawerRowId &&
     !!drawerSelectedRow;
 
@@ -583,6 +585,12 @@ export function StoreOrdersWorkspace(props: Props) {
     () => sumBreakdownGross(breakdownRows),
     [breakdownRows]
   );
+  React.useEffect(() => {
+    if (!drawerOpen) {
+      setCopyMessage("");
+    }
+  }, [drawerOpen]);
+
   const breakdownNetSum = useMemo(
     () => sumBreakdownNet(breakdownRows),
     [breakdownRows]
@@ -624,6 +632,7 @@ export function StoreOrdersWorkspace(props: Props) {
       if (elapsed < 250) return;
     }
 
+    setIsBreakdownDrawerOpen(false);
     setCopyMessage("");
     setDrawerRowId("");
     onSelectRow("");
@@ -651,6 +660,7 @@ export function StoreOrdersWorkspace(props: Props) {
     if (matched) {
       drawerOpenedAtRef.current = Date.now();
       setDrawerRowId(matched.id);
+      setIsBreakdownDrawerOpen(true);
       onSelectRow(matched.id);
     }
   }, [
@@ -666,6 +676,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
   React.useEffect(() => {
     if (storeOrderViewMode !== "aggregated") {
+      setIsBreakdownDrawerOpen(false);
       setDrawerRowId("");
     }
   }, [storeOrderViewMode]);
@@ -674,6 +685,7 @@ export function StoreOrdersWorkspace(props: Props) {
     if (!drawerRowId) return;
     const stillExists = rows.some((row) => row.id === drawerRowId);
     if (!stillExists) {
+      setIsBreakdownDrawerOpen(false);
       setDrawerRowId("");
     }
   }, [drawerRowId, rows]);
@@ -1059,6 +1071,7 @@ export function StoreOrdersWorkspace(props: Props) {
                 onClick={() => {
                   drawerOpenedAtRef.current = Date.now();
                   setDrawerRowId(row.id);
+                  setIsBreakdownDrawerOpen(true);
                   onSelectRow(row.id);
                 }}
                 className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
