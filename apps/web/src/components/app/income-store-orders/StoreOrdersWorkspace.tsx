@@ -472,8 +472,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const drawerOpen =
     storeOrderViewMode === "aggregated" &&
-    !!selectedRow &&
-    selectedRawTransactionRows.length > 0;
+    !!selectedRow;
 
   const [breakdownFilter, setBreakdownFilter] = useState<BreakdownFilter>("ALL");
   const [breakdownSortMode, setBreakdownSortMode] =
@@ -1169,7 +1168,7 @@ export function StoreOrdersWorkspace(props: Props) {
             <div className="space-y-4 px-6 py-6">
               {breakdownRows.length === 0 ? (
                 <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-                  当前筛选条件下没有 transaction。
+                  当前未找到与所选聚合行匹配的原始 transaction。Drawer 已正常打开，请继续检查 date / orderId / SKU 聚合键是否一致。
                 </div>
               ) : (
                 breakdownRows.map((row) => {

@@ -81,6 +81,70 @@ function filterImportAwareStoreOrderRows(args: {
   });
 }
 
+function buildStoreOrderCompositeKey(args: {
+  date?: string | null;
+  orderId?: string | null;
+  sku?: string | null;
+}) {
+  return `${String(args.date || "-")}__${String(args.orderId || "")}__${String(args.sku || "")}`;
+}
+
+function resolveSelectedRawTransactionRows(args: {
+  category: IncomeCategory;
+  storeOrderViewMode: "aggregated" | "raw";
+  selectedRow: IncomeRow | null;
+  rawStoreOrderRows: IncomeRow[];
+}) {
+  const { category, storeOrderViewMode, selectedRow, rawStoreOrderRows } = args;
+
+  if (category !== "store-order" || !selectedRow) {
+    return [];
+  }
+
+  if (storeOrderViewMode === "raw") {
+    return rawStoreOrderRows.filter((row) => row.id === selectedRow.id);
+  }
+
+  const selectedDate = String(selectedRow.date || "-");
+  const selectedOrderId = String(selectedRow.externalRef || "");
+  const selectedSku = String(selectedRow.sku || "");
+  const selectedKey = buildStoreOrderCompositeKey({
+    date: selectedDate,
+    orderId: selectedOrderId,
+    sku: selectedSku,
+  });
+
+  const exact = rawStoreOrderRows.filter((row) => {
+    const rowKey = buildStoreOrderCompositeKey({
+      date: row.date,
+      orderId: row.externalRef,
+      sku: row.sku,
+    });
+    return rowKey === selectedKey;
+  });
+  if (exact.length > 0) return exact;
+
+  const byAggregateId = rawStoreOrderRows.filter((row) => {
+    const rowKey = buildStoreOrderCompositeKey({
+      date: row.date,
+      orderId: row.externalRef,
+      sku: row.sku,
+    });
+    return rowKey === String(selectedRow.id || "");
+  });
+  if (byAggregateId.length > 0) return byAggregateId;
+
+  const byDateAndOrder = rawStoreOrderRows.filter((row) => {
+    return (
+      String(row.date || "-") === selectedDate &&
+      String(row.externalRef || "") === selectedOrderId
+    );
+  });
+  if (byDateAndOrder.length > 0) return byDateAndOrder;
+
+  return [];
+}
+
 export function useIncomePageState(args: {
   from: string;
   storeId: string;
@@ -393,23 +457,12 @@ export function useIncomePageState(args: {
     [rows]
   );
 
-  const selectedRawTransactionRows =
-    category === "store-order" &&
-    storeOrderViewMode === "aggregated" &&
-    selectedRow
-      ? rawStoreOrderRows.filter((row) => {
-          const selectedDate = String(selectedRow.date || "-");
-          const selectedOrderId = String(selectedRow.externalRef || "");
-          const selectedSku = String(selectedRow.sku || "");
-          return (
-            String(row.date || "-") === selectedDate &&
-            String(row.externalRef || "") === selectedOrderId &&
-            String(row.sku || "") === selectedSku
-          );
-        })
-      : category === "store-order" && storeOrderViewMode === "raw" && selectedRow
-      ? rawStoreOrderRows.filter((row) => row.id === selectedRow.id)
-      : [];
+  const selectedRawTransactionRows = resolveSelectedRawTransactionRows({
+    category,
+    storeOrderViewMode,
+    selectedRow,
+    rawStoreOrderRows,
+  });
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
