@@ -69,6 +69,58 @@ export type PreviewImportResponse = {
   message?: string;
 };
 
+export type ImportResultSummary = {
+  importJobId?: string;
+  module?: string | null;
+  filename?: string | null;
+  createdAt?: string | null;
+  importedAt?: string | null;
+  months?: {
+    fileMonths?: string[];
+    conflictMonths?: string[];
+    importedMonths?: string[];
+  };
+  staging?: {
+    totalRows?: number;
+    newRows?: number;
+    duplicateRows?: number;
+    conflictRows?: number;
+    errorRows?: number;
+  };
+  commit?: {
+    importedRows?: number;
+    duplicateRows?: number;
+    conflictRows?: number;
+    errorRows?: number;
+    deletedRows?: number;
+  };
+  transactions?: {
+    committedCount?: number;
+    totalCommittedAmount?: number;
+    incomeCount?: number;
+    expenseCount?: number;
+    transferCount?: number;
+    byType?: Array<{
+      type: string;
+      count: number;
+      amount: number;
+    }>;
+    byMonth?: Array<{
+      month: string;
+      count: number;
+      amount: number;
+    }>;
+  };
+  coverage?: {
+    withAccountCount?: number;
+    withCategoryCount?: number;
+    distinctStoreCount?: number;
+  };
+  integrity?: {
+    importedRowsMatchesCommittedCount?: boolean;
+  };
+};
+
 export type CommitImportRequest = {
   companyId?: string;
   monthConflictPolicy?: MonthConflictPolicy | string;
@@ -96,57 +148,16 @@ export type CommitImportResponse = {
     deletedRowCount?: number | null;
     importedAt?: string | null;
   } | null;
-  summary?: {
-    importJobId?: string;
-    module?: string | null;
-    filename?: string | null;
-    createdAt?: string | null;
-    importedAt?: string | null;
-    months?: {
-      fileMonths?: string[];
-      conflictMonths?: string[];
-      importedMonths?: string[];
-    };
-    staging?: {
-      totalRows?: number;
-      newRows?: number;
-      duplicateRows?: number;
-      conflictRows?: number;
-      errorRows?: number;
-    };
-    commit?: {
-      importedRows?: number;
-      duplicateRows?: number;
-      conflictRows?: number;
-      errorRows?: number;
-      deletedRows?: number;
-    };
-    transactions?: {
-      committedCount?: number;
-      totalCommittedAmount?: number;
-      incomeCount?: number;
-      expenseCount?: number;
-      transferCount?: number;
-      byType?: Array<{
-        type: string;
-        count: number;
-        amount: number;
-      }>;
-      byMonth?: Array<{
-        month: string;
-        count: number;
-        amount: number;
-      }>;
-    };
-    coverage?: {
-      withAccountCount?: number;
-      withCategoryCount?: number;
-      distinctStoreCount?: number;
-    };
-    integrity?: {
-      importedRowsMatchesCommittedCount?: boolean;
-    };
-  };
+  summary?: ImportResultSummary;
+  message?: string;
+};
+
+export type LoadImportSummaryResponse = {
+  ok?: boolean;
+  action?: string;
+  companyId?: string | null;
+  importJobId?: string;
+  summary?: ImportResultSummary;
   message?: string;
 };
 

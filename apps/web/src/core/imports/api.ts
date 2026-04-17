@@ -4,6 +4,7 @@ import type {
   DetectMonthConflictsRequest,
   DetectMonthConflictsResponse,
   ImportHistoryResponse,
+  LoadImportSummaryResponse,
   PreviewImportRequest,
   PreviewImportResponse,
 } from "./types";
@@ -52,6 +53,24 @@ export async function commitImportSkeleton(
     `/api/imports/${importJobId}/commit`,
     payload
   );
+}
+
+export async function loadImportSummary(
+  importJobId: string,
+  args?: { companyId?: string }
+): Promise<LoadImportSummaryResponse> {
+  const params = new URLSearchParams();
+  if (args?.companyId) params.set("companyId", args.companyId);
+
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  const url = `/api/imports/${importJobId}/summary${suffix}`;
+
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return readJson<LoadImportSummaryResponse>(res, url);
 }
 
 export async function loadImportHistorySkeleton(args?: {
