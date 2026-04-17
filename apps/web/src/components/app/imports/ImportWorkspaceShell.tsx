@@ -25,6 +25,38 @@ function formatPolicyLabel(value: MonthConflictPolicy) {
     : "跳过已存在月份";
 }
 
+function formatDateTime(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleString("ja-JP");
+}
+
+function formatNumber(value?: number | null) {
+  return Number(value || 0).toLocaleString("ja-JP");
+}
+
+function renderTagList(values?: string[]) {
+  const list = Array.isArray(values) ? values.filter(Boolean) : [];
+  if (!list.length) {
+    return <span className="text-sm text-slate-500">-</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {list.map((item) => (
+        <span
+          key={item}
+          className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-200"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 type ModuleMode = "store-orders" | "store-operation";
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
@@ -425,37 +457,249 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
             </div>
 
             {commitResult ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <div className="rounded-[18px] bg-white p-3">
-                  <div className="text-[11px] text-slate-500">Imported</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">
-                    {commitResult.importedRows ?? 0}
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="rounded-[18px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Imported</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {commitResult.importedRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Duplicate</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {commitResult.duplicateRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Conflict</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {commitResult.conflictRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Error</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {commitResult.errorRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-[18px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Deleted</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {commitResult.deletedRows ?? 0}
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-[18px] bg-white p-3">
-                  <div className="text-[11px] text-slate-500">Duplicate</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">
-                    {commitResult.duplicateRows ?? 0}
+
+                {commitResult.summary ? (
+                  <div className="rounded-[20px] border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          Import Result Summary
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          reconciliation-style summary / commit 后导入结果总览
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
+                        integrity ={" "}
+                        {commitResult.summary.integrity?.importedRowsMatchesCommittedCount
+                          ? "OK"
+                          : "CHECK"}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                      <div className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Filename</div>
+                            <div className="mt-1 break-all text-sm font-medium text-slate-900">
+                              {commitResult.summary.filename || "-"}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Module</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">
+                              {commitResult.summary.module || "-"}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Created At</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">
+                              {formatDateTime(commitResult.summary.createdAt)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Imported At</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">
+                              {formatDateTime(commitResult.summary.importedAt)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">File Months</div>
+                            <div className="mt-2">
+                              {renderTagList(commitResult.summary.months?.fileMonths)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Conflict Months</div>
+                            <div className="mt-2">
+                              {renderTagList(commitResult.summary.months?.conflictMonths)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Imported Months</div>
+                            <div className="mt-2">
+                              {renderTagList(commitResult.summary.months?.importedMonths)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Staging Total</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.staging?.totalRows)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Staging New</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.staging?.newRows)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Staging Duplicate</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.staging?.duplicateRows)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Staging Conflict/Error</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(
+                                Number(commitResult.summary.staging?.conflictRows || 0) +
+                                  Number(commitResult.summary.staging?.errorRows || 0)
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Committed Count</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.transactions?.committedCount)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">Committed Amount</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              ¥{formatNumber(commitResult.summary.transactions?.totalCommittedAmount)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">With Account</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.coverage?.withAccountCount)}
+                            </div>
+                          </div>
+                          <div className="rounded-[16px] bg-slate-50 p-3">
+                            <div className="text-[11px] text-slate-500">With Category</div>
+                            <div className="mt-1 text-base font-semibold text-slate-900">
+                              {formatNumber(commitResult.summary.coverage?.withCategoryCount)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="rounded-[16px] bg-slate-50 p-3">
+                          <div className="text-[11px] text-slate-500">Direction Breakdown</div>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                            <div>
+                              <div className="text-[11px] text-slate-500">Income</div>
+                              <div className="mt-1 text-sm font-semibold text-slate-900">
+                                {formatNumber(commitResult.summary.transactions?.incomeCount)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-slate-500">Expense</div>
+                              <div className="mt-1 text-sm font-semibold text-slate-900">
+                                {formatNumber(commitResult.summary.transactions?.expenseCount)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-slate-500">Transfer</div>
+                              <div className="mt-1 text-sm font-semibold text-slate-900">
+                                {formatNumber(commitResult.summary.transactions?.transferCount)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[16px] bg-slate-50 p-3">
+                          <div className="text-[11px] text-slate-500">Type Breakdown</div>
+                          <div className="mt-3 space-y-2">
+                            {Array.isArray(commitResult.summary.transactions?.byType) &&
+                            commitResult.summary.transactions?.byType?.length ? (
+                              commitResult.summary.transactions.byType.map((item) => (
+                                <div
+                                  key={item.type}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm"
+                                >
+                                  <div className="font-medium text-slate-800">{item.type}</div>
+                                  <div className="text-slate-600">
+                                    {formatNumber(item.count)} / ¥{formatNumber(item.amount)}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-sm text-slate-500">-</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[16px] bg-slate-50 p-3">
+                          <div className="text-[11px] text-slate-500">Month Breakdown</div>
+                          <div className="mt-3 space-y-2">
+                            {Array.isArray(commitResult.summary.transactions?.byMonth) &&
+                            commitResult.summary.transactions?.byMonth?.length ? (
+                              commitResult.summary.transactions.byMonth.map((item) => (
+                                <div
+                                  key={item.month}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm"
+                                >
+                                  <div className="font-medium text-slate-800">{item.month}</div>
+                                  <div className="text-slate-600">
+                                    {formatNumber(item.count)} / ¥{formatNumber(item.amount)}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="text-sm text-slate-500">-</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[16px] bg-slate-50 p-3">
+                          <div className="text-[11px] text-slate-500">Integrity Check</div>
+                          <div className="mt-2 text-sm font-medium text-slate-900">
+                            importedRowsMatchesCommittedCount ={" "}
+                            {commitResult.summary.integrity?.importedRowsMatchesCommittedCount
+                              ? "true"
+                              : "false"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="rounded-[18px] bg-white p-3">
-                  <div className="text-[11px] text-slate-500">Conflict</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">
-                    {commitResult.conflictRows ?? 0}
-                  </div>
-                </div>
-                <div className="rounded-[18px] bg-white p-3">
-                  <div className="text-[11px] text-slate-500">Error</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">
-                    {commitResult.errorRows ?? 0}
-                  </div>
-                </div>
-                <div className="rounded-[18px] bg-white p-3">
-                  <div className="text-[11px] text-slate-500">Deleted</div>
-                  <div className="mt-1 text-lg font-semibold text-slate-900">
-                    {commitResult.deletedRows ?? 0}
-                  </div>
-                </div>
+                ) : null}
               </div>
             ) : null}
           </div>

@@ -926,6 +926,368 @@ export class ImportsService {
     return input.map((x) => String(x || '').trim()).filter(Boolean);
   }
 
+  private includesKeyword(value: string, keywords: string[]) {
+    const normalized = String(value || '').toLowerCase();
+    return keywords.some((k) => normalized.includes(String(k).toLowerCase()));
+  }
+
+  private resolveImportDirection(args: {
+    module: string;
+    signedAmount: number;
+  }): 'INCOME' | 'EXPENSE' {
+    if (args.module === 'store-orders') {
+      return 'INCOME';
+    }
+    return args.signedAmount >= 0 ? 'INCOME' : 'EXPENSE';
+  }
+
+  private resolveImportTransactionType(args: {
+    module: string;
+    kind: string;
+    signedAmount: number;
+  }): 'SALE' | 'FBA_FEE' | 'AD' | 'REFUND' | 'OTHER' {
+    const kind = String(args.kind || '').toUpperCase();
+
+    if (args.module === 'store-orders') {
+      return 'SALE';
+    }
+
+    if (kind === 'AD_FEE') return 'AD';
+    if (kind === 'FBA_FEE' || kind === 'STORAGE_FEE') return 'FBA_FEE';
+    if (kind === 'ADJUSTMENT' && args.signedAmount < 0) return 'REFUND';
+
+    return 'OTHER';
+  }
+
+  private resolveCategoryKeywords(args: {
+    module: string;
+    kind: string;
+    direction: 'INCOME' | 'EXPENSE';
+  }): string[] {
+    const kind = String(args.kind || '').toUpperCase();
+
+    if (args.module === 'store-orders') {
+      return ['売上', 'sales', 'sale', '収入', 'amazon', 'store-order'];
+    }
+
+    if (args.direction === 'INCOME') {
+      if (kind === 'PAYOUT') return ['入金', '振込', 'payout', '入帳'];
+      if (kind === 'ADJUSTMENT') return ['調整', '返金', 'refund', '収入'];
+      return ['収入', '入金', 'その他'];
+    }
+
+    if (kind === 'AD_FEE') return ['広告', 'ad', 'ads', 'advertising'];
+    if (kind === 'FBA_FEE') return ['fba', '物流', '発送', '手数料', 'fulfillment'];
+    if (kind === 'STORAGE_FEE') return ['保管', 'storage', '倉庫'];
+    if (kind === 'SUBSCRIPTION_FEE') return ['月額', '登録料', 'subscription', 'platform'];
+    if (kind === 'TAX') return ['税', 'tax'];
+    if (kind === 'ADJUSTMENT') return ['調整', '返金', 'refund', '返品'];
+
+    return ['その他', 'other', '雑費', '手数料'];
+  }
+
+  private async resolveImportAccountId(tx: Prisma.TransactionClient, args: {
+    companyId: string;
+    storeId: string;
+    module: string;
+    kind: string;
+  }): Promise<string | null> {
+    const accounts = await tx.account.findMany({
+      where: {
+        companyId: args.companyId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        storeId: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    if (!accounts.length) return null;
+
+    const keywords =
+      args.module === 'store-orders'
+        ? ['amazon', '売上', '入金', '受取', 'payment', 'gateway', 'wallet']
+        : ['amazon', '支払', '経費', '費用', 'payment', 'gateway', 'wallet', 'bank'];
+
+    const scored = accounts.map((account) => {
+      let score = 0;
+      if (account.storeId === args.storeId) score += 5;
+      if (!account.storeId) score += 2;
+
+      const name = String(account.name || '');
+      if (this.includesKeyword(name, keywords)) score += 5;
+
+      const type = String(account.type || '').toUpperCase();
+      if (type === 'PAYMENT_GATEWAY') score += 3;
+      if (type === 'BANK') score += 2;
+      if (type === 'EWALLET') score += 2;
+
+      if (args.module === 'store-orders' && this.includesKeyword(name, ['amazon'])) score += 3;
+      if (args.module === 'store-operation' && this.includesKeyword(name, ['amazon'])) score += 2;
+
+      return {
+        id: account.id,
+        score,
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.id || null;
+  }
+
+  private async resolveImportCategoryId(tx: Prisma.TransactionClient, args: {
+    companyId: string;
+    module: string;
+    kind: string;
+    direction: 'INCOME' | 'EXPENSE';
+  }): Promise<string | null> {
+    const categories = await tx.transactionCategory.findMany({
+      where: {
+        companyId: args.companyId,
+        direction: args.direction as any,
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isSystem: true,
+      },
+      orderBy: [
+        { isSystem: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    if (!categories.length) return null;
+
+    const keywords = this.resolveCategoryKeywords(args);
+
+    const scored = categories.map((category) => {
+      let score = 0;
+      const name = String(category.name || '');
+      const code = String(category.code || '');
+
+      if (this.includesKeyword(name, keywords)) score += 5;
+      if (this.includesKeyword(code, keywords)) score += 4;
+      if (category.isSystem) score += 1;
+
+      return {
+        id: category.id,
+        score,
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.id || null;
+  }
+
+  private buildImportMemoPrefix(module: string) {
+    return `[imports:${String(module || '').trim()}]`;
+  }
+
+  private buildPreciseReplaceWhere(args: {
+    companyId: string;
+    module: string;
+    months: string[];
+  }): Prisma.TransactionWhereInput {
+    const normalizedMonths = args.months
+      .map((x) => String(x || '').trim())
+      .filter(Boolean);
+
+    return {
+      companyId: args.companyId,
+      businessMonth: {
+        in: normalizedMonths,
+      },
+      sourceType: 'IMPORT' as any,
+      sourceFileName: {
+        not: null,
+      },
+      memo: {
+        startsWith: this.buildImportMemoPrefix(args.module),
+      },
+      importJob: {
+        is: {
+          companyId: args.companyId,
+          module: args.module,
+        },
+      },
+    };
+  }
+
+  private async buildImportResultSummary(args: {
+    companyId: string;
+    importJobId: string;
+    importedRows: number;
+    duplicateRows: number;
+    conflictRows: number;
+    errorRows: number;
+    deletedRows: number;
+  }) {
+    const job = await this.prisma.importJob.findFirst({
+      where: {
+        id: args.importJobId,
+        companyId: args.companyId,
+      },
+      select: {
+        id: true,
+        module: true,
+        filename: true,
+        fileMonthsJson: true,
+        conflictMonthsJson: true,
+        createdAt: true,
+        importedAt: true,
+      },
+    });
+
+    const stagingRows = await this.prisma.importStagingRow.findMany({
+      where: {
+        importJobId: args.importJobId,
+      },
+      select: {
+        id: true,
+        rowNo: true,
+        businessMonth: true,
+        matchStatus: true,
+      },
+    });
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        companyId: args.companyId,
+        importJobId: args.importJobId,
+      },
+      select: {
+        id: true,
+        amount: true,
+        direction: true,
+        type: true,
+        businessMonth: true,
+        accountId: true,
+        categoryId: true,
+        storeId: true,
+      },
+    });
+
+    const fileMonths = this.normalizeStringArray(job?.fileMonthsJson);
+    const conflictMonths = this.normalizeStringArray(job?.conflictMonthsJson);
+
+    const importedMonths = Array.from(
+      new Set(
+        transactions
+          .map((x) => String(x.businessMonth || '').trim())
+          .filter(Boolean),
+      ),
+    ).sort();
+
+    const stagingStatusCounts = {
+      newRows: stagingRows.filter((x) => x.matchStatus === 'new').length,
+      duplicateRows: stagingRows.filter((x) => x.matchStatus === 'duplicate').length,
+      conflictRows: stagingRows.filter((x) => x.matchStatus === 'conflict').length,
+      errorRows: stagingRows.filter((x) => x.matchStatus === 'error').length,
+    };
+
+    const directionBreakdown = {
+      incomeCount: transactions.filter((x) => x.direction === 'INCOME').length,
+      expenseCount: transactions.filter((x) => x.direction === 'EXPENSE').length,
+      transferCount: transactions.filter((x) => x.direction === 'TRANSFER').length,
+    };
+
+    const typeBreakdownMap = new Map<string, { count: number; amount: number }>();
+    for (const tx of transactions) {
+      const key = String(tx.type || 'OTHER');
+      const current = typeBreakdownMap.get(key) || { count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += Number(tx.amount || 0);
+      typeBreakdownMap.set(key, current);
+    }
+
+    const byType = Array.from(typeBreakdownMap.entries())
+      .map(([type, value]) => ({
+        type,
+        count: value.count,
+        amount: value.amount,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const monthBreakdownMap = new Map<string, { count: number; amount: number }>();
+    for (const tx of transactions) {
+      const key = String(tx.businessMonth || '').trim() || '-';
+      const current = monthBreakdownMap.get(key) || { count: 0, amount: 0 };
+      current.count += 1;
+      current.amount += Number(tx.amount || 0);
+      monthBreakdownMap.set(key, current);
+    }
+
+    const byMonth = Array.from(monthBreakdownMap.entries())
+      .map(([month, value]) => ({
+        month,
+        count: value.count,
+        amount: value.amount,
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const coverage = {
+      withAccountCount: transactions.filter((x) => !!x.accountId).length,
+      withCategoryCount: transactions.filter((x) => !!x.categoryId).length,
+      distinctStoreCount: Array.from(
+        new Set(transactions.map((x) => String(x.storeId || '').trim()).filter(Boolean)),
+      ).length,
+    };
+
+    const totalCommittedAmount = transactions.reduce(
+      (sum, x) => sum + Number(x.amount || 0),
+      0,
+    );
+
+    return {
+      importJobId: args.importJobId,
+      module: job?.module || null,
+      filename: job?.filename || null,
+      createdAt: job?.createdAt || null,
+      importedAt: job?.importedAt || null,
+
+      months: {
+        fileMonths,
+        conflictMonths,
+        importedMonths,
+      },
+
+      staging: {
+        totalRows: stagingRows.length,
+        ...stagingStatusCounts,
+      },
+
+      commit: {
+        importedRows: args.importedRows,
+        duplicateRows: args.duplicateRows,
+        conflictRows: args.conflictRows,
+        errorRows: args.errorRows,
+        deletedRows: args.deletedRows,
+      },
+
+      transactions: {
+        committedCount: transactions.length,
+        totalCommittedAmount,
+        ...directionBreakdown,
+        byType,
+        byMonth,
+      },
+
+      coverage,
+
+      integrity: {
+        importedRowsMatchesCommittedCount: args.importedRows === transactions.length,
+      },
+    };
+  }
+
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
     const filename = String(dto.filename || 'import-preview.csv');
@@ -1172,17 +1534,11 @@ export class ImportsService {
 
       if (policy === 'replace_existing_months' && conflictMonths.length > 0) {
         const deleted = await tx.transaction.deleteMany({
-          where: {
+          where: this.buildPreciseReplaceWhere({
             companyId,
-            businessMonth: {
-              in: conflictMonths,
-            },
-            importJob: {
-              is: {
-                module,
-              },
-            },
-          },
+            module,
+            months: conflictMonths,
+          }),
         });
 
         deletedRows = deleted.count;
@@ -1266,15 +1622,36 @@ export class ImportsService {
         );
         const signedAmount = Number(payload.signedAmount ?? 0);
         const grossAmount = Number(payload.grossAmount ?? payload.amount ?? 0);
+        const kind = String(payload.kind || payload.transactionType || '').toUpperCase();
 
         const resolvedAmount = isStoreOperation
           ? Math.abs(Math.round(signedAmount || 0))
           : Math.abs(Math.round(grossAmount || 0));
 
-        const resolvedType =
-          isStoreOperation
-            ? (signedAmount >= 0 ? 'INCOME' : 'EXPENSE')
-            : 'INCOME';
+        const resolvedDirection = this.resolveImportDirection({
+          module,
+          signedAmount,
+        });
+
+        const resolvedType = this.resolveImportTransactionType({
+          module,
+          kind,
+          signedAmount,
+        });
+
+        const resolvedAccountId = await this.resolveImportAccountId(tx, {
+          companyId,
+          storeId: defaultStore.id,
+          module,
+          kind,
+        });
+
+        const resolvedCategoryId = await this.resolveImportCategoryId(tx, {
+          companyId,
+          module,
+          kind,
+          direction: resolvedDirection,
+        });
 
         const externalRef = String(payload.orderId || '').trim() || null;
 
@@ -1286,8 +1663,11 @@ export class ImportsService {
           data: {
             companyId,
             storeId: defaultStore.id,
+            accountId: resolvedAccountId,
+            categoryId: resolvedCategoryId,
             type: resolvedType as any,
-            sourceType: 'MANUAL' as any,
+            direction: resolvedDirection as any,
+            sourceType: 'IMPORT' as any,
             amount: resolvedAmount,
             occurredAt,
             externalRef,
@@ -1355,6 +1735,16 @@ export class ImportsService {
       };
     });
 
+    const summary = await this.buildImportResultSummary({
+      companyId,
+      importJobId,
+      importedRows: result.importedRows,
+      duplicateRows: result.duplicateRows,
+      conflictRows: result.conflictRows,
+      errorRows: result.errorRows,
+      deletedRows: result.deletedRows,
+    });
+
     return {
       ok: true,
       action: 'commit',
@@ -1370,7 +1760,65 @@ export class ImportsService {
       deletedRows: result.deletedRows,
       status: result.job.status,
       job: result.job,
+      summary,
       message: 'imports commit persisted new staging rows into Transaction',
+    };
+  }
+
+  async getImportSummary(importJobId: string, explicitCompanyId?: string) {
+    const companyId = await this.resolveCompanyId(explicitCompanyId);
+
+    const job = await this.prisma.importJob.findFirst({
+      where: {
+        id: importJobId,
+        companyId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`ImportJob not found: ${importJobId}`);
+    }
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        importJobId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const stagingRows = await this.prisma.importStagingRow.findMany({
+      where: {
+        importJobId,
+      },
+      select: {
+        id: true,
+        matchStatus: true,
+      },
+    });
+
+    const summary = await this.buildImportResultSummary({
+      companyId,
+      importJobId,
+      importedRows: transactions.length,
+      duplicateRows: stagingRows.filter((x) => x.matchStatus === 'duplicate').length,
+      conflictRows: stagingRows.filter((x) => x.matchStatus === 'conflict').length,
+      errorRows: stagingRows.filter((x) => x.matchStatus === 'error').length,
+      deletedRows: 0,
+    });
+
+    return {
+      ok: true,
+      action: 'summary',
+      companyId,
+      importJobId,
+      summary,
+      message: 'import result summary loaded',
     };
   }
 

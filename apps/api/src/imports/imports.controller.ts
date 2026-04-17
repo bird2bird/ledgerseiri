@@ -33,4 +33,12 @@ export class ImportsController {
   ) {
     return this.service.listHistory({ module, companyId });
   }
+
+  @Get(':importJobId/summary')
+  summary(
+    @Param('importJobId') importJobId: string,
+    @Query('companyId') companyId?: string
+  ) {
+    return this.service.getImportSummary(importJobId, companyId);
+  }
 }
