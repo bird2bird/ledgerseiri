@@ -108,6 +108,7 @@ export function IncomePageClient(props: {
     onSelectRow: state.setSelectedRowId,
     selectedRow: state.selectedRow,
     selectedRawTransactionRows: state.selectedRawTransactionRows,
+    rawStoreOrderRows: state.rawStoreOrderRows,
     loading: state.loading,
     error: state.error,
     totalAmount: state.totalAmount,

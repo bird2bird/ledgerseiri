@@ -492,6 +492,7 @@ export function useIncomePageState(args: {
     setSelectedRowId,
     selectedRow,
     selectedRawTransactionRows,
+    rawStoreOrderRows,
     adapterNote,
     loading,
     error,

@@ -66,6 +66,7 @@ export function renderIncomePageShell(args: {
   onSelectRow: (id: string) => void;
   selectedRow: IncomeRow | null;
   selectedRawTransactionRows: IncomeRow[];
+  rawStoreOrderRows: IncomeRow[];
   loading: boolean;
   error: string;
   totalAmount: number;
@@ -163,6 +164,7 @@ export function renderIncomePageShell(args: {
     onSelectRow,
     selectedRow,
     selectedRawTransactionRows,
+    rawStoreOrderRows,
     loading,
     error,
     totalAmount,
@@ -562,6 +564,7 @@ export function renderIncomePageShell(args: {
           onSelectRow={onSelectRow}
           selectedRow={selectedRow}
           selectedRawTransactionRows={selectedRawTransactionRows}
+          rawStoreOrderRows={rawStoreOrderRows}
           loading={loading}
           error={error}
           totalAmount={totalAmount}

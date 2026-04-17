@@ -19,6 +19,7 @@ type Props = {
   onSelectRow: (id: string) => void;
   selectedRow: IncomeRow | null;
   selectedRawTransactionRows: IncomeRow[];
+  rawStoreOrderRows: IncomeRow[];
   loading: boolean;
   error: string;
   totalAmount: number;
@@ -112,6 +113,71 @@ function sumBreakdownFee(rows: IncomeRow[]) {
 
 function sumBreakdownQty(rows: IncomeRow[]) {
   return rows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+}
+
+function buildStoreOrderCompositeKey(args: {
+  date?: string | null;
+  orderId?: string | null;
+  sku?: string | null;
+}) {
+  return `${String(args.date || "-")}__${String(args.orderId || "")}__${String(args.sku || "")}`;
+}
+
+function resolveDrawerRawTransactionRows(args: {
+  drawerSelectedRow: IncomeRow | null;
+  rawStoreOrderRows: IncomeRow[];
+  storeOrderViewMode: "aggregated" | "raw";
+  fallbackRows: IncomeRow[];
+}) {
+  const { drawerSelectedRow, rawStoreOrderRows, storeOrderViewMode, fallbackRows } = args;
+
+  if (!drawerSelectedRow) {
+    return [];
+  }
+
+  if (storeOrderViewMode === "raw") {
+    const exactRaw = rawStoreOrderRows.filter((row) => row.id === drawerSelectedRow.id);
+    return exactRaw.length > 0 ? exactRaw : fallbackRows;
+  }
+
+  const selectedDate = String(drawerSelectedRow.date || "-");
+  const selectedOrderId = String(drawerSelectedRow.externalRef || "");
+  const selectedSku = String(drawerSelectedRow.sku || "");
+  const selectedKey = buildStoreOrderCompositeKey({
+    date: selectedDate,
+    orderId: selectedOrderId,
+    sku: selectedSku,
+  });
+
+  const exact = rawStoreOrderRows.filter((row) => {
+    const rowKey = buildStoreOrderCompositeKey({
+      date: row.date,
+      orderId: row.externalRef,
+      sku: row.sku,
+    });
+    return rowKey === selectedKey;
+  });
+  if (exact.length > 0) return exact;
+
+  const byAggregateId = rawStoreOrderRows.filter((row) => {
+    const rowKey = buildStoreOrderCompositeKey({
+      date: row.date,
+      orderId: row.externalRef,
+      sku: row.sku,
+    });
+    return rowKey === String(drawerSelectedRow.id || "");
+  });
+  if (byAggregateId.length > 0) return byAggregateId;
+
+  const byDateAndOrder = rawStoreOrderRows.filter((row) => {
+    return (
+      String(row.date || "-") === selectedDate &&
+      String(row.externalRef || "") === selectedOrderId
+    );
+  });
+  if (byDateAndOrder.length > 0) return byDateAndOrder;
+
+  return fallbackRows;
 }
 
 function getBreakdownTag(row: IncomeRow) {
@@ -432,6 +498,7 @@ export function StoreOrdersWorkspace(props: Props) {
     onSelectRow,
     selectedRow,
     selectedRawTransactionRows,
+    rawStoreOrderRows,
     loading,
     error,
     totalAmount,
@@ -470,25 +537,47 @@ export function StoreOrdersWorkspace(props: Props) {
   const viewModeLabel =
     storeOrderViewMode === "aggregated" ? "聚合视图" : "原始transaction视图";
 
-  const drawerOpen =
-    storeOrderViewMode === "aggregated" &&
-    !!selectedRow;
-
   const [breakdownFilter, setBreakdownFilter] = useState<BreakdownFilter>("ALL");
   const [breakdownSortMode, setBreakdownSortMode] =
     useState<BreakdownSortMode>("date-desc");
   const [copyMessage, setCopyMessage] = useState("");
+  const [drawerRowId, setDrawerRowId] = useState("");
+  const drawerOpenedAtRef = React.useRef(0);
+
+  const drawerSelectedRow =
+    rows.find((row) => row.id === drawerRowId) ?? null;
+
+  const drawerOpen =
+    storeOrderViewMode === "aggregated" &&
+    !!drawerRowId &&
+    !!drawerSelectedRow;
+
+  const drawerSelectedRawTransactionRows = useMemo(
+    () =>
+      resolveDrawerRawTransactionRows({
+        drawerSelectedRow,
+        rawStoreOrderRows,
+        storeOrderViewMode,
+        fallbackRows: selectedRawTransactionRows,
+      }),
+    [
+      drawerSelectedRow,
+      rawStoreOrderRows,
+      storeOrderViewMode,
+      selectedRawTransactionRows,
+    ]
+  );
 
   const breakdownRows = useMemo(() => {
     const filtered =
       breakdownFilter === "ALL"
-        ? selectedRawTransactionRows
-        : selectedRawTransactionRows.filter(
+        ? drawerSelectedRawTransactionRows
+        : drawerSelectedRawTransactionRows.filter(
             (row) => getBreakdownTag(row).label === breakdownFilter
           );
 
     return sortBreakdownRows(filtered, breakdownSortMode);
-  }, [selectedRawTransactionRows, breakdownFilter, breakdownSortMode]);
+  }, [drawerSelectedRawTransactionRows, breakdownFilter, breakdownSortMode]);
 
   const breakdownGrossSum = useMemo(
     () => sumBreakdownGross(breakdownRows),
@@ -510,7 +599,7 @@ export function StoreOrdersWorkspace(props: Props) {
   async function handleCopyBreakdownSummary() {
     try {
       const text = buildBreakdownCopyText({
-        selectedRow,
+        selectedRow: drawerSelectedRow,
         rows: breakdownRows,
         filter: breakdownFilter,
         sortMode: breakdownSortMode,
@@ -529,8 +618,14 @@ export function StoreOrdersWorkspace(props: Props) {
     }
   }
 
-  function closeBreakdownDrawer() {
+  function closeBreakdownDrawer(source: "generic" | "backdrop" = "generic") {
+    if (source === "backdrop") {
+      const elapsed = Date.now() - drawerOpenedAtRef.current;
+      if (elapsed < 250) return;
+    }
+
     setCopyMessage("");
+    setDrawerRowId("");
     onSelectRow("");
   }
 
@@ -554,6 +649,8 @@ export function StoreOrdersWorkspace(props: Props) {
     });
 
     if (matched) {
+      drawerOpenedAtRef.current = Date.now();
+      setDrawerRowId(matched.id);
       onSelectRow(matched.id);
     }
   }, [
@@ -566,6 +663,20 @@ export function StoreOrdersWorkspace(props: Props) {
     storeOrderViewMode,
     onSelectRow,
   ]);
+
+  React.useEffect(() => {
+    if (storeOrderViewMode !== "aggregated") {
+      setDrawerRowId("");
+    }
+  }, [storeOrderViewMode]);
+
+  React.useEffect(() => {
+    if (!drawerRowId) return;
+    const stillExists = rows.some((row) => row.id === drawerRowId);
+    if (!stillExists) {
+      setDrawerRowId("");
+    }
+  }, [drawerRowId, rows]);
 
   return (
     <div className="space-y-6">
@@ -945,7 +1056,11 @@ export function StoreOrdersWorkspace(props: Props) {
               <button
                 key={row.id}
                 type="button"
-                onClick={() => onSelectRow(row.id)}
+                onClick={() => {
+                  drawerOpenedAtRef.current = Date.now();
+                  setDrawerRowId(row.id);
+                  onSelectRow(row.id);
+                }}
                 className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
@@ -1029,10 +1144,9 @@ export function StoreOrdersWorkspace(props: Props) {
 
       {drawerOpen ? (
         <>
-          <button
-            type="button"
+          <div
             aria-label="Close transaction breakdown drawer"
-            onClick={closeBreakdownDrawer}
+            onClick={() => closeBreakdownDrawer("backdrop")}
             className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
           />
 
@@ -1048,38 +1162,38 @@ export function StoreOrdersWorkspace(props: Props) {
 
                 <button
                   type="button"
-                  onClick={closeBreakdownDrawer}
+                  onClick={() => closeBreakdownDrawer("generic")}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   閉じる
                 </button>
               </div>
 
-              {selectedRow ? (
+              {drawerSelectedRow ? (
                 <>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">Order ID</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedRow.externalRef || "-"}
+                        {drawerSelectedRow.externalRef || "-"}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">SKU</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedRow.sku || "-"}
+                        {drawerSelectedRow.sku || "-"}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">Date</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedRow.date || "-"}
+                        {drawerSelectedRow.date || "-"}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">Rows</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedRawTransactionRows.length}
+                        {drawerSelectedRawTransactionRows.length}
                       </div>
                     </div>
                   </div>
@@ -1177,11 +1291,11 @@ export function StoreOrdersWorkspace(props: Props) {
                   const linkedChargeHint = buildLinkedChargeHint(row);
                   const correlationHint = buildOrderFeeCorrelationHint({
                     row,
-                    relatedRows: selectedRawTransactionRows,
+                    relatedRows: drawerSelectedRawTransactionRows,
                   });
                   const storeOperationHref = buildStoreOperationDrawerHref({
                     lang,
-                    selectedRow,
+                    selectedRow: drawerSelectedRow,
                     row,
                   });
 
