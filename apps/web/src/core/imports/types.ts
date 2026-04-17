@@ -116,6 +116,9 @@ export type ImportHistoryResponse = {
     successRows?: number | null;
     failedRows?: number | null;
     deletedRowCount?: number | null;
+    fileMonthsJson?: string[] | null;
+    conflictMonthsJson?: string[] | null;
+    errorMessage?: string | null;
     createdAt?: string | null;
     updatedAt?: string | null;
     importedAt?: string | null;

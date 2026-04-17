@@ -494,14 +494,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
           setHasStage(false);
           setCharges(mapped);
           setSummary(buildChargeSummaryFromItems(mapped));
-          setStageFilename(importJobId ? `importJob:${importJobId}` : "db-backed import result");
+          setStageFilename(importContext.importJobId ? `importJob:${importContext.importJobId}` : "db-backed import result");
           setStageSavedAt("");
         } catch (_err) {
           if (!mounted) return;
           setHasStage(false);
           setCharges([]);
           setSummary(EMPTY_SUMMARY);
-          setStageFilename(importJobId ? `importJob:${importJobId}` : "db-backed import result");
+          setStageFilename(importContext.importJobId ? `importJob:${importContext.importJobId}` : "db-backed import result");
           setStageSavedAt("");
         }
         return;
@@ -525,13 +525,11 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
   const expenseOnlyCharges = useMemo(() => {
     const base = charges.filter((item) => item.kind !== "ORDER_SALE");
-    if (importFrom !== "import-commit" || importMonths.length === 0) {
+    if (!importContext.active || importContext.months.length === 0) {
       return base;
     }
-    const monthSet = new Set(importMonths);
+    const monthSet = new Set(importContext.months);
     return base.filter((item) => {
-      const raw = formatChargeDate(item.occurredAt);
-      const normalized = String(raw || "");
       const direct = String(item.occurredAt || "");
       const match = direct.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
       const month = match
@@ -539,7 +537,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
         : "";
       return month ? monthSet.has(month) : false;
     });
-  }, [charges, importFrom, importMonths]);
+  }, [charges, importContext.active, importContext.months]);
 
   const sortedCharges = useMemo(() => sortCharges(expenseOnlyCharges), [expenseOnlyCharges]);
 
