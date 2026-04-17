@@ -6,8 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import {
+  buildImportAwareBannerText,
   buildStoreOrdersWorkspaceHref,
   readCrossWorkspaceQuery,
+  readImportAwareWorkspaceContext,
 } from "@/core/income-store-orders/cross-workspace-query";
 
 type ChargeItem = {
@@ -424,8 +426,11 @@ function buildChargeCorrelationHint(args: {
 function buildReverseStoreOrdersHref(args: {
   lang: string;
   charge: ChargeItem;
+  importJobId?: string;
+  months?: string[];
+  module?: string;
 }) {
-  const { lang, charge } = args;
+  const { lang, charge, importJobId, months, module } = args;
 
   return buildStoreOrdersWorkspaceHref({
     lang,
@@ -436,6 +441,9 @@ function buildReverseStoreOrdersHref(args: {
     date: charge.occurredAt ? formatChargeDate(charge.occurredAt) : "",
     transactionId: String(charge.id || ""),
     focusChargeId: String(charge.id || ""),
+    importJobId: importJobId || "",
+    months: months || [],
+    module: module || "store-orders",
   });
 }
 
@@ -445,13 +453,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const crossQuery = readCrossWorkspaceQuery(searchParams);
   const focusTransactionId =
     crossQuery.transactionId || crossQuery.focusChargeId;
-
-  const importFrom = String(searchParams.get("from") || "");
-  const importJobId = String(searchParams.get("importJobId") || "");
-  const importMonths = String(searchParams.get("months") || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const importContext = readImportAwareWorkspaceContext(searchParams);
+  const importBanner = buildImportAwareBannerText({
+    targetLabel: "店舗運営費",
+    importJobId: importContext.importJobId,
+    months: importContext.months,
+  });
 
   const [charges, setCharges] = useState<ChargeItem[]>([]);
   const [summary, setSummary] = useState<ChargeSummary>(EMPTY_SUMMARY);
@@ -470,7 +477,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     let mounted = true;
 
     async function loadInitialData() {
-      if (importFrom === "import-commit") {
+      if (importContext.active) {
         try {
           const res = await listTransactions();
           if (!mounted) return;
@@ -479,8 +486,8 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
           const mapped = sortCharges(
             mapTransactionsToChargeItems({
               items,
-              importJobId,
-              importMonths,
+              importJobId: importContext.importJobId,
+              importMonths: importContext.months,
             })
           );
 
@@ -514,7 +521,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     return () => {
       mounted = false;
     };
-  }, [importFrom, importJobId, importMonths]);
+  }, [importContext.active, importContext.importJobId, importContext.months]);
 
   const expenseOnlyCharges = useMemo(() => {
     const base = charges.filter((item) => item.kind !== "ORDER_SALE");
@@ -640,16 +647,16 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
   return (
     <div className="space-y-6">
-      {importFrom === "import-commit" ? (
+      {importContext.active ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
           <div className="text-sm font-semibold text-emerald-800">
-            导入已完成，已跳转到 店舗運営費 工作台
+            {importBanner.title}
           </div>
           <div className="mt-1 text-sm text-emerald-700">
-            importJobId: {importJobId || "-"} / months: {importMonths.length ? importMonths.join(", ") : "-"}
+            {importBanner.subtitle}
           </div>
           <div className="mt-2 text-xs text-emerald-700">
-            当前列表已切换为 DB-backed import-aware results，并按 importJobId / months 进行过滤，不再依赖 browser stage。
+            当前列表已切换为 DB-backed import-aware results，并按统一 contract 进行过滤，不再依赖 browser stage。
           </div>
         </div>
       ) : null}
@@ -874,7 +881,13 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                 Import / CSV確認へ移動
               </Link>
               <Link
-                href={buildStoreOrdersWorkspaceHref({ lang, from: "store-operation-list" })}
+                href={buildStoreOrdersWorkspaceHref({
+                  lang,
+                  from: importContext.active ? "import-commit" : "store-operation-list",
+                  importJobId: importContext.importJobId,
+                  months: importContext.months,
+                  module: importContext.module || "store-orders",
+                })}
                 className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 店舗注文へ戻る
@@ -1105,6 +1118,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                         href={buildReverseStoreOrdersHref({
                           lang,
                           charge: selectedCharge,
+                          importJobId: importContext.importJobId,
+                          months: importContext.months,
+                          module: importContext.module || "store-orders",
                         })}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >
@@ -1204,6 +1220,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                         href={buildReverseStoreOrdersHref({
                           lang,
                           charge,
+                          importJobId: importContext.importJobId,
+                          months: importContext.months,
+                          module: importContext.module || "store-orders",
                         })}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       >

@@ -5,8 +5,10 @@ import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
 import {
+  buildImportAwareBannerText,
   buildStoreOperationWorkspaceHref,
   readCrossWorkspaceQuery,
+  readImportAwareWorkspaceContext,
 } from "@/core/income-store-orders/cross-workspace-query";
 
 type Props = {
@@ -415,13 +417,12 @@ function buildSampleBars(rows: IncomeRow[]) {
 export function StoreOrdersWorkspace(props: Props) {
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
-
-  const importFrom = String(searchParams.get("from") || "");
-  const importJobId = String(searchParams.get("importJobId") || "");
-  const importMonths = String(searchParams.get("months") || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const importContext = readImportAwareWorkspaceContext(searchParams);
+  const importBanner = buildImportAwareBannerText({
+    targetLabel: "店舗注文",
+    importJobId: importContext.importJobId,
+    months: importContext.months,
+  });
 
   const {
     lang,
@@ -569,16 +570,16 @@ export function StoreOrdersWorkspace(props: Props) {
 
   return (
     <div className="space-y-6">
-      {importFrom === "import-commit" ? (
+      {importContext.active ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
           <div className="text-sm font-semibold text-emerald-800">
-            导入已完成，已跳转到 店舗注文 工作台
+            {importBanner.title}
           </div>
           <div className="mt-1 text-sm text-emerald-700">
-            importJobId: {importJobId || "-"} / months: {importMonths.length ? importMonths.join(", ") : "-"}
+            {importBanner.subtitle}
           </div>
           <div className="mt-2 text-xs text-emerald-700">
-            当前步骤先提供导入上下文提示。由于该组件的数据、分页与总数由外部 props 提供，真正的 importJobId 级过滤需要在上游数据源层继续接入。
+            当前页面已进入统一 import-aware contract。店铺注文的数据过滤由上游 import-aware 数据源负责。
           </div>
         </div>
       ) : null}

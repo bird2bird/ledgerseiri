@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   commitImportSkeleton,
   detectMonthConflicts,
@@ -13,6 +13,7 @@ import {
   type MonthConflictPolicy,
   type PreviewImportResponse,
 } from "@/core/imports";
+import { buildImportCommitWorkspaceHref } from "@/core/income-store-orders/cross-workspace-query";
 import { ImportHistoryList } from "./ImportHistoryList";
 import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
 import { ImportPreviewSummary } from "./ImportPreviewSummary";
@@ -28,6 +29,8 @@ type ModuleMode = "store-orders" | "store-operation";
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
+  const params = useParams<{ lang: string }>();
+  const lang = params?.lang ?? "ja";
   const router = useRouter();
 
   const [moduleMode, setModuleMode] = useState<ModuleMode>(
