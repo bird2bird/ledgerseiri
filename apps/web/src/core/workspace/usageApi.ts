@@ -1,5 +1,6 @@
 import type { WorkspaceContextValue, WorkspaceLimits } from "@/core/workspace/types";
 import { readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 
 export type WorkspaceUsageValue = {
   storesUsed: number;
@@ -49,15 +50,15 @@ export async function fetchWorkspaceUsage(args: {
     headers.Authorization = `Bearer ${args.token}`;
   }
 
-  const res = await fetch(`/workspace/usage${suffix}`, {
+  const res = await fetchWithAutoRefresh(`/workspace/usage${suffix}`, {
     headers,
     cache: "no-store",
   });
 
   if (!res.ok) {
-      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
-      throw new Error(`/workspace/usage failed: ${res.status} ${text}`);
-    }
+    const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+    throw new Error(`/workspace/usage failed: ${res.status} ${text}`);
+  }
 
   return (await res.json()) as WorkspaceUsageResponse;
 }

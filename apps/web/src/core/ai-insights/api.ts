@@ -5,6 +5,7 @@ import type {
   UsageResponse,
   WorkspaceContextResponse,
 } from "./types";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 
 async function readJson<T>(res: Response, label: string): Promise<T> {
   if (!res.ok) {
@@ -23,13 +24,13 @@ export async function loadAiInsightsSnapshot(): Promise<AiInsightsSnapshot> {
     profitRes,
     cashRes,
   ] = await Promise.all([
-    fetch("/workspace/context", { credentials: "include", cache: "no-store" }),
-    fetch("/workspace/usage", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/workspace/context", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/workspace/usage", { credentials: "include", cache: "no-store" }),
     fetch("/dashboard/summary", { credentials: "include", cache: "no-store" }),
-    fetch("/api/reports/income", { credentials: "include", cache: "no-store" }),
-    fetch("/api/reports/expense", { credentials: "include", cache: "no-store" }),
-    fetch("/api/reports/profit", { credentials: "include", cache: "no-store" }),
-    fetch("/api/reports/cashflow", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/api/reports/income", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/api/reports/expense", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/api/reports/profit", { credentials: "include", cache: "no-store" }),
+    fetchWithAutoRefresh("/api/reports/cashflow", { credentials: "include", cache: "no-store" }),
   ]);
 
   const [

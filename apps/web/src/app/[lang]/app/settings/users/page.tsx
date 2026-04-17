@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
+
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -96,7 +98,7 @@ export default function Page() {
       setCtxError("");
 
       try {
-        const res = await fetch("/workspace/context", {
+        const res = await fetchWithAutoRefresh("/workspace/context", {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -134,7 +136,7 @@ export default function Page() {
       setCompanyError("");
 
       try {
-        const res = await fetch("/api/company", {
+        const res = await fetchWithAutoRefresh("/api/company", {
           method: "GET",
           credentials: "include",
           cache: "no-store",

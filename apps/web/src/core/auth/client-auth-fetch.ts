@@ -5,8 +5,8 @@ function cloneHeaders(init?: RequestInit): Headers {
   return new Headers(init?.headers || {});
 }
 
-function isApiPath(url: string): boolean {
-  return url.startsWith("/api/");
+function isProtectedPath(url: string): boolean {
+  return url.startsWith("/api/") || url.startsWith("/workspace/");
 }
 
 function isRefreshPath(url: string): boolean {
@@ -64,7 +64,7 @@ export async function fetchWithAutoRefresh(
 ): Promise<Response> {
   const firstHeaders = cloneHeaders(init);
 
-  if (isApiPath(input) && !isRefreshPath(input) && inMemoryAccessToken) {
+  if (isProtectedPath(input) && !isRefreshPath(input) && inMemoryAccessToken) {
     firstHeaders.set("Authorization", `Bearer ${inMemoryAccessToken}`);
   }
 
@@ -75,7 +75,7 @@ export async function fetchWithAutoRefresh(
     cache: init?.cache ?? "no-store",
   });
 
-  if (firstRes.status !== 401 || !isApiPath(input) || isRefreshPath(input)) {
+  if (firstRes.status !== 401 || !isProtectedPath(input) || isRefreshPath(input)) {
     return firstRes;
   }
 

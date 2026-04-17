@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
@@ -449,6 +449,7 @@ function buildReverseStoreOrdersHref(args: {
 
 export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const { lang } = props;
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
   const focusTransactionId =
@@ -642,6 +643,16 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   function closeDrawer() {
     setSelectedChargeId("");
   }
+
+  useEffect(() => {
+    setSelectedChargeId("");
+  }, [pathname]);
+
+  useEffect(() => {
+    return () => {
+      setSelectedChargeId("");
+    };
+  }, []);
 
   return (
     <div className="space-y-6">

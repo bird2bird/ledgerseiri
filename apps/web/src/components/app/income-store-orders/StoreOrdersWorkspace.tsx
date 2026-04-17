@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
@@ -481,6 +481,7 @@ function buildSampleBars(rows: IncomeRow[]) {
 }
 
 export function StoreOrdersWorkspace(props: Props) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
   const importContext = readImportAwareWorkspaceContext(searchParams);
@@ -682,13 +683,20 @@ export function StoreOrdersWorkspace(props: Props) {
   }, [storeOrderViewMode]);
 
   React.useEffect(() => {
-    if (!drawerRowId) return;
-    const stillExists = rows.some((row) => row.id === drawerRowId);
-    if (!stillExists) {
+    setIsBreakdownDrawerOpen(false);
+    setDrawerRowId("");
+    setCopyMessage("");
+    onSelectRow("");
+  }, [pathname, onSelectRow]);
+
+  React.useEffect(() => {
+    return () => {
       setIsBreakdownDrawerOpen(false);
       setDrawerRowId("");
-    }
-  }, [drawerRowId, rows]);
+      setCopyMessage("");
+      onSelectRow("");
+    };
+  }, [onSelectRow]);
 
   return (
     <div className="space-y-6">

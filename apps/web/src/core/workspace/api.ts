@@ -1,5 +1,6 @@
 import type { WorkspaceContextValue } from "@/core/workspace/types";
 import { ensureNotTenantSuspended, readErrorTextOrThrowSpecialCases } from "@/core/tenant-suspended";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 
 export async function fetchWorkspaceContext(args: {
   token?: string;
@@ -21,15 +22,17 @@ export async function fetchWorkspaceContext(args: {
     headers.Authorization = `Bearer ${args.token}`;
   }
 
-  const res = await fetch(`/workspace/context${suffix}`, {
+  const res = await fetchWithAutoRefresh(`/workspace/context${suffix}`, {
     headers,
     cache: "no-store",
-  });    await ensureNotTenantSuspended(res);
+  });
 
-    if (!res.ok) {
-      const text = await readErrorTextOrThrowSpecialCases(res, "standard");
-      throw new Error(`/workspace/context failed: ${res.status} ${text}`);
-    }
+  await ensureNotTenantSuspended(res);
 
-    return (await res.json()) as WorkspaceContextValue;
+  if (!res.ok) {
+    const text = await readErrorTextOrThrowSpecialCases(res, "standard");
+    throw new Error(`/workspace/context failed: ${res.status} ${text}`);
+  }
+
+  return (await res.json()) as WorkspaceContextValue;
 }
