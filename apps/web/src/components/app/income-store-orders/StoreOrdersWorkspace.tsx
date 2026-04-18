@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
@@ -63,6 +63,8 @@ type Props = {
 
 type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
 type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
+type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D";
+type OrderListSortMode = "date-desc" | "date-asc" | "qty-desc" | "qty-asc" | "fee-desc" | "fee-asc";
 
 const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
   "ALL",
@@ -88,11 +90,134 @@ const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
   "fee-desc": "Fee高→低",
 };
 
+const ORDER_DATE_RANGE_LABELS: Record<OrderDateRangePreset, string> = {
+  ALL: "全部",
+  "30D": "近30天",
+  "60D": "近60天",
+  "90D": "近90天",
+};
+
+const ORDER_LIST_SORT_LABELS: Record<OrderListSortMode, string> = {
+  "date-desc": "日期新→旧",
+  "date-asc": "日期旧→新",
+  "qty-desc": "数量高→低",
+  "qty-asc": "数量低→高",
+  "fee-desc": "Fee高→低",
+  "fee-asc": "Fee低→高",
+};
+
+const STORE_ORDERS_QUERY_KEYS = {
+  range: "soRange",
+  sort: "soSort",
+  page: "soPage",
+  pageSize: "soPageSize",
+  view: "soView",
+} as const;
+
+function isOrderDateRangePreset(value: string): value is OrderDateRangePreset {
+  return value === "ALL" || value === "30D" || value === "60D" || value === "90D";
+}
+
+function isOrderListSortMode(value: string): value is OrderListSortMode {
+  return (
+    value === "date-desc" ||
+    value === "date-asc" ||
+    value === "qty-desc" ||
+    value === "qty-asc" ||
+    value === "fee-desc" ||
+    value === "fee-asc"
+  );
+}
+
+function isStoreOrderViewMode(value: string): value is "aggregated" | "raw" {
+  return value === "aggregated" || value === "raw";
+}
+
+function isOrderPageSize(value: string): value is "20" | "50" | "100" {
+  return value === "20" || value === "50" || value === "100";
+}
+
 function clampPage(page: number, totalPages: number) {
   if (totalPages <= 0) return 1;
   if (page < 1) return 1;
   if (page > totalPages) return totalPages;
   return page;
+}
+
+function toOrderDateMs(row: IncomeRow) {
+  const raw = String(row.date || row.importedAt || "").trim();
+  if (!raw) return 0;
+  const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function feeAmountOf(row: IncomeRow) {
+  return Number(row.feeAmount ?? 0);
+}
+
+function filterRowsByOrderDateRange(rows: IncomeRow[], preset: OrderDateRangePreset) {
+  if (preset === "ALL") return rows;
+
+  const days = preset === "30D" ? 30 : preset === "60D" ? 60 : 90;
+  const timestamps = rows.map(toOrderDateMs).filter((v) => v > 0);
+  if (timestamps.length === 0) return rows;
+
+  const maxTs = Math.max(...timestamps);
+  const threshold = maxTs - days * 24 * 60 * 60 * 1000;
+
+  return rows.filter((row) => {
+    const ts = toOrderDateMs(row);
+    return ts > 0 && ts >= threshold && ts <= maxTs;
+  });
+}
+
+function sortOrderListRows(rows: IncomeRow[], sortMode: OrderListSortMode) {
+  const next = [...rows];
+
+  const compareText = (a: string, b: string) => a.localeCompare(b, "ja");
+  const orderKey = (row: IncomeRow) => String(row.externalRef || row.label || row.id || "");
+  const fallbackCompare = (a: IncomeRow, b: IncomeRow) =>
+    compareText(orderKey(a), orderKey(b)) || compareText(String(a.id), String(b.id));
+
+  const compareDateAsc = (a: IncomeRow, b: IncomeRow) =>
+    toOrderDateMs(a) - toOrderDateMs(b) || fallbackCompare(a, b);
+
+  const compareDateDesc = (a: IncomeRow, b: IncomeRow) =>
+    toOrderDateMs(b) - toOrderDateMs(a) || fallbackCompare(a, b);
+
+  if (sortMode === "date-asc") {
+    return next.sort(compareDateAsc);
+  }
+
+  if (sortMode === "qty-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.quantity ?? 0) - Number(a.quantity ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "qty-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.quantity ?? 0) - Number(b.quantity ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "fee-desc") {
+    return next.sort(
+      (a, b) => feeAmountOf(b) - feeAmountOf(a) || compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "fee-asc") {
+    return next.sort(
+      (a, b) => feeAmountOf(a) - feeAmountOf(b) || compareDateAsc(a, b)
+    );
+  }
+
+  return next.sort(compareDateDesc);
 }
 
 function amountOf(row: IncomeRow) {
@@ -482,6 +607,7 @@ function buildSampleBars(rows: IncomeRow[]) {
 
 export function StoreOrdersWorkspace(props: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
   const importContext = readImportAwareWorkspaceContext(searchParams);
@@ -544,10 +670,15 @@ export function StoreOrdersWorkspace(props: Props) {
   const [breakdownFilter, setBreakdownFilter] = useState<BreakdownFilter>("ALL");
   const [breakdownSortMode, setBreakdownSortMode] =
     useState<BreakdownSortMode>("date-desc");
+  const [orderDateRangePreset, setOrderDateRangePreset] =
+    useState<OrderDateRangePreset>("ALL");
+  const [orderListSortMode, setOrderListSortMode] =
+    useState<OrderListSortMode>("date-desc");
   const [copyMessage, setCopyMessage] = useState("");
   const [drawerRowId, setDrawerRowId] = useState("");
   const [isBreakdownDrawerOpen, setIsBreakdownDrawerOpen] = useState(false);
   const drawerOpenedAtRef = React.useRef(0);
+  const hasHydratedOrderQueryRef = React.useRef(false);
 
   const drawerSelectedRow =
     rows.find((row) => row.id === drawerRowId) ?? null;
@@ -573,6 +704,65 @@ export function StoreOrdersWorkspace(props: Props) {
       selectedRawTransactionRows,
     ]
   );
+
+  const filteredOrderRows = useMemo(
+    () => filterRowsByOrderDateRange(rows, orderDateRangePreset),
+    [rows, orderDateRangePreset]
+  );
+
+  const sortedOrderRows = useMemo(
+    () => sortOrderListRows(filteredOrderRows, orderListSortMode),
+    [filteredOrderRows, orderListSortMode]
+  );
+
+  const localTotalRows = sortedOrderRows.length;
+  const localTotalPages = Math.max(1, Math.ceil(localTotalRows / pageSize));
+
+  const localVisibleRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedOrderRows.slice(start, start + pageSize);
+  }, [sortedOrderRows, currentPage, pageSize]);
+
+  const localPageStartRow =
+    localTotalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const localPageEndRow =
+    localTotalRows === 0 ? 0 : Math.min(currentPage * pageSize, localTotalRows);
+
+  const renderMiniSortArrows = (
+    descMode: OrderListSortMode,
+    ascMode: OrderListSortMode
+  ) => (
+    <span className="ml-2 inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => setOrderListSortMode(descMode)}
+        className={
+          orderListSortMode === descMode
+            ? "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-900 bg-slate-900 text-[9px] leading-none text-white"
+            : "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-500 hover:bg-slate-50"
+        }
+        aria-label={`sort ${descMode}`}
+      >
+        ↓
+      </button>
+      <button
+        type="button"
+        onClick={() => setOrderListSortMode(ascMode)}
+        className={
+          orderListSortMode === ascMode
+            ? "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-900 bg-slate-900 text-[9px] leading-none text-white"
+            : "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-200 bg-white text-[9px] leading-none text-slate-500 hover:bg-slate-50"
+        }
+        aria-label={`sort ${ascMode}`}
+      >
+        ↑
+      </button>
+    </span>
+  );
+
+
+  const getSortHeaderTextClass = (active: boolean) =>
+    active ? "font-semibold text-slate-900" : "font-medium text-slate-600";
 
   const breakdownRows = useMemo(() => {
     const filtered =
@@ -686,6 +876,73 @@ export function StoreOrdersWorkspace(props: Props) {
   }, [storeOrderViewMode]);
 
   React.useEffect(() => {
+    setCurrentPage(1);
+  }, [orderDateRangePreset, orderListSortMode, setCurrentPage]);
+
+  React.useEffect(() => {
+    if (currentPage > localTotalPages) {
+      setCurrentPage(localTotalPages);
+    }
+  }, [currentPage, localTotalPages, setCurrentPage]);
+
+  React.useEffect(() => {
+    if (!isActiveRoute) return;
+
+    const nextRange = searchParams.get(STORE_ORDERS_QUERY_KEYS.range) || "";
+    const nextSort = searchParams.get(STORE_ORDERS_QUERY_KEYS.sort) || "";
+    const nextPage = searchParams.get(STORE_ORDERS_QUERY_KEYS.page) || "";
+    const nextPageSize = searchParams.get(STORE_ORDERS_QUERY_KEYS.pageSize) || "";
+    const nextView = searchParams.get(STORE_ORDERS_QUERY_KEYS.view) || "";
+
+    if (isOrderDateRangePreset(nextRange) && nextRange !== orderDateRangePreset) {
+      setOrderDateRangePreset(nextRange);
+    }
+
+    if (isOrderListSortMode(nextSort) && nextSort !== orderListSortMode) {
+      setOrderListSortMode(nextSort);
+    }
+
+    if (isOrderPageSize(nextPageSize) && Number(nextPageSize) !== pageSize) {
+      setPageSize(Number(nextPageSize) as 20 | 50 | 100);
+    }
+
+    if (isStoreOrderViewMode(nextView) && nextView !== storeOrderViewMode) {
+      setStoreOrderViewMode(nextView);
+    }
+
+    if (/^\d+$/.test(nextPage)) {
+      const parsedPage = Math.max(1, Number(nextPage));
+      if (parsedPage !== currentPage) {
+        setCurrentPage(parsedPage);
+      }
+    }
+
+    hasHydratedOrderQueryRef.current = true;
+  }, [
+    isActiveRoute,
+    searchParams,
+    orderDateRangePreset,
+    orderListSortMode,
+    pageSize,
+    currentPage,
+    storeOrderViewMode,
+    setPageSize,
+    setCurrentPage,
+    setStoreOrderViewMode,
+  ]);
+
+  React.useEffect(() => {
+    if (!selectedRowId) return;
+    const stillExists = sortedOrderRows.some((row) => row.id === selectedRowId);
+    if (!stillExists) {
+      setIsBreakdownDrawerOpen(false);
+      setDrawerRowId("");
+      setCopyMessage("");
+      onSelectRow("");
+    }
+  }, [selectedRowId, sortedOrderRows, onSelectRow]);
+
+  React.useEffect(() => {
     setIsBreakdownDrawerOpen(false);
     setDrawerRowId("");
     setCopyMessage("");
@@ -708,6 +965,34 @@ export function StoreOrdersWorkspace(props: Props) {
     setCopyMessage("");
     onSelectRow("");
   }, [isActiveRoute, onSelectRow]);
+
+  React.useEffect(() => {
+    if (!isActiveRoute) return;
+    if (!hasHydratedOrderQueryRef.current) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(STORE_ORDERS_QUERY_KEYS.range, orderDateRangePreset);
+    params.set(STORE_ORDERS_QUERY_KEYS.sort, orderListSortMode);
+    params.set(STORE_ORDERS_QUERY_KEYS.page, String(currentPage));
+    params.set(STORE_ORDERS_QUERY_KEYS.pageSize, String(pageSize));
+    params.set(STORE_ORDERS_QUERY_KEYS.view, storeOrderViewMode);
+
+    const nextQuery = params.toString();
+    const currentQuery = searchParams.toString();
+    if (nextQuery === currentQuery) return;
+
+    router.replace(`${pathname}?${nextQuery}`, { scroll: false });
+  }, [
+    isActiveRoute,
+    pathname,
+    router,
+    searchParams,
+    orderDateRangePreset,
+    orderListSortMode,
+    currentPage,
+    pageSize,
+    storeOrderViewMode,
+  ]);
 
   if (!isActiveRoute) {
     return null;
@@ -1024,21 +1309,47 @@ export function StoreOrdersWorkspace(props: Props) {
           <div className="min-w-0">
             <div className="text-2xl font-semibold text-slate-900">注文一覧</div>
             <div className="mt-2 text-sm text-slate-500">
-              下半分には店舗注文の一覧を表示します。ページサイズは 20 / 50 / 100 から選択可能です。
+              下半分には店舗注文の一覧を表示します。订单日期范围可切换，排序可直接在表头操作。
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
-            <label className="text-sm font-medium text-slate-700">1ページあたり</label>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value) as 20 | 50 | 100)}
-              className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-            >
-              <option value={20}>20 条</option>
-              <option value={50}>50 条</option>
-              <option value={100}>100 条</option>
-            </select>
+          <div className="grid gap-3 xl:min-w-[420px]">
+            <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
+              <label className="text-sm font-medium text-slate-700">订单日期范围</label>
+              <div className="flex flex-wrap gap-2">
+                {(["ALL", "30D", "60D", "90D"] as OrderDateRangePreset[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setOrderDateRangePreset(item)}
+                    className={
+                      orderDateRangePreset === item
+                        ? "rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                        : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    }
+                  >
+                    {ORDER_DATE_RANGE_LABELS[item]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
+              <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value) as 20 | 50 | 100)}
+                className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value={20}>20 条</option>
+                <option value={50}>50 条</option>
+                <option value={100}>100 条</option>
+              </select>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              当前排序：{ORDER_LIST_SORT_LABELS[orderListSortMode]}
+            </div>
           </div>
         </div>
 
@@ -1071,23 +1382,33 @@ export function StoreOrdersWorkspace(props: Props) {
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-            <div>Date</div>
-            <div>Order / Product</div>
-            <div>SKU</div>
-            <div className="text-right">Qty</div>
-            <div>Store</div>
-            <div className="text-right">Gross / Net / Fee</div>
+          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_150px_110px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <div className="flex items-center">
+              <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>Date</span>
+              {renderMiniSortArrows("date-desc", "date-asc")}
+            </div>
+            <div className="font-medium text-slate-600">Order / Product</div>
+            <div className="font-medium text-slate-600">SKU</div>
+            <div className="flex items-center justify-end">
+              <span className={getSortHeaderTextClass(orderListSortMode === "qty-desc" || orderListSortMode === "qty-asc")}>Qty</span>
+              {renderMiniSortArrows("qty-desc", "qty-asc")}
+            </div>
+            <div className="font-medium text-slate-600">Store</div>
+            <div className="text-right font-medium text-slate-600">Gross / Net</div>
+            <div className="flex items-center justify-end">
+              <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>Fee</span>
+              {renderMiniSortArrows("fee-desc", "fee-asc")}
+            </div>
           </div>
 
           {loading ? (
             <div className="px-4 py-10 text-sm text-slate-500">loading...</div>
           ) : error ? (
             <div className="px-4 py-10 text-sm text-rose-600">{error}</div>
-          ) : visibleRows.length === 0 ? (
+          ) : localVisibleRows.length === 0 ? (
             <div className="px-4 py-10 text-sm text-slate-500">注文データがありません。</div>
           ) : (
-            visibleRows.map((row) => (
+            localVisibleRows.map((row) => (
               <button
                 key={row.id}
                 type="button"
@@ -1131,7 +1452,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="text-sm text-slate-500">
-            全 {totalRows} 行・総販売数量 {totalQuantity} 点のうち、{pageStartRow} - {pageEndRow} 行を表示
+            全 {localTotalRows} 行・総販売数量 {totalQuantity} 点のうち、{localPageStartRow} - {localPageEndRow} 行を表示
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1146,7 +1467,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
             <button
               type="button"
-              onClick={() => setCurrentPage(clampPage(currentPage - 1, totalPages))}
+              onClick={() => setCurrentPage(clampPage(currentPage - 1, localTotalPages))}
               disabled={currentPage <= 1}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -1154,13 +1475,13 @@ export function StoreOrdersWorkspace(props: Props) {
             </button>
 
             <div className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
-              {currentPage} / {totalPages}
+              {currentPage} / {localTotalPages}
             </div>
 
             <button
               type="button"
-              onClick={() => setCurrentPage(clampPage(currentPage + 1, totalPages))}
-              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(clampPage(currentPage + 1, localTotalPages))}
+              disabled={currentPage >= localTotalPages}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               次へ
@@ -1168,8 +1489,8 @@ export function StoreOrdersWorkspace(props: Props) {
 
             <button
               type="button"
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(localTotalPages)}
+              disabled={currentPage >= localTotalPages}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               最後
