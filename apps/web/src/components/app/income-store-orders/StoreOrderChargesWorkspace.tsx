@@ -461,6 +461,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     months: importContext.months,
   });
 
+  const expectedPath = `/${lang}/app/expenses/store-operation`;
+  const isActiveRoute = pathname === expectedPath;
+
   const [charges, setCharges] = useState<ChargeItem[]>([]);
   const [summary, setSummary] = useState<ChargeSummary>(EMPTY_SUMMARY);
   const [selectedFilter, setSelectedFilter] = useState<ChargeFilter>(
@@ -639,6 +642,20 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(currentPage * pageSize, totalRows);
 
   const drawerOpen = !!selectedCharge && relatedCharges.length > 0;
+
+  useEffect(() => {
+    if (!selectedChargeId) return;
+    const stillExists = filteredCharges.some((item) => item.id === selectedChargeId);
+    if (!stillExists) {
+      setSelectedChargeId("");
+    }
+  }, [selectedChargeId, filteredCharges]);
+
+  useEffect(() => {
+    if (selectedChargeId && !drawerOpen) {
+      setSelectedChargeId("");
+    }
+  }, [selectedChargeId, drawerOpen]);
 
   function closeDrawer() {
     setSelectedChargeId("");
