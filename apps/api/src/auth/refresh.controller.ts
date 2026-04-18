@@ -13,9 +13,6 @@ function isHttps(req: Request): boolean {
 }
 
 function setRefreshCookie(req: Request, res: Response, token: string) {
-  // NOTE:
-  // - In real browser HTTPS, Secure will be true and __Host- requirements are satisfied.
-  // - In local/container HTTP tests, Secure will be false so we can still see Set-Cookie.
   res.cookie('__Host-lsrt', token, {
     httpOnly: true,
     secure: isHttps(req),
@@ -25,8 +22,22 @@ function setRefreshCookie(req: Request, res: Response, token: string) {
   });
 }
 
+function setAccessCookie(req: Request, res: Response, token: string) {
+  res.cookie('access_token', token, {
+    httpOnly: true,
+    secure: isHttps(req),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 1000,
+  });
+}
+
 function clearRefreshCookie(res: Response) {
   res.clearCookie('__Host-lsrt', { path: '/' });
+}
+
+function clearAccessCookie(res: Response) {
+  res.clearCookie('access_token', { path: '/' });
 }
 
 @Controller('/auth')
@@ -37,19 +48,31 @@ export class RefreshController {
   async refreshToken(@Req() req: Request, @Res() res: Response) {
     assertSameOrigin(req);
 
-    const rt = (req.cookies as any)?.['__Host-lsrt'];
-    if (!rt) throw new UnauthorizedException('NO_REFRESH');
+    try {
+      const rt = (req.cookies as any)?.['__Host-lsrt'];
+      if (!rt) {
+        clearRefreshCookie(res);
+        clearAccessCookie(res);
+        throw new UnauthorizedException('NO_REFRESH');
+      }
 
-    const payload = this.refresh.verifyRefreshToken(rt);
-    await this.refresh.validateSessionOrReuse(payload.sub, payload.jti);
+      const payload = this.refresh.verifyRefreshToken(rt);
+      await this.refresh.validateSessionOrReuse(payload.sub, payload.jti);
 
-    const { newJti } = await this.refresh.rotateRefreshSession(payload.sub, payload.jti);
+      const { newJti } = await this.refresh.rotateRefreshSession(payload.sub, payload.jti);
 
-    const accessToken = this.refresh.createAccessToken(payload.sub);
-    const newRefreshToken = this.refresh.createRefreshToken(payload.sub, newJti);
+      const accessToken = this.refresh.createAccessToken(payload.sub);
+      const newRefreshToken = this.refresh.createRefreshToken(payload.sub, newJti);
 
-    setRefreshCookie(req, res, newRefreshToken);
-    return res.status(200).json({ accessToken });
+      setRefreshCookie(req, res, newRefreshToken);
+      setAccessCookie(req, res, accessToken);
+
+      return res.status(200).json({ accessToken });
+    } catch (error) {
+      clearRefreshCookie(res);
+      clearAccessCookie(res);
+      throw error;
+    }
   }
 
   @Post('/logout')
@@ -58,10 +81,17 @@ export class RefreshController {
 
     const rt = (req.cookies as any)?.['__Host-lsrt'];
     if (rt) {
-      const payload = this.refresh.verifyRefreshToken(rt);
-      await this.refresh.revokeOne(payload.sub, payload.jti).catch(() => void 0);
+      try {
+        const payload = this.refresh.verifyRefreshToken(rt);
+        await this.refresh.revokeOne(payload.sub, payload.jti);
+      } catch {
+        // ignore token parse / revoke errors on logout
+      }
     }
+
     clearRefreshCookie(res);
+    clearAccessCookie(res);
+
     return res.status(200).json({ ok: true });
   }
 }

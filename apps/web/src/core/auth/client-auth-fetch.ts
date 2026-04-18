@@ -1,5 +1,6 @@
 let inMemoryAccessToken = "";
 let refreshInFlight: Promise<string | null> | null = null;
+let authExpired = false;
 
 function cloneHeaders(init?: RequestInit): Headers {
   return new Headers(init?.headers || {});
@@ -25,6 +26,7 @@ async function requestNewAccessToken(): Promise<string | null> {
 
   if (!res.ok) {
     inMemoryAccessToken = "";
+    authExpired = true;
     return null;
   }
 
@@ -35,14 +37,20 @@ async function requestNewAccessToken(): Promise<string | null> {
   const token = String(payload?.accessToken || "").trim();
   if (!token) {
     inMemoryAccessToken = "";
+    authExpired = true;
     return null;
   }
 
+  authExpired = false;
   inMemoryAccessToken = token;
   return token;
 }
 
 async function ensureAccessToken(): Promise<string | null> {
+  if (authExpired) {
+    return null;
+  }
+
   if (refreshInFlight) {
     return refreshInFlight;
   }
@@ -56,6 +64,7 @@ async function ensureAccessToken(): Promise<string | null> {
 
 export function clearClientAccessToken() {
   inMemoryAccessToken = "";
+  authExpired = false;
 }
 
 export async function fetchWithAutoRefresh(
@@ -79,6 +88,10 @@ export async function fetchWithAutoRefresh(
     return firstRes;
   }
 
+  if (authExpired) {
+    return firstRes;
+  }
+
   const refreshedToken = await ensureAccessToken();
   if (!refreshedToken) {
     return firstRes;
@@ -87,10 +100,17 @@ export async function fetchWithAutoRefresh(
   const retryHeaders = cloneHeaders(init);
   retryHeaders.set("Authorization", `Bearer ${refreshedToken}`);
 
-  return fetch(input, {
+  const retryRes = await fetch(input, {
     ...init,
     headers: retryHeaders,
     credentials: "include",
     cache: init?.cache ?? "no-store",
   });
+
+  if (retryRes.status === 401) {
+    authExpired = true;
+    inMemoryAccessToken = "";
+  }
+
+  return retryRes;
 }

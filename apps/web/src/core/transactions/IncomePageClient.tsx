@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   normalizeIncomeCategoryParam,
@@ -59,10 +60,15 @@ export function IncomePageClient(props: {
   const rawStoreId = searchParams.get("storeId");
   const rawRange = searchParams.get("range");
   const importJobId = String(searchParams.get("importJobId") || "");
-  const importMonths = String(searchParams.get("months") || "")
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const importMonthsRaw = String(searchParams.get("months") || "");
+  const importMonths = useMemo(
+    () =>
+      importMonthsRaw
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
+    [importMonthsRaw]
+  );
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
 
   const queryCategory = normalizeIncomeCategoryParam(searchParams.get("category"));

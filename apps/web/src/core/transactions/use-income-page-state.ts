@@ -189,6 +189,11 @@ export function useIncomePageState(args: {
 
   const [stageChargeSummary, setStageChargeSummary] = useState(EMPTY_STAGE_CHARGE_SUMMARY);
 
+  const importMonthsKey = useMemo(
+    () => normalizeImportMonths(importMonths).join(","),
+    [importMonths]
+  );
+
   const selectedRow = useMemo(
     () => rows.find((row) => row.id === selectedRowId) ?? null,
     [rows, selectedRowId]
@@ -278,11 +283,11 @@ export function useIncomePageState(args: {
 
   useEffect(() => {
     void loadRows();
-  }, [from, storeId, range, category, importJobId, importMonths]);
+  }, [from, storeId, range, category, importJobId, importMonthsKey]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [from, storeId, range, category, importJobId, importMonths]);
+  }, [from, storeId, range, category, importJobId, importMonthsKey]);
 
   useEffect(() => {
     setCurrentPage(1);
