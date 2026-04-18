@@ -64,7 +64,13 @@ type Props = {
 type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
 type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
 type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D";
-type OrderListSortMode = "date-desc" | "date-asc" | "amount-desc" | "amount-asc" | "qty-desc";
+type OrderListSortMode =
+  | "date-desc"
+  | "date-asc"
+  | "qty-desc"
+  | "qty-asc"
+  | "fee-desc"
+  | "fee-asc";
 
 const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
   "ALL",
@@ -97,13 +103,6 @@ const ORDER_DATE_RANGE_LABELS: Record<OrderDateRangePreset, string> = {
   "90D": "近90天",
 };
 
-const ORDER_LIST_SORT_LABELS: Record<OrderListSortMode, string> = {
-  "date-desc": "日期新→旧",
-  "date-asc": "日期旧→新",
-  "amount-desc": "金额高→低",
-  "amount-asc": "金额低→高",
-  "qty-desc": "数量高→低",
-};
 
 function clampPage(page: number, totalPages: number) {
   if (totalPages <= 0) return 1;
@@ -672,6 +671,38 @@ export function StoreOrdersWorkspace(props: Props) {
   const orderListPageEnd =
     orderListTotalRows === 0 ? 0 : Math.min(currentPage * pageSize, orderListTotalRows);
 
+  const renderHeaderSortButtons = (
+    descMode: OrderListSortMode,
+    ascMode: OrderListSortMode
+  ) => (
+    <span className="ml-2 inline-flex items-center gap-1 align-middle">
+      <button
+        type="button"
+        onClick={() => setOrderListSortMode(descMode)}
+        aria-label={`sort ${descMode}`}
+        className={
+          orderListSortMode === descMode
+            ? "inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-900 bg-slate-900 text-[10px] font-bold text-white"
+            : "inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white text-[10px] font-bold text-slate-500 transition hover:bg-slate-50"
+        }
+      >
+        ↓
+      </button>
+      <button
+        type="button"
+        onClick={() => setOrderListSortMode(ascMode)}
+        aria-label={`sort ${ascMode}`}
+        className={
+          orderListSortMode === ascMode
+            ? "inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-900 bg-slate-900 text-[10px] font-bold text-white"
+            : "inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-200 bg-white text-[10px] font-bold text-slate-500 transition hover:bg-slate-50"
+        }
+      >
+        ↑
+      </button>
+    </span>
+  );
+
   const breakdownRows = useMemo(() => {
     const filtered =
       breakdownFilter === "ALL"
@@ -1181,25 +1212,6 @@ export function StoreOrdersWorkspace(props: Props) {
                 ))}
               </div>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
-              <label className="text-sm font-medium text-slate-700">排序</label>
-              <div className="flex flex-wrap gap-2">
-                {(["date-desc", "date-asc", "amount-desc", "amount-asc", "qty-desc"] as OrderListSortMode[]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setOrderListSortMode(item)}
-                    className={
-                      orderListSortMode === item
-                        ? "rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-                        : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    }
-                  >
-                    {ORDER_LIST_SORT_LABELS[item]}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
@@ -1247,12 +1259,12 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
           <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-            <div>Date</div>
+            <div className="flex items-center"><span>Date</span>{renderHeaderSortButtons("date-desc", "date-asc")}</div>
             <div>Order / Product</div>
             <div>SKU</div>
-            <div className="text-right">Qty</div>
+            <div className="flex items-center"><span>Qty</span>{renderHeaderSortButtons("qty-desc", "qty-asc")}</div>
             <div>Store</div>
-            <div className="text-right">Gross / Net / Fee</div>
+            <div className="flex items-center justify-end"><span>Gross / Net / Fee</span>{renderHeaderSortButtons("fee-desc", "fee-asc")}</div>
           </div>
 
           {loading ? (

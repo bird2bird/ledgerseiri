@@ -59,6 +59,7 @@ export function IncomePageClient(props: {
   const rawFrom = searchParams.get("from");
   const rawStoreId = searchParams.get("storeId");
   const rawRange = searchParams.get("range");
+  const useStoreOrdersStagePreview = searchParams.get("stagePreview") === "1";
   const importJobId = String(searchParams.get("importJobId") || "");
   const importMonthsRaw = String(searchParams.get("months") || "");
   const importMonths = useMemo(
@@ -85,6 +86,7 @@ export function IncomePageClient(props: {
     action,
     importJobId,
     importMonths,
+    useStoreOrdersStagePreview,
   });
 
   const orchestration = useIncomePageOrchestration({

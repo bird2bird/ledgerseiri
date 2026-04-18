@@ -153,8 +153,18 @@ export function useIncomePageState(args: {
   action: string;
   importJobId: string;
   importMonths: string[];
+  useStoreOrdersStagePreview: boolean;
 }) {
-  const { from, storeId, range, category, action, importJobId, importMonths } = args;
+  const {
+    from,
+    storeId,
+    range,
+    category,
+    action,
+    importJobId,
+    importMonths,
+    useStoreOrdersStagePreview,
+  } = args;
 
   const [rows, setRows] = useState<IncomeRow[]>([]);
   const [selectedRowId, setSelectedRowId] = useState("");
@@ -204,7 +214,7 @@ export function useIncomePageState(args: {
     setError("");
 
     try {
-      if (category === "store-order" && from !== "import-commit") {
+      if (category === "store-order" && useStoreOrdersStagePreview) {
         const stage = loadAmazonStoreOrdersStage();
         if (stage?.facts?.length) {
           const rawRows = sortStoreOrderIncomeRows(
@@ -263,11 +273,8 @@ export function useIncomePageState(args: {
       }
 
       setStageChargeSummary(EMPTY_STAGE_CHARGE_SUMMARY);
-      if (category === "store-order" && from === "import-commit") {
-        const filteredMonths = normalizeImportMonths(importMonths);
-        setAdapterNote(
-          `Step105-EG: import-aware DB filter active · importJobId=${importJobId || "-"} · months=${filteredMonths.length ? filteredMonths.join(",") : "-"}`
-        );
+      if (category === "store-order" && useStoreOrdersStagePreview) {
+        setAdapterNote("Stage preview mode active");
       } else {
         setAdapterNote(res.meta.note ?? "");
       }
