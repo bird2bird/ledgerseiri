@@ -155,6 +155,38 @@ function feeAmountOf(row: IncomeRow) {
   return Number(row.feeAmount ?? 0);
 }
 
+function formatAmazonOrderItemSales(row: IncomeRow) {
+  return formatIncomeJPY(row.itemSalesAmount ?? row.grossAmount ?? row.amount ?? 0);
+}
+
+function formatAmazonOrderItemSalesTax(row: IncomeRow) {
+  return formatIncomeJPY(row.itemSalesTaxAmount ?? row.taxAmount ?? 0);
+}
+
+function formatAmazonOrderShipping(row: IncomeRow) {
+  return formatIncomeJPY(row.shippingAmount ?? 0);
+}
+
+function formatAmazonOrderShippingTax(_row: IncomeRow) {
+  return formatIncomeJPY(0);
+}
+
+function formatAmazonOrderPromotionDiscount(row: IncomeRow) {
+  return formatIncomeJPY(row.promotionDiscountAmount ?? row.promotionAmount ?? 0);
+}
+
+function formatAmazonOrderPromotionDiscountTax(_row: IncomeRow) {
+  return formatIncomeJPY(0);
+}
+
+function formatAmazonOrderCommissionFee(row: IncomeRow) {
+  return formatIncomeJPY(row.commissionFeeAmount ?? row.feeAmount ?? 0);
+}
+
+function formatAmazonOrderFbaFee(_row: IncomeRow) {
+  return formatIncomeJPY(0);
+}
+
 function filterRowsByOrderDateRange(rows: IncomeRow[], preset: OrderDateRangePreset) {
   if (preset === "ALL") return rows;
 
@@ -1145,25 +1177,25 @@ export function StoreOrdersWorkspace(props: Props) {
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Gross 売上</div>
+          <div className="text-sm text-slate-500">商品売上 合計</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Net 売上</div>
+          <div className="text-sm text-slate-500">Net 金額 合計</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalNetAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Fee 合計</div>
+          <div className="text-sm text-slate-500">手数料 合計</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalFeeAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Tax 合計</div>
+          <div className="text-sm text-slate-500">商品の売上税 合計</div>
           <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalTaxAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-500">Promotion / Shipping</div>
+          <div className="text-sm text-slate-500">配送料 / 割引</div>
           <div className="mt-2 text-sm text-slate-700">
-            Promo {formatIncomeJPY(totalPromotionAmount)} / Ship {formatIncomeJPY(totalShippingAmount)}
+            配送料 {formatIncomeJPY(totalShippingAmount)} / 割引 {formatIncomeJPY(totalPromotionAmount)}
           </div>
         </div>
       </div>
@@ -1373,21 +1405,21 @@ export function StoreOrdersWorkspace(props: Props) {
           emptyMessage: "行を選択すると、ここに店舗注文行の要約が表示されます。",
           items: selectedRow
             ? [
-                { label: "ID", value: selectedRow.id },
-                { label: "Date", value: selectedRow.date },
-                { label: "Order ID", value: selectedRow.externalRef || "-" },
-                { label: "Product", value: selectedRow.productName || selectedRow.label },
+                { label: "日付", value: selectedRow.date },
+                { label: "注文番号", value: selectedRow.externalRef || "-" },
                 { label: "SKU", value: selectedRow.sku || "-" },
-                { label: "Qty", value: String(selectedRow.quantity ?? "-") },
-                { label: "Store", value: selectedRow.store },
+                { label: "商品説明", value: selectedRow.productName || selectedRow.label || "-" },
+                { label: "数量", value: String(selectedRow.quantity ?? "-") },
+                { label: "商品売上", value: formatAmazonOrderItemSales(selectedRow) },
+                { label: "商品の売上税", value: formatAmazonOrderItemSalesTax(selectedRow) },
+                { label: "配送料", value: formatAmazonOrderShipping(selectedRow) },
+                { label: "配送料の税金", value: formatAmazonOrderShippingTax(selectedRow) },
+                { label: "プロモーション割引額", value: formatAmazonOrderPromotionDiscount(selectedRow) },
+                { label: "プロモーション割引の税金", value: formatAmazonOrderPromotionDiscountTax(selectedRow) },
+                { label: "手数料", value: formatAmazonOrderCommissionFee(selectedRow) },
+                { label: "FBA 手数料", value: formatAmazonOrderFbaFee(selectedRow) },
+                { label: "Store", value: selectedRow.store || "-" },
                 { label: "Fulfillment", value: selectedRow.fulfillment || "-" },
-                { label: "Account", value: selectedRow.account },
-                { label: "Gross", value: formatIncomeJPY(selectedRow.grossAmount ?? selectedRow.amount ?? 0) },
-                { label: "Net", value: formatIncomeJPY(selectedRow.netAmount ?? selectedRow.amount ?? 0) },
-                { label: "Fee", value: formatIncomeJPY(selectedRow.feeAmount ?? 0) },
-                { label: "Tax", value: formatIncomeJPY(selectedRow.taxAmount ?? 0) },
-                { label: "Shipping", value: formatIncomeJPY(selectedRow.shippingAmount ?? 0) },
-                { label: "Promotion", value: formatIncomeJPY(selectedRow.promotionAmount ?? 0) },
                 { label: "Source", value: selectedRow.sourceType || "-" },
                 { label: "Imported At", value: selectedRow.importedAt || "-" },
                 { label: "Memo", value: selectedRow.memo || "-" },
@@ -1396,23 +1428,22 @@ export function StoreOrdersWorkspace(props: Props) {
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[110px_1.6fr_160px_90px_150px_150px_110px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <div className="grid grid-cols-[110px_120px_120px_120px_120px_130px_140px_110px_110px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
             <div className="flex items-center">
-              <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>Date</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>日付</span>
               {renderMiniSortArrows("date-desc", "date-asc")}
             </div>
-            <div className="font-medium text-slate-600">Order / Product</div>
-            <div className="font-medium text-slate-600">SKU</div>
+            <div className="text-right font-medium text-slate-600">商品売上</div>
+            <div className="text-right font-medium text-slate-600">商品の売上税</div>
+            <div className="text-right font-medium text-slate-600">配送料</div>
+            <div className="text-right font-medium text-slate-600">配送料の税金</div>
+            <div className="text-right font-medium text-slate-600">プロモーション割引額</div>
+            <div className="text-right font-medium text-slate-600">プロモーション割引の税金</div>
             <div className="flex items-center justify-end">
-              <span className={getSortHeaderTextClass(orderListSortMode === "qty-desc" || orderListSortMode === "qty-asc")}>Qty</span>
-              {renderMiniSortArrows("qty-desc", "qty-asc")}
-            </div>
-            <div className="font-medium text-slate-600">Store</div>
-            <div className="text-right font-medium text-slate-600">Gross / Net</div>
-            <div className="flex items-center justify-end">
-              <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>Fee</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>手数料</span>
               {renderMiniSortArrows("fee-desc", "fee-asc")}
             </div>
+            <div className="text-right font-medium text-slate-600">FBA 手数料</div>
           </div>
 
           {loading ? (
@@ -1432,37 +1463,34 @@ export function StoreOrdersWorkspace(props: Props) {
                   setIsBreakdownDrawerOpen(true);
                   onSelectRow(row.id);
                 }}
-                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_150px_110px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_120px_120px_120px_120px_130px_140px_110px_110px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
                 <div className="text-slate-600">{row.date}</div>
-                <div>
-                  <div className="font-medium text-slate-900">
-                    {row.externalRef || row.label}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {row.productName || row.label}
-                  </div>
+                <div className="text-right font-medium text-slate-900">
+                  {formatAmazonOrderItemSales(row)}
                 </div>
-                <div className="text-slate-600">{row.sku || "-"}</div>
-                <div className="text-right text-slate-600">{row.quantity ?? "-"}</div>
-                <div>
-                  <div className="text-slate-600">{row.store}</div>
-                  <div className="mt-1 text-xs text-slate-500">{row.fulfillment || "-"}</div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderItemSalesTax(row)}
                 </div>
-                <div className="text-right">
-                  <div className="font-medium text-slate-900">
-                    G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)}
-                  </div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderShipping(row)}
                 </div>
-                <div className="text-right">
-                  <div className="font-medium text-slate-900">
-                    F {formatIncomeJPY(row.feeAmount ?? 0)}
-                  </div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderShippingTax(row)}
+                </div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderPromotionDiscount(row)}
+                </div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderPromotionDiscountTax(row)}
+                </div>
+                <div className="text-right font-medium text-slate-900">
+                  {formatAmazonOrderCommissionFee(row)}
+                </div>
+                <div className="text-right text-slate-600">
+                  {formatAmazonOrderFbaFee(row)}
                 </div>
               </button>
             ))
@@ -1549,7 +1577,7 @@ export function StoreOrdersWorkspace(props: Props) {
                 <>
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-xs text-slate-500">Order ID</div>
+                      <div className="text-xs text-slate-500">注文番号</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
                         {drawerSelectedRow.externalRef || "-"}
                       </div>
@@ -1561,40 +1589,70 @@ export function StoreOrdersWorkspace(props: Props) {
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-xs text-slate-500">Date</div>
+                      <div className="text-xs text-slate-500">日付</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
                         {drawerSelectedRow.date || "-"}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-xs text-slate-500">Rows</div>
+                      <div className="text-xs text-slate-500">関連行数</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
                         {drawerSelectedRawTransactionRows.length}
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Gross Sum</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">商品売上</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {formatIncomeJPY(breakdownGrossSum)}
+                        {formatAmazonOrderItemSales(drawerSelectedRow)}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Net Sum</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">商品の売上税</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {formatIncomeJPY(breakdownNetSum)}
+                        {formatAmazonOrderItemSalesTax(drawerSelectedRow)}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Fee Sum</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">配送料</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
-                        {formatIncomeJPY(breakdownFeeSum)}
+                        {formatAmazonOrderShipping(drawerSelectedRow)}
                       </div>
                     </div>
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="text-[11px] uppercase tracking-wide text-slate-400">Qty Sum</div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">配送料の税金</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAmazonOrderShippingTax(drawerSelectedRow)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">プロモーション割引額</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAmazonOrderPromotionDiscount(drawerSelectedRow)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">プロモーション割引の税金</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAmazonOrderPromotionDiscountTax(drawerSelectedRow)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">手数料</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAmazonOrderCommissionFee(drawerSelectedRow)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">FBA 手数料</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAmazonOrderFbaFee(drawerSelectedRow)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">数量 合計</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
                         {breakdownQtySum}
                       </div>

@@ -49,6 +49,14 @@ export type IncomeRow = {
   taxAmount?: number | null;
   shippingAmount?: number | null;
   promotionAmount?: number | null;
+
+  itemSalesAmount?: number | null;
+  itemSalesTaxAmount?: number | null;
+  shippingTaxAmount?: number | null;
+  promotionDiscountAmount?: number | null;
+  promotionDiscountTaxAmount?: number | null;
+  commissionFeeAmount?: number | null;
+  fbaFeeAmount?: number | null;
 };
 
 export type ExpenseRow = {
@@ -255,6 +263,14 @@ function mapIncomeRow(item: TransactionItem): IncomeRow {
     taxAmount: 0,
     shippingAmount: 0,
     promotionAmount: 0,
+
+    itemSalesAmount: Number(item.amount ?? 0),
+    itemSalesTaxAmount: 0,
+    shippingTaxAmount: 0,
+    promotionDiscountAmount: 0,
+    promotionDiscountTaxAmount: 0,
+    commissionFeeAmount: 0,
+    fbaFeeAmount: 0,
   };
 }
 
@@ -288,6 +304,40 @@ export function buildIncomeRowsFromAmazonFacts(args: {
     taxAmount: Number(fact.taxAmount ?? 0),
     shippingAmount: Number(fact.shippingAmount ?? 0),
     promotionAmount: Number(fact.promotionAmount ?? 0),
+
+    itemSalesAmount: Number(
+      (fact as AmazonStoreOrderFact & { itemSalesAmount?: number | null }).itemSalesAmount
+      ?? fact.grossAmount
+      ?? fact.amount
+      ?? 0
+    ),
+    itemSalesTaxAmount: Number(
+      (fact as AmazonStoreOrderFact & { itemSalesTaxAmount?: number | null }).itemSalesTaxAmount
+      ?? fact.taxAmount
+      ?? 0
+    ),
+    shippingTaxAmount: Number(
+      (fact as AmazonStoreOrderFact & { shippingTaxAmount?: number | null }).shippingTaxAmount
+      ?? 0
+    ),
+    promotionDiscountAmount: Number(
+      (fact as AmazonStoreOrderFact & { promotionDiscountAmount?: number | null }).promotionDiscountAmount
+      ?? fact.promotionAmount
+      ?? 0
+    ),
+    promotionDiscountTaxAmount: Number(
+      (fact as AmazonStoreOrderFact & { promotionDiscountTaxAmount?: number | null }).promotionDiscountTaxAmount
+      ?? 0
+    ),
+    commissionFeeAmount: Number(
+      (fact as AmazonStoreOrderFact & { commissionFeeAmount?: number | null }).commissionFeeAmount
+      ?? fact.feeAmount
+      ?? 0
+    ),
+    fbaFeeAmount: Number(
+      (fact as AmazonStoreOrderFact & { fbaFeeAmount?: number | null }).fbaFeeAmount
+      ?? 0
+    ),
   }));
 }
 
@@ -409,6 +459,14 @@ export function aggregateStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
     const shippingAmount = Number(row.shippingAmount ?? 0);
     const promotionAmount = Number(row.promotionAmount ?? 0);
 
+    const itemSalesAmount = Number(row.itemSalesAmount ?? row.grossAmount ?? row.amount ?? 0);
+    const itemSalesTaxAmount = Number(row.itemSalesTaxAmount ?? row.taxAmount ?? 0);
+    const shippingTaxAmount = Number(row.shippingTaxAmount ?? 0);
+    const promotionDiscountAmount = Number(row.promotionDiscountAmount ?? row.promotionAmount ?? 0);
+    const promotionDiscountTaxAmount = Number(row.promotionDiscountTaxAmount ?? 0);
+    const commissionFeeAmount = Number(row.commissionFeeAmount ?? row.feeAmount ?? 0);
+    const fbaFeeAmount = Number(row.fbaFeeAmount ?? 0);
+
     const existing = map.get(key);
     if (!existing) {
       map.set(key, {
@@ -422,6 +480,14 @@ export function aggregateStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
         taxAmount,
         shippingAmount,
         promotionAmount,
+
+        itemSalesAmount,
+        itemSalesTaxAmount,
+        shippingTaxAmount,
+        promotionDiscountAmount,
+        promotionDiscountTaxAmount,
+        commissionFeeAmount,
+        fbaFeeAmount,
       });
       continue;
     }
@@ -448,6 +514,15 @@ export function aggregateStoreOrderIncomeRows(rows: IncomeRow[]): IncomeRow[] {
       taxAmount: Number(existing.taxAmount ?? 0) + taxAmount,
       shippingAmount: Number(existing.shippingAmount ?? 0) + shippingAmount,
       promotionAmount: Number(existing.promotionAmount ?? 0) + promotionAmount,
+
+      itemSalesAmount: Number(existing.itemSalesAmount ?? 0) + itemSalesAmount,
+      itemSalesTaxAmount: Number(existing.itemSalesTaxAmount ?? 0) + itemSalesTaxAmount,
+      shippingTaxAmount: Number(existing.shippingTaxAmount ?? 0) + shippingTaxAmount,
+      promotionDiscountAmount: Number(existing.promotionDiscountAmount ?? 0) + promotionDiscountAmount,
+      promotionDiscountTaxAmount: Number(existing.promotionDiscountTaxAmount ?? 0) + promotionDiscountTaxAmount,
+      commissionFeeAmount: Number(existing.commissionFeeAmount ?? 0) + commissionFeeAmount,
+      fbaFeeAmount: Number(existing.fbaFeeAmount ?? 0) + fbaFeeAmount,
+
       productName: existing.productName || row.productName,
       fulfillment: existing.fulfillment || row.fulfillment,
       store: existing.store || row.store,
