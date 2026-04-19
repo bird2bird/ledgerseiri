@@ -14,7 +14,6 @@ import { JobsErrorState } from "@/components/app/jobs/JobsErrorState";
 import { ImportJobsHero } from "@/components/app/jobs/ImportJobsHero";
 import { ImportJobsTableCard } from "@/components/app/jobs/ImportJobsTableCard";
 import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaSummaryCard";
-import { AmazonStoreOrdersImportCard } from "@/components/app/jobs/AmazonStoreOrdersImportCard";
 import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceShell";
 
 export default function DataImportPage() {
@@ -116,12 +115,6 @@ export default function DataImportPage() {
       </section>
 
       <ImportWorkspaceShell moduleHint={moduleHint} />
-
-      <AmazonStoreOrdersImportCard
-        lang={lang}
-        moduleHint={moduleHint}
-        onCreated={load}
-      />
 
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <ImportJobsTableCard jobs={jobs} />

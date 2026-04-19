@@ -268,9 +268,6 @@ export class ImportsService {
           'プロモーション割引金額',
           'プロモーション割引',
           'Amazonポイントの費用',
-          'Amazonポイント',
-          'promotion discount',
-          'amazon points',
         ]),
       ),
     );
@@ -280,9 +277,6 @@ export class ImportsService {
         this.pickField(row, [
           'プロモーション割引の税金',
           'プロモーション割引の税',
-          'promotion discount tax',
-          'promotion tax',
-          'promotion-tax',
         ]),
       ),
     );
