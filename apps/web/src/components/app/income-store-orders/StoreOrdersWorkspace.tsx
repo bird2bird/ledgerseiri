@@ -167,16 +167,16 @@ function formatAmazonOrderShipping(row: IncomeRow) {
   return formatIncomeJPY(row.shippingAmount ?? 0);
 }
 
-function formatAmazonOrderShippingTax(_row: IncomeRow) {
-  return formatIncomeJPY(0);
+function formatAmazonOrderShippingTax(row: IncomeRow) {
+  return formatIncomeJPY(row.shippingTaxAmount ?? 0);
 }
 
 function formatAmazonOrderPromotionDiscount(row: IncomeRow) {
   return formatIncomeJPY(row.promotionDiscountAmount ?? row.promotionAmount ?? 0);
 }
 
-function formatAmazonOrderPromotionDiscountTax(_row: IncomeRow) {
-  return formatIncomeJPY(0);
+function formatAmazonOrderPromotionDiscountTax(row: IncomeRow) {
+  return formatIncomeJPY(row.promotionDiscountTaxAmount ?? 0);
 }
 
 function formatAmazonOrderCommissionFee(row: IncomeRow) {
