@@ -32,6 +32,14 @@ type AmazonPreviewFact = {
   shippingAmount: number;
   promotionAmount: number;
 
+  itemSalesAmount: number;
+  itemSalesTaxAmount: number;
+  shippingTaxAmount: number;
+  promotionDiscountAmount: number;
+  promotionDiscountTaxAmount: number;
+  commissionFeeAmount: number;
+  fbaFeeAmount: number;
+
   rawTransactionType?: string | null;
   signedAmount?: number | null;
   description?: string | null;
@@ -212,18 +220,26 @@ export class ImportsService {
     kind: AmazonTransactionChargeKind,
     signedAmount: number,
   ) {
-    const grossAmount = this.parseAmazonOrderRevenue(row);
+    const itemSalesAmount = this.parseAmount(
+      this.pickField(row, [
+        '商品売上',
+        '商品の売上',
+        'product sales',
+        'item price',
+        'item-price',
+        'principal',
+        '売上',
+        '金額',
+      ]),
+    );
 
-    const taxAmount = Math.abs(
+    const itemSalesTaxAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
           '商品売上の税',
-          '配送料の税',
-          'ギフト包装の税',
-          '税金',
-          'tax',
-          'taxes',
-          'プロモーション割引の税',
+          '商品の売上税',
+          'item tax',
+          'principal tax',
         ]),
       ),
     );
@@ -232,7 +248,19 @@ export class ImportsService {
       this.parseAmount(this.pickField(row, ['配送料', '送料', 'shipping', 'shipping credits'])) +
       this.parseAmount(this.pickField(row, ['ギフト包装料', 'ギフト包装', 'gift wrap', 'giftwrap']));
 
-    const promotionAmount = Math.abs(
+    const shippingTaxAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          '配送料の税',
+          'shipping tax',
+          'shipping-tax',
+          'ギフト包装の税',
+          'gift wrap tax',
+        ]),
+      ),
+    );
+
+    const promotionDiscountAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
           'Amazonポイントの費用',
@@ -246,7 +274,18 @@ export class ImportsService {
       ),
     );
 
-    const feeAmount = Math.abs(
+    const promotionDiscountTaxAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          'プロモーション割引の税',
+          'promotion tax',
+          'promotion-tax',
+          'discount tax',
+        ]),
+      ),
+    );
+
+    const commissionFeeAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
           '売上にかかる取引手数料',
@@ -255,15 +294,25 @@ export class ImportsService {
           'Amazon出品サービスの料金',
           'referral fee',
           'selling fees',
-          'FBA手数料',
-          'fba fees',
-          'fulfillment fees',
-          'トランザクションのその他',
-          'その他各種手数料',
-          'other transaction fees',
         ]),
       ),
     );
+
+    const fbaFeeAmount = Math.abs(
+      this.parseAmount(
+        this.pickField(row, [
+          'FBA手数料',
+          'fba fees',
+          'fulfillment fees',
+          'fulfilment fees',
+        ]),
+      ),
+    );
+
+    const grossAmount = itemSalesAmount;
+    const taxAmount = itemSalesTaxAmount;
+    const promotionAmount = promotionDiscountAmount;
+    const feeAmount = commissionFeeAmount + fbaFeeAmount;
 
     let netAmount = signedAmount;
 
@@ -271,7 +320,14 @@ export class ImportsService {
       netAmount =
         signedAmount !== 0
           ? signedAmount
-          : grossAmount - feeAmount - taxAmount - promotionAmount;
+          : itemSalesAmount
+              + itemSalesTaxAmount
+              + shippingAmount
+              + shippingTaxAmount
+              - promotionDiscountAmount
+              - promotionDiscountTaxAmount
+              - commissionFeeAmount
+              - fbaFeeAmount;
     }
 
     return {
@@ -281,6 +337,14 @@ export class ImportsService {
       taxAmount,
       shippingAmount,
       promotionAmount,
+
+      itemSalesAmount,
+      itemSalesTaxAmount,
+      shippingTaxAmount,
+      promotionDiscountAmount,
+      promotionDiscountTaxAmount,
+      commissionFeeAmount,
+      fbaFeeAmount,
     };
   }
 
@@ -638,6 +702,15 @@ export class ImportsService {
           taxAmount: bridge.taxAmount,
           shippingAmount: bridge.shippingAmount,
           promotionAmount: bridge.promotionAmount,
+
+          itemSalesAmount: bridge.itemSalesAmount,
+          itemSalesTaxAmount: bridge.itemSalesTaxAmount,
+          shippingTaxAmount: bridge.shippingTaxAmount,
+          promotionDiscountAmount: bridge.promotionDiscountAmount,
+          promotionDiscountTaxAmount: bridge.promotionDiscountTaxAmount,
+          commissionFeeAmount: bridge.commissionFeeAmount,
+          fbaFeeAmount: bridge.fbaFeeAmount,
+
           rawTransactionType: transactionType || null,
           signedAmount,
           description: description || null,
@@ -795,6 +868,15 @@ export class ImportsService {
           taxAmount: fact.taxAmount,
           shippingAmount: fact.shippingAmount,
           promotionAmount: fact.promotionAmount,
+
+          itemSalesAmount: fact.itemSalesAmount,
+          itemSalesTaxAmount: fact.itemSalesTaxAmount,
+          shippingTaxAmount: fact.shippingTaxAmount,
+          promotionDiscountAmount: fact.promotionDiscountAmount,
+          promotionDiscountTaxAmount: fact.promotionDiscountTaxAmount,
+          commissionFeeAmount: fact.commissionFeeAmount,
+          fbaFeeAmount: fact.fbaFeeAmount,
+
           rawTransactionType: fact.rawTransactionType,
           signedAmount: fact.signedAmount,
           description: fact.description,
@@ -1155,6 +1237,7 @@ export class ImportsService {
         rowNo: true,
         businessMonth: true,
         matchStatus: true,
+        normalizedPayloadJson: true,
       },
     });
 
@@ -1192,6 +1275,31 @@ export class ImportsService {
       conflictRows: stagingRows.filter((x) => x.matchStatus === 'conflict').length,
       errorRows: stagingRows.filter((x) => x.matchStatus === 'error').length,
     };
+
+    const amazonDetailSummary = stagingRows.reduce(
+      (acc, row) => {
+        const payload = this.normalizeJsonObject(row.normalizedPayloadJson);
+        acc.itemSalesAmount += Number(payload.itemSalesAmount || 0);
+        acc.itemSalesTaxAmount += Number(payload.itemSalesTaxAmount || 0);
+        acc.shippingAmount += Number(payload.shippingAmount || 0);
+        acc.shippingTaxAmount += Number(payload.shippingTaxAmount || 0);
+        acc.promotionDiscountAmount += Number(payload.promotionDiscountAmount || 0);
+        acc.promotionDiscountTaxAmount += Number(payload.promotionDiscountTaxAmount || 0);
+        acc.commissionFeeAmount += Number(payload.commissionFeeAmount || 0);
+        acc.fbaFeeAmount += Number(payload.fbaFeeAmount || 0);
+        return acc;
+      },
+      {
+        itemSalesAmount: 0,
+        itemSalesTaxAmount: 0,
+        shippingAmount: 0,
+        shippingTaxAmount: 0,
+        promotionDiscountAmount: 0,
+        promotionDiscountTaxAmount: 0,
+        commissionFeeAmount: 0,
+        fbaFeeAmount: 0,
+      },
+    );
 
     const directionBreakdown = {
       incomeCount: transactions.filter((x) => x.direction === 'INCOME').length,
@@ -1263,6 +1371,8 @@ export class ImportsService {
         totalRows: stagingRows.length,
         ...stagingStatusCounts,
       },
+
+      amazonOrderDetails: amazonDetailSummary,
 
       commit: {
         importedRows: args.importedRows,
@@ -1425,7 +1535,11 @@ export class ImportsService {
             module,
             rowNo: row.rowNo,
             businessMonth: row.businessMonth,
-            rawPayloadJson: {} as Prisma.InputJsonValue,
+            rawPayloadJson: {
+              module,
+              rowNo: row.rowNo,
+              businessMonth: row.businessMonth,
+            } as Prisma.InputJsonValue,
             normalizedPayloadJson: row.normalizedPayload as Prisma.InputJsonValue,
             dedupeHash: String(row.normalizedPayload?.dedupeHash || '') || null,
             matchStatus: row.matchStatus,

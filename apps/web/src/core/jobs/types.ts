@@ -102,6 +102,14 @@ export type AmazonStoreOrderFact = {
   shippingAmount: number;
   promotionAmount: number;
 
+  itemSalesAmount: number;
+  itemSalesTaxAmount: number;
+  shippingTaxAmount: number;
+  promotionDiscountAmount: number;
+  promotionDiscountTaxAmount: number;
+  commissionFeeAmount: number;
+  fbaFeeAmount: number;
+
   rawTransactionType?: string | null;
   signedAmount?: number | null;
   description?: string | null;

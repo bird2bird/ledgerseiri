@@ -31,6 +31,20 @@ export class TransactionService {
     return companyId;
   }
 
+  private normalizeJsonObject(input: unknown): Record<string, unknown> {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return {};
+    }
+    return input as Record<string, unknown>;
+  }
+
+  private buildStagingKey(importJobId?: string | null, sourceRowNo?: number | null) {
+    const jobId = String(importJobId || '').trim();
+    const rowNo = Number(sourceRowNo ?? 0);
+    if (!jobId || !Number.isFinite(rowNo) || rowNo <= 0) return '';
+    return `${jobId}__${rowNo}`;
+  }
+
   private async resolveDefaultStoreId(companyId: string, storeId?: string) {
     if (storeId) return storeId;
 
@@ -100,33 +114,91 @@ export class TransactionService {
       },
     });
 
+    const stagingLookupKeys = Array.from(
+      new Set(
+        items
+          .map((row) => ({
+            importJobId: row.importJobId ?? null,
+            sourceRowNo: row.sourceRowNo ?? null,
+            key: this.buildStagingKey(row.importJobId ?? null, row.sourceRowNo ?? null),
+          }))
+          .filter((x) => x.key)
+          .map((x) => x.key),
+      ),
+    );
+
+    const stagingRows = stagingLookupKeys.length
+      ? await this.prisma.importStagingRow.findMany({
+          where: {
+            companyId: resolvedCompanyId,
+            importJobId: { in: items.map((x) => String(x.importJobId || '')).filter(Boolean) },
+          },
+          select: {
+            importJobId: true,
+            rowNo: true,
+            normalizedPayloadJson: true,
+          },
+        })
+      : [];
+
+    const stagingMap = new Map(
+      stagingRows.map((row) => [
+        this.buildStagingKey(row.importJobId, row.rowNo),
+        this.normalizeJsonObject(row.normalizedPayloadJson),
+      ]),
+    );
+
     return {
       ok: true,
       domain: 'transactions',
       action: 'list',
-      items: items.map((t) => ({
-        id: t.id,
-        companyId: t.companyId,
-        storeId: t.storeId,
-        storeName: t.store?.name ?? null,
-        accountId: t.accountId,
-        accountName: t.account?.name ?? null,
-        categoryId: t.categoryId,
-        categoryName: t.category?.name ?? null,
-        type: t.type,
-        direction: t.direction,
-        sourceType: t.sourceType,
-        amount: t.amount,
-        currency: t.currency,
-        occurredAt: t.occurredAt,
-        externalRef: t.externalRef ?? null,
-        memo: t.memo,
-        importJobId: t.importJobId ?? null,
-        businessMonth: t.businessMonth ?? null,
-        sourceFileName: t.sourceFileName ?? null,
-        sourceRowNo: t.sourceRowNo ?? null,
-        createdAt: t.createdAt,
-      })),
+      items: items.map((t) => {
+        const payload = stagingMap.get(this.buildStagingKey(t.importJobId ?? null, t.sourceRowNo ?? null)) || {};
+
+        return {
+          id: t.id,
+          companyId: t.companyId,
+          storeId: t.storeId,
+          storeName: t.store?.name ?? null,
+          accountId: t.accountId,
+          accountName: t.account?.name ?? null,
+          categoryId: t.categoryId,
+          categoryName: t.category?.name ?? null,
+          type: t.type,
+          direction: t.direction,
+          sourceType: t.sourceType,
+          amount: t.amount,
+          currency: t.currency,
+          occurredAt: t.occurredAt,
+          externalRef: t.externalRef ?? null,
+          memo: t.memo,
+          importJobId: t.importJobId ?? null,
+          businessMonth: t.businessMonth ?? null,
+          sourceFileName: t.sourceFileName ?? null,
+          sourceRowNo: t.sourceRowNo ?? null,
+          createdAt: t.createdAt,
+
+          sku: String(payload.sku || '') || null,
+          quantity: Number(payload.quantity || 0) || null,
+          productName: String(payload.productName || payload.rawLabel || '') || null,
+          fulfillment: String(payload.fulfillment || '') || null,
+
+          grossAmount: Number(payload.grossAmount || 0),
+          netAmount: Number(payload.netAmount || 0),
+          feeAmount: Number(payload.feeAmount || 0),
+          taxAmount: Number(payload.taxAmount || 0),
+          shippingAmount: Number(payload.shippingAmount || 0),
+          promotionAmount: Number(payload.promotionAmount || 0),
+
+          itemSalesAmount: Number(payload.itemSalesAmount || 0),
+          itemSalesTaxAmount: Number(payload.itemSalesTaxAmount || 0),
+          shippingTaxAmount: Number(payload.shippingTaxAmount || 0),
+          promotionDiscountAmount: Number(payload.promotionDiscountAmount || 0),
+          promotionDiscountTaxAmount: Number(payload.promotionDiscountTaxAmount || 0),
+          commissionFeeAmount: Number(payload.commissionFeeAmount || 0),
+          fbaFeeAmount: Number(payload.fbaFeeAmount || 0),
+        };
+      }),
     };
   }
 
