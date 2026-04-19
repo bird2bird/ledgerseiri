@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
@@ -174,16 +174,25 @@ function filterRowsByOrderDateRange(rows: IncomeRow[], preset: OrderDateRangePre
 function sortOrderListRows(rows: IncomeRow[], sortMode: OrderListSortMode) {
   const next = [...rows];
 
-  const compareText = (a: string, b: string) => a.localeCompare(b, "ja");
-  const orderKey = (row: IncomeRow) => String(row.externalRef || row.label || row.id || "");
-  const fallbackCompare = (a: IncomeRow, b: IncomeRow) =>
-    compareText(orderKey(a), orderKey(b)) || compareText(String(a.id), String(b.id));
+  const compareTextAsc = (a: string, b: string) => a.localeCompare(b, "ja");
+  const compareTextDesc = (a: string, b: string) => b.localeCompare(a, "ja");
+
+  const orderKey = (row: IncomeRow) =>
+    String(row.externalRef || row.label || row.id || "");
+
+  const compareStableAsc = (a: IncomeRow, b: IncomeRow) =>
+    compareTextAsc(orderKey(a), orderKey(b)) ||
+    compareTextAsc(String(a.id), String(b.id));
+
+  const compareStableDesc = (a: IncomeRow, b: IncomeRow) =>
+    compareTextDesc(orderKey(a), orderKey(b)) ||
+    compareTextDesc(String(a.id), String(b.id));
 
   const compareDateAsc = (a: IncomeRow, b: IncomeRow) =>
-    toOrderDateMs(a) - toOrderDateMs(b) || fallbackCompare(a, b);
+    toOrderDateMs(a) - toOrderDateMs(b) || compareStableAsc(a, b);
 
   const compareDateDesc = (a: IncomeRow, b: IncomeRow) =>
-    toOrderDateMs(b) - toOrderDateMs(a) || fallbackCompare(a, b);
+    toOrderDateMs(b) - toOrderDateMs(a) || compareStableDesc(a, b);
 
   if (sortMode === "date-asc") {
     return next.sort(compareDateAsc);
@@ -607,7 +616,6 @@ function buildSampleBars(rows: IncomeRow[]) {
 
 export function StoreOrdersWorkspace(props: Props) {
   const pathname = usePathname();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
   const importContext = readImportAwareWorkspaceContext(searchParams);
@@ -679,6 +687,7 @@ export function StoreOrdersWorkspace(props: Props) {
   const [isBreakdownDrawerOpen, setIsBreakdownDrawerOpen] = useState(false);
   const drawerOpenedAtRef = React.useRef(0);
   const hasHydratedOrderQueryRef = React.useRef(false);
+  const lastWrittenOrderQueryRef = React.useRef("");
 
   const drawerSelectedRow =
     rows.find((row) => row.id === drawerRowId) ?? null;
@@ -918,14 +927,10 @@ export function StoreOrdersWorkspace(props: Props) {
     }
 
     hasHydratedOrderQueryRef.current = true;
+    lastWrittenOrderQueryRef.current = searchParams.toString();
   }, [
     isActiveRoute,
     searchParams,
-    orderDateRangePreset,
-    orderListSortMode,
-    pageSize,
-    currentPage,
-    storeOrderViewMode,
     setPageSize,
     setCurrentPage,
     setStoreOrderViewMode,
@@ -969,8 +974,9 @@ export function StoreOrdersWorkspace(props: Props) {
   React.useEffect(() => {
     if (!isActiveRoute) return;
     if (!hasHydratedOrderQueryRef.current) return;
+    if (typeof window === "undefined") return;
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(window.location.search);
     params.set(STORE_ORDERS_QUERY_KEYS.range, orderDateRangePreset);
     params.set(STORE_ORDERS_QUERY_KEYS.sort, orderListSortMode);
     params.set(STORE_ORDERS_QUERY_KEYS.page, String(currentPage));
@@ -978,15 +984,23 @@ export function StoreOrdersWorkspace(props: Props) {
     params.set(STORE_ORDERS_QUERY_KEYS.view, storeOrderViewMode);
 
     const nextQuery = params.toString();
-    const currentQuery = searchParams.toString();
-    if (nextQuery === currentQuery) return;
+    const currentQuery = window.location.search.replace(/^\?/, "");
 
-    router.replace(`${pathname}?${nextQuery}`, { scroll: false });
+    if (nextQuery === currentQuery) {
+      lastWrittenOrderQueryRef.current = nextQuery;
+      return;
+    }
+
+    if (nextQuery === lastWrittenOrderQueryRef.current) {
+      return;
+    }
+
+    lastWrittenOrderQueryRef.current = nextQuery;
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    window.history.replaceState(window.history.state, "", nextUrl);
   }, [
     isActiveRoute,
     pathname,
-    router,
-    searchParams,
     orderDateRangePreset,
     orderListSortMode,
     currentPage,
@@ -1418,7 +1432,7 @@ export function StoreOrdersWorkspace(props: Props) {
                   setIsBreakdownDrawerOpen(true);
                   onSelectRow(row.id);
                 }}
-                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_170px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_1.6fr_160px_90px_150px_150px_110px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
@@ -1442,7 +1456,12 @@ export function StoreOrdersWorkspace(props: Props) {
                     G {formatIncomeJPY(row.grossAmount ?? row.amount ?? 0)}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)} / F {formatIncomeJPY(row.feeAmount ?? 0)}
+                    N {formatIncomeJPY(row.netAmount ?? row.amount ?? 0)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium text-slate-900">
+                    F {formatIncomeJPY(row.feeAmount ?? 0)}
                   </div>
                 </div>
               </button>
