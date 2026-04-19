@@ -251,11 +251,16 @@ export class ImportsService {
     const shippingTaxAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
+          '配送料の税金',
           '配送料の税',
+          '送料税',
           'shipping tax',
           'shipping-tax',
+          'shipping_tax',
           'ギフト包装の税',
+          'ギフト包装税',
           'gift wrap tax',
+          'gift-wrap tax',
         ]),
       ),
     );
@@ -263,10 +268,15 @@ export class ImportsService {
     const promotionDiscountAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
-          'Amazonポイントの費用',
-          'プロモーション',
-          'プロモーション割引',
           'プロモーション割引額',
+          'プロモーション割引金額',
+          'プロモーション割引',
+          'プロモーション',
+          '割引額',
+          'Amazonポイントの費用',
+          'Amazonポイント',
+          'ポイント',
+          'promotion discount',
           'promotion',
           'discount',
           'amazon points',
@@ -277,10 +287,14 @@ export class ImportsService {
     const promotionDiscountTaxAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
+          'プロモーション割引の税金',
           'プロモーション割引の税',
+          '割引税',
+          'promotion discount tax',
           'promotion tax',
           'promotion-tax',
           'discount tax',
+          'discount-tax',
         ]),
       ),
     );
@@ -288,12 +302,15 @@ export class ImportsService {
     const commissionFeeAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
+          '手数料',
           '売上にかかる取引手数料',
           '販売手数料',
           '出品手数料',
           'Amazon出品サービスの料金',
           'referral fee',
           'selling fees',
+          'commission fee',
+          'selling fee',
         ]),
       ),
     );
@@ -301,9 +318,13 @@ export class ImportsService {
     const fbaFeeAmount = Math.abs(
       this.parseAmount(
         this.pickField(row, [
+          'FBA 手数料',
           'FBA手数料',
+          'fba fee',
           'fba fees',
+          'fulfillment fee',
           'fulfillment fees',
+          'fulfilment fee',
           'fulfilment fees',
         ]),
       ),

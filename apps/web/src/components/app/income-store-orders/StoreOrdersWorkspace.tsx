@@ -183,8 +183,17 @@ function formatAmazonOrderCommissionFee(row: IncomeRow) {
   return formatIncomeJPY(row.commissionFeeAmount ?? row.feeAmount ?? 0);
 }
 
-function formatAmazonOrderFbaFee(_row: IncomeRow) {
-  return formatIncomeJPY(0);
+function formatAmazonOrderFbaFee(row: IncomeRow) {
+  const direct = Number(row.fbaFeeAmount ?? 0);
+  if (direct > 0) {
+    return formatIncomeJPY(direct);
+  }
+
+  const fee = Number(row.feeAmount ?? 0);
+  const commission = Number(row.commissionFeeAmount ?? 0);
+  const fallback = Math.max(0, fee - commission);
+
+  return formatIncomeJPY(fallback);
 }
 
 function filterRowsByOrderDateRange(rows: IncomeRow[], preset: OrderDateRangePreset) {

@@ -33,6 +33,27 @@ export type TransactionItem = {
   businessMonth?: string | null;
   sourceFileName?: string | null;
   sourceRowNo?: number | null;
+
+  sku?: string | null;
+  quantity?: number | null;
+  productName?: string | null;
+  fulfillment?: string | null;
+
+  grossAmount?: number | null;
+  netAmount?: number | null;
+  feeAmount?: number | null;
+  taxAmount?: number | null;
+  shippingAmount?: number | null;
+  promotionAmount?: number | null;
+
+  itemSalesAmount?: number | null;
+  itemSalesTaxAmount?: number | null;
+  shippingTaxAmount?: number | null;
+  promotionDiscountAmount?: number | null;
+  promotionDiscountTaxAmount?: number | null;
+  commissionFeeAmount?: number | null;
+  fbaFeeAmount?: number | null;
+
   createdAt: string;
 };
 
