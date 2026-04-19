@@ -257,10 +257,6 @@ export class ImportsService {
           'shipping tax',
           'shipping-tax',
           'shipping_tax',
-          'ギフト包装の税',
-          'ギフト包装税',
-          'gift wrap tax',
-          'gift-wrap tax',
         ]),
       ),
     );
@@ -271,14 +267,9 @@ export class ImportsService {
           'プロモーション割引額',
           'プロモーション割引金額',
           'プロモーション割引',
-          'プロモーション',
-          '割引額',
           'Amazonポイントの費用',
           'Amazonポイント',
-          'ポイント',
           'promotion discount',
-          'promotion',
-          'discount',
           'amazon points',
         ]),
       ),
@@ -289,12 +280,9 @@ export class ImportsService {
         this.pickField(row, [
           'プロモーション割引の税金',
           'プロモーション割引の税',
-          '割引税',
           'promotion discount tax',
           'promotion tax',
           'promotion-tax',
-          'discount tax',
-          'discount-tax',
         ]),
       ),
     );
@@ -1019,6 +1007,25 @@ export class ImportsService {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
       return parsed;
+    }
+
+    const normalized = value.replace(/\s+JST$/i, '').trim();
+    const m = normalized.match(
+      /^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+    );
+
+    if (m) {
+      const year = Number(m[1]);
+      const month = Number(m[2]);
+      const day = Number(m[3]);
+      const hour = Number(m[4] || '0');
+      const minute = Number(m[5] || '0');
+      const second = Number(m[6] || '0');
+
+      const fallback = new Date(year, month - 1, day, hour, minute, second);
+      if (!Number.isNaN(fallback.getTime())) {
+        return fallback;
+      }
     }
 
     return new Date();
