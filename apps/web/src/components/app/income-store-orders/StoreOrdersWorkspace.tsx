@@ -63,7 +63,7 @@ type Props = {
 
 type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
 type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
-type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D";
+type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D" | "CUSTOM";
 type OrderListSortMode = "date-desc" | "date-asc" | "qty-desc" | "qty-asc" | "fee-desc" | "fee-asc";
 
 const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
@@ -95,6 +95,7 @@ const ORDER_DATE_RANGE_LABELS: Record<OrderDateRangePreset, string> = {
   "30D": "近30天",
   "60D": "近60天",
   "90D": "近90天",
+  CUSTOM: "自定义",
 };
 
 const ORDER_LIST_SORT_LABELS: Record<OrderListSortMode, string> = {
@@ -112,10 +113,18 @@ const STORE_ORDERS_QUERY_KEYS = {
   page: "soPage",
   pageSize: "soPageSize",
   view: "soView",
+  start: "soStart",
+  end: "soEnd",
 } as const;
 
 function isOrderDateRangePreset(value: string): value is OrderDateRangePreset {
-  return value === "ALL" || value === "30D" || value === "60D" || value === "90D";
+  return (
+    value === "ALL" ||
+    value === "30D" ||
+    value === "60D" ||
+    value === "90D" ||
+    value === "CUSTOM"
+  );
 }
 
 function isOrderListSortMode(value: string): value is OrderListSortMode {
@@ -148,6 +157,20 @@ function toOrderDateMs(row: IncomeRow) {
   const raw = String(row.date || row.importedAt || "").trim();
   if (!raw) return 0;
   const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function normalizeDateInputValue(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function toDateInputBoundaryMs(value: string, endOfDay: boolean) {
+  const normalized = normalizeDateInputValue(value);
+  if (!normalized) return 0;
+  const suffix = endOfDay ? "T23:59:59.999" : "T00:00:00.000";
+  const ts = new Date(`${normalized}${suffix}`).getTime();
   return Number.isNaN(ts) ? 0 : ts;
 }
 
@@ -196,8 +219,28 @@ function formatAmazonOrderFbaFee(row: IncomeRow) {
   return formatIncomeJPY(fallback);
 }
 
-function filterRowsByOrderDateRange(rows: IncomeRow[], preset: OrderDateRangePreset) {
+function filterRowsByOrderDateRange(
+  rows: IncomeRow[],
+  preset: OrderDateRangePreset,
+  startDate: string,
+  endDate: string
+) {
   if (preset === "ALL") return rows;
+
+  if (preset === "CUSTOM") {
+    const startMs = toDateInputBoundaryMs(startDate, false);
+    const endMs = toDateInputBoundaryMs(endDate, true);
+
+    if (!startMs && !endMs) return rows;
+
+    return rows.filter((row) => {
+      const ts = toOrderDateMs(row);
+      if (ts <= 0) return false;
+      if (startMs && ts < startMs) return false;
+      if (endMs && ts > endMs) return false;
+      return true;
+    });
+  }
 
   const days = preset === "30D" ? 30 : preset === "60D" ? 60 : 90;
   const timestamps = rows.map(toOrderDateMs).filter((v) => v > 0);
@@ -702,12 +745,6 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const expectedPath = `/${lang}/app/income/store-orders`;
   const isActiveRoute = pathname === expectedPath;
-
-  const avgOrderAmount = totalRows > 0 ? totalAmount / totalRows : 0;
-  const storeSummary = useMemo(() => buildStoreSummary(rows), [rows]);
-  const labelSummary = useMemo(() => buildLabelSummary(rows), [rows]);
-  const sampleBars = useMemo(() => buildSampleBars(rows), [rows]);
-
   const uniqueStores = storeSummary.length;
   const topStore = storeSummary[0];
   const maxStoreAmount = Math.max(1, ...storeSummary.map((item) => item.amount), 1);
@@ -721,6 +758,10 @@ export function StoreOrdersWorkspace(props: Props) {
     useState<BreakdownSortMode>("date-desc");
   const [orderDateRangePreset, setOrderDateRangePreset] =
     useState<OrderDateRangePreset>("ALL");
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
+  const [draftCustomDateStart, setDraftCustomDateStart] = useState("");
+  const [draftCustomDateEnd, setDraftCustomDateEnd] = useState("");
   const [orderListSortMode, setOrderListSortMode] =
     useState<OrderListSortMode>("date-desc");
   const [copyMessage, setCopyMessage] = useState("");
@@ -756,8 +797,14 @@ export function StoreOrdersWorkspace(props: Props) {
   );
 
   const filteredOrderRows = useMemo(
-    () => filterRowsByOrderDateRange(rows, orderDateRangePreset),
-    [rows, orderDateRangePreset]
+    () =>
+      filterRowsByOrderDateRange(
+        rows,
+        orderDateRangePreset,
+        customDateStart,
+        customDateEnd
+      ),
+    [rows, orderDateRangePreset, customDateStart, customDateEnd]
   );
 
   const sortedOrderRows = useMemo(
@@ -765,8 +812,63 @@ export function StoreOrdersWorkspace(props: Props) {
     [filteredOrderRows, orderListSortMode]
   );
 
+  const filteredTotalAmount = useMemo(
+    () =>
+      filteredOrderRows.reduce(
+        (sum, row) => sum + Number(row.itemSalesAmount ?? row.grossAmount ?? row.amount ?? 0),
+        0
+      ),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalNetAmount = useMemo(
+    () =>
+      filteredOrderRows.reduce(
+        (sum, row) => sum + Number(row.netAmount ?? row.amount ?? 0),
+        0
+      ),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalFeeAmount = useMemo(
+    () => filteredOrderRows.reduce((sum, row) => sum + Number(row.feeAmount ?? 0), 0),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalTaxAmount = useMemo(
+    () =>
+      filteredOrderRows.reduce(
+        (sum, row) => sum + Number(row.itemSalesTaxAmount ?? row.taxAmount ?? 0),
+        0
+      ),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalShippingAmount = useMemo(
+    () => filteredOrderRows.reduce((sum, row) => sum + Number(row.shippingAmount ?? 0), 0),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalPromotionAmount = useMemo(
+    () =>
+      filteredOrderRows.reduce(
+        (sum, row) => sum + Number(row.promotionDiscountAmount ?? row.promotionAmount ?? 0),
+        0
+      ),
+    [filteredOrderRows]
+  );
+
+  const filteredTotalQuantity = useMemo(
+    () => filteredOrderRows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
+    [filteredOrderRows]
+  );
   const localTotalRows = sortedOrderRows.length;
   const localTotalPages = Math.max(1, Math.ceil(localTotalRows / pageSize));
+
+  const avgOrderAmount = localTotalRows > 0 ? filteredTotalAmount / localTotalRows : 0;
+  const storeSummary = useMemo(() => buildStoreSummary(filteredOrderRows), [filteredOrderRows]);
+  const labelSummary = useMemo(() => buildLabelSummary(filteredOrderRows), [filteredOrderRows]);
+  const sampleBars = useMemo(() => buildSampleBars(sortedOrderRows), [sortedOrderRows]);
 
   const localVisibleRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -777,6 +879,22 @@ export function StoreOrdersWorkspace(props: Props) {
     localTotalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const localPageEndRow =
     localTotalRows === 0 ? 0 : Math.min(currentPage * pageSize, localTotalRows);
+
+  function applyCustomDateRange() {
+    setOrderDateRangePreset("CUSTOM");
+    setCustomDateStart(normalizeDateInputValue(draftCustomDateStart));
+    setCustomDateEnd(normalizeDateInputValue(draftCustomDateEnd));
+    setCurrentPage(1);
+  }
+
+  function clearCustomDateRange() {
+    setOrderDateRangePreset("CUSTOM");
+    setDraftCustomDateStart("");
+    setDraftCustomDateEnd("");
+    setCustomDateStart("");
+    setCustomDateEnd("");
+    setCurrentPage(1);
+  }
 
   const renderMiniSortArrows = (
     descMode: OrderListSortMode,
@@ -943,6 +1061,12 @@ export function StoreOrdersWorkspace(props: Props) {
     const nextPage = searchParams.get(STORE_ORDERS_QUERY_KEYS.page) || "";
     const nextPageSize = searchParams.get(STORE_ORDERS_QUERY_KEYS.pageSize) || "";
     const nextView = searchParams.get(STORE_ORDERS_QUERY_KEYS.view) || "";
+    const nextStart = normalizeDateInputValue(
+      searchParams.get(STORE_ORDERS_QUERY_KEYS.start) || ""
+    );
+    const nextEnd = normalizeDateInputValue(
+      searchParams.get(STORE_ORDERS_QUERY_KEYS.end) || ""
+    );
 
     if (isOrderDateRangePreset(nextRange) && nextRange !== orderDateRangePreset) {
       setOrderDateRangePreset(nextRange);
@@ -958,6 +1082,19 @@ export function StoreOrdersWorkspace(props: Props) {
 
     if (isStoreOrderViewMode(nextView) && nextView !== storeOrderViewMode) {
       setStoreOrderViewMode(nextView);
+    }
+
+    if (nextStart !== customDateStart) {
+      setCustomDateStart(nextStart);
+    }
+    if (nextEnd !== customDateEnd) {
+      setCustomDateEnd(nextEnd);
+    }
+    if (nextStart !== draftCustomDateStart) {
+      setDraftCustomDateStart(nextStart);
+    }
+    if (nextEnd !== draftCustomDateEnd) {
+      setDraftCustomDateEnd(nextEnd);
     }
 
     if (/^\d+$/.test(nextPage)) {
@@ -1024,6 +1161,18 @@ export function StoreOrdersWorkspace(props: Props) {
     params.set(STORE_ORDERS_QUERY_KEYS.pageSize, String(pageSize));
     params.set(STORE_ORDERS_QUERY_KEYS.view, storeOrderViewMode);
 
+    if (orderDateRangePreset === "CUSTOM" && customDateStart) {
+      params.set(STORE_ORDERS_QUERY_KEYS.start, customDateStart);
+    } else {
+      params.delete(STORE_ORDERS_QUERY_KEYS.start);
+    }
+
+    if (orderDateRangePreset === "CUSTOM" && customDateEnd) {
+      params.set(STORE_ORDERS_QUERY_KEYS.end, customDateEnd);
+    } else {
+      params.delete(STORE_ORDERS_QUERY_KEYS.end);
+    }
+
     const nextQuery = params.toString();
     const currentQuery = window.location.search.replace(/^\?/, "");
 
@@ -1043,6 +1192,8 @@ export function StoreOrdersWorkspace(props: Props) {
     isActiveRoute,
     pathname,
     orderDateRangePreset,
+    customDateStart,
+    customDateEnd,
     orderListSortMode,
     currentPage,
     pageSize,
@@ -1071,7 +1222,7 @@ export function StoreOrdersWorkspace(props: Props) {
       <div className="grid gap-4 lg:grid-cols-4">
         <div className="rounded-3xl bg-[linear-gradient(135deg,#8b5cf6,#a78bfa)] p-6 text-white shadow-sm">
           <div className="text-sm text-white/80">注文売上</div>
-          <div className="mt-3 text-4xl font-semibold">{formatIncomeJPY(totalAmount)}</div>
+          <div className="mt-3 text-4xl font-semibold">{formatIncomeJPY(filteredTotalAmount)}</div>
           <div className="mt-4 text-sm text-white/80">
             {viewModeLabel}で表示中の売上総額
           </div>
@@ -1079,7 +1230,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#06b6d4,#67e8f9)] p-6 text-slate-950 shadow-sm">
           <div className="text-sm text-slate-700">表示行数</div>
-          <div className="mt-3 text-4xl font-semibold">{totalRows}</div>
+          <div className="mt-3 text-4xl font-semibold">{localTotalRows}</div>
           <div className="mt-4 text-sm text-slate-700">
             聚合 {aggregatedStoreOrderCount} / 原始 {rawStoreOrderCount}
           </div>
@@ -1087,7 +1238,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="rounded-3xl bg-[linear-gradient(135deg,#f97316,#fb923c)] p-6 text-white shadow-sm">
           <div className="text-sm text-white/80">総販売数量</div>
-          <div className="mt-3 text-4xl font-semibold">{totalQuantity}</div>
+          <div className="mt-3 text-4xl font-semibold">{filteredTotalQuantity}</div>
           <div className="mt-4 text-sm text-white/80">
             平均注文額 {formatIncomeJPY(avgOrderAmount)}
           </div>
@@ -1187,24 +1338,24 @@ export function StoreOrdersWorkspace(props: Props) {
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">商品売上 合計</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalAmount)}</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(filteredTotalAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">Net 金額 合計</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalNetAmount)}</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(filteredTotalNetAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">手数料 合計</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalFeeAmount)}</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(filteredTotalFeeAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">商品の売上税 合計</div>
-          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(totalTaxAmount)}</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-900">{formatIncomeJPY(filteredTotalTaxAmount)}</div>
         </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="text-sm text-slate-500">配送料 / 割引</div>
           <div className="mt-2 text-sm text-slate-700">
-            配送料 {formatIncomeJPY(totalShippingAmount)} / 割引 {formatIncomeJPY(totalPromotionAmount)}
+            配送料 {formatIncomeJPY(filteredTotalShippingAmount)} / 割引 {formatIncomeJPY(filteredTotalPromotionAmount)}
           </div>
         </div>
       </div>
@@ -1372,7 +1523,7 @@ export function StoreOrdersWorkspace(props: Props) {
             <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
               <label className="text-sm font-medium text-slate-700">订单日期范围</label>
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "30D", "60D", "90D"] as OrderDateRangePreset[]).map((item) => (
+                {(["ALL", "30D", "60D", "90D", "CUSTOM"] as OrderDateRangePreset[]).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -1389,6 +1540,44 @@ export function StoreOrdersWorkspace(props: Props) {
               </div>
             </div>
 
+            {orderDateRangePreset === "CUSTOM" ? (
+              <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-start">
+                <label className="pt-2 text-sm font-medium text-slate-700">自定义日期</label>
+                <div className="grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      type="date"
+                      value={draftCustomDateStart}
+                      onChange={(e) => setDraftCustomDateStart(e.target.value)}
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                    />
+                    <input
+                      type="date"
+                      value={draftCustomDateEnd}
+                      onChange={(e) => setDraftCustomDateEnd(e.target.value)}
+                      className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={applyCustomDateRange}
+                      className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                    >
+                      应用
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearCustomDateRange}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      清除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
               <label className="text-sm font-medium text-slate-700">1ページあたり</label>
               <select
@@ -1404,6 +1593,9 @@ export function StoreOrdersWorkspace(props: Props) {
 
             <div className="text-xs text-slate-500">
               当前排序：{ORDER_LIST_SORT_LABELS[orderListSortMode]}
+              {orderDateRangePreset === "CUSTOM"
+                ? ` · 日期范围 ${customDateStart || "-"} ~ ${customDateEnd || "-"}`
+                : ""}
             </div>
           </div>
         </div>
@@ -1508,7 +1700,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="text-sm text-slate-500">
-            全 {localTotalRows} 行・総販売数量 {totalQuantity} 点のうち、{localPageStartRow} - {localPageEndRow} 行を表示
+            全 {localTotalRows} 行・総販売数量 {filteredTotalQuantity} 点のうち、{localPageStartRow} - {localPageEndRow} 行を表示
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
