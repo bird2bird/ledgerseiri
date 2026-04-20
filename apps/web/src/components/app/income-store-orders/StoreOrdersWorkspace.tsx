@@ -64,7 +64,7 @@ type Props = {
 type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
 type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
 type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D" | "CUSTOM";
-type OrderListSortMode = "date-desc" | "date-asc" | "qty-desc" | "qty-asc" | "fee-desc" | "fee-asc";
+type OrderListSortMode = "date-desc" | "date-asc" | "qty-desc" | "qty-asc" | "fee-desc" | "fee-asc" | "item-sales-desc" | "item-sales-asc" | "item-tax-desc" | "item-tax-asc" | "shipping-desc" | "shipping-asc" | "shipping-tax-desc" | "shipping-tax-asc" | "promotion-desc" | "promotion-asc" | "promotion-tax-desc" | "promotion-tax-asc" | "fba-fee-desc" | "fba-fee-asc";
 
 const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
   "ALL",
@@ -99,12 +99,26 @@ const ORDER_DATE_RANGE_LABELS: Record<OrderDateRangePreset, string> = {
 };
 
 const ORDER_LIST_SORT_LABELS: Record<OrderListSortMode, string> = {
-  "date-desc": "日期新→旧",
-  "date-asc": "日期旧→新",
-  "qty-desc": "数量高→低",
-  "qty-asc": "数量低→高",
-  "fee-desc": "Fee高→低",
-  "fee-asc": "Fee低→高",
+  "date-desc": "日付（新→旧）",
+  "date-asc": "日付（旧→新）",
+  "qty-desc": "数量（高→低）",
+  "qty-asc": "数量（低→高）",
+  "fee-desc": "手数料（高→低）",
+  "fee-asc": "手数料（低→高）",
+  "item-sales-desc": "商品売上（高→低）",
+  "item-sales-asc": "商品売上（低→高）",
+  "item-tax-desc": "商品の売上税（高→低）",
+  "item-tax-asc": "商品の売上税（低→高）",
+  "shipping-desc": "配送料（高→低）",
+  "shipping-asc": "配送料（低→高）",
+  "shipping-tax-desc": "配送料の税金（高→低）",
+  "shipping-tax-asc": "配送料の税金（低→高）",
+  "promotion-desc": "プロモーション割引額（高→低）",
+  "promotion-asc": "プロモーション割引額（低→高）",
+  "promotion-tax-desc": "プロモーション割引の税金（高→低）",
+  "promotion-tax-asc": "プロモーション割引の税金（低→高）",
+  "fba-fee-desc": "FBA 手数料（高→低）",
+  "fba-fee-asc": "FBA 手数料（低→高）",
 };
 
 const STORE_ORDERS_QUERY_KEYS = {
@@ -134,7 +148,21 @@ function isOrderListSortMode(value: string): value is OrderListSortMode {
     value === "qty-desc" ||
     value === "qty-asc" ||
     value === "fee-desc" ||
-    value === "fee-asc"
+    value === "fee-asc" ||
+    value === "item-sales-desc" ||
+    value === "item-sales-asc" ||
+    value === "item-tax-desc" ||
+    value === "item-tax-asc" ||
+    value === "shipping-desc" ||
+    value === "shipping-asc" ||
+    value === "shipping-tax-desc" ||
+    value === "shipping-tax-asc" ||
+    value === "promotion-desc" ||
+    value === "promotion-asc" ||
+    value === "promotion-tax-desc" ||
+    value === "promotion-tax-asc" ||
+    value === "fba-fee-desc" ||
+    value === "fba-fee-asc"
   );
 }
 
@@ -298,6 +326,110 @@ function sortOrderListRows(rows: IncomeRow[], sortMode: OrderListSortMode) {
     );
   }
 
+  if (sortMode === "item-sales-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.itemSalesAmount ?? b.grossAmount ?? b.amount ?? 0) -
+          Number(a.itemSalesAmount ?? a.grossAmount ?? a.amount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "item-sales-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.itemSalesAmount ?? a.grossAmount ?? a.amount ?? 0) -
+          Number(b.itemSalesAmount ?? b.grossAmount ?? b.amount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "item-tax-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.itemSalesTaxAmount ?? b.taxAmount ?? 0) -
+          Number(a.itemSalesTaxAmount ?? a.taxAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "item-tax-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.itemSalesTaxAmount ?? a.taxAmount ?? 0) -
+          Number(b.itemSalesTaxAmount ?? b.taxAmount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "shipping-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.shippingAmount ?? 0) - Number(a.shippingAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "shipping-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.shippingAmount ?? 0) - Number(b.shippingAmount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "shipping-tax-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.shippingTaxAmount ?? 0) - Number(a.shippingTaxAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "shipping-tax-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.shippingTaxAmount ?? 0) - Number(b.shippingTaxAmount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "promotion-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.promotionDiscountAmount ?? b.promotionAmount ?? 0) -
+          Number(a.promotionDiscountAmount ?? a.promotionAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "promotion-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.promotionDiscountAmount ?? a.promotionAmount ?? 0) -
+          Number(b.promotionDiscountAmount ?? b.promotionAmount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "promotion-tax-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.promotionDiscountTaxAmount ?? 0) -
+          Number(a.promotionDiscountTaxAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "promotion-tax-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.promotionDiscountTaxAmount ?? 0) -
+          Number(b.promotionDiscountTaxAmount ?? 0) ||
+        compareDateAsc(a, b)
+    );
+  }
+
   if (sortMode === "fee-desc") {
     return next.sort(
       (a, b) => feeAmountOf(b) - feeAmountOf(a) || compareDateDesc(a, b)
@@ -307,6 +439,22 @@ function sortOrderListRows(rows: IncomeRow[], sortMode: OrderListSortMode) {
   if (sortMode === "fee-asc") {
     return next.sort(
       (a, b) => feeAmountOf(a) - feeAmountOf(b) || compareDateAsc(a, b)
+    );
+  }
+
+  if (sortMode === "fba-fee-desc") {
+    return next.sort(
+      (a, b) =>
+        Number(b.fbaFeeAmount ?? 0) - Number(a.fbaFeeAmount ?? 0) ||
+        compareDateDesc(a, b)
+    );
+  }
+
+  if (sortMode === "fba-fee-asc") {
+    return next.sort(
+      (a, b) =>
+        Number(a.fbaFeeAmount ?? 0) - Number(b.fbaFeeAmount ?? 0) ||
+        compareDateAsc(a, b)
     );
   }
 
@@ -915,7 +1063,7 @@ export function StoreOrdersWorkspace(props: Props) {
     <span className="ml-2 inline-flex items-center gap-1">
       <button
         type="button"
-        onClick={() => setOrderListSortMode(descMode)}
+        onClick={() => { setOrderListSortMode(descMode); setCurrentPage(1); }}
         className={
           orderListSortMode === descMode
             ? "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-900 bg-slate-900 text-[9px] leading-none text-white"
@@ -927,7 +1075,7 @@ export function StoreOrdersWorkspace(props: Props) {
       </button>
       <button
         type="button"
-        onClick={() => setOrderListSortMode(ascMode)}
+        onClick={() => { setOrderListSortMode(ascMode); setCurrentPage(1); }}
         className={
           orderListSortMode === ascMode
             ? "inline-flex h-4 w-4 items-center justify-center rounded border border-slate-900 bg-slate-900 text-[9px] leading-none text-white"
@@ -943,6 +1091,11 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const getSortHeaderTextClass = (active: boolean) =>
     active ? "font-semibold text-slate-900" : "font-medium text-slate-600";
+
+  const getSortHeaderWrapClass = (active: boolean) =>
+    active
+      ? "flex items-center justify-end rounded-lg bg-slate-200/80 px-2 py-1"
+      : "flex items-center justify-end px-2 py-1";
 
   const breakdownRows = useMemo(() => {
     const filtered =
@@ -1626,7 +1779,7 @@ export function StoreOrdersWorkspace(props: Props) {
             </div>
 
             <div className="text-xs text-slate-500">
-              当前排序：{ORDER_LIST_SORT_LABELS[orderListSortMode]}
+              当前排序列：{ORDER_LIST_SORT_LABELS[orderListSortMode]}
               {orderDateRangePreset === "CUSTOM"
                 ? ` · 日期范围 ${customDateStart || "-"} ~ ${customDateEnd || "-"}`
                 : ""}
@@ -1664,21 +1817,42 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
           <div className="grid grid-cols-[110px_120px_120px_120px_120px_130px_140px_110px_110px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            <div className="flex items-center">
+            <div className={getSortHeaderWrapClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>
               <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>日付</span>
               {renderMiniSortArrows("date-desc", "date-asc")}
             </div>
-            <div className="text-right font-medium text-slate-600">商品売上</div>
-            <div className="text-right font-medium text-slate-600">商品の売上税</div>
-            <div className="text-right font-medium text-slate-600">配送料</div>
-            <div className="text-right font-medium text-slate-600">配送料の税金</div>
-            <div className="text-right font-medium text-slate-600">プロモーション割引額</div>
-            <div className="text-right font-medium text-slate-600">プロモーション割引の税金</div>
-            <div className="flex items-center justify-end">
+            <div className={getSortHeaderWrapClass(orderListSortMode === "item-sales-desc" || orderListSortMode === "item-sales-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "item-sales-desc" || orderListSortMode === "item-sales-asc")}>商品売上</span>
+              {renderMiniSortArrows("item-sales-desc", "item-sales-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "item-tax-desc" || orderListSortMode === "item-tax-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "item-tax-desc" || orderListSortMode === "item-tax-asc")}>商品の売上税</span>
+              {renderMiniSortArrows("item-tax-desc", "item-tax-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "shipping-desc" || orderListSortMode === "shipping-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "shipping-desc" || orderListSortMode === "shipping-asc")}>配送料</span>
+              {renderMiniSortArrows("shipping-desc", "shipping-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "shipping-tax-desc" || orderListSortMode === "shipping-tax-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "shipping-tax-desc" || orderListSortMode === "shipping-tax-asc")}>配送料の税金</span>
+              {renderMiniSortArrows("shipping-tax-desc", "shipping-tax-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "promotion-desc" || orderListSortMode === "promotion-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "promotion-desc" || orderListSortMode === "promotion-asc")}>プロモーション割引額</span>
+              {renderMiniSortArrows("promotion-desc", "promotion-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc")}>プロモーション割引の税金</span>
+              {renderMiniSortArrows("promotion-tax-desc", "promotion-tax-asc")}
+            </div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>
               <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>手数料</span>
               {renderMiniSortArrows("fee-desc", "fee-asc")}
             </div>
-            <div className="text-right font-medium text-slate-600">FBA 手数料</div>
+            <div className={getSortHeaderWrapClass(orderListSortMode === "fba-fee-desc" || orderListSortMode === "fba-fee-asc")}>
+              <span className={getSortHeaderTextClass(orderListSortMode === "fba-fee-desc" || orderListSortMode === "fba-fee-asc")}>FBA 手数料</span>
+              {renderMiniSortArrows("fba-fee-desc", "fba-fee-asc")}
+            </div>
           </div>
 
           {loading ? (
