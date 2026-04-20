@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -96,6 +97,59 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
 
   const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
+
+  const draftLineCount = useMemo(() => {
+    if (!csvText.trim()) return 0;
+    return csvText.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
+  }, [csvText]);
+
+  const historyItems = Array.isArray(historyResult?.items) ? historyResult.items : [];
+  const latestHistoryItem = historyItems[0] ?? null;
+
+  const bridgeImportJobId = String(previewResult?.importJobId || "").trim();
+  const bridgeMonths = Array.isArray(detectResult?.fileMonths)
+    ? detectResult.fileMonths.filter(Boolean)
+    : [];
+
+  const previewOrdersHref = bridgeImportJobId
+    ? buildImportCommitWorkspaceHref({
+        lang,
+        moduleMode: "store-orders",
+        importJobId: bridgeImportJobId,
+        months: bridgeMonths,
+      })
+    : `/${lang}/app/income/store-orders`;
+
+  const previewOperationHref = bridgeImportJobId
+    ? buildImportCommitWorkspaceHref({
+        lang,
+        moduleMode: "store-operation",
+        importJobId: bridgeImportJobId,
+        months: bridgeMonths,
+      })
+    : `/${lang}/app/expenses/store-operation`;
+
+  const latestHistoryMonths = Array.isArray(latestHistoryItem?.fileMonthsJson)
+    ? latestHistoryItem.fileMonthsJson.filter(Boolean)
+    : [];
+
+  const latestHistoryOrdersHref = latestHistoryItem
+    ? buildImportCommitWorkspaceHref({
+        lang,
+        moduleMode: "store-orders",
+        importJobId: latestHistoryItem.id,
+        months: latestHistoryMonths,
+      })
+    : `/${lang}/app/income/store-orders`;
+
+  const latestHistoryOperationHref = latestHistoryItem
+    ? buildImportCommitWorkspaceHref({
+        lang,
+        moduleMode: "store-operation",
+        importJobId: latestHistoryItem.id,
+        months: latestHistoryMonths,
+      })
+    : `/${lang}/app/expenses/store-operation`;
 
   const canRun = useMemo(() => {
     return !!csvText.trim() && !!filename.trim();
@@ -383,6 +437,47 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               {message}
             </div>
           ) : null}
+
+          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-slate-900">Current Draft Summary</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  当前 import 草稿、detect 结果与 preview 状态总览
+                </div>
+              </div>
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
+                ready = {canRun ? "YES" : "NO"}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Filename</div>
+                <div className="mt-1 break-all text-sm font-medium text-slate-900">
+                  {filename || "-"}
+                </div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Draft Lines</div>
+                <div className="mt-1 text-base font-semibold text-slate-900">
+                  {formatNumber(draftLineCount)}
+                </div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Detect Months</div>
+                <div className="mt-2">
+                  {renderTagList(detectResult?.fileMonths)}
+                </div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Conflict Months</div>
+                <div className="mt-2">
+                  {renderTagList(detectResult?.conflictMonths)}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -423,6 +518,70 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
             )}
           </div>
 
+          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-slate-900">Latest History Snapshot</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  最近一条 import history 的快速入口
+                </div>
+              </div>
+              <div className="text-xs text-slate-500">
+                {historyLoading ? "loading..." : `items: ${historyItems.length}`}
+              </div>
+            </div>
+
+            {latestHistoryItem ? (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[16px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Latest Filename</div>
+                    <div className="mt-1 break-all text-sm font-medium text-slate-900">
+                      {latestHistoryItem.filename || "-"}
+                    </div>
+                  </div>
+                  <div className="rounded-[16px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Latest Status</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      {latestHistoryItem.status || "-"}
+                    </div>
+                  </div>
+                  <div className="rounded-[16px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">Imported At</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">
+                      {formatDateTime(latestHistoryItem.importedAt)}
+                    </div>
+                  </div>
+                  <div className="rounded-[16px] bg-white p-3">
+                    <div className="text-[11px] text-slate-500">File Months</div>
+                    <div className="mt-2">
+                      {renderTagList(latestHistoryMonths)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={latestHistoryOrdersHref}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    打开最近一次 店舗注文 结果
+                  </Link>
+                  <Link
+                    href={latestHistoryOperationHref}
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    打开最近一次 店舗運営費 结果
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
+                还没有可展示的 import history。
+              </div>
+            )}
+          </div>
+
           <ImportPreviewSummary
             preview={previewResult}
             policyLabel={formatPolicyLabel(policy)}
@@ -453,6 +612,24 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               <div>
                 <span className="font-medium text-slate-900">策略：</span>
                 {formatPolicyLabel(policy)}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[16px] border border-slate-200 bg-white p-4">
+              <div className="text-[11px] text-slate-500">Workspace Bridge</div>
+              <div className="mt-3 flex flex-col gap-2">
+                <Link
+                  href={previewOrdersHref}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  打开当前 preview 的 店舗注文 结果
+                </Link>
+                <Link
+                  href={previewOperationHref}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  打开当前 preview 的 店舗運営費 结果
+                </Link>
               </div>
             </div>
 
