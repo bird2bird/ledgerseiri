@@ -129,6 +129,9 @@ const STORE_ORDERS_QUERY_KEYS = {
   view: "soView",
   start: "soStart",
   end: "soEnd",
+  drawer: "soDrawer",
+  breakdownFilter: "soBf",
+  breakdownSort: "soBs",
 } as const;
 
 function isOrderDateRangePreset(value: string): value is OrderDateRangePreset {
@@ -172,6 +175,21 @@ function isStoreOrderViewMode(value: string): value is "aggregated" | "raw" {
 
 function isOrderPageSize(value: string): value is "20" | "50" | "100" {
   return value === "20" || value === "50" || value === "100";
+}
+
+function isBreakdownFilter(value: string): value is BreakdownFilter {
+  return (
+    value === "ALL" ||
+    value === "ORDER" ||
+    value === "FEE" ||
+    value === "ADJUST" ||
+    value === "REFUND" ||
+    value === "OTHER"
+  );
+}
+
+function isBreakdownSortMode(value: string): value is BreakdownSortMode {
+  return value === "date-desc" || value === "amount-desc" || value === "fee-desc";
 }
 
 function clampPage(page: number, totalPages: number) {
@@ -936,6 +954,23 @@ export function StoreOrdersWorkspace(props: Props) {
     ]
   );
 
+  const drawerStoreOperationHref =
+    drawerSelectedRow
+      ? buildStoreOperationWorkspaceHref({
+          lang,
+          from: "store-order-drawer",
+          autoDrawer: true,
+          orderId: drawerSelectedRow.externalRef || "",
+          sku: drawerSelectedRow.sku || "",
+          date: drawerSelectedRow.date || "",
+          kind: "ORDER",
+          transactionId: String(drawerSelectedRow.id || ""),
+          focusChargeId: "",
+          sourceType: String(drawerSelectedRow.sourceType || ""),
+          view: "charges",
+        })
+      : `/${lang}/app/expenses/store-operation`;
+
   const filteredOrderRows = useMemo(
     () =>
       filterRowsByOrderDateRange(
@@ -1091,8 +1126,8 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const getSortHeaderWrapClass = (active: boolean) =>
     active
-      ? "flex min-h-[44px] items-center justify-center rounded-lg bg-slate-200/80 px-2 py-1"
-      : "flex min-h-[44px] items-center justify-center px-2 py-1";
+      ? "flex min-h-[48px] items-center justify-center rounded-lg bg-slate-200/80 px-2 py-1"
+      : "flex min-h-[48px] items-center justify-center px-2 py-1";
 
   const breakdownRows = useMemo(() => {
     const filtered =
@@ -1127,6 +1162,27 @@ export function StoreOrdersWorkspace(props: Props) {
     () => sumBreakdownQty(breakdownRows),
     [breakdownRows]
   );
+
+  const breakdownTagSummary = useMemo(() => {
+    return breakdownRows.reduce(
+      (acc, row) => {
+        const tag = getBreakdownTag(row).label;
+        acc.ALL += 1;
+        if (tag === "ORDER") acc.ORDER += 1;
+        if (tag === "FEE") acc.FEE += 1;
+        if (tag === "REFUND") acc.REFUND += 1;
+        if (tag === "ADJUST") acc.ADJUST += 1;
+        return acc;
+      },
+      {
+        ALL: 0,
+        ORDER: 0,
+        FEE: 0,
+        REFUND: 0,
+        ADJUST: 0,
+      }
+    );
+  }, [breakdownRows]);
 
   async function handleCopyBreakdownSummary() {
     try {
@@ -1223,6 +1279,11 @@ export function StoreOrdersWorkspace(props: Props) {
     const nextPage = searchParams.get(STORE_ORDERS_QUERY_KEYS.page) || "";
     const nextPageSize = searchParams.get(STORE_ORDERS_QUERY_KEYS.pageSize) || "";
     const nextView = searchParams.get(STORE_ORDERS_QUERY_KEYS.view) || "";
+    const nextDrawer = searchParams.get(STORE_ORDERS_QUERY_KEYS.drawer) || "";
+    const nextBreakdownFilter =
+      searchParams.get(STORE_ORDERS_QUERY_KEYS.breakdownFilter) || "";
+    const nextBreakdownSort =
+      searchParams.get(STORE_ORDERS_QUERY_KEYS.breakdownSort) || "";
     const nextStart = normalizeDateInputValue(
       searchParams.get(STORE_ORDERS_QUERY_KEYS.start) || ""
     );
@@ -1244,6 +1305,32 @@ export function StoreOrdersWorkspace(props: Props) {
 
     if (isStoreOrderViewMode(nextView) && nextView !== storeOrderViewMode) {
       setStoreOrderViewMode(nextView);
+    }
+
+    if (isBreakdownFilter(nextBreakdownFilter) && nextBreakdownFilter !== breakdownFilter) {
+      setBreakdownFilter(nextBreakdownFilter);
+    }
+
+    if (isBreakdownSortMode(nextBreakdownSort) && nextBreakdownSort !== breakdownSortMode) {
+      setBreakdownSortMode(nextBreakdownSort);
+    }
+
+    if (nextDrawer) {
+      const matchedDrawerRow = rows.find((row) => row.id === nextDrawer);
+      if (matchedDrawerRow) {
+        if (drawerRowId !== matchedDrawerRow.id) {
+          setDrawerRowId(matchedDrawerRow.id);
+        }
+        if (selectedRowId !== matchedDrawerRow.id) {
+          onSelectRow(matchedDrawerRow.id);
+        }
+        if (storeOrderViewMode === "aggregated" && !isBreakdownDrawerOpen) {
+          setIsBreakdownDrawerOpen(true);
+        }
+      }
+    } else if (drawerRowId || isBreakdownDrawerOpen) {
+      setDrawerRowId("");
+      setIsBreakdownDrawerOpen(false);
     }
 
     if (nextStart !== customDateStart) {
@@ -1333,6 +1420,18 @@ export function StoreOrdersWorkspace(props: Props) {
     params.set(STORE_ORDERS_QUERY_KEYS.page, String(currentPage));
     params.set(STORE_ORDERS_QUERY_KEYS.pageSize, String(pageSize));
     params.set(STORE_ORDERS_QUERY_KEYS.view, storeOrderViewMode);
+    params.set(STORE_ORDERS_QUERY_KEYS.breakdownFilter, breakdownFilter);
+    params.set(STORE_ORDERS_QUERY_KEYS.breakdownSort, breakdownSortMode);
+
+    if (
+      storeOrderViewMode === "aggregated" &&
+      isBreakdownDrawerOpen &&
+      drawerRowId
+    ) {
+      params.set(STORE_ORDERS_QUERY_KEYS.drawer, drawerRowId);
+    } else {
+      params.delete(STORE_ORDERS_QUERY_KEYS.drawer);
+    }
 
     if (orderDateRangePreset === "CUSTOM" && customDateStart) {
       params.set(STORE_ORDERS_QUERY_KEYS.start, customDateStart);
@@ -1371,6 +1470,10 @@ export function StoreOrdersWorkspace(props: Props) {
     currentPage,
     pageSize,
     storeOrderViewMode,
+    breakdownFilter,
+    breakdownSortMode,
+    isBreakdownDrawerOpen,
+    drawerRowId,
   ]);
 
   if (!isActiveRoute) {
@@ -1800,7 +1903,7 @@ export function StoreOrdersWorkspace(props: Props) {
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[110px_118px_124px_108px_124px_148px_188px_104px_88px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <div className="grid grid-cols-[110px_118px_124px_108px_124px_140px_212px_96px_84px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
             <div className={getSortHeaderWrapClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>
               <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc") + " whitespace-nowrap"}>日付</span>
               {renderMiniSortArrows("date-desc", "date-asc")}
@@ -1845,11 +1948,11 @@ export function StoreOrdersWorkspace(props: Props) {
               <span
                 className={
                   getSortHeaderTextClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc") +
-                  " inline-flex min-h-[36px] flex-col items-center justify-center text-center leading-tight whitespace-nowrap"
+                  " inline-flex min-h-[36px] w-full flex-col items-center justify-center text-center leading-tight whitespace-nowrap"
                 }
               >
-                <span>プロモーション割引</span>
-                <span>税金</span>
+                <span className="whitespace-nowrap">プロモーション割引</span>
+                <span className="whitespace-nowrap">税金</span>
               </span>
               {renderMiniSortArrows("promotion-tax-desc", "promotion-tax-asc")}
             </div>
@@ -1882,7 +1985,7 @@ export function StoreOrdersWorkspace(props: Props) {
                   setIsBreakdownDrawerOpen(true);
                   onSelectRow(row.id);
                 }}
-                className={`grid w-full grid-cols-[110px_118px_124px_108px_124px_148px_188px_104px_88px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_118px_124px_108px_124px_140px_212px_96px_84px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
@@ -2006,18 +2109,32 @@ export function StoreOrdersWorkspace(props: Props) {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => closeBreakdownDrawer("generic")}
-                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  閉じる
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={drawerStoreOperationHref}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    店舗運営費で開く
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => closeBreakdownDrawer("generic")}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    閉じる
+                  </button>
+                </div>
               </div>
 
               {drawerSelectedRow ? (
                 <>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-5">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      订单摘要
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">注文番号</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
@@ -2044,7 +2161,13 @@ export function StoreOrdersWorkspace(props: Props) {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-5">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      金额摘要
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-[11px] uppercase tracking-wide text-slate-400">商品売上</div>
                       <div className="mt-1 text-sm font-semibold text-slate-900">
@@ -2103,7 +2226,13 @@ export function StoreOrdersWorkspace(props: Props) {
                 </>
               ) : null}
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-6">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  筛选与操作
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-3">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex flex-wrap gap-2">
                     {BREAKDOWN_FILTER_ITEMS.map((item) => (
@@ -2156,9 +2285,47 @@ export function StoreOrdersWorkspace(props: Props) {
             </div>
 
             <div className="space-y-4 px-6 py-6">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  明细结果摘要
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">ALL</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{breakdownTagSummary.ALL}</div>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-wide text-emerald-500">ORDER</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{breakdownTagSummary.ORDER}</div>
+                </div>
+                <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-wide text-sky-500">FEE</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{breakdownTagSummary.FEE}</div>
+                </div>
+                <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-wide text-rose-500">REFUND</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{breakdownTagSummary.REFUND}</div>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <div className="text-[11px] uppercase tracking-wide text-amber-500">ADJUST</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{breakdownTagSummary.ADJUST}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  原始 transaction 明细
+                </div>
+              </div>
+
               {breakdownRows.length === 0 ? (
                 <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-                  当前未找到与所选聚合行匹配的原始 transaction。Drawer 已正常打开，请继续检查 date / orderId / SKU 聚合键是否一致。
+                  当前未找到与所选聚合行匹配的原始 transaction。
+                  <div className="mt-2 text-xs text-slate-400">
+                    Drawer 已正常打开。请继续检查 date / orderId / SKU 聚合键，或切换至原始 transaction 视图进行核对。
+                  </div>
                 </div>
               ) : (
                 breakdownRows.map((row) => {
