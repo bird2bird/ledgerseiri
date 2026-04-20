@@ -63,7 +63,7 @@ type Props = {
 
 type BreakdownFilter = "ALL" | "ORDER" | "FEE" | "ADJUST" | "REFUND" | "OTHER";
 type BreakdownSortMode = "date-desc" | "amount-desc" | "fee-desc";
-type OrderDateRangePreset = "ALL" | "30D" | "60D" | "90D" | "CUSTOM";
+type OrderDateRangePreset = "ALL" | "30D" | "90D" | "365D" | "CUSTOM";
 type OrderListSortMode = "date-desc" | "date-asc" | "qty-desc" | "qty-asc" | "fee-desc" | "fee-asc" | "item-sales-desc" | "item-sales-asc" | "item-tax-desc" | "item-tax-asc" | "shipping-desc" | "shipping-asc" | "shipping-tax-desc" | "shipping-tax-asc" | "promotion-desc" | "promotion-asc" | "promotion-tax-desc" | "promotion-tax-asc" | "fba-fee-desc" | "fba-fee-asc";
 
 const BREAKDOWN_FILTER_ITEMS: BreakdownFilter[] = [
@@ -93,8 +93,8 @@ const BREAKDOWN_SORT_LABELS: Record<BreakdownSortMode, string> = {
 const ORDER_DATE_RANGE_LABELS: Record<OrderDateRangePreset, string> = {
   ALL: "全部",
   "30D": "近30天",
-  "60D": "近60天",
   "90D": "近90天",
+  "365D": "近365天",
   CUSTOM: "自定义",
 };
 
@@ -135,8 +135,8 @@ function isOrderDateRangePreset(value: string): value is OrderDateRangePreset {
   return (
     value === "ALL" ||
     value === "30D" ||
-    value === "60D" ||
     value === "90D" ||
+    value === "365D" ||
     value === "CUSTOM"
   );
 }
@@ -270,16 +270,13 @@ function filterRowsByOrderDateRange(
     });
   }
 
-  const days = preset === "30D" ? 30 : preset === "60D" ? 60 : 90;
-  const timestamps = rows.map(toOrderDateMs).filter((v) => v > 0);
-  if (timestamps.length === 0) return rows;
-
-  const maxTs = Math.max(...timestamps);
-  const threshold = maxTs - days * 24 * 60 * 60 * 1000;
+  const days = preset === "30D" ? 30 : preset === "90D" ? 90 : 365;
+  const now = Date.now();
+  const threshold = now - days * 24 * 60 * 60 * 1000;
 
   return rows.filter((row) => {
     const ts = toOrderDateMs(row);
-    return ts > 0 && ts >= threshold && ts <= maxTs;
+    return ts > 0 && ts >= threshold && ts <= now;
   });
 }
 
@@ -1060,7 +1057,7 @@ export function StoreOrdersWorkspace(props: Props) {
     descMode: OrderListSortMode,
     ascMode: OrderListSortMode
   ) => (
-    <span className="ml-2 inline-flex items-center gap-1">
+    <span className="ml-1 inline-flex items-center gap-0.5 shrink-0">
       <button
         type="button"
         onClick={() => { setOrderListSortMode(descMode); setCurrentPage(1); }}
@@ -1094,8 +1091,8 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const getSortHeaderWrapClass = (active: boolean) =>
     active
-      ? "flex items-center justify-end rounded-lg bg-slate-200/80 px-2 py-1"
-      : "flex items-center justify-end px-2 py-1";
+      ? "flex min-h-[44px] items-center justify-center rounded-lg bg-slate-200/80 px-2 py-1"
+      : "flex min-h-[44px] items-center justify-center px-2 py-1";
 
   const breakdownRows = useMemo(() => {
     const filtered =
@@ -1280,9 +1277,6 @@ export function StoreOrdersWorkspace(props: Props) {
   ]);
 
   React.useEffect(() => {
-    if (!selectedRowId) return;
-
-  React.useEffect(() => {
     if (currentPage > localTotalPages) {
       setCurrentPage(localTotalPages);
       return;
@@ -1291,6 +1285,9 @@ export function StoreOrdersWorkspace(props: Props) {
       setCurrentPage(1);
     }
   }, [currentPage, localTotalPages, setCurrentPage]);
+
+  React.useEffect(() => {
+    if (!selectedRowId) return;
 
     const stillExists = sortedOrderRows.some((row) => row.id === selectedRowId);
     if (!stillExists) {
@@ -1699,7 +1696,7 @@ export function StoreOrdersWorkspace(props: Props) {
             <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
               <label className="text-sm font-medium text-slate-700">订单日期范围</label>
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "30D", "60D", "90D", "CUSTOM"] as OrderDateRangePreset[]).map((item) => (
+                {(["ALL", "30D", "90D", "365D", "CUSTOM"] as OrderDateRangePreset[]).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -1765,19 +1762,6 @@ export function StoreOrdersWorkspace(props: Props) {
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
-              <label className="text-sm font-medium text-slate-700">1ページあたり</label>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value) as 20 | 50 | 100)}
-                className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-              >
-                <option value={20}>20 条</option>
-                <option value={50}>50 条</option>
-                <option value={100}>100 条</option>
-              </select>
-            </div>
-
             <div className="text-xs text-slate-500">
               当前排序列：{ORDER_LIST_SORT_LABELS[orderListSortMode]}
               {orderDateRangePreset === "CUSTOM"
@@ -1816,41 +1800,65 @@ export function StoreOrdersWorkspace(props: Props) {
         })}
 
         <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
-          <div className="grid grid-cols-[110px_120px_120px_120px_120px_130px_140px_110px_110px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <div className="grid grid-cols-[110px_118px_124px_108px_124px_148px_188px_104px_88px] gap-4 bg-slate-50 px-4 py-3 text-sm text-slate-600">
             <div className={getSortHeaderWrapClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc")}>日付</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "date-desc" || orderListSortMode === "date-asc") + " whitespace-nowrap"}>日付</span>
               {renderMiniSortArrows("date-desc", "date-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "item-sales-desc" || orderListSortMode === "item-sales-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "item-sales-desc" || orderListSortMode === "item-sales-asc")}>商品売上</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "item-sales-desc" || orderListSortMode === "item-sales-asc") + " whitespace-nowrap"}>商品売上</span>
               {renderMiniSortArrows("item-sales-desc", "item-sales-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "item-tax-desc" || orderListSortMode === "item-tax-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "item-tax-desc" || orderListSortMode === "item-tax-asc")}>商品の売上税</span>
+              <span
+                className={
+                  getSortHeaderTextClass(orderListSortMode === "item-tax-desc" || orderListSortMode === "item-tax-asc") +
+                  " inline-flex min-h-[36px] flex-col items-center justify-center text-center leading-tight"
+                }
+              >
+                <span>商品</span>
+                <span>売上税</span>
+              </span>
               {renderMiniSortArrows("item-tax-desc", "item-tax-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "shipping-desc" || orderListSortMode === "shipping-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "shipping-desc" || orderListSortMode === "shipping-asc")}>配送料</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "shipping-desc" || orderListSortMode === "shipping-asc") + " whitespace-nowrap"}>配送料</span>
               {renderMiniSortArrows("shipping-desc", "shipping-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "shipping-tax-desc" || orderListSortMode === "shipping-tax-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "shipping-tax-desc" || orderListSortMode === "shipping-tax-asc")}>配送料の税金</span>
+              <span
+                className={
+                  getSortHeaderTextClass(orderListSortMode === "shipping-tax-desc" || orderListSortMode === "shipping-tax-asc") +
+                  " inline-flex min-h-[36px] flex-col items-center justify-center text-center leading-tight"
+                }
+              >
+                <span>配送料</span>
+                <span>税金</span>
+              </span>
               {renderMiniSortArrows("shipping-tax-desc", "shipping-tax-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "promotion-desc" || orderListSortMode === "promotion-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "promotion-desc" || orderListSortMode === "promotion-asc")}>プロモーション割引額</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "promotion-desc" || orderListSortMode === "promotion-asc") + " whitespace-nowrap"}>プロモーション割引額</span>
               {renderMiniSortArrows("promotion-desc", "promotion-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc")}>プロモーション割引の税金</span>
+              <span
+                className={
+                  getSortHeaderTextClass(orderListSortMode === "promotion-tax-desc" || orderListSortMode === "promotion-tax-asc") +
+                  " inline-flex min-h-[36px] flex-col items-center justify-center text-center leading-tight whitespace-nowrap"
+                }
+              >
+                <span>プロモーション割引</span>
+                <span>税金</span>
+              </span>
               {renderMiniSortArrows("promotion-tax-desc", "promotion-tax-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc")}>手数料</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "fee-desc" || orderListSortMode === "fee-asc") + " whitespace-nowrap"}>手数料</span>
               {renderMiniSortArrows("fee-desc", "fee-asc")}
             </div>
             <div className={getSortHeaderWrapClass(orderListSortMode === "fba-fee-desc" || orderListSortMode === "fba-fee-asc")}>
-              <span className={getSortHeaderTextClass(orderListSortMode === "fba-fee-desc" || orderListSortMode === "fba-fee-asc")}>FBA 手数料</span>
+              <span className={getSortHeaderTextClass(orderListSortMode === "fba-fee-desc" || orderListSortMode === "fba-fee-asc") + " whitespace-nowrap"}>FBA 手数料</span>
               {renderMiniSortArrows("fba-fee-desc", "fba-fee-asc")}
             </div>
           </div>
@@ -1874,7 +1882,7 @@ export function StoreOrdersWorkspace(props: Props) {
                   setIsBreakdownDrawerOpen(true);
                   onSelectRow(row.id);
                 }}
-                className={`grid w-full grid-cols-[110px_120px_120px_120px_120px_130px_140px_110px_110px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                className={`grid w-full grid-cols-[110px_118px_124px_108px_124px_148px_188px_104px_88px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                   selectedRowId === row.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                 }`}
               >
@@ -1909,10 +1917,31 @@ export function StoreOrdersWorkspace(props: Props) {
         </div>
 
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="text-sm text-slate-500">
-            {localTotalRows === 0
-              ? "当前筛选条件下暂无可显示数据。"
-              : `全 ${localTotalRows} 行・総販売数量 ${filteredTotalQuantity} 点のうち、${localPageStartRow} - ${localPageEndRow} 行を表示`}
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-6">
+            <div className="text-sm text-slate-500">
+              {localTotalRows === 0
+                ? "当前筛选条件下暂无可显示数据。"
+                : `全 ${localTotalRows} 行・総販売数量 ${filteredTotalQuantity} 点のうち、${localPageStartRow} - ${localPageEndRow} 行を表示`}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (next === 20 || next === 50 || next === 100) {
+                    setPageSize(next);
+                    setCurrentPage(1);
+                  }
+                }}
+                className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value={20}>20 条</option>
+                <option value={50}>50 条</option>
+                <option value={100}>100 条</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
