@@ -46,26 +46,51 @@ export function ImportPreviewSummary(props: {
       )}
 
       {preview ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-[18px] bg-white p-3">
-            <div className="text-[11px] text-slate-500">文件月份</div>
-            <div className="mt-1 text-sm font-medium text-slate-900">
-              {preview.fileMonths?.length ? preview.fileMonths.join(", ") : "-"}
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[18px] bg-white p-3">
+              <div className="text-[11px] text-slate-500">文件月份</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {preview.fileMonths?.length ? preview.fileMonths.join(", ") : "-"}
+              </div>
+            </div>
+            <div className="rounded-[18px] bg-white p-3">
+              <div className="text-[11px] text-slate-500">系统已有月份</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {preview.existingMonths?.length ? preview.existingMonths.join(", ") : "-"}
+              </div>
+            </div>
+            <div className="rounded-[18px] bg-white p-3">
+              <div className="text-[11px] text-slate-500">冲突月份</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {preview.conflictMonths?.length ? preview.conflictMonths.join(", ") : "-"}
+              </div>
             </div>
           </div>
-          <div className="rounded-[18px] bg-white p-3">
-            <div className="text-[11px] text-slate-500">系统已有月份</div>
-            <div className="mt-1 text-sm font-medium text-slate-900">
-              {preview.existingMonths?.length ? preview.existingMonths.join(", ") : "-"}
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[18px] border border-slate-200 bg-white p-3">
+              <div className="text-[11px] text-slate-500">Policy Interpretation</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {policyLabel}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {policyLabel.includes("删除后重新导入")
+                  ? "本次 preview 按 replace 口径解释，commit 时将先删除冲突月份旧数据。"
+                  : "本次 preview 按 skip 口径解释，commit 时会保留冲突月份现有数据。"}
+              </div>
+            </div>
+            <div className="rounded-[18px] border border-slate-200 bg-white p-3">
+              <div className="text-[11px] text-slate-500">Replace Impact</div>
+              <div className="mt-1 text-sm font-medium text-slate-900">
+                {preview.conflictMonths?.length ?? 0} 个月份存在覆盖风险
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                replace 只影响冲突月份；非冲突月份依然按正常新增导入。
+              </div>
             </div>
           </div>
-          <div className="rounded-[18px] bg-white p-3">
-            <div className="text-[11px] text-slate-500">冲突月份</div>
-            <div className="mt-1 text-sm font-medium text-slate-900">
-              {preview.conflictMonths?.length ? preview.conflictMonths.join(", ") : "-"}
-            </div>
-          </div>
-        </div>
+        </>
       ) : null}
     </div>
   );

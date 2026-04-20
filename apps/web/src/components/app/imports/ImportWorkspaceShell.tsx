@@ -209,10 +209,16 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
       if (res.hasConflict) {
         setDialogOpen(true);
-        setMessage("检测到相同月份的数据，请先选择处理策略。");
+        setMessage(
+          `检测到 ${res.conflictMonths.length} 个冲突月份，请先选择 skip / replace 策略。`
+        );
       } else {
         setDialogOpen(false);
-        setMessage("未检测到月份冲突，可以继续预览导入。");
+        setMessage(
+          `未检测到月份冲突，可以继续预览导入。fileMonths: ${
+            res.fileMonths.length ? res.fileMonths.join(", ") : "-"
+          }`
+        );
         await runPreview(policy, false);
       }
     } catch (err) {
@@ -250,6 +256,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setMessage(
         `preview 已生成，策略：${formatPolicyLabel(nextPolicy)} / rows: ${
           Array.isArray(res.rows) ? res.rows.length : 0
+        } / conflictMonths: ${
+          Array.isArray(res.conflictMonths) ? res.conflictMonths.length : 0
         } / importJobId: ${res.importJobId || "-"}`
       );
       await loadHistory(moduleMode);
@@ -274,7 +282,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
       setCommitResult(res);
       setMessage(
-        `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows}`
+        `正式导入完成: imported=${res.importedRows}, duplicate=${res.duplicateRows}, conflict=${res.conflictRows}, error=${res.errorRows}, deleted=${res.deletedRows} / policy=${formatPolicyLabel(policy)}`
       );
       await loadHistory(moduleMode);
     } catch (err) {

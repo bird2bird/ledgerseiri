@@ -48,7 +48,13 @@ export function ImportMonthConflictDialog(props: Props) {
             系统中已存在以下月份的数据。请选择本次导入方式。
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-5">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+              Conflict Scope
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-3">
             {monthStats.map((item) => (
               <div
                 key={item.month}
@@ -62,6 +68,34 @@ export function ImportMonthConflictDialog(props: Props) {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-5">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+              Policy Difference
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="text-sm font-semibold text-slate-900">skip_existing_months</div>
+              <div className="mt-1 text-sm text-slate-500">
+                保留系统现有月份数据，仅导入非冲突月份。适合先安全确认。
+              </div>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+              <div className="text-sm font-semibold text-slate-900">replace_existing_months</div>
+              <div className="mt-1 text-sm text-amber-700">
+                删除这些冲突月份的旧数据，再重新导入本次文件中的对应月份。
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Impact Preview</div>
+            <div className="mt-2 text-sm text-slate-700">
+              冲突月份数量：{monthStats.length}。如果选择 replace，后续 commit 会删除这些月份的旧数据后再重建。
+            </div>
           </div>
 
           <div className="mt-6 space-y-3">
