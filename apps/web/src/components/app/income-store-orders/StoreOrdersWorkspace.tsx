@@ -745,11 +745,6 @@ export function StoreOrdersWorkspace(props: Props) {
 
   const expectedPath = `/${lang}/app/income/store-orders`;
   const isActiveRoute = pathname === expectedPath;
-  const uniqueStores = storeSummary.length;
-  const topStore = storeSummary[0];
-  const maxStoreAmount = Math.max(1, ...storeSummary.map((item) => item.amount), 1);
-  const maxBarAmount = Math.max(1, ...sampleBars.map((row) => amountOf(row)), 1);
-
   const viewModeLabel =
     storeOrderViewMode === "aggregated" ? "聚合视图" : "原始transaction视图";
 
@@ -870,6 +865,11 @@ export function StoreOrdersWorkspace(props: Props) {
   const labelSummary = useMemo(() => buildLabelSummary(filteredOrderRows), [filteredOrderRows]);
   const sampleBars = useMemo(() => buildSampleBars(sortedOrderRows), [sortedOrderRows]);
 
+  const uniqueStores = storeSummary.length;
+  const topStore = storeSummary[0];
+  const maxStoreAmount = Math.max(1, ...storeSummary.map((item) => item.amount), 1);
+  const maxBarAmount = Math.max(1, ...sampleBars.map((row) => amountOf(row)), 1);
+
   const localVisibleRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return sortedOrderRows.slice(start, start + pageSize);
@@ -880,10 +880,22 @@ export function StoreOrdersWorkspace(props: Props) {
   const localPageEndRow =
     localTotalRows === 0 ? 0 : Math.min(currentPage * pageSize, localTotalRows);
 
+
+  const normalizedDraftCustomDateStart = normalizeDateInputValue(draftCustomDateStart);
+  const normalizedDraftCustomDateEnd = normalizeDateInputValue(draftCustomDateEnd);
+  const isCustomDateRangeInvalid =
+    !!normalizedDraftCustomDateStart &&
+    !!normalizedDraftCustomDateEnd &&
+    normalizedDraftCustomDateStart > normalizedDraftCustomDateEnd;
+
   function applyCustomDateRange() {
+    if (isCustomDateRangeInvalid) {
+      return;
+    }
+
     setOrderDateRangePreset("CUSTOM");
-    setCustomDateStart(normalizeDateInputValue(draftCustomDateStart));
-    setCustomDateEnd(normalizeDateInputValue(draftCustomDateEnd));
+    setCustomDateStart(normalizedDraftCustomDateStart);
+    setCustomDateEnd(normalizedDraftCustomDateEnd);
     setCurrentPage(1);
   }
 
@@ -1116,6 +1128,17 @@ export function StoreOrdersWorkspace(props: Props) {
 
   React.useEffect(() => {
     if (!selectedRowId) return;
+
+  React.useEffect(() => {
+    if (currentPage > localTotalPages) {
+      setCurrentPage(localTotalPages);
+      return;
+    }
+    if (currentPage < 1) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, localTotalPages, setCurrentPage]);
+
     const stillExists = sortedOrderRows.some((row) => row.id === selectedRowId);
     if (!stillExists) {
       setIsBreakdownDrawerOpen(false);
@@ -1562,7 +1585,13 @@ export function StoreOrdersWorkspace(props: Props) {
                     <button
                       type="button"
                       onClick={applyCustomDateRange}
-                      className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                      disabled={isCustomDateRangeInvalid}
+                      className={[
+                        "rounded-xl px-3 py-2 text-xs font-semibold transition",
+                        isCustomDateRangeInvalid
+                          ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                          : "border border-slate-900 bg-slate-900 text-white hover:opacity-90",
+                      ].join(" ")}
                     >
                       应用
                     </button>
@@ -1574,6 +1603,11 @@ export function StoreOrdersWorkspace(props: Props) {
                       清除
                     </button>
                   </div>
+                  {isCustomDateRangeInvalid ? (
+                    <div className="text-xs text-rose-600">
+                      开始日期不能晚于结束日期。
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -1652,7 +1686,9 @@ export function StoreOrdersWorkspace(props: Props) {
           ) : error ? (
             <div className="px-4 py-10 text-sm text-rose-600">{error}</div>
           ) : localVisibleRows.length === 0 ? (
-            <div className="px-4 py-10 text-sm text-slate-500">注文データがありません。</div>
+            <div className="px-4 py-10 text-sm text-slate-500">
+              当前筛选条件下暂无店铺订单数据。
+            </div>
           ) : (
             localVisibleRows.map((row) => (
               <button
@@ -1700,7 +1736,9 @@ export function StoreOrdersWorkspace(props: Props) {
 
         <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="text-sm text-slate-500">
-            全 {localTotalRows} 行・総販売数量 {filteredTotalQuantity} 点のうち、{localPageStartRow} - {localPageEndRow} 行を表示
+            {localTotalRows === 0
+              ? "当前筛选条件下暂无可显示数据。"
+              : `全 ${localTotalRows} 行・総販売数量 ${filteredTotalQuantity} 点のうち、${localPageStartRow} - ${localPageEndRow} 行を表示`}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
