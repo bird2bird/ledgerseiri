@@ -185,6 +185,13 @@ type ChargeFilter =
 
 type PageSize = 20 | 50 | 100;
 
+const STORE_OPERATION_QUERY_KEYS = {
+  filter: "socFilter",
+  pageSize: "socPageSize",
+  page: "socPage",
+  drawer: "socDrawer",
+} as const;
+
 const EMPTY_SUMMARY: ChargeSummary = {
   orderSale: 0,
   adFee: 0,
@@ -356,6 +363,10 @@ function clampPage(page: number, totalPages: number) {
   return page;
 }
 
+function isChargePageSize(value: string): value is "20" | "50" | "100" {
+  return value === "20" || value === "50" || value === "100";
+}
+
 function buildRelatedCharges(args: {
   selected: ChargeItem | null;
   rows: ChargeItem[];
@@ -473,9 +484,22 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const [stageSavedAt, setStageSavedAt] = useState("");
   const [hasStage, setHasStage] = useState(false);
 
-  const [pageSize, setPageSize] = useState<PageSize>(20);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedChargeId, setSelectedChargeId] = useState("");
+  const initialPageSize = (() => {
+    const raw = searchParams.get(STORE_OPERATION_QUERY_KEYS.pageSize) || "";
+    return isChargePageSize(raw) ? (Number(raw) as PageSize) : 20;
+  })();
+
+  const initialPage = (() => {
+    const raw = searchParams.get(STORE_OPERATION_QUERY_KEYS.page) || "";
+    if (!/^\d+$/.test(raw)) return 1;
+    return Math.max(1, Number(raw));
+  })();
+
+  const initialDrawerId = searchParams.get(STORE_OPERATION_QUERY_KEYS.drawer) || "";
+
+  const [pageSize, setPageSize] = useState<PageSize>(initialPageSize);
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const [selectedChargeId, setSelectedChargeId] = useState(initialDrawerId);
 
   useEffect(() => {
     let mounted = true;
@@ -554,8 +578,48 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }, [sortedCharges, selectedFilter]);
 
   useEffect(() => {
+    const nextFilter = searchParams.get(STORE_OPERATION_QUERY_KEYS.filter) || "";
+    const nextPageSize = searchParams.get(STORE_OPERATION_QUERY_KEYS.pageSize) || "";
+    const nextPage = searchParams.get(STORE_OPERATION_QUERY_KEYS.page) || "";
+    const nextDrawer = searchParams.get(STORE_OPERATION_QUERY_KEYS.drawer) || "";
+
+    if (nextFilter) {
+      const parsedFilter = readInitialFilter(nextFilter);
+      if (parsedFilter !== selectedFilter) {
+        setSelectedFilter(parsedFilter);
+      }
+    }
+
+    if (isChargePageSize(nextPageSize) && Number(nextPageSize) !== pageSize) {
+      setPageSize(Number(nextPageSize) as PageSize);
+    }
+
+    if (/^\d+$/.test(nextPage)) {
+      const parsedPage = Math.max(1, Number(nextPage));
+      if (parsedPage !== currentPage) {
+        setCurrentPage(parsedPage);
+      }
+    }
+
+    if (nextDrawer && nextDrawer !== selectedChargeId) {
+      setSelectedChargeId(nextDrawer);
+    }
+
+    hasHydratedChargeQueryStateRef.current = true;
+    lastWrittenChargeQueryRef.current = searchParams.toString();
+  }, [searchParams]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [selectedFilter, pageSize]);
+
+  useEffect(() => {
+    if (!crossQuery.kind) return;
+    const nextFilter = readInitialFilter(crossQuery.kind);
+    if (nextFilter !== selectedFilter) {
+      setSelectedFilter(nextFilter);
+    }
+  }, [crossQuery.kind, selectedFilter]);
 
   useEffect(() => {
     if (!crossQuery.autoDrawer) return;
@@ -605,6 +669,46 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     [filteredCharges, selectedChargeId]
   );
 
+  const selectedChargeStoreOrdersHref = useMemo(() => {
+    if (!selectedCharge) {
+      return buildStoreOrdersWorkspaceHref({
+        lang,
+        from: "store-operation-list",
+        importJobId: importContext.importJobId,
+        months: importContext.months,
+        module: importContext.module || "store-orders",
+      });
+    }
+
+    return buildReverseStoreOrdersHref({
+      lang,
+      charge: selectedCharge,
+      importJobId: importContext.importJobId,
+      months: importContext.months,
+      module: importContext.module || "store-orders",
+    });
+  }, [
+    lang,
+    selectedCharge,
+    importContext.importJobId,
+    importContext.months,
+    importContext.module,
+  ]);
+
+  const selectedChargeOrderRelatedCount = useMemo(() => {
+    if (!selectedCharge?.orderId) return 0;
+    return filteredCharges.filter(
+      (item) => String(item.orderId || "") === String(selectedCharge.orderId || "")
+    ).length;
+  }, [selectedCharge, filteredCharges]);
+
+  const selectedChargeSkuRelatedCount = useMemo(() => {
+    if (!selectedCharge?.sku) return 0;
+    return filteredCharges.filter(
+      (item) => String(item.sku || "") === String(selectedCharge.sku || "")
+    ).length;
+  }, [selectedCharge, filteredCharges]);
+
   const relatedCharges = useMemo(
     () => buildRelatedCharges({ selected: selectedCharge, rows: filteredCharges }),
     [selectedCharge, filteredCharges]
@@ -624,6 +728,10 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const noPreviewYet = !hasStage;
   const hasPreviewButNoCharges = hasStage && expenseOnlyCharges.length === 0;
 
+  const hasHydratedChargeQueryRef = useState(false)[0];
+  const hasHydratedChargeQueryStateRef = { current: false } as { current: boolean };
+  const lastWrittenChargeQueryRef = { current: "" } as { current: string };
+
   const totalRows = filteredCharges.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
 
@@ -632,6 +740,39 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    if (!isActiveRoute) return;
+    if (!hasHydratedChargeQueryStateRef.current) return;
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set(STORE_OPERATION_QUERY_KEYS.filter, selectedFilter);
+    params.set(STORE_OPERATION_QUERY_KEYS.pageSize, String(pageSize));
+    params.set(STORE_OPERATION_QUERY_KEYS.page, String(currentPage));
+
+    if (selectedChargeId) {
+      params.set(STORE_OPERATION_QUERY_KEYS.drawer, selectedChargeId);
+    } else {
+      params.delete(STORE_OPERATION_QUERY_KEYS.drawer);
+    }
+
+    const nextQuery = params.toString();
+    const currentQuery = window.location.search.replace(/^\?/, "");
+
+    if (nextQuery === currentQuery) {
+      lastWrittenChargeQueryRef.current = nextQuery;
+      return;
+    }
+
+    if (nextQuery === lastWrittenChargeQueryRef.current) {
+      return;
+    }
+
+    lastWrittenChargeQueryRef.current = nextQuery;
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    window.history.replaceState(window.history.state, "", nextUrl);
+  }, [isActiveRoute, pathname, selectedFilter, pageSize, currentPage, selectedChargeId]);
 
   const visibleCharges = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -650,6 +791,17 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
       setSelectedChargeId("");
     }
   }, [selectedChargeId, filteredCharges]);
+
+  useEffect(() => {
+    if (!selectedChargeId) return;
+    const selectedIndex = filteredCharges.findIndex((item) => item.id === selectedChargeId);
+    if (selectedIndex < 0) return;
+
+    const shouldPage = Math.floor(selectedIndex / pageSize) + 1;
+    if (shouldPage !== currentPage) {
+      setCurrentPage(shouldPage);
+    }
+  }, [selectedChargeId, filteredCharges, pageSize, currentPage]);
 
   useEffect(() => {
     if (selectedChargeId && !drawerOpen) {
@@ -886,6 +1038,58 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                 </div>
               </div>
             </div>
+
+            <div className="mt-4 rounded-[20px] border border-indigo-100 bg-indigo-50 p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-indigo-600">
+                Cross Workspace Drill-down
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">transactionId</div>
+                  <div className="mt-1 break-all text-sm font-semibold text-slate-900">
+                    {selectedCharge.id}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">same Order rows</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedChargeOrderRelatedCount}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">same SKU rows</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedChargeSkuRelatedCount}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">from</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">
+                    {crossQuery.from || "-"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                {(selectedCharge.orderId || selectedCharge.sku) ? (
+                  <Link
+                    href={selectedChargeStoreOrdersHref}
+                    className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    店舗注文の対象行へ移動
+                  </Link>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedChargeId("")}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  選択解除
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="mt-6 rounded-[24px] border border-slate-100 bg-slate-50 p-5 text-sm text-slate-500">
@@ -1068,6 +1272,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
               {selectedCharge ? (
                 <>
+                  <div className="mt-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      Charge Summary
+                    </div>
+                  </div>
+
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-xs text-slate-500">Kind</div>
@@ -1099,6 +1309,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                     </div>
                   </div>
 
+                  <div className="mt-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      Amount Summary
+                    </div>
+                  </div>
+
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
                       <div className="text-[11px] uppercase tracking-wide text-slate-400">Signed Sum</div>
@@ -1126,6 +1342,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                     </div>
                   </div>
 
+                  <div className="mt-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      Audit Guidance
+                    </div>
+                  </div>
+
                   <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
                     <div className="text-[11px] uppercase tracking-wide text-emerald-600">
                       Correlation Hint
@@ -1135,6 +1357,71 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                         selected: selectedCharge,
                         relatedRows: relatedCharges,
                       })}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">related rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {relatedCharges.length}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">same order rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedCharge?.orderId
+                          ? relatedCharges.filter(
+                              (row) =>
+                                String(row.orderId || "") === String(selectedCharge.orderId || "")
+                            ).length
+                          : 0}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">same sku rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedCharge?.sku
+                          ? relatedCharges.filter(
+                              (row) =>
+                                String(row.sku || "") === String(selectedCharge.sku || "")
+                            ).length
+                          : 0}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">selected tx</div>
+                      <div className="mt-1 break-all text-sm font-semibold text-slate-900">
+                        {selectedCharge.id}
+                      </div>
+                    </div>
+                  </div>
+
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">transactionId</div>
+                      <div className="mt-1 break-all text-sm font-semibold text-slate-900">
+                        {selectedCharge.id}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">same Order rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedChargeOrderRelatedCount}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">same SKU rows</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-900">
+                        {selectedChargeSkuRelatedCount}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      Workspace Actions
                     </div>
                   </div>
 
@@ -1166,19 +1453,37 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
             </div>
 
             <div className="space-y-4 px-6 py-6">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                  Related Charge Rows
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  同一 Order / SKU / date-kind で関連づく charge rows を audit workspace として確認できます。
+                </div>
+              </div>
+
               {relatedCharges.map((charge) => (
                 <div
                   key={charge.id}
-                  className="rounded-[24px] border border-slate-100 bg-white p-5 shadow-sm"
+                  className={`rounded-[24px] border p-5 shadow-sm ${
+                    charge.id === selectedChargeId
+                      ? "border-slate-300 bg-slate-50 ring-1 ring-inset ring-slate-300"
+                      : "border-slate-100 bg-white"
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="mb-2">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${chargeKindBadge(charge.kind)}`}
                         >
                           {chargeKindLabel(charge.kind)}
                         </span>
+                        {charge.id === selectedChargeId ? (
+                          <span className="inline-flex rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white">
+                            SELECTED
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-sm font-semibold text-slate-900">
                         {charge.transactionType || "-"}
