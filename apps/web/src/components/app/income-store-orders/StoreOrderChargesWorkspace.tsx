@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import {
@@ -632,6 +632,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     if (focusTransactionId) {
       const exact = filteredCharges.find((item) => item.id === focusTransactionId);
       if (exact) {
+        drawerOpenedAtRef.current = Date.now();
         setSelectedChargeId(exact.id);
         return;
       }
@@ -651,6 +652,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
         return sameOrder && sameSku && sameDate;
       });
       if (matched) {
+        drawerOpenedAtRef.current = Date.now();
         setSelectedChargeId(matched.id);
       }
     }
@@ -728,9 +730,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const noPreviewYet = !hasStage;
   const hasPreviewButNoCharges = hasStage && expenseOnlyCharges.length === 0;
 
-  const hasHydratedChargeQueryRef = useState(false)[0];
-  const hasHydratedChargeQueryStateRef = { current: false } as { current: boolean };
-  const lastWrittenChargeQueryRef = { current: "" } as { current: string };
+  const drawerOpenedAtRef = useRef(0);
+  const hasHydratedChargeQueryStateRef = useRef(false);
+  const lastWrittenChargeQueryRef = useRef("");
 
   const totalRows = filteredCharges.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
@@ -809,7 +811,12 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     }
   }, [selectedChargeId, drawerOpen]);
 
-  function closeDrawer() {
+  function closeDrawer(source: "generic" | "backdrop" = "generic") {
+    if (source === "backdrop") {
+      const elapsed = Date.now() - drawerOpenedAtRef.current;
+      if (elapsed < 250) return;
+    }
+
     setSelectedChargeId("");
   }
 
@@ -822,6 +829,15 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
       setSelectedChargeId("");
     };
   }, []);
+
+  useEffect(() => {
+    if (isActiveRoute) return;
+    setSelectedChargeId("");
+  }, [isActiveRoute]);
+
+  if (!isActiveRoute) {
+    return null;
+  }
 
   return (
     <div className="space-y-6">
@@ -1083,7 +1099,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
                 <button
                   type="button"
-                  onClick={() => setSelectedChargeId("")}
+                  onClick={() => closeDrawer("generic")}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   選択解除
@@ -1166,7 +1182,10 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                   <button
                     key={charge.id}
                     type="button"
-                    onClick={() => setSelectedChargeId(charge.id)}
+                    onClick={() => {
+                      drawerOpenedAtRef.current = Date.now();
+                      setSelectedChargeId(charge.id);
+                    }}
                     className={`grid w-full grid-cols-[120px_140px_1.35fr_150px_140px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition hover:bg-slate-50 ${
                       selectedChargeId === charge.id ? "bg-slate-50 ring-1 ring-inset ring-slate-300" : ""
                     }`}
@@ -1244,10 +1263,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
       {drawerOpen ? (
         <>
-          <button
-            type="button"
+          <div
             aria-label="Close charge breakdown drawer"
-            onClick={closeDrawer}
+            onClick={() => closeDrawer("backdrop")}
             className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
           />
 
@@ -1263,7 +1281,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
                 <button
                   type="button"
-                  onClick={closeDrawer}
+                  onClick={() => closeDrawer("generic")}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   閉じる
