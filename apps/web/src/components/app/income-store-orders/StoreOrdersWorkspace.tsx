@@ -1481,7 +1481,7 @@ export function StoreOrdersWorkspace(props: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
       {importContext.active ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
           <div className="text-sm font-semibold text-emerald-800">
@@ -2096,10 +2096,10 @@ export function StoreOrdersWorkspace(props: Props) {
           <div
             aria-label="Close transaction breakdown drawer"
             onClick={() => closeBreakdownDrawer("backdrop")}
-            className="fixed inset-y-0 right-0 left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
+            className="fixed lg:absolute top-16 bottom-0 right-0 lg:inset-0 left-[320px] left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
           />
 
-          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[760px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+          <aside className="fixed right-0 top-16 z-50 h-[calc(100vh-4rem)] w-full max-w-[760px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
             <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
