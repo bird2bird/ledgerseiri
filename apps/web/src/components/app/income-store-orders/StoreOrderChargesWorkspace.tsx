@@ -462,14 +462,29 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const { lang } = props;
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const crossQuery = readCrossWorkspaceQuery(searchParams);
+  const searchParamsKey = searchParams.toString();
+
+  const crossQuery = useMemo(
+    () => readCrossWorkspaceQuery(searchParams),
+    [searchParamsKey]
+  );
   const focusTransactionId =
     crossQuery.transactionId || crossQuery.focusChargeId;
-  const importContext = readImportAwareWorkspaceContext(searchParams);
+
+  const importContext = useMemo(
+    () => readImportAwareWorkspaceContext(searchParams),
+    [searchParamsKey]
+  );
+  const importMonths = useMemo(
+    () => normalizeImportMonths(importContext.months),
+    [importContext.months.join("|")]
+  );
+  const importMonthsKey = importMonths.join("|");
+
   const importBanner = buildImportAwareBannerText({
     targetLabel: "店舗運営費",
     importJobId: importContext.importJobId,
-    months: importContext.months,
+    months: importMonths,
   });
 
   const expectedPath = `/${lang}/app/expenses/store-operation`;
@@ -515,7 +530,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
             mapTransactionsToChargeItems({
               items,
               importJobId: importContext.importJobId,
-              importMonths: importContext.months,
+              importMonths,
             })
           );
 
@@ -549,14 +564,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     return () => {
       mounted = false;
     };
-  }, [importContext.active, importContext.importJobId, importContext.months]);
+  }, [importContext.active, importContext.importJobId, importMonthsKey]);
 
   const expenseOnlyCharges = useMemo(() => {
     const base = charges.filter((item) => item.kind !== "ORDER_SALE");
     if (!importContext.active || importContext.months.length === 0) {
       return base;
     }
-    const monthSet = new Set(importContext.months);
+    const monthSet = new Set(importMonths);
     return base.filter((item) => {
       const direct = String(item.occurredAt || "");
       const match = direct.match(/(20\d{2})[\/\-.年]?\s*(0?[1-9]|1[0-2])/);
@@ -565,7 +580,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
         : "";
       return month ? monthSet.has(month) : false;
     });
-  }, [charges, importContext.active, importContext.months]);
+  }, [charges, importContext.active, importMonthsKey]);
 
   const sortedCharges = useMemo(() => sortCharges(expenseOnlyCharges), [expenseOnlyCharges]);
 
@@ -677,7 +692,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
         lang,
         from: "store-operation-list",
         importJobId: importContext.importJobId,
-        months: importContext.months,
+        months: importMonths,
         module: importContext.module || "store-orders",
       });
     }
@@ -686,14 +701,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
       lang,
       charge: selectedCharge,
       importJobId: importContext.importJobId,
-      months: importContext.months,
+      months: importMonths,
       module: importContext.module || "store-orders",
     });
   }, [
     lang,
     selectedCharge,
     importContext.importJobId,
-    importContext.months,
+    importMonthsKey,
     importContext.module,
   ]);
 
@@ -1116,7 +1131,7 @@ if (!isActiveRoute) {
                   lang,
                   from: importContext.active ? "import-commit" : "store-operation-list",
                   importJobId: importContext.importJobId,
-                  months: importContext.months,
+                  months: importMonths,
                   module: importContext.module || "store-orders",
                 })}
                 className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -1433,7 +1448,7 @@ if (!isActiveRoute) {
                           lang,
                           charge: selectedCharge,
                           importJobId: importContext.importJobId,
-                          months: importContext.months,
+                          months: importMonths,
                           module: importContext.module || "store-orders",
                         })}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -1553,7 +1568,7 @@ if (!isActiveRoute) {
                           lang,
                           charge,
                           importJobId: importContext.importJobId,
-                          months: importContext.months,
+                          months: importMonths,
                           module: importContext.module || "store-orders",
                         })}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
