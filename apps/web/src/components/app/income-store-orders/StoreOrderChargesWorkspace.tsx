@@ -827,11 +827,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   setSelectedChargeId((prev) => (prev === "" ? prev : ""));
 }, [pathname]);
 
-  useEffect(() => {
-    return () => {
-      setSelectedChargeId("");
-    };
-  }, []);
+  
 
   useEffect(() => {
   if (isActiveRoute) return;
