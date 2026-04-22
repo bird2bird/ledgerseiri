@@ -1384,32 +1384,7 @@ export function StoreOrdersWorkspace(props: Props) {
       onSelectRow("");
     }
   }, [selectedRowId, sortedOrderRows, onSelectRow]);
-
-  React.useEffect(() => {
-    setIsBreakdownDrawerOpen(false);
-    setDrawerRowId("");
-    setCopyMessage("");
-    onSelectRow("");
-  }, [pathname, onSelectRow]);
-
-  React.useEffect(() => {
-    return () => {
-      setIsBreakdownDrawerOpen(false);
-      setDrawerRowId("");
-      setCopyMessage("");
-      onSelectRow("");
-    };
-  }, [onSelectRow]);
-
-  React.useEffect(() => {
-    if (isActiveRoute) return;
-    setIsBreakdownDrawerOpen(false);
-    setDrawerRowId("");
-    setCopyMessage("");
-    onSelectRow("");
-  }, [isActiveRoute, onSelectRow]);
-
-  React.useEffect(() => {
+React.useEffect(() => {
     if (!isActiveRoute) return;
     if (!hasHydratedOrderQueryRef.current) return;
     if (typeof window === "undefined") return;
@@ -1459,8 +1434,7 @@ export function StoreOrdersWorkspace(props: Props) {
 
     lastWrittenOrderQueryRef.current = nextQuery;
     const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    // DIAG TEMP DISABLED: replaceState was interfering with route navigation
-
+    
     // window.history.replaceState(window.history.state, "", nextUrl);
   }, [
     isActiveRoute,
@@ -2098,7 +2072,7 @@ export function StoreOrdersWorkspace(props: Props) {
           <div
             aria-label="Close transaction breakdown drawer"
             onClick={() => closeBreakdownDrawer("backdrop")}
-            className="fixed lg:absolute top-16 bottom-0 right-0 lg:inset-0 left-[320px] left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
+            className="fixed lg:absolute top-16 bottom-0 right-0 lg:inset-0 left-[292px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
           />
 
           <aside className="fixed right-0 top-16 z-50 h-[calc(100vh-4rem)] w-full max-w-[760px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
