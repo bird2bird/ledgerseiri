@@ -586,7 +586,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     if (nextFilter) {
       const parsedFilter = readInitialFilter(nextFilter);
       if (parsedFilter !== selectedFilter) {
-        setSelectedFilter(parsedFilter);
+        setSelectedFilter((prev) => (prev === parsedFilter ? prev : parsedFilter));
       }
     }
 
@@ -597,7 +597,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     if (/^\d+$/.test(nextPage)) {
       const parsedPage = Math.max(1, Number(nextPage));
       if (parsedPage !== currentPage) {
-        setCurrentPage(parsedPage);
+        setCurrentPage((prev) => (prev === parsedPage ? prev : parsedPage));
       }
     }
 
@@ -610,14 +610,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }, [searchParams]);
 
   useEffect(() => {
-    setCurrentPage(1);
+    setCurrentPage((prev) => (prev === 1 ? prev : 1));
   }, [selectedFilter, pageSize]);
 
   useEffect(() => {
     if (!crossQuery.kind) return;
     const nextFilter = readInitialFilter(crossQuery.kind);
     if (nextFilter !== selectedFilter) {
-      setSelectedFilter(nextFilter);
+      setSelectedFilter((prev) => (prev === nextFilter ? prev : nextFilter));
     }
   }, [crossQuery.kind, selectedFilter]);
 
@@ -739,7 +739,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
   useEffect(() => {
     if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+      setCurrentPage((prev) => (prev === totalPages ? prev : totalPages));
     }
   }, [currentPage, totalPages]);
 
@@ -773,7 +773,10 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
     lastWrittenChargeQueryRef.current = nextQuery;
     const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    window.history.replaceState(window.history.state, "", nextUrl);
+    // DIAG TEMP DISABLED: replaceState was interfering with route navigation
+
+    // // DIAG TEMP DISABLED: possible client-side routing interference
+ // window.history.replaceState(window.history.state, "", nextUrl);
   }, [isActiveRoute, pathname, selectedFilter, pageSize, currentPage, selectedChargeId]);
 
   const visibleCharges = useMemo(() => {
@@ -801,7 +804,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
     const shouldPage = Math.floor(selectedIndex / pageSize) + 1;
     if (shouldPage !== currentPage) {
-      setCurrentPage(shouldPage);
+      setCurrentPage((prev) => (prev === shouldPage ? prev : shouldPage));
     }
   }, [selectedChargeId, filteredCharges, pageSize, currentPage]);
 
@@ -821,8 +824,8 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }
 
   useEffect(() => {
-    setSelectedChargeId("");
-  }, [pathname]);
+  setSelectedChargeId((prev) => (prev === "" ? prev : ""));
+}, [pathname]);
 
   useEffect(() => {
     return () => {
@@ -831,9 +834,9 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   }, []);
 
   useEffect(() => {
-    if (isActiveRoute) return;
-    setSelectedChargeId("");
-  }, [isActiveRoute]);
+  if (isActiveRoute) return;
+  setSelectedChargeId((prev) => (prev === "" ? prev : ""));
+}, [isActiveRoute]);
 
   if (!isActiveRoute) {
     return null;

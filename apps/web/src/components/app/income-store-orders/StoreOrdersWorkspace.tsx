@@ -1459,7 +1459,9 @@ export function StoreOrdersWorkspace(props: Props) {
 
     lastWrittenOrderQueryRef.current = nextQuery;
     const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    window.history.replaceState(window.history.state, "", nextUrl);
+    // DIAG TEMP DISABLED: replaceState was interfering with route navigation
+
+    // window.history.replaceState(window.history.state, "", nextUrl);
   }, [
     isActiveRoute,
     pathname,
