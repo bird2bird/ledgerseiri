@@ -773,10 +773,8 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
     lastWrittenChargeQueryRef.current = nextQuery;
     const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    // DIAG TEMP DISABLED: replaceState was interfering with route navigation
 
-    // // DIAG TEMP DISABLED: possible client-side routing interference
- // window.history.replaceState(window.history.state, "", nextUrl);
+        // window.history.replaceState(window.history.state, "", nextUrl);
   }, [isActiveRoute, pathname, selectedFilter, pageSize, currentPage, selectedChargeId]);
 
   const visibleCharges = useMemo(() => {
@@ -822,19 +820,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
     setSelectedChargeId("");
   }
-
-  useEffect(() => {
-  setSelectedChargeId((prev) => (prev === "" ? prev : ""));
-}, [pathname]);
-
-  
-
-  useEffect(() => {
-  if (isActiveRoute) return;
-  setSelectedChargeId((prev) => (prev === "" ? prev : ""));
-}, [isActiveRoute]);
-
-  if (!isActiveRoute) {
+if (!isActiveRoute) {
     return null;
   }
 
@@ -1264,7 +1250,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
         <>
           <div
             aria-label="Charge breakdown drawer backdrop"
-            className="pointer-events-none fixed lg:absolute top-16 bottom-0 right-0 lg:inset-0 left-[320px] left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
+            className="pointer-events-none fixed lg:absolute top-16 bottom-0 right-0 lg:inset-0 left-[292px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
           />
 
           <aside className="fixed right-0 top-16 z-50 h-[calc(100vh-4rem)] w-full max-w-[760px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
@@ -1412,7 +1398,6 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
                       </div>
                     </div>
                   </div>
-
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl bg-slate-50 px-4 py-3">
