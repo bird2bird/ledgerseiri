@@ -184,6 +184,23 @@ type ChargeFilter =
   | "ORDER_SALE";
 
 type PageSize = 20 | 50 | 100;
+type ChargeDateRangePreset = "ALL" | "30D" | "90D" | "365D" | "CUSTOM";
+type ChargeSortMode = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
+
+const CHARGE_DATE_RANGE_LABELS: Record<ChargeDateRangePreset, string> = {
+  ALL: "全部",
+  "30D": "近30天",
+  "90D": "近90天",
+  "365D": "近365天",
+  CUSTOM: "自定义",
+};
+
+const CHARGE_SORT_LABELS: Record<ChargeSortMode, string> = {
+  "date-desc": "日期（新→旧）",
+  "date-asc": "日期（旧→新）",
+  "amount-desc": "金额绝对值（高→低）",
+  "amount-asc": "金额绝对值（低→高）",
+};
 
 const STORE_OPERATION_QUERY_KEYS = {
   filter: "socFilter",
@@ -367,6 +384,86 @@ function isChargePageSize(value: string): value is "20" | "50" | "100" {
   return value === "20" || value === "50" || value === "100";
 }
 
+function normalizeChargeDateInputValue(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function toChargeDateBoundaryMs(value: string, endOfDay: boolean) {
+  const normalized = normalizeChargeDateInputValue(value);
+  if (!normalized) return 0;
+  const suffix = endOfDay ? "T23:59:59.999" : "T00:00:00.000";
+  const ts = new Date(`${normalized}${suffix}`).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function filterChargeItemsByDateRange(
+  rows: ChargeItem[],
+  preset: ChargeDateRangePreset,
+  startDate: string,
+  endDate: string
+) {
+  if (preset === "ALL") return rows;
+
+  if (preset === "CUSTOM") {
+    const startMs = toChargeDateBoundaryMs(startDate, false);
+    const endMs = toChargeDateBoundaryMs(endDate, true);
+    if (!startMs && !endMs) return rows;
+
+    return rows.filter((row) => {
+      const ts = parseChargeTimestamp(row.occurredAt);
+      if (ts <= 0) return false;
+      if (startMs && ts < startMs) return false;
+      if (endMs && ts > endMs) return false;
+      return true;
+    });
+  }
+
+  const days = preset === "30D" ? 30 : preset === "90D" ? 90 : 365;
+  const now = Date.now();
+  const threshold = now - days * 24 * 60 * 60 * 1000;
+
+  return rows.filter((row) => {
+    const ts = parseChargeTimestamp(row.occurredAt);
+    return ts > 0 && ts >= threshold && ts <= now;
+  });
+}
+
+function sortChargeItems(rows: ChargeItem[], sortMode: ChargeSortMode) {
+  const next = [...rows];
+
+  if (sortMode === "date-asc") {
+    return next.sort((a, b) => {
+      const d = parseChargeTimestamp(a.occurredAt) - parseChargeTimestamp(b.occurredAt);
+      if (d !== 0) return d;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  if (sortMode === "amount-desc") {
+    return next.sort((a, b) => {
+      const d = Math.abs(Number(b.signedAmount || 0)) - Math.abs(Number(a.signedAmount || 0));
+      if (d !== 0) return d;
+      return parseChargeTimestamp(b.occurredAt) - parseChargeTimestamp(a.occurredAt);
+    });
+  }
+
+  if (sortMode === "amount-asc") {
+    return next.sort((a, b) => {
+      const d = Math.abs(Number(a.signedAmount || 0)) - Math.abs(Number(b.signedAmount || 0));
+      if (d !== 0) return d;
+      return parseChargeTimestamp(b.occurredAt) - parseChargeTimestamp(a.occurredAt);
+    });
+  }
+
+  return next.sort((a, b) => {
+    const d = parseChargeTimestamp(b.occurredAt) - parseChargeTimestamp(a.occurredAt);
+    if (d !== 0) return d;
+    return Math.abs(Number(b.signedAmount || 0)) - Math.abs(Number(a.signedAmount || 0));
+  });
+}
+
 function buildRelatedCharges(args: {
   selected: ChargeItem | null;
   rows: ChargeItem[];
@@ -495,6 +592,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   const [selectedFilter, setSelectedFilter] = useState<ChargeFilter>(
     readInitialFilter(crossQuery.kind)
   );
+  const [chargeDateRangePreset, setChargeDateRangePreset] =
+    useState<ChargeDateRangePreset>("ALL");
+  const [chargeSortMode, setChargeSortMode] =
+    useState<ChargeSortMode>("date-desc");
+  const [customDateStart, setCustomDateStart] = useState("");
+  const [customDateEnd, setCustomDateEnd] = useState("");
+  const [draftCustomDateStart, setDraftCustomDateStart] = useState("");
+  const [draftCustomDateEnd, setDraftCustomDateEnd] = useState("");
   const [stageFilename, setStageFilename] = useState("");
   const [stageSavedAt, setStageSavedAt] = useState("");
   const [hasStage, setHasStage] = useState(false);
@@ -582,15 +687,29 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     });
   }, [charges, importContext.active, importMonthsKey]);
 
-  const sortedCharges = useMemo(() => sortCharges(expenseOnlyCharges), [expenseOnlyCharges]);
-
   const filteredCharges = useMemo(() => {
-    let next = sortedCharges;
+    let next = expenseOnlyCharges;
+
     if (selectedFilter !== "ALL") {
       next = next.filter((item) => item.kind === selectedFilter);
     }
-    return next;
-  }, [sortedCharges, selectedFilter]);
+
+    next = filterChargeItemsByDateRange(
+      next,
+      chargeDateRangePreset,
+      customDateStart,
+      customDateEnd
+    );
+
+    return sortChargeItems(next, chargeSortMode);
+  }, [
+    expenseOnlyCharges,
+    selectedFilter,
+    chargeDateRangePreset,
+    customDateStart,
+    customDateEnd,
+    chargeSortMode,
+  ]);
 
   useEffect(() => {
     const nextFilter = searchParams.get(STORE_OPERATION_QUERY_KEYS.filter) || "";
@@ -626,7 +745,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
 
   useEffect(() => {
     setCurrentPage((prev) => (prev === 1 ? prev : 1));
-  }, [selectedFilter, pageSize]);
+  }, [selectedFilter, chargeDateRangePreset, customDateStart, customDateEnd, chargeSortMode, pageSize]);
 
   useEffect(() => {
     if (!crossQuery.kind) return;
@@ -827,6 +946,30 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     }
   }, [selectedChargeId, drawerOpen]);
 
+  const normalizedDraftCustomDateStart = normalizeChargeDateInputValue(draftCustomDateStart);
+  const normalizedDraftCustomDateEnd = normalizeChargeDateInputValue(draftCustomDateEnd);
+  const isCustomDateRangeInvalid =
+    !!normalizedDraftCustomDateStart &&
+    !!normalizedDraftCustomDateEnd &&
+    normalizedDraftCustomDateStart > normalizedDraftCustomDateEnd;
+
+  function applyCustomDateRange() {
+    if (isCustomDateRangeInvalid) return;
+    setChargeDateRangePreset("CUSTOM");
+    setCustomDateStart(normalizedDraftCustomDateStart);
+    setCustomDateEnd(normalizedDraftCustomDateEnd);
+    setCurrentPage(1);
+  }
+
+  function clearCustomDateRange() {
+    setChargeDateRangePreset("CUSTOM");
+    setDraftCustomDateStart("");
+    setDraftCustomDateEnd("");
+    setCustomDateStart("");
+    setCustomDateEnd("");
+    setCurrentPage(1);
+  }
+
   function closeDrawer(source: "generic" | "backdrop" = "generic") {
     if (source === "backdrop") {
       const elapsed = Date.now() - drawerOpenedAtRef.current;
@@ -1005,22 +1148,107 @@ if (!isActiveRoute) {
           <div className="min-w-0">
             <div className="text-2xl font-semibold text-slate-900">Charges Detail</div>
             <div className="mt-2 text-sm text-slate-500">
-              店舗注文ページと同级别，支持列表、分页、选中、Drawer drill-down。
+              店舗運営費ページ上で Amazon transaction charges を確認します。支持日期范围切换、排序、分页、选择行与右侧 Drawer 监查路径。
             </div>
           </div>
 
           {!noPreviewYet && !hasPreviewButNoCharges ? (
-            <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
-              <label className="text-sm font-medium text-slate-700">1ページあたり</label>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
-                className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-              >
-                <option value={20}>20 条</option>
-                <option value={50}>50 条</option>
-                <option value={100}>100 条</option>
-              </select>
+            <div className="grid gap-3 xl:min-w-[420px]">
+              <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
+                <label className="text-sm font-medium text-slate-700">订单日期范围</label>
+                <div className="flex flex-wrap gap-2">
+                  {(["ALL", "30D", "90D", "365D", "CUSTOM"] as ChargeDateRangePreset[]).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => {
+                        setChargeDateRangePreset(item);
+                        if (item !== "CUSTOM") {
+                          setCurrentPage(1);
+                        }
+                      }}
+                      className={
+                        chargeDateRangePreset === item
+                          ? "rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                          : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      }
+                    >
+                      {CHARGE_DATE_RANGE_LABELS[item]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {chargeDateRangePreset === "CUSTOM" ? (
+                <div className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-[180px_auto] sm:items-start">
+                  <label className="pt-2 text-sm font-medium text-slate-700">自定义日期</label>
+                  <div className="grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        type="date"
+                        value={draftCustomDateStart}
+                        onChange={(e) => setDraftCustomDateStart(e.target.value)}
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                      />
+                      <input
+                        type="date"
+                        value={draftCustomDateEnd}
+                        onChange={(e) => setDraftCustomDateEnd(e.target.value)}
+                        className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={applyCustomDateRange}
+                        disabled={isCustomDateRangeInvalid}
+                        className={[
+                          "rounded-xl px-3 py-2 text-xs font-semibold transition",
+                          isCustomDateRangeInvalid
+                            ? "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
+                            : "border border-slate-900 bg-slate-900 text-white hover:opacity-90",
+                        ].join(" ")}
+                      >
+                        应用
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearCustomDateRange}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        清除
+                      </button>
+                    </div>
+                    {isCustomDateRangeInvalid ? (
+                      <div className="text-xs text-rose-600">
+                        开始日期不能晚于结束日期。
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="grid gap-3 sm:grid-cols-[180px_auto] sm:items-center">
+                <label className="text-sm font-medium text-slate-700">当前排序</label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={chargeSortMode}
+                    onChange={(e) => {
+                      setChargeSortMode(e.target.value as ChargeSortMode);
+                      setCurrentPage(1);
+                    }}
+                    className="h-11 min-w-[220px] rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    <option value="date-desc">{CHARGE_SORT_LABELS["date-desc"]}</option>
+                    <option value="date-asc">{CHARGE_SORT_LABELS["date-asc"]}</option>
+                    <option value="amount-desc">{CHARGE_SORT_LABELS["amount-desc"]}</option>
+                    <option value="amount-asc">{CHARGE_SORT_LABELS["amount-asc"]}</option>
+                  </select>
+                  <div className="text-xs text-slate-500">
+                    当前：{CHARGE_SORT_LABELS[chargeSortMode]}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>
@@ -1211,8 +1439,26 @@ if (!isActiveRoute) {
             </div>
 
             <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="text-sm text-slate-500">
-                全 {totalRows} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-6">
+                <div className="text-sm text-slate-500">
+                  全 {totalRows} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value) as PageSize);
+                      setCurrentPage(1);
+                    }}
+                    className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    <option value={20}>20 条</option>
+                    <option value={50}>50 条</option>
+                    <option value={100}>100 条</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
