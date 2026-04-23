@@ -314,78 +314,8 @@ export function renderIncomePageShell(args: {
         </div>
 
         {isCashPage ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Visible Cash Income</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">
-                {formatIncomeJPY(totalAmount)}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Rows</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">
-                {cashRowsCount}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Accounts</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">
-                {cashUniqueAccounts}
-              </div>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-sm text-slate-500">Average</div>
-              <div className="mt-2 text-lg font-semibold text-slate-900">
-                {formatIncomeJPY(cashAverageAmount)}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                Latest {cashLatestDate}
-              </div>
-            </div>
-          </div>
-        ) : (
           <>
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-sm text-slate-500">Source</div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">
-                  {rawFrom ?? from}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-sm text-slate-500">Store</div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">
-                  {rawStoreId ?? storeId}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-sm text-slate-500">Range</div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">
-                  {rawRange ?? range}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-sm text-slate-500">Category</div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">
-                  {INCOME_CATEGORY_LABELS[category]}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
-          </>
-        )}
-      </div>
-
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        {isCashPage ? (
-          <>
-            <div className="text-lg font-semibold text-slate-900">Cash Income Scope</div>
-            <div className="mt-2 text-sm text-slate-500">
-              店舗と日付範囲を切り替えながら、現金入金データの確認・登録・編集をこの画面で管理します。
-            </div>
-
-            <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+            <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <div className="mb-2 text-sm font-medium text-slate-700">店舗选择</div>
@@ -431,8 +361,73 @@ export function renderIncomePageShell(args: {
                 </div>
               </div>
             </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Visible Cash Income</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatIncomeJPY(totalAmount)}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Rows</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {cashRowsCount}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Accounts</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {cashUniqueAccounts}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Average</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {formatIncomeJPY(cashAverageAmount)}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Latest {cashLatestDate}
+                </div>
+              </div>
+            </div>
           </>
         ) : (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Source</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawFrom ?? from}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Store</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawStoreId ?? storeId}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Range</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawRange ?? range}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Category</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {INCOME_CATEGORY_LABELS[category]}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+          </>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+        {isCashPage ? null : (
           <>
             <div className="text-lg font-semibold text-slate-900">
               {isRoot ? "Category Filters" : "Income Section Navigation"}
@@ -728,173 +723,189 @@ export function renderIncomePageShell(args: {
           sidebarActions={sidebarActions}
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
-          <div className="space-y-4">
-            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-              <div className="text-lg font-semibold text-slate-900">Page Actions</div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {cashSidebarActions.map((item) =>
-                  item.href ? (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      aria-disabled={item.disabled ? "true" : "false"}
-                      className={[
-                        "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
-                        item.disabled
-                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none"
-                          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <div
-                      key={item.label}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
-                    >
-                      {item.label}
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
+              <div>
+                <div className="text-lg font-semibold text-slate-900">Page Actions</div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {cashSidebarActions.map((item) =>
+                    item.href ? (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        aria-disabled={item.disabled ? "true" : "false"}
+                        className={[
+                          "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
+                          item.disabled
+                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none"
+                            : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                        ].join(" ")}
+                      >
+                        {item.label}
+                      </Link>
+                    ) : (
+                      <div
+                        key={item.label}
+                        className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+                      >
+                        {item.label}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-lg font-semibold text-slate-900">Selected Cash Income</div>
+                <div className="mt-2">
+                  {selectedRow ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <div className="grid gap-3 md:grid-cols-5">
+                        <div>
+                          <div className="text-xs text-slate-500">Date</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">Label</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">Account</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">Store</div>
+                          <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store || "-"}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500">Amount</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">{formatIncomeJPY(selectedRow.amount)}</div>
+                        </div>
+                      </div>
+                      {selectedRow.memo ? (
+                        <div className="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-600">
+                          {selectedRow.memo}
+                        </div>
+                      ) : null}
                     </div>
-                  )
-                )}
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      行を選択すると、ここに現金収入明細の概要を表示します。
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-              <div className="text-lg font-semibold text-slate-900">
-                Selected Cash Income
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-slate-900">
+                  Cash Income Rows
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+                </div>
               </div>
-              <div className="mt-1 text-sm text-slate-500">
-                現金入金明細の要約をここで確認できます。
+              <div className="text-sm text-slate-500">
+                全 {totalRows} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
               </div>
-
-              {renderTransactionsSelectedSummary({
-                title: "Selected Cash Income",
-                selected: !!selectedRow,
-                emptyMessage: "行を選択すると、ここに現金収入明細の要約が表示されます。",
-                items: selectedRow
-                  ? [
-                      { label: "Date", value: selectedRow.date },
-                      { label: "Label", value: selectedRow.label },
-                      { label: "Account", value: selectedRow.account },
-                      { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
-                      { label: "Memo", value: selectedRow.memo || "-" },
-                      { label: "Store", value: selectedRow.store || "-" },
-                    ]
-                  : [],
-              })}
             </div>
 
-            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    Cash Income Rows
+            {renderTransactionsListTable({
+              columns: (
+                <div className="grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                  <div>Date</div>
+                  <div>Label</div>
+                  <div>Memo / Store</div>
+                  <div>Account</div>
+                  <div className="text-right">Amount</div>
+                </div>
+              ),
+              loading,
+              error,
+              isEmpty: visibleRows.length === 0,
+              rows: visibleRows.map((row) => (
+                <div
+                  key={row.id}
+                  onClick={() => onSelectRow(row.id)}
+                  className={`grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                    selectedRowId === row.id
+                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                      : ""
+                  }`}
+                >
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="font-medium text-slate-900">{row.label}</div>
                   </div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+                  <div>
+                    <div className="text-slate-600">{row.memo || "-"}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
+                  </div>
+                  <div className="text-slate-600">{row.account}</div>
+                  <div className="text-right font-medium text-slate-900">
+                    {formatIncomeJPY(row.amount)}
                   </div>
                 </div>
-                <div className="text-sm text-slate-500">
-                  全 {totalRows} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
-                </div>
+              )),
+            })}
+
+            <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value) as 20 | 50 | 100);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                >
+                  <option value={20}>20 条</option>
+                  <option value={50}>50 条</option>
+                  <option value={100}>100 条</option>
+                </select>
               </div>
 
-              {renderTransactionsListTable({
-                columns: (
-                  <div className="grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-                    <div>Date</div>
-                    <div>Label</div>
-                    <div>Memo / Store</div>
-                    <div>Account</div>
-                    <div className="text-right">Amount</div>
-                  </div>
-                ),
-                loading,
-                error,
-                isEmpty: visibleRows.length === 0,
-                rows: visibleRows.map((row) => (
-                  <div
-                    key={row.id}
-                    onClick={() => onSelectRow(row.id)}
-                    className={`grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
-                      selectedRowId === row.id
-                        ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                        : ""
-                    }`}
-                  >
-                    <div className="text-slate-600">{row.date}</div>
-                    <div>
-                      <div className="font-medium text-slate-900">{row.label}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-600">{row.memo || "-"}</div>
-                      <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
-                    </div>
-                    <div className="text-slate-600">{row.account}</div>
-                    <div className="text-right font-medium text-slate-900">
-                      {formatIncomeJPY(row.amount)}
-                    </div>
-                  </div>
-                )),
-              })}
-
-              <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex items-center gap-3">
-                  <label className="text-sm font-medium text-slate-700">1ページあたり</label>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value) as 20 | 50 | 100);
-                      setCurrentPage(1);
-                    }}
-                    className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                  >
-                    <option value={20}>20 条</option>
-                    <option value={50}>50 条</option>
-                    <option value={100}>100 条</option>
-                  </select>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage <= 1}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  最初
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage <= 1}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  前へ
+                </button>
+                <div className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
+                  {currentPage} / {totalPages}
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage <= 1}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    最初
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage <= 1}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    前へ
-                  </button>
-                  <div className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
-                    {currentPage} / {totalPages}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage >= totalPages}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    次へ
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage >= totalPages}
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    最後
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  次へ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage >= totalPages}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  最後
+                </button>
               </div>
             </div>
           </div>
