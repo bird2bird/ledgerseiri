@@ -15,6 +15,7 @@ import { useIncomePageState } from "@/core/transactions/use-income-page-state";
 import { useIncomePageOrchestration } from "@/core/transactions/use-income-page-orchestration";
 import { renderIncomePageShell } from "@/core/transactions/income-page-shell";
 import { CashIncomeHeader } from "@/components/app/income/CashIncomeHeader";
+import { CashIncomeWorkspace } from "@/components/app/income/CashIncomeWorkspace";
 
 type IncomePageVariant = "root" | "cash" | "store-order" | "other";
 
@@ -202,7 +203,29 @@ export function IncomePageClient(props: {
           updateStoreId={orchestration.updateStoreId}
           updateRange={orchestration.updateRange}
         />
-        {shell}
+        <CashIncomeWorkspace
+          rows={state.rows}
+          selectedRowId={state.selectedRowId}
+          onSelectRow={state.setSelectedRowId}
+          selectedRow={state.selectedRow}
+          pageSize={state.pageSize}
+          setPageSize={state.setPageSize}
+          currentPage={state.currentPage}
+          setCurrentPage={state.setCurrentPage}
+          sidebarActions={orchestration.sidebarActions.map((item) => ({
+            ...item,
+            label:
+              item.label === "新規収入"
+                ? "新規現金収入"
+                : item.label === "CSV取込"
+                  ? "現金収入CSV取込"
+                  : item.label === "編集"
+                    ? "現金収入を編集"
+                    : item.label === "店舗紐付け"
+                      ? "入金元/補助設定"
+                      : item.label,
+          }))}
+        />
       </div>
     );
   }
