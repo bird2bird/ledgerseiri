@@ -14,6 +14,7 @@ import {
 import { useIncomePageState } from "@/core/transactions/use-income-page-state";
 import { useIncomePageOrchestration } from "@/core/transactions/use-income-page-orchestration";
 import { renderIncomePageShell } from "@/core/transactions/income-page-shell";
+import { CashIncomeHeader } from "@/components/app/income/CashIncomeHeader";
 
 type IncomePageVariant = "root" | "cash" | "store-order" | "other";
 
@@ -96,7 +97,7 @@ export function IncomePageClient(props: {
     selectedRowId: state.selectedRowId,
   });
 
-  return renderIncomePageShell({
+  const shell = renderIncomePageShell({
     lang,
     pageVariant,
     isDashboard,
@@ -187,4 +188,24 @@ export function IncomePageClient(props: {
         category: next,
       }),
   });
+
+  if (pageVariant === "cash") {
+    return (
+      <div className="space-y-6">
+        <CashIncomeHeader
+          lang={lang}
+          isDashboard={isDashboard}
+          storeId={storeId}
+          range={range}
+          rows={state.rows}
+          totalAmount={state.totalAmount}
+          updateStoreId={orchestration.updateStoreId}
+          updateRange={orchestration.updateRange}
+        />
+        {shell}
+      </div>
+    );
+  }
+
+  return shell;
 }
