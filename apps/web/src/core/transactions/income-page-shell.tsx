@@ -66,6 +66,42 @@ function getCashRangeLabel(range: string) {
   return match?.label ?? "近30天";
 }
 
+const CASH_RANGE_SELECT_OPTIONS = [
+  ...CASH_RANGE_OPTIONS,
+  { value: "custom", label: "自定义日期" },
+] as const;
+
+type CashRangeMode = (typeof CASH_RANGE_SELECT_OPTIONS)[number]["value"];
+type CashSortMode = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
+
+const CASH_SORT_OPTIONS: Array<{ value: CashSortMode; label: string }> = [
+  { value: "date-desc", label: "日期（新→旧）" },
+  { value: "date-asc", label: "日期（旧→新）" },
+  { value: "amount-desc", label: "金额（高→低）" },
+  { value: "amount-asc", label: "金额（低→高）" },
+];
+
+function normalizeCashDateInput(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function toCashBoundaryMs(value: string, endOfDay: boolean) {
+  const normalized = normalizeCashDateInput(value);
+  if (!normalized) return 0;
+  const suffix = endOfDay ? "T23:59:59.999" : "T00:00:00.000";
+  const ts = new Date(`${normalized}${suffix}`).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function parseIncomeRowDateMs(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const ts = new Date(raw).getTime();
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
 export function renderIncomePageShell(args: {
   lang: string;
   pageVariant: IncomePageVariant;
@@ -279,6 +315,71 @@ export function renderIncomePageShell(args: {
     )
   ).sort((a, b) => a.localeCompare(b));
 
+  const [cashRangeMode, setCashRangeMode] = React.useState<CashRangeMode>(
+    range === "7d" || range === "30d" || range === "90d" || range === "12m"
+      ? range
+      : "30d"
+  );
+  const [cashCustomStartDate, setCashCustomStartDate] = React.useState("");
+  const [cashCustomEndDate, setCashCustomEndDate] = React.useState("");
+  const [cashSortMode, setCashSortMode] = React.useState<CashSortMode>("date-desc");
+
+  React.useEffect(() => {
+    if (cashRangeMode !== "custom") {
+      setCashRangeMode(
+        range === "7d" || range === "30d" || range === "90d" || range === "12m"
+          ? range
+          : "30d"
+      );
+    }
+  }, [range, cashRangeMode]);
+
+  const cashCustomStartMs = toCashBoundaryMs(cashCustomStartDate, false);
+  const cashCustomEndMs = toCashBoundaryMs(cashCustomEndDate, true);
+
+  const cashFilteredRows = React.useMemo(() => {
+    let next = [...rows];
+
+    if (cashRangeMode === "custom") {
+      next = next.filter((row) => {
+        const ts = parseIncomeRowDateMs((row as any).sortAt || (row as any).importedAt || row.date);
+        if (ts <= 0) return false;
+        if (cashCustomStartMs && ts < cashCustomStartMs) return false;
+        if (cashCustomEndMs && ts > cashCustomEndMs) return false;
+        return true;
+      });
+    }
+
+    next.sort((a, b) => {
+      const aTs = parseIncomeRowDateMs((a as any).sortAt || (a as any).importedAt || a.date);
+      const bTs = parseIncomeRowDateMs((b as any).sortAt || (b as any).importedAt || b.date);
+
+      if (cashSortMode === "date-asc") return aTs - bTs;
+      if (cashSortMode === "date-desc") return bTs - aTs;
+      if (cashSortMode === "amount-asc") return Number(a.amount || 0) - Number(b.amount || 0);
+      return Number(b.amount || 0) - Number(a.amount || 0);
+    });
+
+    return next;
+  }, [rows, cashRangeMode, cashCustomStartMs, cashCustomEndMs, cashSortMode]);
+
+  const cashTotalRows = cashFilteredRows.length;
+  const cashTotalPages = Math.max(1, Math.ceil(cashTotalRows / pageSize));
+
+  React.useEffect(() => {
+    if (currentPage > cashTotalPages) {
+      setCurrentPage(cashTotalPages);
+    }
+  }, [currentPage, cashTotalPages, setCurrentPage]);
+
+  const cashVisibleRows = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return cashFilteredRows.slice(start, start + pageSize);
+  }, [cashFilteredRows, currentPage, pageSize]);
+
+  const cashPageStartRow = cashTotalRows === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const cashPageEndRow = cashTotalRows === 0 ? 0 : Math.min(currentPage * pageSize, cashTotalRows);
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
@@ -335,32 +436,56 @@ export function renderIncomePageShell(args: {
 
                 <div>
                   <div className="mb-2 text-sm font-medium text-slate-700">当前范围</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                    {getCashRangeLabel(range)}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-sm font-medium text-slate-700">日期范围</div>
-                <div className="flex flex-wrap gap-2">
-                  {CASH_RANGE_OPTIONS.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => updateRange(item.value)}
-                      className={
-                        range === item.value
-                          ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                          : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  <select
+                    value={cashRangeMode}
+                    onChange={(e) => {
+                      const next = e.target.value as CashRangeMode;
+                      setCashRangeMode(next);
+                      setCurrentPage(1);
+                      if (next !== "custom") {
+                        updateRange(next);
                       }
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                    }}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    {CASH_RANGE_SELECT_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
+
+            {cashRangeMode === "custom" ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-sm font-medium text-slate-700">开始日期</div>
+                  <input
+                    type="date"
+                    value={cashCustomStartDate}
+                    onChange={(e) => {
+                      setCashCustomStartDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  />
+                </div>
+                <div>
+                  <div className="mb-2 text-sm font-medium text-slate-700">结束日期</div>
+                  <input
+                    type="date"
+                    value={cashCustomEndDate}
+                    onChange={(e) => {
+                      setCashCustomEndDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-3 sm:grid-cols-4">
               <div className="rounded-2xl bg-slate-50 p-4">
@@ -725,34 +850,200 @@ export function renderIncomePageShell(args: {
       ) : (
         <div className="space-y-4">
           <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
+            <div className="text-lg font-semibold text-slate-900">Page Actions</div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {cashSidebarActions.map((item) =>
+                item.href ? (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    aria-disabled={item.disabled ? "true" : "false"}
+                    className={[
+                      "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
+                      item.disabled
+                        ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none"
+                        : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <div
+                    key={item.label}
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+                  >
+                    {item.label}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-slate-900">Page Actions</div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {cashSidebarActions.map((item) =>
-                    item.href ? (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        aria-disabled={item.disabled ? "true" : "false"}
-                        className={[
-                          "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
-                          item.disabled
-                            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none"
-                            : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                        ].join(" ")}
-                      >
-                        {item.label}
-                      </Link>
-                    ) : (
-                      <div
-                        key={item.label}
-                        className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
-                      >
-                        {item.label}
-                      </div>
-                    )
-                  )}
+                <div className="text-lg font-semibold text-slate-900">
+                  Cash Income Rows
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-700">排序</label>
+                <select
+                  value={cashSortMode}
+                  onChange={(e) => {
+                    setCashSortMode(e.target.value as CashSortMode);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 min-w-[180px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                >
+                  {CASH_SORT_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {selectedRow ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="grid gap-3 md:grid-cols-5">
+                  <div>
+                    <div className="text-xs text-slate-500">Date</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Label</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Account</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Store</div>
+                    <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Amount</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">{formatIncomeJPY(selectedRow.amount)}</div>
+                  </div>
+                </div>
+                {selectedRow.memo ? (
+                  <div className="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-600">
+                    {selectedRow.memo}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {renderTransactionsListTable({
+              columns: (
+                <div className="grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                  <div>Date</div>
+                  <div>Label</div>
+                  <div>Memo / Store</div>
+                  <div>Account</div>
+                  <div className="text-right">Amount</div>
+                </div>
+              ),
+              loading,
+              error,
+              isEmpty: cashVisibleRows.length === 0,
+              rows: cashVisibleRows.map((row) => (
+                <div
+                  key={row.id}
+                  onClick={() => onSelectRow(row.id)}
+                  className={`grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                    selectedRowId === row.id
+                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                      : ""
+                  }`}
+                >
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="font-medium text-slate-900">{row.label}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-600">{row.memo || "-"}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
+                  </div>
+                  <div className="text-slate-600">{row.account}</div>
+                  <div className="text-right font-medium text-slate-900">
+                    {formatIncomeJPY(row.amount)}
+                  </div>
+                </div>
+              )),
+            })}
+
+            <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="text-sm text-slate-500">
+                全 {cashTotalRows} 行のうち、{cashPageStartRow} - {cashPageEndRow} 行を表示
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value) as 20 | 50 | 100);
+                      setCurrentPage(1);
+                    }}
+                    className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    <option value={20}>20 条</option>
+                    <option value={50}>50 条</option>
+                    <option value={100}>100 条</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    最初
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    前へ
+                  </button>
+                  <div className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
+                    {currentPage} / {cashTotalPages}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(Math.min(cashTotalPages, currentPage + 1))}
+                    disabled={currentPage >= cashTotalPages}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    次へ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(cashTotalPages)}
+                    disabled={currentPage >= cashTotalPages}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    最後
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
                 </div>
               </div>
 
