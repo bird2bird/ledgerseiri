@@ -54,6 +54,18 @@ function getCashActionLabel(label: string) {
   return label;
 }
 
+const CASH_RANGE_OPTIONS = [
+  { value: "7d", label: "近7天" },
+  { value: "30d", label: "近30天" },
+  { value: "90d", label: "近90天" },
+  { value: "12m", label: "近12个月" },
+] as const;
+
+function getCashRangeLabel(range: string) {
+  const match = CASH_RANGE_OPTIONS.find((item) => item.value === range);
+  return match?.label ?? "近30天";
+}
+
 export function renderIncomePageShell(args: {
   lang: string;
   pageVariant: IncomePageVariant;
@@ -144,6 +156,8 @@ export function renderIncomePageShell(args: {
   handleEditSave: () => Promise<void>;
 
   updateCategory: (next: IncomeCategory) => void;
+  updateStoreId: (next: string) => void;
+  updateRange: (next: string) => void;
   clearActionMode: () => void;
   sidebarActions: Array<{
     label: string;
@@ -232,6 +246,8 @@ export function renderIncomePageShell(args: {
     handleEditSave,
 
     updateCategory,
+    updateStoreId,
+    updateRange,
     clearActionMode,
     sidebarActions,
     categoryHrefBuilder,
@@ -254,6 +270,14 @@ export function renderIncomePageShell(args: {
         label: getCashActionLabel(item.label),
       }))
     : sidebarActions;
+
+  const cashStoreOptions = Array.from(
+    new Set(
+      rows
+        .map((row) => String(row.store || "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
 
   return (
     <div className="space-y-6">
@@ -358,12 +382,54 @@ export function renderIncomePageShell(args: {
           <>
             <div className="text-lg font-semibold text-slate-900">Cash Income Scope</div>
             <div className="mt-2 text-sm text-slate-500">
-              現金収入カテゴリに固定した専用ワークスペースです。現金入金データの確認、登録、編集をこの画面で完結します。
+              店舗と日付範囲を切り替えながら、現金入金データの確認・登録・編集をこの画面で管理します。
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-                現金収入
-              </span>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-sm font-medium text-slate-700">店舗选择</div>
+                  <select
+                    value={storeId}
+                    onChange={(e) => updateStoreId(e.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    <option value="all">全店舗</option>
+                    {cashStoreOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-slate-700">当前范围</div>
+                  <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                    {getCashRangeLabel(range)}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-sm font-medium text-slate-700">日期范围</div>
+                <div className="flex flex-wrap gap-2">
+                  {CASH_RANGE_OPTIONS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => updateRange(item.value)}
+                      className={
+                        range === item.value
+                          ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                          : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      }
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </>
         ) : (
@@ -664,18 +730,35 @@ export function renderIncomePageShell(args: {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
           <div className="space-y-4">
-            <TransactionsPageSidebar
-              metricLabel={
-                isCashPage
-                  ? "Visible Cash Income"
-                  : isRoot
-                    ? "Visible Income"
-                    : `${INCOME_CATEGORY_LABELS[category]} Total`
-              }
-              metricValue={formatIncomeJPY(totalAmount)}
-              rowsCount={rows.length}
-              actionItems={cashSidebarActions}
-            />
+            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+              <div className="text-lg font-semibold text-slate-900">Page Actions</div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {cashSidebarActions.map((item) =>
+                  item.href ? (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      aria-disabled={item.disabled ? "true" : "false"}
+                      className={[
+                        "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
+                        item.disabled
+                          ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none"
+                          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <div
+                      key={item.label}
+                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+                    >
+                      {item.label}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -705,11 +788,18 @@ export function renderIncomePageShell(args: {
             </div>
 
             <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-              <div className="text-lg font-semibold text-slate-900">
-                Cash Income Rows
-              </div>
-              <div className="mt-1 text-sm text-slate-500">
-                現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    Cash Income Rows
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+                  </div>
+                </div>
+                <div className="text-sm text-slate-500">
+                  全 {totalRows} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
+                </div>
               </div>
 
               {renderTransactionsListTable({
@@ -724,8 +814,8 @@ export function renderIncomePageShell(args: {
                 ),
                 loading,
                 error,
-                isEmpty: rows.length === 0,
-                rows: rows.map((row) => (
+                isEmpty: visibleRows.length === 0,
+                rows: visibleRows.map((row) => (
                   <div
                     key={row.id}
                     onClick={() => onSelectRow(row.id)}
@@ -750,6 +840,62 @@ export function renderIncomePageShell(args: {
                   </div>
                 )),
               })}
+
+              <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value) as 20 | 50 | 100);
+                      setCurrentPage(1);
+                    }}
+                    className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                  >
+                    <option value={20}>20 条</option>
+                    <option value={50}>50 条</option>
+                    <option value={100}>100 条</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    最初
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    前へ
+                  </button>
+                  <div className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700">
+                    {currentPage} / {totalPages}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    次へ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage >= totalPages}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    最後
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

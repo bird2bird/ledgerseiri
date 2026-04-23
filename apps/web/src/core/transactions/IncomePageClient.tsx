@@ -176,6 +176,8 @@ export function IncomePageClient(props: {
     handleEditSave: state.handleEditSave,
 
     updateCategory: orchestration.updateCategory,
+    updateStoreId: orchestration.updateStoreId,
+    updateRange: orchestration.updateRange,
     clearActionMode: orchestration.clearActionMode,
     sidebarActions: orchestration.sidebarActions,
     categoryHrefBuilder: (next) =>

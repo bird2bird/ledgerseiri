@@ -24,6 +24,18 @@ export function useIncomePageOrchestration(args: {
     router.replace(buildDrilldownHref(pathname, qs));
   }
 
+  function updateStoreId(next: string) {
+    const qs = cloneSearchParams(searchParams);
+    setOrDeleteQueryParam(qs, "storeId", next, "all");
+    router.replace(buildDrilldownHref(pathname, qs));
+  }
+
+  function updateRange(next: string) {
+    const qs = cloneSearchParams(searchParams);
+    setOrDeleteQueryParam(qs, "range", next, "30d");
+    router.replace(buildDrilldownHref(pathname, qs));
+  }
+
   function buildCurrentPageActionHref(nextAction: string) {
     return buildTransactionsActionHref(pathname, searchParams, nextAction);
   }
@@ -44,6 +56,8 @@ export function useIncomePageOrchestration(args: {
 
   return {
     updateCategory,
+    updateStoreId,
+    updateRange,
     clearActionMode,
     sidebarActions,
   };
