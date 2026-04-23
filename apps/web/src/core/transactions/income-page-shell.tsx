@@ -46,6 +46,14 @@ function navTabs(variant: IncomePageVariant): IncomeCategory[] {
   return ["cash", "store-order", "other"];
 }
 
+function getCashActionLabel(label: string) {
+  if (label === "新規収入") return "新規現金収入";
+  if (label === "CSV取込") return "現金収入CSV取込";
+  if (label === "編集") return "現金収入を編集";
+  if (label === "店舗紐付け") return "入金元/補助設定";
+  return label;
+}
+
 export function renderIncomePageShell(args: {
   lang: string;
   pageVariant: IncomePageVariant;
@@ -232,6 +240,20 @@ export function renderIncomePageShell(args: {
   const tabs = navTabs(pageVariant);
   const isRoot = pageVariant === "root";
   const isStoreOrderPage = pageVariant === "store-order";
+  const isCashPage = pageVariant === "cash";
+
+  const cashRowsCount = rows.length;
+  const cashUniqueAccounts = new Set(
+    rows.map((row) => String(row.account || "-"))
+  ).size;
+  const cashAverageAmount = cashRowsCount > 0 ? totalAmount / cashRowsCount : 0;
+  const cashLatestDate = rows[0]?.date || "-";
+  const cashSidebarActions = isCashPage
+    ? sidebarActions.map((item) => ({
+        ...item,
+        label: getCashActionLabel(item.label),
+      }))
+    : sidebarActions;
 
   return (
     <div className="space-y-6">
@@ -267,82 +289,132 @@ export function renderIncomePageShell(args: {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Source</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
-              {rawFrom ?? from}
+        {isCashPage ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Visible Cash Income</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {formatIncomeJPY(totalAmount)}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Rows</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {cashRowsCount}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Accounts</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {cashUniqueAccounts}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <div className="text-sm text-slate-500">Average</div>
+              <div className="mt-2 text-lg font-semibold text-slate-900">
+                {formatIncomeJPY(cashAverageAmount)}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Latest {cashLatestDate}
+              </div>
             </div>
           </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Store</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
-              {rawStoreId ?? storeId}
+        ) : (
+          <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Source</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawFrom ?? from}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Store</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawStoreId ?? storeId}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Range</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {rawRange ?? range}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Category</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">
+                  {INCOME_CATEGORY_LABELS[category]}
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Range</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
-              {rawRange ?? range}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">Category</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">
-              {INCOME_CATEGORY_LABELS[category]}
-            </div>
-          </div>
-        </div>
 
-        <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+            <div className="mt-4 text-sm text-slate-500">{adapterNote}</div>
+          </>
+        )}
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        <div className="text-lg font-semibold text-slate-900">
-          {isRoot ? "Category Filters" : "Income Section Navigation"}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {tabs.map((item) => {
-            const active = category === item;
+        {isCashPage ? (
+          <>
+            <div className="text-lg font-semibold text-slate-900">Cash Income Scope</div>
+            <div className="mt-2 text-sm text-slate-500">
+              現金収入カテゴリに固定した専用ワークスペースです。現金入金データの確認、登録、編集をこの画面で完結します。
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                現金収入
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-lg font-semibold text-slate-900">
+              {isRoot ? "Category Filters" : "Income Section Navigation"}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {tabs.map((item) => {
+                const active = category === item;
 
-            if (isRoot) {
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => updateCategory(item)}
-                  className={
-                    active
-                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  }
-                >
-                  {INCOME_CATEGORY_LABELS[item]}
-                </button>
-              );
-            }
-
-            return (
-              <Link
-                key={item}
-                href={categoryHrefBuilder(item)}
-                className={
-                  active
-                    ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                    : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                if (isRoot) {
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => updateCategory(item)}
+                      className={
+                        active
+                          ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                          : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      }
+                    >
+                      {INCOME_CATEGORY_LABELS[item]}
+                    </button>
+                  );
                 }
-              >
-                {INCOME_CATEGORY_LABELS[item]}
-              </Link>
-            );
-          })}
-        </div>
+
+                return (
+                  <Link
+                    key={item}
+                    href={categoryHrefBuilder(item)}
+                    className={
+                      active
+                        ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                        : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    }
+                  >
+                    {INCOME_CATEGORY_LABELS[item]}
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {action === "create" ? (
         <TransactionsInlineActionPanel
-          title="新規収入を登録"
-          description="既存の /api/transactions contract を使って手動収入を追加します。"
+          title={isCashPage ? "新規現金収入を登録" : "新規収入を登録"}
+          description={isCashPage ? "現金入金データを手動で追加します。" : "既存の /api/transactions contract を使って手動収入を追加します。"}
           onClose={clearActionMode}
         >
           {formLoading ? (
@@ -447,8 +519,8 @@ export function renderIncomePageShell(args: {
 
       {action === "import" ? (
         <TransactionsInlineActionPanel
-          title="収入データを取込"
-          description="次段階で import center と接続します。現在は導線のみ確立しています。"
+          title={isCashPage ? "現金収入データを取込" : "収入データを取込"}
+          description={isCashPage ? "現金収入取込導線をここから扱います。" : "次段階で import center と接続します。現在は導線のみ確立しています。"}
           onClose={clearActionMode}
         >
           <div className="text-sm text-slate-600">
@@ -461,8 +533,8 @@ export function renderIncomePageShell(args: {
 
       {action === "edit" ? (
         <TransactionsInlineActionPanel
-          title="収入データを编辑"
-          description="選択中の行を初期値として、編集フォーム skeleton を確認できます。"
+          title={isCashPage ? "現金収入データを編集" : "収入データを编辑"}
+          description={isCashPage ? "選択中の現金収入行を編集します。" : "選択中の行を初期値として、編集フォーム skeleton を確認できます。"}
           onClose={clearActionMode}
         >
           {selectedRow ? (
@@ -590,79 +662,95 @@ export function renderIncomePageShell(args: {
           sidebarActions={sidebarActions}
         />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-          <TransactionsPageSidebar
-            metricLabel={isRoot ? "Visible Income" : `${INCOME_CATEGORY_LABELS[category]} Total`}
-            metricValue={formatIncomeJPY(totalAmount)}
-            rowsCount={rows.length}
-            actionItems={sidebarActions}
-          />
+        <div className="grid gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+          <div className="space-y-4">
+            <TransactionsPageSidebar
+              metricLabel={
+                isCashPage
+                  ? "Visible Cash Income"
+                  : isRoot
+                    ? "Visible Income"
+                    : `${INCOME_CATEGORY_LABELS[category]} Total`
+              }
+              metricValue={formatIncomeJPY(totalAmount)}
+              rowsCount={rows.length}
+              actionItems={cashSidebarActions}
+            />
+          </div>
 
-          <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-            <div className="text-lg font-semibold text-slate-900">
-              {isRoot ? "Income Rows" : `${INCOME_CATEGORY_LABELS[category]} Rows`}
+          <div className="space-y-4">
+            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+              <div className="text-lg font-semibold text-slate-900">
+                Selected Cash Income
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                現金入金明細の要約をここで確認できます。
+              </div>
+
+              {renderTransactionsSelectedSummary({
+                title: "Selected Cash Income",
+                selected: !!selectedRow,
+                emptyMessage: "行を選択すると、ここに現金収入明細の要約が表示されます。",
+                items: selectedRow
+                  ? [
+                      { label: "Date", value: selectedRow.date },
+                      { label: "Label", value: selectedRow.label },
+                      { label: "Account", value: selectedRow.account },
+                      { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
+                      { label: "Memo", value: selectedRow.memo || "-" },
+                      { label: "Store", value: selectedRow.store || "-" },
+                    ]
+                  : [],
+              })}
             </div>
-            <div className="mt-1 text-sm text-slate-500">
-              query → state → context → adapter → render
+
+            <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+              <div className="text-lg font-semibold text-slate-900">
+                Cash Income Rows
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                現金入金明細を一覧で確認し、選択行の編集導線へ接続します。
+              </div>
+
+              {renderTransactionsListTable({
+                columns: (
+                  <div className="grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                    <div>Date</div>
+                    <div>Label</div>
+                    <div>Memo / Store</div>
+                    <div>Account</div>
+                    <div className="text-right">Amount</div>
+                  </div>
+                ),
+                loading,
+                error,
+                isEmpty: rows.length === 0,
+                rows: rows.map((row) => (
+                  <div
+                    key={row.id}
+                    onClick={() => onSelectRow(row.id)}
+                    className={`grid grid-cols-[120px_1.05fr_1fr_160px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
+                      selectedRowId === row.id
+                        ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
+                        : ""
+                    }`}
+                  >
+                    <div className="text-slate-600">{row.date}</div>
+                    <div>
+                      <div className="font-medium text-slate-900">{row.label}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-600">{row.memo || "-"}</div>
+                      <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
+                    </div>
+                    <div className="text-slate-600">{row.account}</div>
+                    <div className="text-right font-medium text-slate-900">
+                      {formatIncomeJPY(row.amount)}
+                    </div>
+                  </div>
+                )),
+              })}
             </div>
-
-            {renderTransactionsSelectedSummary({
-              title: "Selected Row",
-              selected: !!selectedRow,
-              emptyMessage: "行を選択すると、ここに収入明細の要約が表示されます。",
-              items: selectedRow
-                ? [
-                    { label: "ID", value: selectedRow.id },
-                    { label: "Date", value: selectedRow.date },
-                    { label: "Label", value: selectedRow.label },
-                    {
-                      label: "Category",
-                      value: INCOME_CATEGORY_LABELS[selectedRow.category],
-                    },
-                    { label: "Account", value: selectedRow.account },
-                    { label: "Store", value: selectedRow.store },
-                    { label: "Amount", value: formatIncomeJPY(selectedRow.amount) },
-                    { label: "Memo", value: selectedRow.memo || "-" },
-                  ]
-                : [],
-            })}
-
-            {renderTransactionsListTable({
-              columns: (
-                <div className="grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
-                  <div>Date</div>
-                  <div>Label</div>
-                  <div>Category</div>
-                  <div>Account</div>
-                  <div className="text-right">Amount</div>
-                </div>
-              ),
-              loading,
-              error,
-              isEmpty: rows.length === 0,
-              rows: rows.map((row) => (
-                <div
-                  key={row.id}
-                  onClick={() => onSelectRow(row.id)}
-                  className={`grid grid-cols-[120px_1fr_140px_140px_120px] gap-4 border-t border-slate-100 px-4 py-3 text-sm ${
-                    selectedRowId === row.id
-                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                      : ""
-                  }`}
-                >
-                  <div className="text-slate-600">{row.date}</div>
-                  <div>
-                    <div className="font-medium text-slate-900">{row.label}</div>
-                    <div className="mt-1 text-xs text-slate-500">{row.store}</div>
-                  </div>
-                  <div className="text-slate-600">{INCOME_CATEGORY_LABELS[row.category]}</div>
-                  <div className="text-slate-600">{row.account}</div>
-                  <div className="text-right font-medium text-slate-900">
-                    {formatIncomeJPY(row.amount)}
-                  </div>
-                </div>
-              )),
-            })}
           </div>
         </div>
       )}
