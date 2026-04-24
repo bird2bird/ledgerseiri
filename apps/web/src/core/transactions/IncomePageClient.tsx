@@ -240,9 +240,8 @@ export function IncomePageClient(props: {
           editSaveLoading={state.editSaveLoading}
           editCanSave={state.editCanSave}
           handleEditSave={state.handleEditSave}
-          sidebarActions={orchestration.sidebarActions.map((item) => ({
-            ...item,
-            label:
+          sidebarActions={orchestration.sidebarActions.map((item) => {
+            const label =
               item.label === "新規収入"
                 ? "新規現金収入"
                 : item.label === "CSV取込"
@@ -251,8 +250,21 @@ export function IncomePageClient(props: {
                     ? "現金収入を編集"
                     : item.label === "店舗紐付け"
                       ? "入金元/補助設定"
-                      : item.label,
-          }))}
+                      : item.label;
+
+            const href =
+              item.label === "CSV取込"
+                ? `/${lang}/app/data/import?module=cash-income`
+                : item.label === "店舗紐付け"
+                  ? `/${lang}/app/settings/accounts`
+                  : item.href;
+
+            return {
+              ...item,
+              label,
+              href,
+            };
+          })}
         />
       </div>
     );
