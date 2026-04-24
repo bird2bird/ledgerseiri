@@ -1079,7 +1079,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
                   <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                     <div className="min-w-[980px]">
-                      <div className="grid grid-cols-[70px_110px_120px_120px_130px_1fr_160px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      <div className="grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                         <div>Row</div>
                         <div>Status</div>
                         <div>Type</div>
@@ -1087,15 +1087,23 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                         <div>Occurred</div>
                         <div>Memo</div>
                         <div>Account</div>
+                        <div>Account ID</div>
                       </div>
 
                       {cashServerPreview.rows.map((row) => (
                         <div
                           key={`server-${row.rowNo}-${row.matchStatus}`}
-                          className="grid grid-cols-[70px_110px_120px_120px_130px_1fr_160px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                          className="grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
                         >
                           <div className="text-slate-500">{row.rowNo}</div>
-                          <div className="font-semibold text-slate-900">{row.matchStatus}</div>
+                          <div>
+                            <div className="font-semibold text-slate-900">{row.matchStatus}</div>
+                            {row.matchReason ? (
+                              <div className="mt-1 text-[11px] leading-4 text-slate-500">
+                                {row.matchReason}
+                              </div>
+                            ) : null}
+                          </div>
                           <div className="text-slate-700">{row.normalizedPayload.type}</div>
                           <div className="text-slate-700">
                             ¥{row.normalizedPayload.amount.toLocaleString("ja-JP")}
@@ -1104,6 +1112,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                           <div className="text-slate-600">{row.normalizedPayload.memo}</div>
                           <div className="text-slate-600">
                             {row.normalizedPayload.accountName || "-"}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-600">
+                            {row.normalizedPayload.accountId || "unresolved"}
                           </div>
                         </div>
                       ))}
@@ -1139,7 +1150,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview contract 接続まで完了（No commit / No DB write）
+                    server preview + accountName exact match contract まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1156,7 +1167,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>4. Pending import payload design：完了</li>
                 <li>5. Pending payload summary linkage：完了</li>
                 <li>6. Server preview contract 接続：完了</li>
-                <li>7. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
+                <li>7. accountName → accountId exact match contract：完了</li>
+                <li>8. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 

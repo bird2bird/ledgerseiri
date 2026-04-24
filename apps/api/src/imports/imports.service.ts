@@ -1423,6 +1423,27 @@ export class ImportsService {
 
   async previewCashIncomeImport(dto: CashIncomePreviewDto) {
     const rows = Array.isArray(dto.rows) ? dto.rows : [];
+    const companyId = String(dto.companyId || '').trim();
+
+    const accounts = companyId
+      ? await this.prisma.account.findMany({
+          where: {
+            companyId,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        })
+      : [];
+
+    const accountByExactName = new Map(
+      accounts.map((account) => [String(account.name || '').trim(), account.id]),
+    );
 
     const previewRows = rows.map((row, index) => {
       const rowNo = Number(row.rowNo || index + 1);
@@ -1451,6 +1472,12 @@ export class ImportsService {
         msg.includes('not parseable'),
       );
 
+      const accountId = accountName ? accountByExactName.get(accountName) || null : null;
+
+      if (companyId && accountName && !accountId && !hasError) {
+        messages.push('accountName could not be resolved');
+      }
+
       const matchStatus = hasError
         ? 'error'
         : messages.length > 0
@@ -1469,7 +1496,7 @@ export class ImportsService {
           amount,
           occurredAt,
           accountName,
-          accountId: null,
+          accountId,
           categoryId: null,
           memo: `[cash] ${memoRaw}`.trim(),
           source: source || undefined,
@@ -1508,15 +1535,18 @@ export class ImportsService {
       ok: true,
       action: 'cash-income-preview',
       module: 'cash-income',
-      companyId: dto.companyId || null,
+      companyId: companyId || null,
       filename: dto.filename || null,
       summary,
       rows: previewRows,
+      accountResolution: {
+        strategy: 'exact_name',
+        activeAccountCount: accounts.length,
+      },
       message:
-        'Cash income preview contract only. DB write and transaction commit are not connected yet.',
+        'Cash income preview contract only. Account exact-name resolution is enabled when companyId is provided. DB write and transaction commit are not connected yet.',
     };
   }
-
 
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
