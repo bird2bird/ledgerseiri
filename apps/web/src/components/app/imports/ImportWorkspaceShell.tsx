@@ -58,7 +58,13 @@ function renderTagList(values?: string[]) {
   );
 }
 
-type ModuleMode = "store-orders" | "store-operation";
+type ModuleMode = "store-orders" | "store-operation" | "cash-income";
+
+function normalizeImportModuleHint(value?: string | null): ModuleMode {
+  if (value === "store-operation") return "store-operation";
+  if (value === "cash-income") return "cash-income";
+  return "store-orders";
+}
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
@@ -66,10 +72,11 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const lang = params?.lang ?? "ja";
   const router = useRouter();
 
-  const [moduleMode, setModuleMode] = useState<ModuleMode>(
-    moduleHint === "income" ? "store-orders" : "store-orders"
+  const initialModuleMode = normalizeImportModuleHint(moduleHint);
+  const [moduleMode, setModuleMode] = useState<ModuleMode>(initialModuleMode);
+  const [filename, setFilename] = useState(
+    initialModuleMode === "cash-income" ? "cash-income.csv" : "amazon-store-orders.csv"
   );
-  const [filename, setFilename] = useState("amazon-store-orders.csv");
   const [csvText, setCsvText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +101,11 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const currentSourceType = "amazon-csv";
 
   const moduleLabel =
-    moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
+    moduleMode === "cash-income"
+      ? "現金収入"
+      : moduleMode === "store-operation"
+        ? "店舗運営費"
+        : "店舗注文";
 
   const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
 
@@ -315,8 +326,128 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   }
 
   React.useEffect(() => {
+    if (moduleMode === "cash-income") {
+      setHistoryResult(null);
+      setDetectResult(null);
+      setPreviewResult(null);
+      setCommitResult(null);
+      setError("");
+      setMessage("");
+      return;
+    }
+
     void loadHistory(moduleMode);
   }, [moduleMode]);
+
+  if (moduleMode === "cash-income") {
+    return (
+      <section className="space-y-6 rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-2xl font-semibold text-slate-900">
+              現金収入CSV取込
+            </div>
+            <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              現金入金データを CSV で取り込むための準備画面です。現在は入口と項目定義の placeholder までを提供し、実際の CSV 解析・DB 登録は次ステップで実装します。
+            </div>
+          </div>
+
+          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+            module = cash-income
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+            <div className="text-sm font-semibold text-slate-900">
+              取込予定フィールド
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              Cash Income の手動登録 drawer と同じ最小項目を CSV でも扱う想定です。
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="grid grid-cols-[160px_1fr] border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div>CSV Column</div>
+                <div>Description</div>
+              </div>
+
+              {[
+                ["account", "入金先口座。未指定時は後続ステップで既定口座または確認キューに回す想定。"],
+                ["amount", "現金収入金額。0 より大きい数値のみ有効。"],
+                ["occurredAt", "発生日。日付または日時を受け付ける想定。"],
+                ["memo", "店頭現金売上、イベント売上、現金補正入金などの補足メモ。"],
+                ["source", "任意。入金元、店舗、補助情報など。初期版では memo への統合も可。"],
+              ].map(([name, description]) => (
+                <div
+                  key={name}
+                  className="grid grid-cols-[160px_1fr] border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                >
+                  <div className="font-medium text-slate-900">{name}</div>
+                  <div className="text-slate-600">{description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+              <div className="text-sm font-semibold text-slate-900">
+                現在の実装ステータス
+              </div>
+              <div className="mt-4 grid gap-3">
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-xs text-slate-500">Entry</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">
+                    /app/data/import?module=cash-income から専用画面を表示
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-xs text-slate-500">Parser</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">
+                    未実装。次ステップで CSV preview / validation を追加
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-xs text-slate-500">Commit</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">
+                    未実装。type=OTHER / direction=INCOME / cash marker 連携予定
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-5">
+              <div className="text-sm font-semibold text-amber-900">
+                次の開発予定
+              </div>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-800">
+                <li>1. CSV サンプルフォーマットの download placeholder を追加</li>
+                <li>2. クライアント側 preview table を追加</li>
+                <li>3. 口座名と accountId の照合ルールを追加</li>
+                <li>4. 正式登録 API を既存 transaction create flow に接続</li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Link
+                href={`/${lang}/app/income/cash`}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                現金収入ページへ戻る
+              </Link>
+              <Link
+                href={`/${lang}/app/settings/accounts`}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                入金先口座を設定する
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
