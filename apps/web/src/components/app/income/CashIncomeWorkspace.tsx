@@ -21,11 +21,9 @@ type CashAccountOption = {
   currency?: string | null;
 };
 
-type CashCategoryOption = {
-  id: string;
-  name: string;
-  direction?: string | null;
-  code?: string | null;
+type CashSortableIncomeRow = IncomeRow & {
+  sortAt?: string | null;
+  importedAt?: string | null;
 };
 
 type CashIncomeWorkspaceProps = {
@@ -43,15 +41,12 @@ type CashIncomeWorkspaceProps = {
   clearActionMode: () => void;
 
   accounts: CashAccountOption[];
-  txCategories: CashCategoryOption[];
   formLoading: boolean;
   submitLoading: boolean;
   panelError: string;
   setPanelError: (next: string) => void;
   accountId: string;
   setAccountId: (next: string) => void;
-  categoryId: string;
-  setCategoryId: (next: string) => void;
   amount: string;
   setAmount: (next: string) => void;
   occurredAt: string;
@@ -72,7 +67,8 @@ type CashIncomeWorkspaceProps = {
 };
 
 function parseRowDateMs(row: IncomeRow) {
-  const raw = String((row as any).sortAt || (row as any).importedAt || row.date || "");
+  const cashRow = row as CashSortableIncomeRow;
+  const raw = String(cashRow.sortAt || cashRow.importedAt || row.date || "");
   const ts = new Date(raw).getTime();
   return Number.isNaN(ts) ? 0 : ts;
 }
@@ -101,15 +97,12 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     clearActionMode,
 
     accounts,
-    txCategories,
     formLoading,
     submitLoading,
     panelError,
     setPanelError,
     accountId,
     setAccountId,
-    categoryId,
-    setCategoryId,
     amount,
     setAmount,
     occurredAt,
