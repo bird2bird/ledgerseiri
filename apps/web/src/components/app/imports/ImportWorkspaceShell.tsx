@@ -348,7 +348,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               現金収入CSV取込
             </div>
             <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              現金入金データを CSV で取り込むための準備画面です。現在は入口と項目定義の placeholder までを提供し、実際の CSV 解析・DB 登録は次ステップで実装します。
+              現金入金データを CSV で取り込むための準備画面です。現在はサンプルフォーマットと preview table placeholder までを提供し、実際の CSV 解析・DB 登録は次ステップで実装します。
             </div>
           </div>
 
@@ -358,35 +358,140 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm font-semibold text-slate-900">
-              取込予定フィールド
-            </div>
-            <div className="mt-2 text-xs text-slate-500">
-              Cash Income の手動登録 drawer と同じ最小項目を CSV でも扱う想定です。
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="grid grid-cols-[160px_1fr] border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                <div>CSV Column</div>
-                <div>Description</div>
+          <div className="space-y-4">
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+              <div className="text-sm font-semibold text-slate-900">
+                取込予定フィールド
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                Cash Income の手動登録 drawer と同じ最小項目を CSV でも扱う想定です。
               </div>
 
-              {[
-                ["account", "入金先口座。未指定時は後続ステップで既定口座または確認キューに回す想定。"],
-                ["amount", "現金収入金額。0 より大きい数値のみ有効。"],
-                ["occurredAt", "発生日。日付または日時を受け付ける想定。"],
-                ["memo", "店頭現金売上、イベント売上、現金補正入金などの補足メモ。"],
-                ["source", "任意。入金元、店舗、補助情報など。初期版では memo への統合も可。"],
-              ].map(([name, description]) => (
-                <div
-                  key={name}
-                  className="grid grid-cols-[160px_1fr] border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
-                >
-                  <div className="font-medium text-slate-900">{name}</div>
-                  <div className="text-slate-600">{description}</div>
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="grid grid-cols-[160px_1fr] border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <div>CSV Column</div>
+                  <div>Description</div>
                 </div>
-              ))}
+
+                {[
+                  ["account", "入金先口座。後続ステップで accountId と照合します。"],
+                  ["amount", "現金収入金額。0 より大きい数値のみ有効です。"],
+                  ["occurredAt", "発生日。YYYY-MM-DD または日時形式を想定します。"],
+                  ["memo", "店頭現金売上、イベント売上、現金補正入金などの補足メモ。"],
+                  ["source", "任意。入金元、店舗、補助情報など。初期版では memo への統合も可。"],
+                ].map(([name, description]) => (
+                  <div
+                    key={name}
+                    className="grid grid-cols-[160px_1fr] border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                  >
+                    <div className="font-medium text-slate-900">{name}</div>
+                    <div className="text-slate-600">{description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    CSV サンプルフォーマット
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                    まずはこの形式で cash-income CSV を準備します。実際の取込処理は次ステップで preview / validation に接続します。
+                  </div>
+                </div>
+                <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
+                  static sample
+                </div>
+              </div>
+
+              <pre className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-700">
+                {[
+                  "account,amount,occurredAt,memo,source",
+                  "現金,12000,2026-04-24,店頭現金売上,横浜店",
+                  "現金,8500,2026-04-25,イベント現金売上,展示会",
+                  "現金,3000,2026-04-26,現金補正入金,手動調整",
+                ].join("\n")}
+              </pre>
+
+              <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                金額は数値のみ、発生日は YYYY-MM-DD または日時形式を想定します。口座名は後続ステップで accountId と照合します。
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Preview Table Placeholder
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                    CSV を読み込んだ後、このような preview table で登録前確認を行う想定です。現時点では静的サンプルです。
+                  </div>
+                </div>
+                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                  not connected
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                <div className="min-w-[760px]">
+                  <div className="grid grid-cols-[120px_120px_130px_1fr_120px_120px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <div>Account</div>
+                    <div>Amount</div>
+                    <div>Occurred</div>
+                    <div>Memo</div>
+                    <div>Source</div>
+                    <div>Status</div>
+                  </div>
+
+                  {[
+                    {
+                      account: "現金",
+                      amount: "12000",
+                      occurredAt: "2026-04-24",
+                      memo: "店頭現金売上",
+                      source: "横浜店",
+                      status: "preview only",
+                    },
+                    {
+                      account: "現金",
+                      amount: "8500",
+                      occurredAt: "2026-04-25",
+                      memo: "イベント現金売上",
+                      source: "展示会",
+                      status: "preview only",
+                    },
+                    {
+                      account: "現金",
+                      amount: "3000",
+                      occurredAt: "2026-04-26",
+                      memo: "現金補正入金",
+                      source: "手動調整",
+                      status: "preview only",
+                    },
+                  ].map((row) => (
+                    <div
+                      key={`${row.occurredAt}-${row.amount}-${row.memo}`}
+                      className="grid grid-cols-[120px_120px_130px_1fr_120px_120px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                    >
+                      <div className="font-medium text-slate-900">{row.account}</div>
+                      <div className="text-slate-700">
+                        ¥{Number(row.amount).toLocaleString("ja-JP")}
+                      </div>
+                      <div className="text-slate-600">{row.occurredAt}</div>
+                      <div className="text-slate-600">{row.memo}</div>
+                      <div className="text-slate-600">{row.source}</div>
+                      <div>
+                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+                          {row.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -403,9 +508,15 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
-                  <div className="text-xs text-slate-500">Parser</div>
+                  <div className="text-xs text-slate-500">Sample</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    未実装。次ステップで CSV preview / validation を追加
+                    CSV サンプルフォーマット表示：完了
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-xs text-slate-500">Preview</div>
+                  <div className="mt-1 text-sm font-medium text-slate-900">
+                    Preview table placeholder：完了。実データ parsing は未接続
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
@@ -422,10 +533,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 次の開発予定
               </div>
               <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-800">
-                <li>1. CSV サンプルフォーマットの download placeholder を追加</li>
-                <li>2. クライアント側 preview table を追加</li>
-                <li>3. 口座名と accountId の照合ルールを追加</li>
-                <li>4. 正式登録 API を既存 transaction create flow に接続</li>
+                <li>1. CSV サンプルフォーマット表示：完了</li>
+                <li>2. クライアント側 preview table placeholder：完了</li>
+                <li>3. 次ステップ：CSV validation と preview state を追加</li>
+                <li>4. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
