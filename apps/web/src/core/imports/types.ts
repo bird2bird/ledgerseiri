@@ -187,3 +187,52 @@ export type ImportHistoryResponse = {
   }>;
   message?: string;
 };
+
+export type CashIncomePreviewRequest = {
+  companyId?: string;
+  filename?: string;
+  rows: Array<{
+    rowNo: number;
+    accountName: string;
+    amount: number;
+    occurredAt: string;
+    memo: string;
+    source?: string;
+  }>;
+};
+
+export type CashIncomePreviewResponse = {
+  ok: boolean;
+  action: "cash-income-preview";
+  module: "cash-income";
+  companyId: string | null;
+  filename: string | null;
+  summary: {
+    totalRows: number;
+    pendingRows: number;
+    errorRows: number;
+    warningRows: number;
+    totalPendingAmount: number;
+  };
+  rows: Array<{
+    rowNo: number;
+    matchStatus: "pending" | "warning" | "error";
+    matchReason?: string;
+    normalizedPayload: {
+      entityType: "transaction";
+      module: "cash-income";
+      type: "OTHER";
+      direction: "INCOME";
+      amount: number;
+      occurredAt: string;
+      accountName: string;
+      accountId: string | null;
+      categoryId: null;
+      memo: string;
+      source?: string;
+      cashMarker: "[cash]";
+    };
+  }>;
+  message: string;
+};
+

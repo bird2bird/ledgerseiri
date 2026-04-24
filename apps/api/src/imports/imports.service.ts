@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
+import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 
 type MonthStat = {
   month: string;
@@ -1419,6 +1420,103 @@ export class ImportsService {
       },
     };
   }
+
+  async previewCashIncomeImport(dto: CashIncomePreviewDto) {
+    const rows = Array.isArray(dto.rows) ? dto.rows : [];
+
+    const previewRows = rows.map((row, index) => {
+      const rowNo = Number(row.rowNo || index + 1);
+      const accountName = String(row.accountName || '').trim();
+      const amount = Number(row.amount || 0);
+      const occurredAt = String(row.occurredAt || '').trim();
+      const memoRaw = String(row.memo || '').trim();
+      const source = String(row.source || '').trim();
+
+      const messages: string[] = [];
+
+      if (!accountName) messages.push('accountName is required');
+      if (!Number.isFinite(amount) || amount <= 0) {
+        messages.push('amount must be greater than 0');
+      }
+      if (!occurredAt) {
+        messages.push('occurredAt is required');
+      } else if (Number.isNaN(new Date(occurredAt).getTime())) {
+        messages.push('occurredAt is not parseable');
+      }
+      if (!memoRaw) messages.push('memo is recommended');
+
+      const hasError = messages.some((msg) =>
+        msg.includes('required') ||
+        msg.includes('greater than 0') ||
+        msg.includes('not parseable'),
+      );
+
+      const matchStatus = hasError
+        ? 'error'
+        : messages.length > 0
+          ? 'warning'
+          : 'pending';
+
+      return {
+        rowNo,
+        matchStatus,
+        matchReason: messages.length ? messages.join(' / ') : undefined,
+        normalizedPayload: {
+          entityType: 'transaction',
+          module: 'cash-income',
+          type: 'OTHER',
+          direction: 'INCOME',
+          amount,
+          occurredAt,
+          accountName,
+          accountId: null,
+          categoryId: null,
+          memo: `[cash] ${memoRaw}`.trim(),
+          source: source || undefined,
+          cashMarker: '[cash]',
+        },
+      };
+    });
+
+    const summary = previewRows.reduce(
+      (acc, row) => {
+        acc.totalRows += 1;
+
+        if (row.matchStatus === 'error') {
+          acc.errorRows += 1;
+          return acc;
+        }
+
+        if (row.matchStatus === 'warning') {
+          acc.warningRows += 1;
+        }
+
+        acc.pendingRows += 1;
+        acc.totalPendingAmount += Number(row.normalizedPayload.amount || 0);
+        return acc;
+      },
+      {
+        totalRows: 0,
+        pendingRows: 0,
+        errorRows: 0,
+        warningRows: 0,
+        totalPendingAmount: 0,
+      },
+    );
+
+    return {
+      ok: true,
+      action: 'cash-income-preview',
+      module: 'cash-income',
+      companyId: dto.companyId || null,
+      filename: dto.filename || null,
+      summary,
+      rows: previewRows,
+      message:
+        'Cash income preview contract only. DB write and transaction commit are not connected yet.',
+    };
+  }
+
 
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);

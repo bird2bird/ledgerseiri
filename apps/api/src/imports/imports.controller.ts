@@ -3,6 +3,7 @@ import { ImportsService } from './imports.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
+import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 
 @Controller('api/imports')
 export class ImportsController {
@@ -16,6 +17,11 @@ export class ImportsController {
   @Post('preview')
   preview(@Body() body: PreviewImportDto) {
     return this.service.previewImport(body);
+  }
+
+  @Post('cash-income/preview')
+  previewCashIncome(@Body() body: CashIncomePreviewDto) {
+    return this.service.previewCashIncomeImport(body);
   }
 
   @Post(':importJobId/commit')

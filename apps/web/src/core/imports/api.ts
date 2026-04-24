@@ -1,4 +1,6 @@
 import type {
+  CashIncomePreviewRequest,
+  CashIncomePreviewResponse,
   CommitImportRequest,
   CommitImportResponse,
   DetectMonthConflictsRequest,
@@ -91,3 +93,22 @@ export async function loadImportHistorySkeleton(args?: {
 
   return readJson<ImportHistoryResponse>(res, url);
 }
+
+export async function previewCashIncomeImport(
+  payload: CashIncomePreviewRequest
+): Promise<CashIncomePreviewResponse> {
+  const res = await fetch("/api/imports/cash-income/preview", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(`cash income preview failed: ${res.status}`);
+  }
+
+  return (await res.json()) as CashIncomePreviewResponse;
+}
+
