@@ -4,7 +4,10 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
-import { CashIncomeDrawer } from "@/components/app/income/CashIncomeDrawer";
+import {
+  CashIncomeDrawer,
+  type CashAccountOption,
+} from "@/components/app/income/CashIncomeDrawer";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 
@@ -12,13 +15,6 @@ type CashActionItem = {
   label: string;
   href?: string;
   disabled?: boolean;
-};
-
-type CashAccountOption = {
-  id: string;
-  name: string;
-  type?: string | null;
-  currency?: string | null;
 };
 
 type CashSortableIncomeRow = IncomeRow & {

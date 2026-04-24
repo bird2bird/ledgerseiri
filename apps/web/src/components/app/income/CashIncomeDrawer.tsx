@@ -4,14 +4,14 @@ import React from "react";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 
-type CashAccountOption = {
+export type CashAccountOption = {
   id: string;
   name: string;
   type?: string | null;
   currency?: string | null;
 };
 
-export function CashIncomeDrawer(props: {
+export type CashIncomeDrawerProps = {
   mode: "create" | "edit";
   open: boolean;
   row: IncomeRow | null;
@@ -42,7 +42,9 @@ export function CashIncomeDrawer(props: {
   editSaveLoading: boolean;
   editCanSave: boolean;
   handleEditSave: () => Promise<void>;
-}) {
+};
+
+export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   const {
     mode,
     open,
