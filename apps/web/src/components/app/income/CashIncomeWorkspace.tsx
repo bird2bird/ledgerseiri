@@ -151,18 +151,23 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
   const createDrawerOpen = action === "create";
-  const createAmountNumber = Number(amount || 0);
-  const createAmountValid = Number.isFinite(createAmountNumber) && createAmountNumber > 0;
-  const createCanSubmit =
-    !!accountId && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
-
   const editDrawerOpen = editingRow !== null;
+  const cashDrawerOpen = createDrawerOpen || editDrawerOpen;
+  const cashDrawerMode: "create" | "edit" = createDrawerOpen ? "create" : "edit";
+  const cashDrawerRow = createDrawerOpen ? null : editingRow;
 
   function openEdit(row: IncomeRow) {
     onSelectRow(row.id);
     setEditAmount(String(row.amount || ""));
     setEditMemo(row.memo || "");
     setEditingRow(row);
+  }
+
+  function closeCashDrawer() {
+    if (createDrawerOpen) {
+      clearActionMode();
+    }
+    setEditingRow(null);
   }
 
   React.useEffect(() => {
@@ -191,29 +196,6 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     if (!exists) onSelectRow("");
   }, [sortedRows, selectedRowId, onSelectRow]);
 
-  async function handleCreateSubmit() {
-    setPanelError("");
-
-    if (!accountId) {
-      setPanelError("口座を選択してください。");
-      return;
-    }
-    if (!createAmountValid) {
-      setPanelError("金額は 0 より大きい数値を入力してください。");
-      return;
-    }
-    if (!occurredAt) {
-      setPanelError("発生日を入力してください。");
-      return;
-    }
-
-    try {
-      await submitCreate();
-      clearActionMode();
-    } catch {
-      // panelError is handled by useIncomePageState.submitCreate()
-    }
-  }
 return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
@@ -438,156 +420,11 @@ return (
         </div>
       </div>
 
-      {createDrawerOpen ? (
-        <>
-          <button
-            type="button"
-            aria-label="Close cash income create drawer backdrop"
-            onClick={clearActionMode}
-            className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
-          />
-
-          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xl font-semibold text-slate-900">新規現金収入を登録</div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    現金入金データを手動で追加します。
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={clearActionMode}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  閉じる
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-5 px-6 py-6">
-              {panelError ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {panelError}
-                </div>
-              ) : null}
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="block">
-                  <div className="mb-2 text-sm font-medium text-slate-700">口座</div>
-                  <select
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    disabled={formLoading || submitLoading}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
-                  >
-                    <option value="">未選択</option>
-                    {accounts.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="block">
-                  <div className="mb-2 text-sm font-medium text-slate-700">カテゴリ</div>
-                  <div className="flex h-11 w-full items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-900">
-                    現金収入（自動）
-                  </div>
-                  <div className="mt-2 text-xs text-slate-500">
-                    現金収入ワークスペースではカテゴリを自動設定します。
-                  </div>
-                </div>
-
-                <label className="block">
-                  <div className="mb-2 text-sm font-medium text-slate-700">金額</div>
-                  <input
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    disabled={formLoading || submitLoading}
-                    inputMode="numeric"
-                    placeholder="例: 12000"
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
-                  />
-                </label>
-
-                <label className="block">
-                  <div className="mb-2 text-sm font-medium text-slate-700">発生日</div>
-                  <input
-                    type="datetime-local"
-                    value={occurredAt}
-                    onChange={(e) => setOccurredAt(e.target.value)}
-                    disabled={formLoading || submitLoading}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
-                  />
-                </label>
-              </div>
-
-              <label className="block">
-                <div className="mb-2 text-sm font-medium text-slate-700">メモ</div>
-                <textarea
-                  value={memo}
-                  onChange={(e) => setMemo(e.target.value)}
-                  disabled={formLoading || submitLoading}
-                  rows={5}
-                  placeholder="例: 店頭現金売上 / イベント売上 / 現金補正入金"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50"
-                />
-              </label>
-
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="text-sm font-medium text-slate-900">登録プレビュー</div>
-                <div className="mt-3 grid gap-3 text-sm md:grid-cols-3">
-                  <div>
-                    <div className="text-xs text-slate-500">Amount</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {createAmountValid ? formatIncomeJPY(createAmountNumber) : "-"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Account</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      {accounts.find((item) => item.id === accountId)?.name || "-"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Category</div>
-                    <div className="mt-1 font-semibold text-slate-900">
-                      現金収入（自動）
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-                <button
-                  type="button"
-                  onClick={clearActionMode}
-                  disabled={submitLoading}
-                  className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateSubmit}
-                  disabled={!createCanSubmit}
-                  className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {submitLoading ? "保存中..." : "保存"}
-                </button>
-              </div>
-            </div>
-          </aside>
-        </>
-      ) : null}
       <CashIncomeDrawer
-        mode="edit"
-        open={editDrawerOpen}
-        row={editingRow}
-        onClose={() => setEditingRow(null)}
+        mode={cashDrawerMode}
+        open={cashDrawerOpen}
+        row={cashDrawerRow}
+        onClose={closeCashDrawer}
         accounts={accounts}
         formLoading={formLoading}
         submitLoading={submitLoading}
