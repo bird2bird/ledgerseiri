@@ -332,6 +332,33 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     return { total, valid, warning, error };
   }, [cashPreviewRows]);
 
+  const cashPendingRows = useMemo(() => {
+    return cashPreviewRows
+      .filter((row) => row.status !== "error")
+      .map((row) => ({
+        rowNo: row.rowNo,
+        type: "OTHER" as const,
+        direction: "INCOME" as const,
+        accountName: row.account,
+        amount: row.amount,
+        occurredAt: row.occurredAt,
+        memo: `[cash] ${row.memo}`.trim(),
+        source: row.source,
+      }));
+  }, [cashPreviewRows]);
+
+  const cashPendingStats = useMemo(() => {
+    const pendingRows = cashPendingRows.length;
+    const excludedErrorRows = cashPreviewRows.filter((row) => row.status === "error").length;
+    const totalPendingAmount = cashPendingRows.reduce((sum, row) => sum + row.amount, 0);
+
+    return {
+      pendingRows,
+      excludedErrorRows,
+      totalPendingAmount,
+    };
+  }, [cashPendingRows, cashPreviewRows]);
+
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
     setCashPreviewRows(rows);
@@ -662,6 +689,21 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <button
                   type="button"
                   onClick={() => {
+                    const rows = parseCashIncomeCsvDraft(CASH_INCOME_SAMPLE_TEXT);
+                    setCashCsvDraftText(CASH_INCOME_SAMPLE_TEXT);
+                    setCashPreviewRows(rows);
+                    setCashPreviewMessage(
+                      `サンプル CSV を復元し、preview を自動生成しました：rows=${rows.length}。`
+                    );
+                  }}
+                  className="inline-flex rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                >
+                  Use sample + preview
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setCashCsvDraftText(CASH_INCOME_ERROR_SAMPLE_TEXT);
                     setCashPreviewRows([]);
                     setCashPreviewMessage("エラー確認用サンプルをセットしました。Preview CSV を押して validation を確認してください。");
@@ -669,6 +711,23 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   className="inline-flex rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
                 >
                   Use error sample
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rows = parseCashIncomeCsvDraft(CASH_INCOME_ERROR_SAMPLE_TEXT);
+                    const errorCount = rows.filter((row) => row.status === "error").length;
+                    const warningCount = rows.filter((row) => row.status === "warning").length;
+                    setCashCsvDraftText(CASH_INCOME_ERROR_SAMPLE_TEXT);
+                    setCashPreviewRows(rows);
+                    setCashPreviewMessage(
+                      `エラー確認用サンプルをセットし、preview を自動生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。`
+                    );
+                  }}
+                  className="inline-flex rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-50"
+                >
+                  Use error sample + preview
                 </button>
 
                 <div className="text-xs text-slate-500">
@@ -771,6 +830,127 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
           <div className="space-y-4">
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Pending Import Design
+                  </div>
+                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                    Preview 済みの行を、将来の transaction create flow に渡す想定 payload として確認します。現時点では保存せず、DB/API には接続しません。
+                  </div>
+                </div>
+                <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                  design only
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Commit Type</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">OTHER</div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Direction</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">INCOME</div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Memo Prefix</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">[cash]</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Pending Rows</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {cashPendingStats.pendingRows}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Excluded Error Rows</div>
+                  <div className="mt-1 text-lg font-semibold text-rose-700">
+                    {cashPendingStats.excludedErrorRows}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Total Pending Amount</div>
+                  <div className="mt-1 text-lg font-semibold text-emerald-700">
+                    ¥{cashPendingStats.totalPendingAmount.toLocaleString("ja-JP")}
+                  </div>
+                </div>
+              </div>
+
+              {cashPendingStats.excludedErrorRows > 0 ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                  エラー行は pending payload から除外されます。修正後に Preview CSV を再実行してください。
+                </div>
+              ) : null}
+
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                正式導入は後続ステップで transaction create flow に接続します。accountName は accountId 照合が必要なため、この段階では pending payload として表示のみ行います。
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                <div className="min-w-[920px]">
+                  <div className="grid grid-cols-[70px_90px_100px_120px_120px_130px_1fr_120px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <div>Row</div>
+                    <div>Type</div>
+                    <div>Direction</div>
+                    <div>Account</div>
+                    <div>Amount</div>
+                    <div>Occurred</div>
+                    <div>Memo</div>
+                    <div>Source</div>
+                  </div>
+
+                  {cashPendingRows.length > 0 ? (
+                    cashPendingRows.map((row) => (
+                      <div
+                        key={`pending-${row.rowNo}-${row.amount}-${row.memo}`}
+                        className="grid grid-cols-[70px_90px_100px_120px_120px_130px_1fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                      >
+                        <div className="text-slate-500">{row.rowNo}</div>
+                        <div className="font-semibold text-slate-900">{row.type}</div>
+                        <div className="font-semibold text-slate-900">{row.direction}</div>
+                        <div className="text-slate-700">{row.accountName || "-"}</div>
+                        <div className="text-slate-700">
+                          ¥{row.amount.toLocaleString("ja-JP")}
+                        </div>
+                        <div className="text-slate-600">{row.occurredAt || "-"}</div>
+                        <div className="text-slate-600">{row.memo}</div>
+                        <div className="text-slate-600">{row.source || "-"}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-sm text-slate-500">
+                      Preview CSV を実行すると、エラー以外の行が pending import payload として表示されます。
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <div className="text-xs leading-5 text-slate-500">
+                  次ステップでは、この payload を transaction create flow に接続し、accountName → accountId の照合と一括登録 API を追加します。
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {cashPendingStats.pendingRows > 0 ? (
+                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
+                      後続 API 接続待ち
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex cursor-not-allowed rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-40"
+                  >
+                    次のステップへ進む
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
               <div className="text-sm font-semibold text-slate-900">
                 現在の実装ステータス
               </div>
@@ -794,9 +974,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
-                  <div className="text-xs text-slate-500">Commit</div>
+                  <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    未実装。type=OTHER / direction=INCOME / cash marker 連携予定
+                    pending rows / excluded errors / total amount の連動表示まで完了
                   </div>
                 </div>
               </div>
@@ -810,7 +990,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>1. CSV サンプルフォーマット表示：完了</li>
                 <li>2. クライアント側 preview table placeholder：完了</li>
                 <li>3. CSV validation と preview state：完了（client-side only）</li>
-                <li>4. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
+                <li>4. Pending import payload design：完了</li>
+                <li>5. Pending payload summary linkage：完了</li>
+                <li>6. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
