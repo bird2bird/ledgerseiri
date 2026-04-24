@@ -238,7 +238,10 @@ function mapIncomeRow(item: TransactionItem): IncomeRow {
     id: item.id,
     date: item.occurredAt ? new Date(item.occurredAt).toLocaleDateString("ja-JP") : "-",
     category,
-    label: item.productName ?? item.categoryName ?? item.type ?? "収入",
+    label:
+      category === "cash"
+        ? item.categoryName ?? "現金収入"
+        : item.categoryName ?? item.productName ?? item.type ?? "収入",
     amount: Number(item.amount ?? 0),
     account: item.accountName ?? "-",
     store: item.storeName ?? item.storeId ?? "-",

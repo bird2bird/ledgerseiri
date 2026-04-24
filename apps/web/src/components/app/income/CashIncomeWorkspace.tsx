@@ -137,9 +137,8 @@ export function CashIncomeWorkspace(props: {
   const createDrawerOpen = action === "create";
   const createAmountNumber = Number(amount || 0);
   const createAmountValid = Number.isFinite(createAmountNumber) && createAmountNumber > 0;
-  const categoryReady = txCategories.length === 0 || !!categoryId;
   const createCanSubmit =
-    !!accountId && categoryReady && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
+    !!accountId && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
 
   React.useEffect(() => {
     if (safeCurrentPage !== currentPage) {
@@ -158,10 +157,6 @@ export function CashIncomeWorkspace(props: {
 
     if (!accountId) {
       setPanelError("口座を選択してください。");
-      return;
-    }
-    if (txCategories.length > 0 && !categoryId) {
-      setPanelError("カテゴリを選択してください。");
       return;
     }
     if (!createAmountValid) {
@@ -458,26 +453,15 @@ export function CashIncomeWorkspace(props: {
                   </select>
                 </label>
 
-                <label className="block">
+                <div className="block">
                   <div className="mb-2 text-sm font-medium text-slate-700">カテゴリ</div>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    disabled={formLoading || submitLoading}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
-                  >
-                    {txCategories.length === 0 ? (
-                      <option value="">現金収入（カテゴリ未設定）</option>
-                    ) : (
-                      <option value="">未選択</option>
-                    )}
-                    {txCategories.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <div className="flex h-11 w-full items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-900">
+                    現金収入（自動）
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    現金収入ワークスペースではカテゴリを自動設定します。
+                  </div>
+                </div>
 
                 <label className="block">
                   <div className="mb-2 text-sm font-medium text-slate-700">金額</div>
@@ -533,9 +517,7 @@ export function CashIncomeWorkspace(props: {
                   <div>
                     <div className="text-xs text-slate-500">Category</div>
                     <div className="mt-1 font-semibold text-slate-900">
-                      {txCategories.length === 0
-                        ? "現金収入（カテゴリ未設定）"
-                        : txCategories.find((item) => item.id === categoryId)?.name || "-"}
+                      現金収入（自動）
                     </div>
                   </div>
                 </div>

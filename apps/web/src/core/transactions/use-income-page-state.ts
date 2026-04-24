@@ -417,14 +417,14 @@ export function useIncomePageState(args: {
 
       await createTransaction({
         accountId: accountId || null,
-        categoryId: categoryId || null,
-        type: "INCOME_MANUAL",
+        categoryId: category === "cash" ? null : categoryId || null,
+        type: "OTHER",
         direction: "INCOME",
         amount: Number(amount || 0),
         currency: "JPY",
         occurredAt: new Date(occurredAt).toISOString(),
         memo:
-          category === "cash" && !categoryId
+          category === "cash"
             ? `[cash] ${memo || "現金収入"}`
             : memo,
       });
