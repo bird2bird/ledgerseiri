@@ -212,6 +212,25 @@ export function IncomePageClient(props: {
           setPageSize={state.setPageSize}
           currentPage={state.currentPage}
           setCurrentPage={state.setCurrentPage}
+          action={action}
+          clearActionMode={orchestration.clearActionMode}
+          accounts={state.accounts}
+          txCategories={state.txCategories}
+          formLoading={state.formLoading}
+          submitLoading={state.submitLoading}
+          panelError={state.panelError}
+          setPanelError={state.setPanelError}
+          accountId={state.accountId}
+          setAccountId={state.setAccountId}
+          categoryId={state.categoryId}
+          setCategoryId={state.setCategoryId}
+          amount={state.amount}
+          setAmount={state.setAmount}
+          occurredAt={state.occurredAt}
+          setOccurredAt={state.setOccurredAt}
+          memo={state.memo}
+          setMemo={state.setMemo}
+          submitCreate={state.submitCreate}
           sidebarActions={orchestration.sidebarActions.map((item) => ({
             ...item,
             label:

@@ -7,6 +7,26 @@ import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 
+type CashActionItem = {
+  label: string;
+  href?: string;
+  disabled?: boolean;
+};
+
+type CashAccountOption = {
+  id: string;
+  name: string;
+  type?: string | null;
+  currency?: string | null;
+};
+
+type CashCategoryOption = {
+  id: string;
+  name: string;
+  direction?: string | null;
+  code?: string | null;
+};
+
 function parseRowDateMs(row: IncomeRow) {
   const raw = String((row as any).sortAt || (row as any).importedAt || row.date || "");
   const ts = new Date(raw).getTime();
@@ -30,11 +50,29 @@ export function CashIncomeWorkspace(props: {
   setPageSize: (next: 20 | 50 | 100) => void;
   currentPage: number;
   setCurrentPage: (next: number) => void;
-  sidebarActions: Array<{
-    label: string;
-    href?: string;
-    disabled?: boolean;
-  }>;
+  sidebarActions: CashActionItem[];
+
+  action: string;
+  clearActionMode: () => void;
+
+  accounts: CashAccountOption[];
+  txCategories: CashCategoryOption[];
+  formLoading: boolean;
+  submitLoading: boolean;
+  panelError: string;
+  setPanelError: (next: string) => void;
+
+  accountId: string;
+  setAccountId: (next: string) => void;
+  categoryId: string;
+  setCategoryId: (next: string) => void;
+  amount: string;
+  setAmount: (next: string) => void;
+  occurredAt: string;
+  setOccurredAt: (next: string) => void;
+  memo: string;
+  setMemo: (next: string) => void;
+  submitCreate: () => Promise<void>;
 }) {
   const {
     rows,
@@ -46,6 +84,27 @@ export function CashIncomeWorkspace(props: {
     currentPage,
     setCurrentPage,
     sidebarActions,
+
+    action,
+    clearActionMode,
+
+    accounts,
+    txCategories,
+    formLoading,
+    submitLoading,
+    panelError,
+    setPanelError,
+    accountId,
+    setAccountId,
+    categoryId,
+    setCategoryId,
+    amount,
+    setAmount,
+    occurredAt,
+    setOccurredAt,
+    memo,
+    setMemo,
+    submitCreate,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
@@ -75,6 +134,12 @@ export function CashIncomeWorkspace(props: {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
+  const createDrawerOpen = action === "create";
+  const createAmountNumber = Number(amount || 0);
+  const createAmountValid = Number.isFinite(createAmountNumber) && createAmountNumber > 0;
+  const createCanSubmit =
+    !!accountId && !!categoryId && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
+
   React.useEffect(() => {
     if (safeCurrentPage !== currentPage) {
       setCurrentPage(safeCurrentPage);
@@ -86,6 +151,34 @@ export function CashIncomeWorkspace(props: {
     const exists = sortedRows.some((row) => row.id === selectedRowId);
     if (!exists) onSelectRow("");
   }, [sortedRows, selectedRowId, onSelectRow]);
+
+  async function handleCreateSubmit() {
+    setPanelError("");
+
+    if (!accountId) {
+      setPanelError("口座を選択してください。");
+      return;
+    }
+    if (!categoryId) {
+      setPanelError("カテゴリを選択してください。");
+      return;
+    }
+    if (!createAmountValid) {
+      setPanelError("金額は 0 より大きい数値を入力してください。");
+      return;
+    }
+    if (!occurredAt) {
+      setPanelError("発生日を入力してください。");
+      return;
+    }
+
+    try {
+      await submitCreate();
+      clearActionMode();
+    } catch {
+      // panelError is handled by useIncomePageState.submitCreate()
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -102,7 +195,11 @@ export function CashIncomeWorkspace(props: {
                   "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
                   item.disabled
                     ? "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                    : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                    : item.label === "新規現金収入"
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                      : item.label === "現金収入CSV取込"
+                        ? "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
               >
                 {item.label}
@@ -124,7 +221,7 @@ export function CashIncomeWorkspace(props: {
           <div>
             <div className="text-lg font-semibold text-slate-900">Cash Income Rows</div>
             <div className="mt-1 text-sm text-slate-500">
-              現金入金明細を一覧で確認し、選択行の概要と編集導線をこの領域で扱います。
+              現金入金明細を一覧で確認し、クリックした行の概要をすばやく確認できます。
             </div>
           </div>
 
@@ -181,7 +278,7 @@ export function CashIncomeWorkspace(props: {
         ) : null}
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="grid grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+          <div className="grid grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
             <div>Date</div>
             <div>Label</div>
             <div>Memo / Store</div>
@@ -200,8 +297,8 @@ export function CashIncomeWorkspace(props: {
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
                     active
-                      ? "bg-slate-50 ring-1 ring-inset ring-slate-300"
-                      : "bg-white hover:bg-slate-50/80",
+                      ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300 shadow-sm"
+                      : "bg-white hover:bg-slate-50/80 hover:shadow-[inset_3px_0_0_#CBD5E1]",
                   ].join(" ")}
                 >
                   <div className="text-slate-600">{row.date}</div>
@@ -222,9 +319,9 @@ export function CashIncomeWorkspace(props: {
           ) : (
             <div className="border-t border-slate-100 bg-white px-6 py-12">
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
-                <div className="text-base font-medium text-slate-900">まだ現金収入データがありません</div>
+                <div className="text-base font-medium text-slate-900">現金収入データがまだ登録されていません</div>
                 <div className="mt-2 text-sm text-slate-500">
-                  新規登録または CSV 取込から現金収入データを追加すると、ここに一覧が表示されます。
+                  「新規現金収入」または「現金収入CSV取込」からデータを追加すると、ここに明細が表示されます。
                 </div>
               </div>
             </div>
@@ -306,6 +403,159 @@ export function CashIncomeWorkspace(props: {
           </div>
         </div>
       </div>
+
+      {createDrawerOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close cash income create drawer backdrop"
+            onClick={clearActionMode}
+            className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
+          />
+
+          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xl font-semibold text-slate-900">新規現金収入を登録</div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    現金入金データを手動で追加します。
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearActionMode}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-5 px-6 py-6">
+              {panelError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {panelError}
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <div className="mb-2 text-sm font-medium text-slate-700">口座</div>
+                  <select
+                    value={accountId}
+                    onChange={(e) => setAccountId(e.target.value)}
+                    disabled={formLoading || submitLoading}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                  >
+                    <option value="">未選択</option>
+                    {accounts.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <div className="mb-2 text-sm font-medium text-slate-700">カテゴリ</div>
+                  <select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    disabled={formLoading || submitLoading}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                  >
+                    <option value="">未選択</option>
+                    {txCategories.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <div className="mb-2 text-sm font-medium text-slate-700">金額</div>
+                  <input
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    disabled={formLoading || submitLoading}
+                    inputMode="numeric"
+                    placeholder="例: 12000"
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                  />
+                </label>
+
+                <label className="block">
+                  <div className="mb-2 text-sm font-medium text-slate-700">発生日</div>
+                  <input
+                    type="datetime-local"
+                    value={occurredAt}
+                    onChange={(e) => setOccurredAt(e.target.value)}
+                    disabled={formLoading || submitLoading}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <div className="mb-2 text-sm font-medium text-slate-700">メモ</div>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  disabled={formLoading || submitLoading}
+                  rows={5}
+                  placeholder="例: 店頭現金売上 / イベント売上 / 現金補正入金"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 disabled:bg-slate-50"
+                />
+              </label>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <div className="text-sm font-medium text-slate-900">登録プレビュー</div>
+                <div className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+                  <div>
+                    <div className="text-xs text-slate-500">Amount</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {createAmountValid ? formatIncomeJPY(createAmountNumber) : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Account</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {accounts.find((item) => item.id === accountId)?.name || "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Category</div>
+                    <div className="mt-1 font-semibold text-slate-900">
+                      {txCategories.find((item) => item.id === categoryId)?.name || "-"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+                <button
+                  type="button"
+                  onClick={clearActionMode}
+                  disabled={submitLoading}
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateSubmit}
+                  disabled={!createCanSubmit}
+                  className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {submitLoading ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </>
+      ) : null}
     </div>
   );
 }
