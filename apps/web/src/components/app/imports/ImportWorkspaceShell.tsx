@@ -66,6 +66,125 @@ function normalizeImportModuleHint(value?: string | null): ModuleMode {
   return "store-orders";
 }
 
+type CashIncomeDraftRow = {
+  rowNo: number;
+  account: string;
+  amount: number;
+  occurredAt: string;
+  memo: string;
+  source: string;
+  status: "valid" | "warning" | "error";
+  messages: string[];
+};
+
+function splitCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+
+    if (ch === "\"" && next === "\"") {
+      current += "\"";
+      i += 1;
+      continue;
+    }
+
+    if (ch === "\"") {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (ch === "," && !inQuotes) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
+function parseCashIncomeCsvDraft(csvText: string): CashIncomeDraftRow[] {
+  const lines = csvText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+
+  const header = splitCsvLine(lines[0]).map((x) => x.trim());
+  const hasHeader =
+    header.includes("account") ||
+    header.includes("amount") ||
+    header.includes("occurredAt") ||
+    header.includes("memo");
+
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  const columnIndex = {
+    account: hasHeader ? header.indexOf("account") : 0,
+    amount: hasHeader ? header.indexOf("amount") : 1,
+    occurredAt: hasHeader ? header.indexOf("occurredAt") : 2,
+    memo: hasHeader ? header.indexOf("memo") : 3,
+    source: hasHeader ? header.indexOf("source") : 4,
+  };
+
+  return dataLines.map((line, index) => {
+    const cells = splitCsvLine(line);
+    const rowNo = hasHeader ? index + 2 : index + 1;
+    const account = String(cells[columnIndex.account] || "").trim();
+    const amountRaw = String(cells[columnIndex.amount] || "").replace(/[¥,\s]/g, "");
+    const amount = Number(amountRaw || 0);
+    const occurredAt = String(cells[columnIndex.occurredAt] || "").trim();
+    const memo = String(cells[columnIndex.memo] || "").trim();
+    const source =
+      columnIndex.source >= 0 ? String(cells[columnIndex.source] || "").trim() : "";
+
+    const messages: string[] = [];
+
+    if (!account) messages.push("account is required");
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      messages.push("amount must be greater than 0");
+    }
+
+    if (!occurredAt) {
+      messages.push("occurredAt is required");
+    } else if (Number.isNaN(new Date(occurredAt).getTime())) {
+      messages.push("occurredAt is not parseable");
+    }
+
+    if (!memo) {
+      messages.push("memo is recommended");
+    } else if (memo.length > 240) {
+      messages.push("memo is too long");
+    }
+
+    const hasError = messages.some((msg) =>
+      msg.includes("required") ||
+      msg.includes("greater than 0") ||
+      msg.includes("not parseable")
+    );
+
+    return {
+      rowNo,
+      account,
+      amount,
+      occurredAt,
+      memo,
+      source,
+      status: hasError ? "error" : messages.length > 0 ? "warning" : "valid",
+      messages,
+    };
+  });
+}
+
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
   const params = useParams<{ lang: string }>();
@@ -81,6 +200,15 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  const [cashCsvDraftText, setCashCsvDraftText] = useState([
+    "account,amount,occurredAt,memo,source",
+    "現金,12000,2026-04-24,店頭現金売上,横浜店",
+    "現金,8500,2026-04-25,イベント現金売上,展示会",
+    "現金,3000,2026-04-26,現金補正入金,手動調整",
+  ].join("\n"));
+  const [cashPreviewRows, setCashPreviewRows] = useState<CashIncomeDraftRow[]>([]);
+  const [cashPreviewMessage, setCashPreviewMessage] = useState("");
 
   const [detectResult, setDetectResult] =
     useState<DetectMonthConflictsResponse | null>(null);
@@ -165,6 +293,32 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const canRun = useMemo(() => {
     return !!csvText.trim() && !!filename.trim();
   }, [csvText, filename]);
+
+  const cashPreviewStats = useMemo(() => {
+    const total = cashPreviewRows.length;
+    const valid = cashPreviewRows.filter((row) => row.status === "valid").length;
+    const warning = cashPreviewRows.filter((row) => row.status === "warning").length;
+    const error = cashPreviewRows.filter((row) => row.status === "error").length;
+
+    return { total, valid, warning, error };
+  }, [cashPreviewRows]);
+
+  function runCashClientPreview() {
+    const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
+    setCashPreviewRows(rows);
+
+    if (rows.length === 0) {
+      setCashPreviewMessage("CSV draft is empty.");
+      return;
+    }
+
+    const errorCount = rows.filter((row) => row.status === "error").length;
+    const warningCount = rows.filter((row) => row.status === "warning").length;
+
+    setCashPreviewMessage(
+      `Preview generated: rows=${rows.length}, error=${errorCount}, warning=${warningCount}. This preview is client-side only.`
+    );
+  }
 
   async function loadHistory(moduleOverride?: ModuleMode) {
     setHistoryLoading(true);
@@ -424,20 +578,88 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">
-                    Preview Table Placeholder
+                    Client-side Draft Preview
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    CSV を読み込んだ後、このような preview table で登録前確認を行う想定です。現時点では静的サンプルです。
+                    CSV を貼り付けて、保存前にブラウザ上だけで preview / validation を確認します。DB と API には接続しません。
                   </div>
                 </div>
-                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                  not connected
+                <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                  client only
+                </div>
+              </div>
+
+              <textarea
+                value={cashCsvDraftText}
+                onChange={(e) => setCashCsvDraftText(e.target.value)}
+                rows={7}
+                className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-xs leading-6 text-slate-700"
+                placeholder="account,amount,occurredAt,memo,source"
+              />
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={runCashClientPreview}
+                  className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Preview CSV
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashCsvDraftText("");
+                    setCashPreviewRows([]);
+                    setCashPreviewMessage("Draft cleared.");
+                  }}
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Clear Draft
+                </button>
+
+                <div className="text-xs text-slate-500">
+                  No DB write / No API call
+                </div>
+              </div>
+
+              {cashPreviewMessage ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-700">
+                  {cashPreviewMessage}
+                </div>
+              ) : null}
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                <div className="rounded-2xl bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Rows</div>
+                  <div className="mt-1 text-lg font-semibold text-slate-900">
+                    {cashPreviewStats.total}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Valid</div>
+                  <div className="mt-1 text-lg font-semibold text-emerald-700">
+                    {cashPreviewStats.valid}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Warning</div>
+                  <div className="mt-1 text-lg font-semibold text-amber-700">
+                    {cashPreviewStats.warning}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white p-3">
+                  <div className="text-[11px] text-slate-500">Error</div>
+                  <div className="mt-1 text-lg font-semibold text-rose-700">
+                    {cashPreviewStats.error}
+                  </div>
                 </div>
               </div>
 
               <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <div className="min-w-[760px]">
-                  <div className="grid grid-cols-[120px_120px_130px_1fr_120px_120px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <div className="min-w-[900px]">
+                  <div className="grid grid-cols-[70px_120px_120px_130px_1fr_120px_170px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <div>Row</div>
                     <div>Account</div>
                     <div>Amount</div>
                     <div>Occurred</div>
@@ -446,50 +668,45 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     <div>Status</div>
                   </div>
 
-                  {[
-                    {
-                      account: "現金",
-                      amount: "12000",
-                      occurredAt: "2026-04-24",
-                      memo: "店頭現金売上",
-                      source: "横浜店",
-                      status: "preview only",
-                    },
-                    {
-                      account: "現金",
-                      amount: "8500",
-                      occurredAt: "2026-04-25",
-                      memo: "イベント現金売上",
-                      source: "展示会",
-                      status: "preview only",
-                    },
-                    {
-                      account: "現金",
-                      amount: "3000",
-                      occurredAt: "2026-04-26",
-                      memo: "現金補正入金",
-                      source: "手動調整",
-                      status: "preview only",
-                    },
-                  ].map((row) => (
-                    <div
-                      key={`${row.occurredAt}-${row.amount}-${row.memo}`}
-                      className="grid grid-cols-[120px_120px_130px_1fr_120px_120px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
-                    >
-                      <div className="font-medium text-slate-900">{row.account}</div>
-                      <div className="text-slate-700">
-                        ¥{Number(row.amount).toLocaleString("ja-JP")}
+                  {cashPreviewRows.length > 0 ? (
+                    cashPreviewRows.map((row) => (
+                      <div
+                        key={`${row.rowNo}-${row.account}-${row.amount}-${row.memo}`}
+                        className="grid grid-cols-[70px_120px_120px_130px_1fr_120px_170px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                      >
+                        <div className="text-slate-500">{row.rowNo}</div>
+                        <div className="font-medium text-slate-900">{row.account || "-"}</div>
+                        <div className="text-slate-700">
+                          {row.amount > 0 ? `¥${row.amount.toLocaleString("ja-JP")}` : "-"}
+                        </div>
+                        <div className="text-slate-600">{row.occurredAt || "-"}</div>
+                        <div className="text-slate-600">{row.memo || "-"}</div>
+                        <div className="text-slate-600">{row.source || "-"}</div>
+                        <div>
+                          <div
+                            className={
+                              row.status === "valid"
+                                ? "inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                                : row.status === "warning"
+                                  ? "inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-200"
+                                  : "inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200"
+                            }
+                          >
+                            {row.status}
+                          </div>
+                          {row.messages.length > 0 ? (
+                            <div className="mt-1 text-[11px] leading-4 text-slate-500">
+                              {row.messages.join(" / ")}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="text-slate-600">{row.occurredAt}</div>
-                      <div className="text-slate-600">{row.memo}</div>
-                      <div className="text-slate-600">{row.source}</div>
-                      <div>
-                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-                          {row.status}
-                        </span>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-sm text-slate-500">
+                      Paste CSV and click Preview CSV.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -516,7 +733,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Preview</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    Preview table placeholder：完了。実データ parsing は未接続
+                    Client-side preview：完了。DB/API には未接続
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
@@ -535,7 +752,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-800">
                 <li>1. CSV サンプルフォーマット表示：完了</li>
                 <li>2. クライアント側 preview table placeholder：完了</li>
-                <li>3. 次ステップ：CSV validation と preview state を追加</li>
+                <li>3. CSV validation と preview state：完了（client-side only）</li>
                 <li>4. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
