@@ -423,7 +423,10 @@ export function useIncomePageState(args: {
         amount: Number(amount || 0),
         currency: "JPY",
         occurredAt: new Date(occurredAt).toISOString(),
-        memo,
+        memo:
+          category === "cash" && !categoryId
+            ? `[cash] ${memo || "現金収入"}`
+            : memo,
       });
 
       setAmount("");

@@ -137,8 +137,9 @@ export function CashIncomeWorkspace(props: {
   const createDrawerOpen = action === "create";
   const createAmountNumber = Number(amount || 0);
   const createAmountValid = Number.isFinite(createAmountNumber) && createAmountNumber > 0;
+  const categoryReady = txCategories.length === 0 || !!categoryId;
   const createCanSubmit =
-    !!accountId && !!categoryId && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
+    !!accountId && categoryReady && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
 
   React.useEffect(() => {
     if (safeCurrentPage !== currentPage) {
@@ -159,7 +160,7 @@ export function CashIncomeWorkspace(props: {
       setPanelError("口座を選択してください。");
       return;
     }
-    if (!categoryId) {
+    if (txCategories.length > 0 && !categoryId) {
       setPanelError("カテゴリを選択してください。");
       return;
     }
@@ -465,7 +466,11 @@ export function CashIncomeWorkspace(props: {
                     disabled={formLoading || submitLoading}
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
                   >
-                    <option value="">未選択</option>
+                    {txCategories.length === 0 ? (
+                      <option value="">現金収入（カテゴリ未設定）</option>
+                    ) : (
+                      <option value="">未選択</option>
+                    )}
                     {txCategories.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -528,7 +533,9 @@ export function CashIncomeWorkspace(props: {
                   <div>
                     <div className="text-xs text-slate-500">Category</div>
                     <div className="mt-1 font-semibold text-slate-900">
-                      {txCategories.find((item) => item.id === categoryId)?.name || "-"}
+                      {txCategories.length === 0
+                        ? "現金収入（カテゴリ未設定）"
+                        : txCategories.find((item) => item.id === categoryId)?.name || "-"}
                     </div>
                   </div>
                 </div>
