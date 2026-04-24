@@ -7,7 +7,9 @@ import {
   commitImportSkeleton,
   detectMonthConflicts,
   loadImportHistorySkeleton,
+  previewCashIncomeImport,
   previewImportSkeleton,
+  type CashIncomePreviewResponse,
   type CommitImportResponse,
   type DetectMonthConflictsResponse,
   type ImportHistoryResponse,
@@ -238,6 +240,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [cashCsvDraftText, setCashCsvDraftText] = useState(CASH_INCOME_SAMPLE_TEXT);
   const [cashPreviewRows, setCashPreviewRows] = useState<CashIncomeDraftRow[]>([]);
   const [cashPreviewMessage, setCashPreviewMessage] = useState("");
+  const [cashServerPreview, setCashServerPreview] =
+    useState<CashIncomePreviewResponse | null>(null);
+  const [cashServerPreviewLoading, setCashServerPreviewLoading] = useState(false);
+  const [cashServerPreviewError, setCashServerPreviewError] = useState("");
 
   const [detectResult, setDetectResult] =
     useState<DetectMonthConflictsResponse | null>(null);
@@ -362,6 +368,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
     setCashPreviewRows(rows);
+    setCashServerPreview(null);
+    setCashServerPreviewError("");
 
     if (rows.length === 0) {
       setCashPreviewMessage("CSV draft が空です。");
@@ -374,6 +382,49 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     setCashPreviewMessage(
       `プレビューを生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。この preview はブラウザ上のみで実行され、DB/API には接続していません。`
     );
+  }
+
+  async function runCashServerPreview() {
+    setCashServerPreviewLoading(true);
+    setCashServerPreviewError("");
+
+    try {
+      const rowsForServer =
+        cashPreviewRows.length > 0
+          ? cashPreviewRows
+          : parseCashIncomeCsvDraft(cashCsvDraftText);
+
+      if (rowsForServer.length === 0) {
+        setCashServerPreview(null);
+        setCashServerPreviewError("Server preview に送信する行がありません。");
+        return;
+      }
+
+      if (cashPreviewRows.length === 0) {
+        setCashPreviewRows(rowsForServer);
+      }
+
+      const res = await previewCashIncomeImport({
+        filename: "cash-income.csv",
+        rows: rowsForServer.map((row) => ({
+          rowNo: row.rowNo,
+          accountName: row.account,
+          amount: row.amount,
+          occurredAt: row.occurredAt,
+          memo: row.memo,
+          source: row.source || undefined,
+        })),
+      });
+
+      setCashServerPreview(res);
+    } catch (err) {
+      setCashServerPreview(null);
+      setCashServerPreviewError(
+        err instanceof Error ? err.message : "cash income server preview failed"
+      );
+    } finally {
+      setCashServerPreviewLoading(false);
+    }
   }
 
   async function loadHistory(moduleOverride?: ModuleMode) {
@@ -667,6 +718,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   onClick={() => {
                     setCashCsvDraftText("");
                     setCashPreviewRows([]);
+                    setCashServerPreview(null);
+                    setCashServerPreviewError("");
                     setCashPreviewMessage("Draft をクリアしました。");
                   }}
                   className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -679,6 +732,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   onClick={() => {
                     setCashCsvDraftText(CASH_INCOME_SAMPLE_TEXT);
                     setCashPreviewRows([]);
+                    setCashServerPreview(null);
+                    setCashServerPreviewError("");
                     setCashPreviewMessage("サンプル CSV を復元しました。Preview CSV を押して確認してください。");
                   }}
                   className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -692,6 +747,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     const rows = parseCashIncomeCsvDraft(CASH_INCOME_SAMPLE_TEXT);
                     setCashCsvDraftText(CASH_INCOME_SAMPLE_TEXT);
                     setCashPreviewRows(rows);
+                    setCashServerPreview(null);
+                    setCashServerPreviewError("");
                     setCashPreviewMessage(
                       `サンプル CSV を復元し、preview を自動生成しました：rows=${rows.length}。`
                     );
@@ -706,6 +763,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   onClick={() => {
                     setCashCsvDraftText(CASH_INCOME_ERROR_SAMPLE_TEXT);
                     setCashPreviewRows([]);
+                    setCashServerPreview(null);
+                    setCashServerPreviewError("");
                     setCashPreviewMessage("エラー確認用サンプルをセットしました。Preview CSV を押して validation を確認してください。");
                   }}
                   className="inline-flex rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
@@ -721,6 +780,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     const warningCount = rows.filter((row) => row.status === "warning").length;
                     setCashCsvDraftText(CASH_INCOME_ERROR_SAMPLE_TEXT);
                     setCashPreviewRows(rows);
+                    setCashServerPreview(null);
+                    setCashServerPreviewError("");
                     setCashPreviewMessage(
                       `エラー確認用サンプルをセットし、preview を自動生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。`
                     );
@@ -941,6 +1002,14 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   ) : null}
                   <button
                     type="button"
+                    onClick={() => void runCashServerPreview()}
+                    disabled={cashServerPreviewLoading || cashPreviewRows.length === 0}
+                    className="inline-flex rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {cashServerPreviewLoading ? "Server Preview..." : "Server Preview"}
+                  </button>
+                  <button
+                    type="button"
                     disabled
                     className="inline-flex cursor-not-allowed rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-40"
                   >
@@ -948,6 +1017,100 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   </button>
                 </div>
               </div>
+
+              <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                Server contract preview only / No transaction commit / DB write not connected
+              </div>
+
+              {cashServerPreviewError ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+                  {cashServerPreviewError}
+                </div>
+              ) : null}
+
+              {cashServerPreview ? (
+                <div className="mt-4 rounded-[22px] border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        Server Preview Result
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">
+                        H4-A mock endpoint から返却された normalizedPayload です。保存処理はまだ実行しません。
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                      {cashServerPreview.action}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-5">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Total Rows</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {cashServerPreview.summary.totalRows}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Pending</div>
+                      <div className="mt-1 text-lg font-semibold text-emerald-700">
+                        {cashServerPreview.summary.pendingRows}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Error</div>
+                      <div className="mt-1 text-lg font-semibold text-rose-700">
+                        {cashServerPreview.summary.errorRows}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Warning</div>
+                      <div className="mt-1 text-lg font-semibold text-amber-700">
+                        {cashServerPreview.summary.warningRows}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Amount</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        ¥{cashServerPreview.summary.totalPendingAmount.toLocaleString("ja-JP")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                    <div className="min-w-[980px]">
+                      <div className="grid grid-cols-[70px_110px_120px_120px_130px_1fr_160px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                        <div>Row</div>
+                        <div>Status</div>
+                        <div>Type</div>
+                        <div>Amount</div>
+                        <div>Occurred</div>
+                        <div>Memo</div>
+                        <div>Account</div>
+                      </div>
+
+                      {cashServerPreview.rows.map((row) => (
+                        <div
+                          key={`server-${row.rowNo}-${row.matchStatus}`}
+                          className="grid grid-cols-[70px_110px_120px_120px_130px_1fr_160px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                        >
+                          <div className="text-slate-500">{row.rowNo}</div>
+                          <div className="font-semibold text-slate-900">{row.matchStatus}</div>
+                          <div className="text-slate-700">{row.normalizedPayload.type}</div>
+                          <div className="text-slate-700">
+                            ¥{row.normalizedPayload.amount.toLocaleString("ja-JP")}
+                          </div>
+                          <div className="text-slate-600">{row.normalizedPayload.occurredAt || "-"}</div>
+                          <div className="text-slate-600">{row.normalizedPayload.memo}</div>
+                          <div className="text-slate-600">
+                            {row.normalizedPayload.accountName || "-"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
@@ -976,7 +1139,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    pending rows / excluded errors / total amount の連動表示まで完了
+                    server preview contract 接続まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -992,7 +1155,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>3. CSV validation と preview state：完了（client-side only）</li>
                 <li>4. Pending import payload design：完了</li>
                 <li>5. Pending payload summary linkage：完了</li>
-                <li>6. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
+                <li>6. Server preview contract 接続：完了</li>
+                <li>7. 将来：口座名照合と正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
