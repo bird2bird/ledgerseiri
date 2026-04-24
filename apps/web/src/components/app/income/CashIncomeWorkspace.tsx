@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
+import { CashIncomeDrawer } from "@/components/app/income/CashIncomeDrawer";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 
@@ -76,6 +77,7 @@ export function CashIncomeWorkspace(props: any) {
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
+  const [editingRow, setEditingRow] = React.useState<IncomeRow | null>(null);
 
   const sortedRows = React.useMemo(() => {
     const next = [...rows];
@@ -142,6 +144,16 @@ export function CashIncomeWorkspace(props: any) {
     } catch {
       // panelError is handled by useIncomePageState.submitCreate()
     }
+  }
+
+  const createDrawerOpen = action === "create";
+  const editDrawerOpen = editingRow !== null;
+
+  function openEdit(row: IncomeRow) {
+    onSelectRow(row.id);
+    setEditAmount(String(row.amount || ""));
+    setEditMemo(row.memo || "");
+    setEditingRow(row);
   }
 
   return (
@@ -257,7 +269,7 @@ export function CashIncomeWorkspace(props: any) {
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() => onSelectRow(row.id)}
+                  onClick={() => openEdit(row)}
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
                     active
@@ -513,6 +525,35 @@ export function CashIncomeWorkspace(props: any) {
           </aside>
         </>
       ) : null}
+      <CashIncomeDrawer
+        mode="edit"
+        open={editDrawerOpen}
+        row={editingRow}
+        onClose={() => setEditingRow(null)}
+        accounts={accounts}
+        formLoading={formLoading}
+        submitLoading={submitLoading}
+        panelError={panelError}
+        setPanelError={setPanelError}
+        accountId={accountId}
+        setAccountId={setAccountId}
+        amount={amount}
+        setAmount={setAmount}
+        occurredAt={occurredAt}
+        setOccurredAt={setOccurredAt}
+        memo={memo}
+        setMemo={setMemo}
+        submitCreate={submitCreate}
+        editAmount={editAmount}
+        setEditAmount={setEditAmount}
+        editMemo={editMemo}
+        setEditMemo={setEditMemo}
+        editUiError={editUiError}
+        editUiMessage={editUiMessage}
+        editSaveLoading={editSaveLoading}
+        editCanSave={editCanSave}
+        handleEditSave={handleEditSave}
+      />
     </div>
   );
 }
