@@ -60,6 +60,40 @@ function renderTagList(values?: string[]) {
 
 type ModuleMode = "store-orders" | "store-operation" | "cash-income";
 
+const CASH_INCOME_SAMPLE_TEXT = [
+  "account,amount,occurredAt,memo,source",
+  "現金,12000,2026-04-24,店頭現金売上,横浜店",
+  "現金,8500,2026-04-25,イベント現金売上,展示会",
+  "現金,3000,2026-04-26,現金補正入金,手動調整",
+].join("\n");
+
+const CASH_INCOME_ERROR_SAMPLE_TEXT = [
+  "account,amount,occurredAt,memo,source",
+  ",12000,2026-04-24,店頭現金売上,横浜店",
+  "現金,-1,2026-04-25,イベント現金売上,展示会",
+  "現金,3000,abc,,手動調整",
+].join("\n");
+
+function formatCashDraftMessage(message: string) {
+  if (message === "account is required") return "口座名が未入力です";
+  if (message === "amount must be greater than 0") {
+    return "金額は 0 より大きい数値を入力してください";
+  }
+  if (message === "occurredAt is required") return "発生日が未入力です";
+  if (message === "occurredAt is not parseable") {
+    return "発生日を日付形式で入力してください";
+  }
+  if (message === "memo is recommended") return "メモの入力を推奨します";
+  if (message === "memo is too long") return "メモは 240 文字以内で入力してください";
+  return message;
+}
+
+function formatCashDraftStatusLabel(status: CashIncomeDraftRow["status"]) {
+  if (status === "valid") return "OK";
+  if (status === "warning") return "確認";
+  return "エラー";
+}
+
 function normalizeImportModuleHint(value?: string | null): ModuleMode {
   if (value === "store-operation") return "store-operation";
   if (value === "cash-income") return "cash-income";
@@ -201,12 +235,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const [cashCsvDraftText, setCashCsvDraftText] = useState([
-    "account,amount,occurredAt,memo,source",
-    "現金,12000,2026-04-24,店頭現金売上,横浜店",
-    "現金,8500,2026-04-25,イベント現金売上,展示会",
-    "現金,3000,2026-04-26,現金補正入金,手動調整",
-  ].join("\n"));
+  const [cashCsvDraftText, setCashCsvDraftText] = useState(CASH_INCOME_SAMPLE_TEXT);
   const [cashPreviewRows, setCashPreviewRows] = useState<CashIncomeDraftRow[]>([]);
   const [cashPreviewMessage, setCashPreviewMessage] = useState("");
 
@@ -308,7 +337,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     setCashPreviewRows(rows);
 
     if (rows.length === 0) {
-      setCashPreviewMessage("CSV draft is empty.");
+      setCashPreviewMessage("CSV draft が空です。");
       return;
     }
 
@@ -316,7 +345,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     const warningCount = rows.filter((row) => row.status === "warning").length;
 
     setCashPreviewMessage(
-      `Preview generated: rows=${rows.length}, error=${errorCount}, warning=${warningCount}. This preview is client-side only.`
+      `プレビューを生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。この preview はブラウザ上のみで実行され、DB/API には接続していません。`
     );
   }
 
@@ -611,11 +640,35 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   onClick={() => {
                     setCashCsvDraftText("");
                     setCashPreviewRows([]);
-                    setCashPreviewMessage("Draft cleared.");
+                    setCashPreviewMessage("Draft をクリアしました。");
                   }}
                   className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Clear Draft
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashCsvDraftText(CASH_INCOME_SAMPLE_TEXT);
+                    setCashPreviewRows([]);
+                    setCashPreviewMessage("サンプル CSV を復元しました。Preview CSV を押して確認してください。");
+                  }}
+                  className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  Use sample
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashCsvDraftText(CASH_INCOME_ERROR_SAMPLE_TEXT);
+                    setCashPreviewRows([]);
+                    setCashPreviewMessage("エラー確認用サンプルをセットしました。Preview CSV を押して validation を確認してください。");
+                  }}
+                  className="inline-flex rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+                >
+                  Use error sample
                 </button>
 
                 <div className="text-xs text-slate-500">
@@ -628,6 +681,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   {cashPreviewMessage}
                 </div>
               ) : null}
+
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                エラー動作を確認する場合は「Use error sample」を押してから Preview CSV を実行してください。
+              </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-4">
                 <div className="rounded-2xl bg-white p-3">
@@ -692,11 +749,11 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                                   : "inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-inset ring-rose-200"
                             }
                           >
-                            {row.status}
+                            {formatCashDraftStatusLabel(row.status)}
                           </div>
                           {row.messages.length > 0 ? (
                             <div className="mt-1 text-[11px] leading-4 text-slate-500">
-                              {row.messages.join(" / ")}
+                              {row.messages.map(formatCashDraftMessage).join(" / ")}
                             </div>
                           ) : null}
                         </div>
@@ -704,7 +761,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     ))
                   ) : (
                     <div className="px-4 py-8 text-sm text-slate-500">
-                      Paste CSV and click Preview CSV.
+                      CSV を貼り付けるか Use sample を押してから、Preview CSV をクリックしてください。
                     </div>
                   )}
                 </div>
