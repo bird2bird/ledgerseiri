@@ -74,6 +74,16 @@ export function CashIncomeWorkspace(props: any) {
     memo,
     setMemo,
     submitCreate,
+
+    editAmount,
+    setEditAmount,
+    editMemo,
+    setEditMemo,
+    editUiError,
+    editUiMessage,
+    editSaveLoading,
+    editCanSave,
+    handleEditSave,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
@@ -110,6 +120,15 @@ export function CashIncomeWorkspace(props: any) {
   const createCanSubmit =
     !!accountId && createAmountValid && !!occurredAt && !submitLoading && !formLoading;
 
+  const editDrawerOpen = editingRow !== null;
+
+  function openEdit(row: IncomeRow) {
+    onSelectRow(row.id);
+    setEditAmount(String(row.amount || ""));
+    setEditMemo(row.memo || "");
+    setEditingRow(row);
+  }
+
   React.useEffect(() => {
     if (safeCurrentPage !== currentPage) {
       setCurrentPage(safeCurrentPage);
@@ -145,18 +164,7 @@ export function CashIncomeWorkspace(props: any) {
       // panelError is handled by useIncomePageState.submitCreate()
     }
   }
-
-  const createDrawerOpen = action === "create";
-  const editDrawerOpen = editingRow !== null;
-
-  function openEdit(row: IncomeRow) {
-    onSelectRow(row.id);
-    setEditAmount(String(row.amount || ""));
-    setEditMemo(row.memo || "");
-    setEditingRow(row);
-  }
-
-  return (
+return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Page Actions</div>
