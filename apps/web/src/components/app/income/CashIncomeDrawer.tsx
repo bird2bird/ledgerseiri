@@ -118,7 +118,7 @@ export function CashIncomeDrawer(props: {
         type="button"
         aria-label="Close cash income drawer backdrop"
         onClick={onClose}
-        className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[1px]"
+        className="fixed inset-y-0 right-0 left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
       />
 
       <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
