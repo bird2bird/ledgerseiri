@@ -41,39 +41,7 @@ function buildPageWindow(current: number, total: number) {
   return pages;
 }
 
-export function CashIncomeWorkspace(props: {
-  rows: IncomeRow[];
-  selectedRowId: string;
-  onSelectRow: (id: string) => void;
-  selectedRow: IncomeRow | null;
-  pageSize: 20 | 50 | 100;
-  setPageSize: (next: 20 | 50 | 100) => void;
-  currentPage: number;
-  setCurrentPage: (next: number) => void;
-  sidebarActions: CashActionItem[];
-
-  action: string;
-  clearActionMode: () => void;
-
-  accounts: CashAccountOption[];
-  txCategories: CashCategoryOption[];
-  formLoading: boolean;
-  submitLoading: boolean;
-  panelError: string;
-  setPanelError: (next: string) => void;
-
-  accountId: string;
-  setAccountId: (next: string) => void;
-  categoryId: string;
-  setCategoryId: (next: string) => void;
-  amount: string;
-  setAmount: (next: string) => void;
-  occurredAt: string;
-  setOccurredAt: (next: string) => void;
-  memo: string;
-  setMemo: (next: string) => void;
-  submitCreate: () => Promise<void>;
-}) {
+export function CashIncomeWorkspace(props: any) {
   const {
     rows,
     selectedRowId,
@@ -181,7 +149,7 @@ export function CashIncomeWorkspace(props: {
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Page Actions</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {sidebarActions.map((item) =>
+          {sidebarActions.map((item: any) =>
             item.href ? (
               <Link
                 key={item.label}
@@ -445,7 +413,7 @@ export function CashIncomeWorkspace(props: {
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
                   >
                     <option value="">未選択</option>
-                    {accounts.map((item) => (
+                    {accounts.map((item: any) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
                       </option>
@@ -511,7 +479,7 @@ export function CashIncomeWorkspace(props: {
                   <div>
                     <div className="text-xs text-slate-500">Account</div>
                     <div className="mt-1 font-semibold text-slate-900">
-                      {accounts.find((item) => item.id === accountId)?.name || "-"}
+                      {accounts.find((item: any) => item.id === accountId)?.name || "-"}
                     </div>
                   </div>
                   <div>

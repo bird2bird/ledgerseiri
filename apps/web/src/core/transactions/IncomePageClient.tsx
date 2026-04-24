@@ -231,6 +231,15 @@ export function IncomePageClient(props: {
           memo={state.memo}
           setMemo={state.setMemo}
           submitCreate={state.submitCreate}
+          editAmount={state.editAmount}
+          setEditAmount={state.setEditAmount}
+          editMemo={state.editMemo}
+          setEditMemo={state.setEditMemo}
+          editUiError={state.editUiError}
+          editUiMessage={state.editUiMessage}
+          editSaveLoading={state.editSaveLoading}
+          editCanSave={state.editCanSave}
+          handleEditSave={state.handleEditSave}
           sidebarActions={orchestration.sidebarActions.map((item) => ({
             ...item,
             label:
