@@ -122,6 +122,15 @@ export async function updateTransaction(
   );
 }
 
+export async function deleteTransaction(id: string) {
+  return readJson<{ ok: boolean; id: string; message: string }>(
+    await fetchWithAutoRefresh(`/api/transactions/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    })
+  );
+}
+
 export async function getDashboardSummary() {
   return readJson<{
     ok: boolean;

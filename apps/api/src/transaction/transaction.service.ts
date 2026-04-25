@@ -234,7 +234,7 @@ export class TransactionService {
     };
   }
 
-  async update(id: string, payload: { companyId?: string; amount?: number }) {
+  async update(id: string, payload: { companyId?: string; amount?: number; memo?: string | null }) {
     const existing = await this.prisma.transaction.findUnique({
       where: { id },
     });
@@ -251,12 +251,37 @@ export class TransactionService {
       where: { id },
       data: {
         amount: payload.amount ?? existing.amount,
+        memo: payload.memo ?? existing.memo,
       },
     });
 
     return {
       ok: true,
       item: updated,
+    };
+  }
+
+  async remove(id: string, payload: { companyId?: string }) {
+    const existing = await this.prisma.transaction.findUnique({
+      where: { id },
+    });
+
+    if (!existing) throw new Error('Not found');
+
+    const companyId = await this.resolveCompanyId(payload?.companyId);
+
+    if (existing.companyId !== companyId) {
+      throw new Error('Not found');
+    }
+
+    await this.prisma.transaction.delete({
+      where: { id },
+    });
+
+    return {
+      ok: true,
+      id,
+      message: 'Deleted',
     };
   }
 }

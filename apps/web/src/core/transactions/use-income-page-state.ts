@@ -10,6 +10,7 @@ import {
 } from "@/core/transactions/transactions";
 import {
   createTransaction,
+  deleteTransaction,
   listTransactionCategories,
   updateTransaction,
   type TransactionCategoryItem,
@@ -189,6 +190,7 @@ export function useIncomePageState(args: {
   const [editUiError, setEditUiError] = useState("");
   const [editUiMessage, setEditUiMessage] = useState("");
   const [editSaveLoading, setEditSaveLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -441,6 +443,39 @@ export function useIncomePageState(args: {
     }
   }
 
+  async function handleDeleteSelected() {
+    setEditUiError("");
+    setEditUiMessage("");
+
+    if (!selectedRow) {
+      setEditUiError("削除対象が選択されていません。");
+      return;
+    }
+
+    try {
+      setDeleteLoading(true);
+
+      const deletedId = selectedRow.id;
+      await deleteTransaction(deletedId);
+
+      setSelectedRowId("");
+      setEditAmount("");
+      setEditMemo("");
+      await loadRows();
+
+      setEditUiMessage("削除しました。");
+      setTimeout(() => {
+        setEditUiMessage("");
+      }, 2000);
+    } catch (e: unknown) {
+      setEditUiMessage("");
+      setEditUiError(e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   const totalRows = rows.length;
 
   const totalNetAmount = useMemo(
@@ -568,5 +603,6 @@ export function useIncomePageState(args: {
 
     submitCreate,
     handleEditSave,
+    handleDeleteSelected,
   };
 }

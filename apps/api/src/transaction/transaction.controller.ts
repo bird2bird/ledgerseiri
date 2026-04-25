@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 
@@ -27,6 +27,13 @@ export class TransactionController {
   update(@Req() req: any, @Param('id') id: string, @Body() body: unknown) {
     return this.service.update(id, {
       ...((body || {}) as any),
+      companyId: req.user?.companyId,
+    });
+  }
+
+  @Delete('api/transactions/:id')
+  remove(@Req() req: any, @Param('id') id: string) {
+    return this.service.remove(id, {
       companyId: req.user?.companyId,
     });
   }
