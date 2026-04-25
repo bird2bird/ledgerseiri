@@ -1238,16 +1238,19 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   </button>
                   <button
                     type="button"
-                    disabled
+                    onClick={() => void runCashCommit()}
+                    disabled={cashServerReadiness.status !== "ready" || cashCommitLoading}
                     className={
                       cashServerReadiness.status === "ready"
-                        ? "inline-flex cursor-not-allowed rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white opacity-60"
+                        ? "inline-flex rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                         : "inline-flex cursor-not-allowed rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-40"
                     }
                   >
-                    {cashServerReadiness.status === "ready"
-                      ? "正式取込準備OK"
-                      : "次のステップへ進む"}
+                    {cashCommitLoading
+                      ? "正式取込中..."
+                      : cashServerReadiness.status === "ready"
+                        ? "正式取込を実行"
+                        : "次のステップへ進む"}
                   </button>
                 </div>
               </div>
