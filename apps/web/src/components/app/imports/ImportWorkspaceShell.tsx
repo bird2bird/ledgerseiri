@@ -1113,8 +1113,13 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                           <div className="text-slate-600">
                             {row.normalizedPayload.accountName || "-"}
                           </div>
-                          <div className="font-mono text-[11px] text-slate-600">
-                            {row.normalizedPayload.accountId || "unresolved"}
+                          <div className="space-y-1">
+                            <div className="font-mono text-[11px] text-slate-600">
+                              {row.normalizedPayload.accountId || "unresolved"}
+                            </div>
+                            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                              {row.accountResolution?.matchMode || "unresolved"}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1150,7 +1155,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview + accountName exact match contract まで完了（No commit / No DB write）
+                    server preview + account fallback matching contract まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1168,7 +1173,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>5. Pending payload summary linkage：完了</li>
                 <li>6. Server preview contract 接続：完了</li>
                 <li>7. accountName → accountId exact match contract：完了</li>
-                <li>8. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>8. account alias / cash fallback matching：完了</li>
+                <li>9. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 

@@ -218,6 +218,12 @@ export type CashIncomePreviewResponse = {
     rowNo: number;
     matchStatus: "pending" | "warning" | "error";
     matchReason?: string;
+    accountResolution?: {
+      strategy: "exact_name_then_cash_fallback";
+      matchMode: "exact_name" | "cash_fallback" | "unresolved";
+      accountName: string;
+      accountId: string | null;
+    };
     normalizedPayload: {
       entityType: "transaction";
       module: "cash-income";
@@ -233,6 +239,11 @@ export type CashIncomePreviewResponse = {
       cashMarker: "[cash]";
     };
   }>;
+  accountResolution?: {
+    strategy: "exact_name_then_cash_fallback";
+    activeAccountCount: number;
+    activeCashAccountCount?: number;
+  };
   message: string;
 };
 

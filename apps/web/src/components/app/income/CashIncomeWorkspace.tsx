@@ -146,7 +146,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
-  const normalizedSidebarActions = normalizedSidebarActions.map((item: any) =>
+  const normalizedSidebarActions = sidebarActions.map((item: any) =>
     item.label === "現金収入CSV取込"
       ? {
           ...item,

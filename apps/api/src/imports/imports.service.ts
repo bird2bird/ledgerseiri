@@ -1425,6 +1425,13 @@ export class ImportsService {
     const rows = Array.isArray(dto.rows) ? dto.rows : [];
     const companyId = String(dto.companyId || '').trim();
 
+    const normalizeCashAccountName = (value: string) =>
+      String(value || '')
+        .normalize('NFKC')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s\u3000（）()\[\]【】「」『』・_\-\/\\.]/g, '');
+
     const accounts = companyId
       ? await this.prisma.account.findMany({
           where: {
@@ -1434,6 +1441,7 @@ export class ImportsService {
           select: {
             id: true,
             name: true,
+            type: true,
           },
           orderBy: {
             createdAt: 'asc',
@@ -1441,9 +1449,66 @@ export class ImportsService {
         })
       : [];
 
+    const cashAccounts = accounts.filter((account) => account.type === 'CASH');
     const accountByExactName = new Map(
       accounts.map((account) => [String(account.name || '').trim(), account.id]),
     );
+
+    const resolveAccount = (accountName: string) => {
+      const normalizedInput = normalizeCashAccountName(accountName);
+
+      if (!accountName) {
+        return {
+          accountId: null,
+          matchMode: 'unresolved' as const,
+        };
+      }
+
+      const exactAccountId = accountByExactName.get(accountName);
+      if (exactAccountId) {
+        return {
+          accountId: exactAccountId,
+          matchMode: 'exact_name' as const,
+        };
+      }
+
+      if (companyId && normalizedInput) {
+        const normalizedFallback = accounts.find((account) => {
+          const normalizedAccountName = normalizeCashAccountName(account.name);
+          if (!normalizedAccountName) return false;
+
+          return (
+            normalizedAccountName === normalizedInput ||
+            normalizedAccountName.includes(normalizedInput) ||
+            normalizedInput.includes(normalizedAccountName)
+          );
+        });
+
+        if (normalizedFallback?.id) {
+          return {
+            accountId: normalizedFallback.id,
+            matchMode: 'cash_fallback' as const,
+          };
+        }
+
+        const inputLooksCash =
+          normalizedInput.includes('現金') ||
+          normalizedInput.includes('cash') ||
+          normalizedInput.includes('genkin');
+
+        if (inputLooksCash && cashAccounts.length === 1) {
+          return {
+            accountId: cashAccounts[0].id,
+            matchMode: 'cash_fallback' as const,
+          };
+        }
+      }
+
+      return {
+        accountId: null,
+        matchMode: 'unresolved' as const,
+      };
+    };
 
     const previewRows = rows.map((row, index) => {
       const rowNo = Number(row.rowNo || index + 1);
@@ -1472,7 +1537,9 @@ export class ImportsService {
         msg.includes('not parseable'),
       );
 
-      const accountId = accountName ? accountByExactName.get(accountName) || null : null;
+      const accountResolution = resolveAccount(accountName);
+      const accountId = accountResolution.accountId;
+      const matchMode = accountResolution.matchMode;
 
       if (companyId && accountName && !accountId && !hasError) {
         messages.push('accountName could not be resolved');
@@ -1488,6 +1555,12 @@ export class ImportsService {
         rowNo,
         matchStatus,
         matchReason: messages.length ? messages.join(' / ') : undefined,
+        accountResolution: {
+          strategy: 'exact_name_then_cash_fallback',
+          matchMode,
+          accountName,
+          accountId,
+        },
         normalizedPayload: {
           entityType: 'transaction',
           module: 'cash-income',
@@ -1540,11 +1613,12 @@ export class ImportsService {
       summary,
       rows: previewRows,
       accountResolution: {
-        strategy: 'exact_name',
+        strategy: 'exact_name_then_cash_fallback',
         activeAccountCount: accounts.length,
+        activeCashAccountCount: cashAccounts.length,
       },
       message:
-        'Cash income preview contract only. Account exact-name resolution is enabled when companyId is provided. DB write and transaction commit are not connected yet.',
+        'Cash income preview contract only. Account exact-name and cash fallback resolution are enabled when companyId is provided. DB write and transaction commit are not connected yet.',
     };
   }
 
