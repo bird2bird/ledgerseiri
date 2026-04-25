@@ -63,6 +63,17 @@ export function IncomePageClient(props: {
   const rawRange = searchParams.get("range");
   const useStoreOrdersStagePreview = searchParams.get("stagePreview") === "1";
   const importJobId = String(searchParams.get("importJobId") || "");
+  const cashImportCommitted =
+    searchParams.get("from") === "cash-import" &&
+    searchParams.get("committed") === "1";
+  const cashImportImportedRows = Number(searchParams.get("importedRows") || 0);
+  const cashImportDuplicateRows = Number(searchParams.get("duplicateRows") || 0);
+  const cashImportBlockedRows = Number(searchParams.get("blockedRows") || 0);
+  const cashImportAmount = Number(searchParams.get("amount") || 0);
+  const cashImportTransactionIds = String(searchParams.get("transactionIds") || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
   const importMonthsRaw = String(searchParams.get("months") || "");
   const importMonths = useMemo(
     () =>
@@ -193,6 +204,33 @@ export function IncomePageClient(props: {
   if (pageVariant === "cash") {
     return (
       <div className="space-y-6">
+        {cashImportCommitted ? (
+          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold text-emerald-900">
+                  現金収入CSVの取込が完了しました
+                </div>
+                <div className="mt-1 text-xs leading-5 text-emerald-700">
+                  取込結果：imported={cashImportImportedRows} / duplicate={cashImportDuplicateRows} / blocked={cashImportBlockedRows} / amount=¥{cashImportAmount.toLocaleString("ja-JP")}
+                </div>
+                {cashImportTransactionIds.length > 0 ? (
+                  <div className="mt-2 font-mono text-[11px] leading-5 text-emerald-700">
+                    transactionIds: {cashImportTransactionIds.join(", ")}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => router.replace(`/${lang}/app/income/cash`)}
+                className="inline-flex rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                通知を閉じる
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <CashIncomeHeader
           lang={lang}
           isDashboard={isDashboard}

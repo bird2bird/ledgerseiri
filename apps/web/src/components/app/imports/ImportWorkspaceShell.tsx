@@ -462,6 +462,40 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     };
   }, [cashServerAccountResolutionStats.unresolved, cashServerPreview]);
 
+  const cashPostCommitHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("from", "cash-import");
+    params.set("committed", "1");
+
+    if (cashCommitResult) {
+      params.set(
+        "importedRows",
+        String(cashCommitResult.importedRows ?? cashCommitResult.summary.importedRows ?? 0)
+      );
+      params.set(
+        "duplicateRows",
+        String(cashCommitResult.duplicateRows ?? cashCommitResult.summary.duplicateRows ?? 0)
+      );
+      params.set(
+        "blockedRows",
+        String(cashCommitResult.blockedRows ?? cashCommitResult.summary.blockedRows ?? 0)
+      );
+      params.set(
+        "amount",
+        String(cashCommitResult.summary.totalImportedAmount || 0)
+      );
+
+      const txIds = (cashCommitResult.createdTransactionIds || [])
+        .filter(Boolean)
+        .join(",");
+      if (txIds) {
+        params.set("transactionIds", txIds);
+      }
+    }
+
+    return `/${lang}/app/income/cash?${params.toString()}`;
+  }, [cashCommitResult, lang]);
+
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
     setCashPreviewRows(rows);
@@ -1505,7 +1539,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link
-                    href={`/${lang}/app/income/cash`}
+                    href={cashPostCommitHref}
                     className="inline-flex rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
                   >
                     現金収入ページで確認する
@@ -1551,7 +1585,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    cash commit frontend wiring まで完了（Transaction write enabled）
+                    cash commit post-import navigation まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1575,7 +1609,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>11. unresolved account correction UX：完了</li>
                 <li>12. pre-commit readiness gate：完了</li>
                 <li>13. frontend cash commit wiring：完了</li>
-                <li>14. 将来：取込履歴・ImportJob 接続</li>
+                <li>14. post-commit cash page navigation：完了</li>
+                <li>15. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
 
