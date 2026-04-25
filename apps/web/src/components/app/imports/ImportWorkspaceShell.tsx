@@ -17,6 +17,7 @@ import {
   type PreviewImportResponse,
 } from "@/core/imports";
 import { buildImportCommitWorkspaceHref } from "@/core/income-store-orders/cross-workspace-query";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 import { ImportHistoryList } from "./ImportHistoryList";
 import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
 import { ImportPreviewSummary } from "./ImportPreviewSummary";
@@ -244,6 +245,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     useState<CashIncomePreviewResponse | null>(null);
   const [cashServerPreviewLoading, setCashServerPreviewLoading] = useState(false);
   const [cashServerPreviewError, setCashServerPreviewError] = useState("");
+  const [cashCompanyId, setCashCompanyId] = useState("");
+  const [cashCompanyLoading, setCashCompanyLoading] = useState(false);
+  const [cashCompanyError, setCashCompanyError] = useState("");
 
   const [detectResult, setDetectResult] =
     useState<DetectMonthConflictsResponse | null>(null);
@@ -384,6 +388,36 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     );
   }
 
+  async function loadCashCompanyId() {
+    setCashCompanyLoading(true);
+    setCashCompanyError("");
+
+    try {
+      const res = await fetchWithAutoRefresh("/api/auth/me", {
+        method: "GET",
+      });
+
+      if (!res.ok) {
+        throw new Error(`auth me failed: ${res.status}`);
+      }
+
+      const payload = (await res.json()) as { companyId?: string | null };
+      const nextCompanyId = String(payload?.companyId || "").trim();
+
+      setCashCompanyId(nextCompanyId);
+      if (!nextCompanyId) {
+        setCashCompanyError("companyId が取得できません。ログイン状態または company 設定を確認してください。");
+      }
+    } catch (err) {
+      setCashCompanyId("");
+      setCashCompanyError(
+        err instanceof Error ? err.message : "companyId load failed"
+      );
+    } finally {
+      setCashCompanyLoading(false);
+    }
+  }
+
   async function runCashServerPreview() {
     setCashServerPreviewLoading(true);
     setCashServerPreviewError("");
@@ -404,7 +438,16 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         setCashPreviewRows(rowsForServer);
       }
 
+      const companyId = cashCompanyId.trim();
+
+      if (!companyId) {
+        setCashServerPreview(null);
+        setCashServerPreviewError("companyId が未取得のため Server Preview を実行できません。ページを再読み込みするか、ログイン状態を確認してください。");
+        return;
+      }
+
       const res = await previewCashIncomeImport({
+        companyId,
         filename: "cash-income.csv",
         rows: rowsForServer.map((row) => ({
           rowNo: row.rowNo,
@@ -594,6 +637,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setCommitResult(null);
       setError("");
       setMessage("");
+      void loadCashCompanyId();
       return;
     }
 
@@ -920,6 +964,31 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 </div>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <span className="font-semibold text-slate-900">Company Context</span>
+                    <span className="ml-2">
+                      {cashCompanyLoading
+                        ? "companyId を取得中..."
+                        : cashCompanyId
+                          ? `companyId=${cashCompanyId}`
+                          : "companyId 未取得"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadCashCompanyId()}
+                    className="inline-flex rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    companyId 再取得
+                  </button>
+                </div>
+                {cashCompanyError ? (
+                  <div className="mt-2 text-rose-700">{cashCompanyError}</div>
+                ) : null}
+              </div>
+
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-[11px] text-slate-500">Pending Rows</div>
@@ -1003,7 +1072,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   <button
                     type="button"
                     onClick={() => void runCashServerPreview()}
-                    disabled={cashServerPreviewLoading || cashPreviewRows.length === 0}
+                    disabled={
+                      cashServerPreviewLoading ||
+                      cashCompanyLoading ||
+                      !cashCompanyId ||
+                      cashPreviewRows.length === 0
+                    }
                     className="inline-flex rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {cashServerPreviewLoading ? "Server Preview..." : "Server Preview"}
@@ -1155,7 +1229,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview + account fallback matching contract まで完了（No commit / No DB write）
+                    server preview + companyId account fallback matching まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1174,7 +1248,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>6. Server preview contract 接続：完了</li>
                 <li>7. accountName → accountId exact match contract：完了</li>
                 <li>8. account alias / cash fallback matching：完了</li>
-                <li>9. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>9. frontend companyId server preview：完了</li>
+                <li>10. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
