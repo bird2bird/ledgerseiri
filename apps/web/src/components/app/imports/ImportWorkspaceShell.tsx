@@ -420,6 +420,42 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     };
   }, [cashServerPreview]);
 
+  const cashServerReadiness = useMemo(() => {
+    if (!cashServerPreview) {
+      return {
+        status: "waiting" as const,
+        label: "後続 API 接続待ち",
+        message: "Server Preview を実行すると正式取込前の準備状態を確認できます。",
+        canProceed: false,
+      };
+    }
+
+    const errorRows = Number(cashServerPreview.summary.errorRows || 0);
+    const pendingRows = Number(cashServerPreview.summary.pendingRows || 0);
+    const unresolvedRows = Number(cashServerAccountResolutionStats.unresolved || 0);
+
+    if (errorRows > 0 || unresolvedRows > 0 || pendingRows === 0) {
+      const reasons: string[] = [];
+      if (errorRows > 0) reasons.push(`エラー行 ${errorRows} 件`);
+      if (unresolvedRows > 0) reasons.push(`未解決口座 ${unresolvedRows} 件`);
+      if (pendingRows === 0) reasons.push("取込可能行 0 件");
+
+      return {
+        status: "needs_fix" as const,
+        label: "修正が必要",
+        message: `正式取込前に修正が必要です：${reasons.join(" / ")}`,
+        canProceed: false,
+      };
+    }
+
+    return {
+      status: "ready" as const,
+      label: "正式取込準備OK",
+      message: "Server Preview の結果は正式取込条件を満たしています。次ステップで commit API を接続します。",
+      canProceed: false,
+    };
+  }, [cashServerAccountResolutionStats.unresolved, cashServerPreview]);
+
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
     setCashPreviewRows(rows);
@@ -1115,11 +1151,17 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   次ステップでは、この payload を transaction create flow に接続し、accountName → accountId の照合と一括登録 API を追加します。
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {cashPendingStats.pendingRows > 0 ? (
-                    <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600">
-                      後続 API 接続待ち
-                    </span>
-                  ) : null}
+                  <span
+                    className={
+                      cashServerReadiness.status === "ready"
+                        ? "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700"
+                        : cashServerReadiness.status === "needs_fix"
+                          ? "inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800"
+                          : "inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600"
+                    }
+                  >
+                    {cashServerReadiness.label}
+                  </span>
                   <button
                     type="button"
                     onClick={() => void runCashServerPreview()}
@@ -1136,15 +1178,34 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   <button
                     type="button"
                     disabled
-                    className="inline-flex cursor-not-allowed rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-40"
+                    className={
+                      cashServerReadiness.status === "ready"
+                        ? "inline-flex cursor-not-allowed rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white opacity-60"
+                        : "inline-flex cursor-not-allowed rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-40"
+                    }
                   >
-                    次のステップへ進む
+                    {cashServerReadiness.status === "ready"
+                      ? "正式取込準備OK"
+                      : "次のステップへ進む"}
                   </button>
                 </div>
               </div>
 
               <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
                 Server contract preview only / No transaction commit / DB write not connected
+              </div>
+
+              <div
+                className={
+                  cashServerReadiness.status === "ready"
+                    ? "mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-700"
+                    : cashServerReadiness.status === "needs_fix"
+                      ? "mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800"
+                      : "mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600"
+                }
+              >
+                <div className="font-semibold">{cashServerReadiness.label}</div>
+                <div className="mt-1">{cashServerReadiness.message}</div>
               </div>
 
               {cashServerPreviewError ? (
@@ -1345,7 +1406,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview unresolved UX / account correction guide まで完了（No commit / No DB write）
+                    pre-commit readiness gate まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1367,7 +1428,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>9. frontend companyId server preview：完了</li>
                 <li>10. server preview result UX：完了</li>
                 <li>11. unresolved account correction UX：完了</li>
-                <li>12. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>12. pre-commit readiness gate：完了</li>
+                <li>13. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
