@@ -25,6 +25,11 @@ import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
 import { ImportPreviewSummary } from "./ImportPreviewSummary";
 import { ImportPreviewTable } from "./ImportPreviewTable";
 
+// -----------------------------------------------------------------------------
+// Shared import workspace helpers
+// These helpers are used by the legacy Amazon import flow and should stay neutral.
+// -----------------------------------------------------------------------------
+
 function formatPolicyLabel(value: MonthConflictPolicy) {
   return value === "replace_existing_months"
     ? "删除后重新导入"
@@ -63,7 +68,25 @@ function renderTagList(values?: string[]) {
   );
 }
 
+// -----------------------------------------------------------------------------
+// Import module routing helpers
+// ModuleMode controls whether this workspace renders the existing Amazon import
+// flow or the cash-income dedicated import flow.
+// -----------------------------------------------------------------------------
+
 type ModuleMode = "store-orders" | "store-operation" | "cash-income";
+
+function normalizeImportModuleHint(value?: string | null): ModuleMode {
+  if (value === "store-operation") return "store-operation";
+  if (value === "cash-income") return "cash-income";
+  return "store-orders";
+}
+
+// -----------------------------------------------------------------------------
+// Cash income import helpers
+// Keep this section extraction-ready. H6-B only marks the boundary; JSX and
+// behavior remain inside ImportWorkspaceShell for safety.
+// -----------------------------------------------------------------------------
 
 const CASH_INCOME_SAMPLE_TEXT = [
   "account,amount,occurredAt,memo,source",
@@ -127,12 +150,6 @@ function formatCashServerMatchReason(value?: string | null) {
       return message;
     })
     .join(" / ");
-}
-
-function normalizeImportModuleHint(value?: string | null): ModuleMode {
-  if (value === "store-operation") return "store-operation";
-  if (value === "cash-income") return "cash-income";
-  return "store-orders";
 }
 
 type CashIncomeDraftRow = {
@@ -253,6 +270,12 @@ function parseCashIncomeCsvDraft(csvText: string): CashIncomeDraftRow[] {
     };
   });
 }
+
+// -----------------------------------------------------------------------------
+// Main workspace component
+// TODO(H6-C candidate): extract the cash-income branch into a dedicated child
+// component after one more full regression pass.
+// -----------------------------------------------------------------------------
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
@@ -1606,7 +1629,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    cash import production flow cleanup まで完了（Transaction write enabled）
+                    cash import helper extraction preparation まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1634,7 +1657,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>15. duplicate result clarity：完了</li>
                 <li>16. post-import refresh consistency：完了</li>
                 <li>17. cash import cleanup：完了</li>
-                <li>18. 将来：取込履歴・ImportJob 接続</li>
+                <li>18. helper extraction preparation：完了</li>
+                <li>19. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
 
