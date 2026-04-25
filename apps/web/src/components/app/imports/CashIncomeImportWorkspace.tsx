@@ -38,7 +38,6 @@ export function CashIncomeImportWorkspace(props: { lang: string }) {
   const [cashCompanyLoading, setCashCompanyLoading] = useState(false);
   const [cashCompanyError, setCashCompanyError] = useState("");
 
-
   const cashPreviewStats = useMemo(() => {
     const total = cashPreviewRows.length;
     const valid = cashPreviewRows.filter((row) => row.status === "valid").length;
@@ -127,7 +126,7 @@ export function CashIncomeImportWorkspace(props: { lang: string }) {
     return {
       status: "ready" as const,
       label: "正式取込準備OK",
-      message: "Server Preview の結果は正式取込条件を満たしています。次ステップで commit API を接続します。",
+      message: "Server Preview の結果は正式取込条件を満たしています。正式取込を実行できます。",
       canProceed: false,
     };
   }, [cashServerAccountResolutionStats.unresolved, cashServerPreview]);
@@ -167,7 +166,6 @@ export function CashIncomeImportWorkspace(props: { lang: string }) {
     return `/${lang}/app/income/cash?${params.toString()}`;
   }, [cashCommitResult, lang]);
 
-
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
     setCashPreviewRows(rows);
@@ -185,7 +183,7 @@ export function CashIncomeImportWorkspace(props: { lang: string }) {
     const warningCount = rows.filter((row) => row.status === "warning").length;
 
     setCashPreviewMessage(
-      `プレビューを生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。この preview はブラウザ上のみで実行され、DB/API には接続していません。`
+      `プレビューを生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。この preview はブラウザ上のみで実行されます。保存するには Server Preview 後に正式取込を実行してください。`
     );
   }
 
@@ -314,13 +312,12 @@ export function CashIncomeImportWorkspace(props: { lang: string }) {
     }
   }
 
-
   React.useEffect(() => {
     void loadCashCompanyId();
   }, []);
 
-return (
-      <section className="space-y-6 rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
+  return (
+    <section className="space-y-6 rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-2xl font-semibold text-slate-900">
@@ -377,7 +374,7 @@ return (
                     CSV サンプルフォーマット
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    まずはこの形式で cash-income CSV を準備します。実際の取込処理は次ステップで preview / validation に接続します。
+                    この形式で cash-income CSV を準備できます。Preview CSV、Server Preview、正式取込まで同じ画面で確認できます。
                   </div>
                 </div>
                 <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
@@ -386,12 +383,7 @@ return (
               </div>
 
               <pre className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-700">
-                {[
-                  "account,amount,occurredAt,memo,source",
-                  "現金,12000,2026-04-24,店頭現金売上,横浜店",
-                  "現金,8500,2026-04-25,イベント現金売上,展示会",
-                  "現金,3000,2026-04-26,現金補正入金,手動調整",
-                ].join("\n")}
+                {CASH_INCOME_SAMPLE_TEXT}
               </pre>
 
               <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
@@ -406,7 +398,7 @@ return (
                     Client-side Draft Preview
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    CSV を貼り付けて、保存前にブラウザ上だけで preview / validation を確認します。DB と API には接続しません。
+                    CSV を貼り付けて、まずブラウザ上で preview / validation を確認します。その後 Server Preview と正式取込へ進めます。
                   </div>
                 </div>
                 <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
@@ -520,7 +512,7 @@ return (
                 </button>
 
                 <div className="text-xs text-slate-500">
-                  No DB write / No API call
+                  Client preview only
                 </div>
               </div>
 
@@ -625,11 +617,11 @@ return (
                     Pending Import Design
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    Preview 済みの行を、将来の transaction create flow に渡す想定 payload として確認します。現時点では保存せず、DB/API には接続しません。
+                    Preview 済みの行を、正式取込で Transaction 作成に渡す payload として確認します。エラー行は除外され、Server Preview 後に保存できます。
                   </div>
                 </div>
                 <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
-                  design only
+                  pre-commit design
                 </div>
               </div>
 
@@ -1104,13 +1096,13 @@ return (
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Preview</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    Client-side preview：完了。DB/API には未接続
+                    Client-side preview：完了。Server Preview と正式取込に接続済み
                   </div>
                 </div>
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    cash import workspace component extraction まで完了（Transaction write enabled）
+                    cash import workspace internal cleanup まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1140,6 +1132,7 @@ return (
                 <li>17. cash import cleanup：完了</li>
                 <li>18. helper extraction preparation：完了</li>
                 <li>19. pure helper extraction：完了</li>\n                <li>20. workspace component extraction：完了</li>
+                <li>21. workspace internal cleanup：完了</li>
                 <li>20. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
