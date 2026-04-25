@@ -97,6 +97,12 @@ function formatCashDraftStatusLabel(status: CashIncomeDraftRow["status"]) {
   return "エラー";
 }
 
+function formatCashAccountMatchMode(value?: string | null) {
+  if (value === "exact_name") return "完全一致";
+  if (value === "cash_fallback") return "現金口座 fallback";
+  return "未解決";
+}
+
 function normalizeImportModuleHint(value?: string | null): ModuleMode {
   if (value === "store-operation") return "store-operation";
   if (value === "cash-income") return "cash-income";
@@ -368,6 +374,27 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       totalPendingAmount,
     };
   }, [cashPendingRows, cashPreviewRows]);
+
+  const cashServerAccountResolutionStats = useMemo(() => {
+    const rows = Array.isArray(cashServerPreview?.rows) ? cashServerPreview.rows : [];
+    const exactMatched = rows.filter(
+      (row) => row.accountResolution?.matchMode === "exact_name"
+    ).length;
+    const cashFallbackMatched = rows.filter(
+      (row) => row.accountResolution?.matchMode === "cash_fallback"
+    ).length;
+    const unresolved = rows.filter(
+      (row) =>
+        !row.normalizedPayload.accountId ||
+        row.accountResolution?.matchMode === "unresolved"
+    ).length;
+
+    return {
+      exactMatched,
+      cashFallbackMatched,
+      unresolved,
+    };
+  }, [cashServerPreview]);
 
   function runCashClientPreview() {
     const rows = parseCashIncomeCsvDraft(cashCsvDraftText);
@@ -1151,6 +1178,33 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     </div>
                   </div>
 
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Exact matched</div>
+                      <div className="mt-1 text-lg font-semibold text-slate-900">
+                        {cashServerAccountResolutionStats.exactMatched}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Cash fallback matched</div>
+                      <div className="mt-1 text-lg font-semibold text-emerald-700">
+                        {cashServerAccountResolutionStats.cashFallbackMatched}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-[11px] text-slate-500">Unresolved</div>
+                      <div className="mt-1 text-lg font-semibold text-amber-700">
+                        {cashServerAccountResolutionStats.unresolved}
+                      </div>
+                    </div>
+                  </div>
+
+                  {cashServerAccountResolutionStats.unresolved > 0 ? (
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                      未解決の口座があります。正式取込前に口座名を修正してください。
+                    </div>
+                  ) : null}
+
                   <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                     <div className="min-w-[980px]">
                       <div className="grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -1192,7 +1246,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                               {row.normalizedPayload.accountId || "unresolved"}
                             </div>
                             <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                              {row.accountResolution?.matchMode || "unresolved"}
+                              {formatCashAccountMatchMode(row.accountResolution?.matchMode)}
                             </div>
                           </div>
                         </div>
@@ -1229,7 +1283,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview + companyId account fallback matching まで完了（No commit / No DB write）
+                    server preview result UX / account resolution summary まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1249,7 +1303,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>7. accountName → accountId exact match contract：完了</li>
                 <li>8. account alias / cash fallback matching：完了</li>
                 <li>9. frontend companyId server preview：完了</li>
-                <li>10. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>10. server preview result UX：完了</li>
+                <li>11. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
