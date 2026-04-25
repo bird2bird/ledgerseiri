@@ -466,6 +466,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     const params = new URLSearchParams();
     params.set("from", "cash-import");
     params.set("committed", "1");
+    params.set("range", "30d");
 
     if (cashCommitResult) {
       params.set(
@@ -1493,7 +1494,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                       Cash Commit Result
                     </div>
                     <div className="mt-1 text-xs leading-5 text-emerald-700">
-                      正式取込 API の実行結果です。作成済みの Transaction は現金収入ページで確認できます。
+                      正式取込 API の実行結果です。作成済みの Transaction は現金収入ページで確認できます。遷移後は最新データを再取得し、30日表示で確認します。
                     </div>
                   </div>
                   <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700">
@@ -1525,6 +1526,29 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     <div className="mt-1 text-lg font-semibold text-emerald-700">
                       ¥{Number(cashCommitResult.summary.totalImportedAmount || 0).toLocaleString("ja-JP")}
                     </div>
+                  </div>
+                </div>
+
+                {(cashCommitResult.duplicateRows ?? cashCommitResult.summary.duplicateRows ?? 0) > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                    <div className="font-semibold text-amber-900">
+                      重複スキップ: {cashCommitResult.duplicateRows ?? cashCommitResult.summary.duplicateRows ?? 0} 件
+                    </div>
+                    <div className="mt-1">
+                      同じ dedupeHash の Transaction が既に存在するため、重複行は新規作成せずにスキップしました。
+                    </div>
+                    {(cashCommitResult.importedRows ?? cashCommitResult.summary.importedRows ?? 0) === 0 ? (
+                      <div className="mt-1 font-semibold">
+                        すべて既存データとして検出されました。新規作成はありません。
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
+                  <div className="font-semibold text-blue-900">データ反映について</div>
+                  <div className="mt-1">
+                    現金収入ページへ移動すると、Transaction 一覧を再取得して最新状態を表示します。新規作成が 0 件の場合でも、重複として検出された既存データは cash table 側で確認できます。
                   </div>
                 </div>
 
@@ -1585,7 +1609,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    cash commit post-import navigation まで完了（Transaction write enabled）
+                    cash post-import refresh consistency まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1610,7 +1634,9 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>12. pre-commit readiness gate：完了</li>
                 <li>13. frontend cash commit wiring：完了</li>
                 <li>14. post-commit cash page navigation：完了</li>
-                <li>15. 将来：取込履歴・ImportJob 接続</li>
+                <li>15. duplicate result clarity：完了</li>
+                <li>16. post-import refresh consistency：完了</li>
+                <li>17. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
 

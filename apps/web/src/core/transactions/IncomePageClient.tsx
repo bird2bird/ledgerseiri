@@ -212,8 +212,26 @@ export function IncomePageClient(props: {
                   現金収入CSVの取込が完了しました
                 </div>
                 <div className="mt-1 text-xs leading-5 text-emerald-700">
-                  取込結果：imported={cashImportImportedRows} / duplicate={cashImportDuplicateRows} / blocked={cashImportBlockedRows} / amount=¥{cashImportAmount.toLocaleString("ja-JP")}
+                  取込結果：今回新規作成={cashImportImportedRows} / 重複スキップ={cashImportDuplicateRows} / blocked={cashImportBlockedRows} / importedAmount=¥{cashImportAmount.toLocaleString("ja-JP")}
                 </div>
+                <div className="mt-1 text-xs leading-5 text-emerald-700">
+                  表示中データ：Rows={state.rows.length.toLocaleString("ja-JP")} / 表示中合計=¥{state.totalAmount.toLocaleString("ja-JP")}。ページ表示時点で Transaction 一覧を再取得済みです。
+                </div>
+                {cashImportDuplicateRows > 0 ? (
+                  <div className="mt-2 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-xs leading-5 text-amber-800">
+                    <div className="font-semibold text-amber-900">
+                      重複スキップ: {cashImportDuplicateRows} 件
+                    </div>
+                    <div className="mt-1">
+                      既に登録済みの現金収入データは重複作成せず、既存データとして扱いました。現在の cash table は最新の Transaction 取得結果に基づいて表示されています。
+                    </div>
+                    {cashImportImportedRows === 0 ? (
+                      <div className="mt-1 font-semibold">
+                        すべて既存データとして検出されました。新規作成はありません。
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {cashImportTransactionIds.length > 0 ? (
                   <div className="mt-2 font-mono text-[11px] leading-5 text-emerald-700">
                     transactionIds: {cashImportTransactionIds.join(", ")}
