@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   commitCashIncomeImport,
   commitImportSkeleton,
@@ -258,8 +258,6 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
   const params = useParams<{ lang: string }>();
   const lang = params?.lang ?? "ja";
-  const router = useRouter();
-
   const initialModuleMode = normalizeImportModuleHint(moduleHint);
   const [moduleMode, setModuleMode] = useState<ModuleMode>(initialModuleMode);
   const [filename, setFilename] = useState(
@@ -671,7 +669,6 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
-      setCommitResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
     }
@@ -826,7 +823,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               現金収入CSV取込
             </div>
             <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              現金入金データを CSV で取り込むための準備画面です。現在はサンプルフォーマットと preview table placeholder までを提供し、実際の CSV 解析・DB 登録は次ステップで実装します。
+              現金入金データを CSV で取り込むための専用ワークスペースです。ブラウザ上の CSV preview、Server Preview、口座照合、正式取込、重複スキップまで一つの流れで確認できます。
             </div>
           </div>
 
@@ -1291,7 +1288,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               </div>
 
               <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-800">
-                Server contract preview only / No transaction commit / DB write not connected
+                Server Preview は保存前確認です。正式取込ボタンを押すと Transaction を作成します。
               </div>
 
               <div
@@ -1321,7 +1318,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                         Server Preview Result
                       </div>
                       <div className="mt-1 text-xs leading-5 text-slate-500">
-                        H4-A mock endpoint から返却された normalizedPayload です。保存処理はまだ実行しません。
+                        Server Preview API から返却された normalizedPayload です。保存処理は「正式取込を実行」まで実行しません。
                       </div>
                     </div>
                     <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
@@ -1609,7 +1606,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    cash post-import refresh consistency まで完了（Transaction write enabled）
+                    cash import production flow cleanup まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1621,7 +1618,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               </div>
               <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-800">
                 <li>1. CSV サンプルフォーマット表示：完了</li>
-                <li>2. クライアント側 preview table placeholder：完了</li>
+                <li>2. クライアント側 client-side preview table：完了</li>
                 <li>3. CSV validation と preview state：完了（client-side only）</li>
                 <li>4. Pending import payload design：完了</li>
                 <li>5. Pending payload summary linkage：完了</li>
@@ -1636,7 +1633,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>14. post-commit cash page navigation：完了</li>
                 <li>15. duplicate result clarity：完了</li>
                 <li>16. post-import refresh consistency：完了</li>
-                <li>17. 将来：取込履歴・ImportJob 接続</li>
+                <li>17. cash import cleanup：完了</li>
+                <li>18. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
 
