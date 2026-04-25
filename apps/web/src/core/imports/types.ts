@@ -263,6 +263,10 @@ export type CashIncomeCommitResponse = {
   commitReady: boolean;
   commitExecuted?: boolean;
   blockedReasons: string[];
+  importedRows?: number;
+  duplicateRows?: number;
+  blockedRows?: number;
+  createdTransactionIds?: Array<string | null>;
   summary: {
     totalRows: number;
     readyRows: number;
@@ -301,6 +305,7 @@ export type CashIncomeCommitResponse = {
       source?: string;
       sourceFileName: string;
       sourceRowNo: number;
+      businessMonth?: string | null;
       dedupeHash: string;
     };
   }>;
