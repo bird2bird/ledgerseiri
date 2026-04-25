@@ -15,7 +15,6 @@ import {
   type PreviewImportResponse,
 } from "@/core/imports";
 import { buildImportCommitWorkspaceHref } from "@/core/income-store-orders/cross-workspace-query";
-import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 import { CashIncomeImportWorkspace } from "./CashIncomeImportWorkspace";
 import { ImportHistoryList } from "./ImportHistoryList";
 import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
@@ -80,14 +79,13 @@ function normalizeImportModuleHint(value?: string | null): ModuleMode {
 }
 
 // -----------------------------------------------------------------------------
-// Cash income import workspace
-// Runtime moved to CashIncomeImportWorkspace in H6-E2.
+// Cash income import workspace delegation
+// Runtime lives in CashIncomeImportWorkspace. This parent remains responsible for
+// module routing and the Amazon/store-orders/store-operation import flow.
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
 // Main workspace component
-// TODO(H6-C candidate): extract the cash-income branch into a dedicated child
-// component after one more full regression pass.
 // -----------------------------------------------------------------------------
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
@@ -96,9 +94,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const lang = params?.lang ?? "ja";
   const initialModuleMode = normalizeImportModuleHint(moduleHint);
   const [moduleMode, setModuleMode] = useState<ModuleMode>(initialModuleMode);
-  const [filename, setFilename] = useState(
-    initialModuleMode === "cash-income" ? "cash-income.csv" : "amazon-store-orders.csv"
-  );
+  const [filename, setFilename] = useState("amazon-store-orders.csv");
   const [csvText, setCsvText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -123,11 +119,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const currentSourceType = "amazon-csv";
 
   const moduleLabel =
-    moduleMode === "cash-income"
-      ? "現金収入"
-      : moduleMode === "store-operation"
-        ? "店舗運営費"
-        : "店舗注文";
+    moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
 
   const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
 
@@ -352,6 +344,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     }
   }, [moduleMode]);
 
+  // H6-F parent cleanup: cash runtime is isolated in CashIncomeImportWorkspace.
   if (moduleMode === "cash-income") {
     return <CashIncomeImportWorkspace lang={lang} />;
   }
