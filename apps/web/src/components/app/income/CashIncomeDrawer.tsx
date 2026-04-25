@@ -41,7 +41,9 @@ export type CashIncomeDrawerProps = {
   editUiMessage: string;
   editSaveLoading: boolean;
   editCanSave: boolean;
+  deleteLoading: boolean;
   handleEditSave: () => Promise<void>;
+  handleDelete: () => Promise<void>;
 };
 
 export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
@@ -72,7 +74,9 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
     editUiMessage,
     editSaveLoading,
     editCanSave,
+    deleteLoading,
     handleEditSave,
+    handleDelete,
   } = props;
 
   if (!open) return null;
@@ -86,7 +90,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
     !!accountId && amountValid && !!occurredAt && !submitLoading && !formLoading;
 
   const currentError = isCreate ? panelError : editUiError;
-  const saving = isCreate ? submitLoading : editSaveLoading;
+  const saving = isCreate ? submitLoading : editSaveLoading || deleteLoading;
   const canSubmit = isCreate ? createCanSubmit : editCanSave && !editSaveLoading;
 
   async function submit() {
@@ -112,6 +116,19 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
     }
 
     await handleEditSave();
+  }
+
+  async function submitDelete() {
+    if (isCreate || !row) return;
+
+    const ok = window.confirm(
+      "この現金収入明細を削除します。削除後は元に戻せません。よろしいですか？"
+    );
+
+    if (!ok) return;
+
+    await handleDelete();
+    onClose();
   }
 
   return (
@@ -293,23 +310,38 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              キャンセル
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canSubmit}
-              className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {saving ? "保存中..." : "保存"}
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+            {!isCreate ? (
+              <button
+                type="button"
+                onClick={() => void submitDelete()}
+                disabled={deleteLoading || editSaveLoading}
+                className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {deleteLoading ? "削除中..." : "削除"}
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSubmit || deleteLoading}
+                className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving ? "保存中..." : "保存"}
+              </button>
+            </div>
           </div>
         </div>
       </aside>

@@ -595,6 +595,7 @@ export function useIncomePageState(args: {
     editUiMessage,
     setEditUiMessage,
     editSaveLoading,
+    deleteLoading,
 
     editAmountValid,
     editMemoTooLong,

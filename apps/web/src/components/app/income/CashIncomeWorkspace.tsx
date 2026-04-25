@@ -59,7 +59,9 @@ type CashIncomeWorkspaceProps = {
   editUiMessage: string;
   editSaveLoading: boolean;
   editCanSave: boolean;
+  deleteLoading: boolean;
   handleEditSave: () => Promise<void>;
+  handleDeleteSelected: () => Promise<void>;
 };
 
 function parseRowDateMs(row: IncomeRow) {
@@ -115,7 +117,9 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     editUiMessage,
     editSaveLoading,
     editCanSave,
+    deleteLoading,
     handleEditSave,
+    handleDeleteSelected,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
@@ -453,7 +457,9 @@ return (
         editUiMessage={editUiMessage}
         editSaveLoading={editSaveLoading}
         editCanSave={editCanSave}
+        deleteLoading={deleteLoading}
         handleEditSave={handleEditSave}
+        handleDelete={handleDeleteSelected}
       />
     </div>
   );

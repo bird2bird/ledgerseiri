@@ -292,7 +292,9 @@ export function IncomePageClient(props: {
           editUiMessage={state.editUiMessage}
           editSaveLoading={state.editSaveLoading}
           editCanSave={state.editCanSave}
+          deleteLoading={state.deleteLoading}
           handleEditSave={state.handleEditSave}
+          handleDeleteSelected={state.handleDeleteSelected}
           sidebarActions={orchestration.sidebarActions.map((item) => {
             const label =
               item.label === "新規収入"
