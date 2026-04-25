@@ -146,6 +146,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
+  const normalizedSidebarActions = normalizedSidebarActions.map((item: any) =>
+    item.label === "現金収入CSV取込"
+      ? {
+          ...item,
+          href: "/ja/app/data/import?module=cash-income",
+          disabled: false,
+        }
+      : item
+  );
+
   const createDrawerOpen = action === "create";
   const editDrawerOpen = editingRow !== null;
   const cashDrawerOpen = createDrawerOpen || editDrawerOpen;
@@ -197,20 +207,7 @@ return (
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Page Actions</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {sidebarActions.map((item: any) => {
-            if (item.label === "現金収入CSV取込") {
-              return (
-                <Link
-                  key={item.label}
-                  href="/ja/app/data/import?module=cash-income"
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
-                >
-                  {item.label}
-                </Link>
-              );
-            }
-
-            return 
+          {normalizedSidebarActions.map((item: any) =>
             item.href ? (
               <Link
                 key={item.label}
