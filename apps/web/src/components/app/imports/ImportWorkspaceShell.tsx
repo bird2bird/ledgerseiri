@@ -1427,7 +1427,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>8. account alias / cash fallback matching：完了</li>
                 <li>9. frontend companyId server preview：完了</li>
                 <li>10. server preview result UX：完了</li>
-                <li>11. unresolved account correction UX：完了</li>
+                <li>11. unresolved account correction UX：完了</li>\n                <li>12. pre-commit readiness gate：完了</li>
                 <li>12. pre-commit readiness gate：完了</li>
                 <li>13. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
