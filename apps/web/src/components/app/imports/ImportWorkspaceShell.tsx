@@ -4,11 +4,13 @@ import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
+  commitCashIncomeImport,
   commitImportSkeleton,
   detectMonthConflicts,
   loadImportHistorySkeleton,
   previewCashIncomeImport,
   previewImportSkeleton,
+  type CashIncomeCommitResponse,
   type CashIncomePreviewResponse,
   type CommitImportResponse,
   type DetectMonthConflictsResponse,
@@ -275,6 +277,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     useState<CashIncomePreviewResponse | null>(null);
   const [cashServerPreviewLoading, setCashServerPreviewLoading] = useState(false);
   const [cashServerPreviewError, setCashServerPreviewError] = useState("");
+  const [cashCommitResult, setCashCommitResult] =
+    useState<CashIncomeCommitResponse | null>(null);
+  const [cashCommitLoading, setCashCommitLoading] = useState(false);
+  const [cashCommitError, setCashCommitError] = useState("");
   const [cashCompanyId, setCashCompanyId] = useState("");
   const [cashCompanyLoading, setCashCompanyLoading] = useState(false);
   const [cashCompanyError, setCashCompanyError] = useState("");
@@ -461,6 +467,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     setCashPreviewRows(rows);
     setCashServerPreview(null);
     setCashServerPreviewError("");
+    setCashCommitResult(null);
+    setCashCommitError("");
 
     if (rows.length === 0) {
       setCashPreviewMessage("CSV draft が空です。");
@@ -547,6 +555,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       });
 
       setCashServerPreview(res);
+      setCashCommitResult(null);
+      setCashCommitError("");
     } catch (err) {
       setCashServerPreview(null);
       setCashServerPreviewError(
@@ -554,6 +564,47 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       );
     } finally {
       setCashServerPreviewLoading(false);
+    }
+  }
+
+  async function runCashCommit() {
+    if (!cashServerPreview || cashServerReadiness.status !== "ready") {
+      setCashCommitError("正式取込を実行するには、Server Preview が準備OKである必要があります。");
+      return;
+    }
+
+    const companyId = cashCompanyId.trim();
+    if (!companyId) {
+      setCashCommitError("companyId が未取得のため正式取込を実行できません。");
+      return;
+    }
+
+    setCashCommitLoading(true);
+    setCashCommitError("");
+
+    try {
+      const res = await commitCashIncomeImport({
+        companyId,
+        filename: cashServerPreview.filename || "cash-income.csv",
+        rows: cashServerPreview.rows,
+      });
+
+      setCashCommitResult(res);
+
+      if (!res.commitExecuted) {
+        setCashCommitError(
+          res.blockedReasons?.length
+            ? res.blockedReasons.join(" / ")
+            : "正式取込がブロックされました。"
+        );
+      }
+    } catch (err) {
+      setCashCommitResult(null);
+      setCashCommitError(
+        err instanceof Error ? err.message : "cash income commit failed"
+      );
+    } finally {
+      setCashCommitLoading(false);
     }
   }
 
@@ -851,6 +902,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCashPreviewRows([]);
                     setCashServerPreview(null);
                     setCashServerPreviewError("");
+                    setCashCommitResult(null);
+                    setCashCommitError("");
                     setCashPreviewMessage("Draft をクリアしました。");
                   }}
                   className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -865,6 +918,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCashPreviewRows([]);
                     setCashServerPreview(null);
                     setCashServerPreviewError("");
+                    setCashCommitResult(null);
+                    setCashCommitError("");
                     setCashPreviewMessage("サンプル CSV を復元しました。Preview CSV を押して確認してください。");
                   }}
                   className="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -880,6 +935,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCashPreviewRows(rows);
                     setCashServerPreview(null);
                     setCashServerPreviewError("");
+                    setCashCommitResult(null);
+                    setCashCommitError("");
                     setCashPreviewMessage(
                       `サンプル CSV を復元し、preview を自動生成しました：rows=${rows.length}。`
                     );
@@ -896,6 +953,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCashPreviewRows([]);
                     setCashServerPreview(null);
                     setCashServerPreviewError("");
+                    setCashCommitResult(null);
+                    setCashCommitError("");
                     setCashPreviewMessage("エラー確認用サンプルをセットしました。Preview CSV を押して validation を確認してください。");
                   }}
                   className="inline-flex rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
@@ -913,6 +972,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setCashPreviewRows(rows);
                     setCashServerPreview(null);
                     setCashServerPreviewError("");
+                    setCashCommitResult(null);
+                    setCashCommitError("");
                     setCashPreviewMessage(
                       `エラー確認用サンプルをセットし、preview を自動生成しました：rows=${rows.length}, error=${errorCount}, warning=${warningCount}。`
                     );
@@ -1380,6 +1441,87 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               ) : null}
             </div>
 
+            {cashCommitError ? (
+              <div className="rounded-[22px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
+                <div className="font-semibold">正式取込エラー</div>
+                <div className="mt-2 text-xs leading-5">{cashCommitError}</div>
+              </div>
+            ) : null}
+
+            {cashCommitResult ? (
+              <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-emerald-900">
+                      Cash Commit Result
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-emerald-700">
+                      正式取込 API の実行結果です。作成済みの Transaction は現金収入ページで確認できます。
+                    </div>
+                  </div>
+                  <div className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                    {cashCommitResult.action}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <div className="rounded-2xl bg-white p-4">
+                    <div className="text-[11px] text-slate-500">Imported Rows</div>
+                    <div className="mt-1 text-lg font-semibold text-emerald-700">
+                      {cashCommitResult.importedRows ?? cashCommitResult.summary.importedRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-white p-4">
+                    <div className="text-[11px] text-slate-500">Duplicate Rows</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">
+                      {cashCommitResult.duplicateRows ?? cashCommitResult.summary.duplicateRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-white p-4">
+                    <div className="text-[11px] text-slate-500">Blocked Rows</div>
+                    <div className="mt-1 text-lg font-semibold text-amber-700">
+                      {cashCommitResult.blockedRows ?? cashCommitResult.summary.blockedRows ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-white p-4">
+                    <div className="text-[11px] text-slate-500">Imported Amount</div>
+                    <div className="mt-1 text-lg font-semibold text-emerald-700">
+                      ¥{Number(cashCommitResult.summary.totalImportedAmount || 0).toLocaleString("ja-JP")}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs leading-5 text-slate-600">
+                  <div className="font-semibold text-slate-900">Created Transaction IDs</div>
+                  <div className="mt-2 font-mono">
+                    {cashCommitResult.createdTransactionIds?.length
+                      ? cashCommitResult.createdTransactionIds.filter(Boolean).join(", ")
+                      : "-"}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link
+                    href={`/${lang}/app/income/cash`}
+                    className="inline-flex rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                  >
+                    現金収入ページで確認する
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCashCommitResult(null);
+                      setCashCommitError("");
+                      void runCashServerPreview();
+                    }}
+                    className="inline-flex rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                  >
+                    Server Preview を再実行
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-5">
               <div className="text-sm font-semibold text-slate-900">
                 現在の実装ステータス
@@ -1406,7 +1548,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    pre-commit readiness gate まで完了（No commit / No DB write）
+                    cash commit frontend wiring まで完了（Transaction write enabled）
                   </div>
                 </div>
               </div>
@@ -1428,8 +1570,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>9. frontend companyId server preview：完了</li>
                 <li>10. server preview result UX：完了</li>
                 <li>11. unresolved account correction UX：完了</li>\n                <li>12. pre-commit readiness gate：完了</li>
+                <li>13. frontend cash commit wiring：完了</li>
                 <li>12. pre-commit readiness gate：完了</li>
-                <li>13. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>13. frontend cash commit wiring：完了</li>
+                <li>14. 将来：取込履歴・ImportJob 接続</li>
               </ul>
             </div>
 
