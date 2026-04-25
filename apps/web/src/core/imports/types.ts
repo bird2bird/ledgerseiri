@@ -247,3 +247,63 @@ export type CashIncomePreviewResponse = {
   message: string;
 };
 
+
+export type CashIncomeCommitRequest = {
+  companyId?: string;
+  filename?: string;
+  rows: CashIncomePreviewResponse["rows"];
+};
+
+export type CashIncomeCommitResponse = {
+  ok: boolean;
+  action: "cash-income-commit-contract" | "cash-income-commit";
+  module: "cash-income";
+  companyId: string | null;
+  filename: string | null;
+  commitReady: boolean;
+  commitExecuted?: boolean;
+  blockedReasons: string[];
+  summary: {
+    totalRows: number;
+    readyRows: number;
+    blockedRows: number;
+    totalReadyAmount: number;
+    importedRows?: number;
+    duplicateRows?: number;
+    totalImportedAmount?: number;
+  };
+  storeResolution: {
+    strategy: "first_company_store";
+    storeId: string | null;
+    storeName: string | null;
+  };
+  rows: Array<{
+    rowNo: number;
+    commitReady: boolean;
+    blockedReasons: string[];
+    commitStatus?: "ready" | "blocked" | "imported" | "duplicate";
+    transactionId?: string | null;
+    existingTransactionId?: string | null;
+    normalizedPayload: {
+      entityType: "transaction";
+      module: "cash-income";
+      type: "OTHER";
+      direction: "INCOME";
+      sourceType: "IMPORT";
+      companyId: string;
+      storeId: string | null;
+      accountId: string | null;
+      categoryId: null;
+      amount: number;
+      currency: "JPY";
+      occurredAt: string;
+      memo: string;
+      source?: string;
+      sourceFileName: string;
+      sourceRowNo: number;
+      dedupeHash: string;
+    };
+  }>;
+  message: string;
+};
+

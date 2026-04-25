@@ -6,6 +6,7 @@ import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
 import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
+import type { CashIncomeCommitDto } from './dto/cash-income-commit.dto';
 
 type MonthStat = {
   month: string;
@@ -1621,6 +1622,309 @@ export class ImportsService {
         'Cash income preview contract only. Account exact-name and cash fallback resolution are enabled when companyId is provided. DB write and transaction commit are not connected yet.',
     };
   }
+
+  async commitCashIncomeContract(dto: CashIncomeCommitDto) {
+    const companyId = String(dto.companyId || '').trim();
+    const rows = Array.isArray(dto.rows) ? dto.rows : [];
+    const filename = String(dto.filename || 'cash-income.csv').trim();
+
+    const blockedReasons: string[] = [];
+
+    if (!companyId) {
+      blockedReasons.push('companyId is required');
+    }
+
+    if (!rows.length) {
+      blockedReasons.push('rows are required');
+    }
+
+    const defaultStore = companyId
+      ? await this.prisma.store.findFirst({
+          where: {
+            companyId,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        })
+      : null;
+
+    if (companyId && !defaultStore?.id) {
+      blockedReasons.push('storeId could not be resolved');
+    }
+
+    const requestedAccountIds = rows
+      .map((row) => String(row.normalizedPayload?.accountId || '').trim())
+      .filter(Boolean);
+
+    const activeAccounts = companyId && requestedAccountIds.length
+      ? await this.prisma.account.findMany({
+          where: {
+            companyId,
+            id: {
+              in: Array.from(new Set(requestedAccountIds)),
+            },
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        })
+      : [];
+
+    const activeAccountIdSet = new Set(activeAccounts.map((account) => account.id));
+
+    const plannedRows = rows.map((row, index) => {
+      const payload = row.normalizedPayload || {};
+      const rowNo = Number(row.rowNo || index + 1);
+      const amount = Number(payload.amount || 0);
+      const occurredAt = String(payload.occurredAt || '').trim();
+      const accountId = String(payload.accountId || '').trim();
+      const memo = String(payload.memo || '').trim();
+      const type = String(payload.type || '').trim();
+      const direction = String(payload.direction || '').trim();
+      const module = String(payload.module || '').trim();
+      const cashMarker = String(payload.cashMarker || '').trim();
+      const source = String(payload.source || '').trim();
+
+      const rowReasons: string[] = [];
+
+      if (String(row.matchStatus || '') === 'error') {
+        rowReasons.push('row matchStatus is error');
+      }
+      if (!accountId) {
+        rowReasons.push('accountId is required');
+      } else if (!activeAccountIdSet.has(accountId)) {
+        rowReasons.push('accountId could not be resolved in company');
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        rowReasons.push('amount must be greater than 0');
+      }
+      if (!occurredAt) {
+        rowReasons.push('occurredAt is required');
+      } else if (Number.isNaN(new Date(occurredAt).getTime())) {
+        rowReasons.push('occurredAt is not parseable');
+      }
+      if (type !== 'OTHER') rowReasons.push('type must be OTHER');
+      if (direction !== 'INCOME') rowReasons.push('direction must be INCOME');
+      if (module !== 'cash-income') rowReasons.push('module must be cash-income');
+      if (payload.categoryId !== null) rowReasons.push('categoryId must be null');
+      if (!memo.startsWith('[cash]')) rowReasons.push('memo must start with [cash]');
+      if (cashMarker !== '[cash]') rowReasons.push('cashMarker must be [cash]');
+
+      const dedupeHash = this.hashPayload([
+        companyId,
+        'cash-income',
+        rowNo,
+        accountId,
+        amount,
+        occurredAt,
+        memo,
+        source,
+      ]);
+
+      return {
+        rowNo,
+        commitReady: rowReasons.length === 0,
+        blockedReasons: rowReasons,
+        normalizedPayload: {
+          entityType: 'transaction',
+          module: 'cash-income',
+          type: 'OTHER',
+          direction: 'INCOME',
+          sourceType: 'IMPORT',
+          companyId,
+          storeId: defaultStore?.id || null,
+          accountId: accountId || null,
+          categoryId: null,
+          amount,
+          currency: 'JPY',
+          occurredAt,
+          memo,
+          source: source || undefined,
+          sourceFileName: filename,
+          sourceRowNo: rowNo,
+          businessMonth: this.normalizeBusinessMonth(occurredAt),
+          dedupeHash,
+        },
+      };
+    });
+
+    const rowBlockedReasons = plannedRows.flatMap((row) =>
+      row.blockedReasons.map((reason) => `row ${row.rowNo}: ${reason}`),
+    );
+
+    const allBlockedReasons = [...blockedReasons, ...rowBlockedReasons];
+    const canCommit =
+      allBlockedReasons.length === 0 &&
+      plannedRows.length > 0 &&
+      plannedRows.every((row) => row.commitReady);
+
+    if (!canCommit) {
+      return {
+        ok: true,
+        action: 'cash-income-commit',
+        module: 'cash-income',
+        companyId: companyId || null,
+        filename,
+        commitReady: false,
+        commitExecuted: false,
+        blockedReasons: allBlockedReasons,
+        importedRows: 0,
+        duplicateRows: 0,
+        blockedRows: plannedRows.filter((row) => !row.commitReady).length,
+        createdTransactionIds: [],
+        summary: {
+          totalRows: rows.length,
+          readyRows: plannedRows.filter((row) => row.commitReady).length,
+          blockedRows: plannedRows.filter((row) => !row.commitReady).length,
+          totalReadyAmount: plannedRows
+            .filter((row) => row.commitReady)
+            .reduce((sum, row) => sum + Number(row.normalizedPayload.amount || 0), 0),
+          importedRows: 0,
+          duplicateRows: 0,
+          totalImportedAmount: 0,
+        },
+        storeResolution: {
+          strategy: 'first_company_store',
+          storeId: defaultStore?.id || null,
+          storeName: defaultStore?.name || null,
+        },
+        rows: plannedRows.map((row) => ({
+          ...row,
+          commitStatus: row.commitReady ? 'ready' : 'blocked',
+          transactionId: null,
+          existingTransactionId: null,
+        })),
+        message:
+          'Cash income commit blocked. Fix validation errors before creating transactions.',
+      };
+    }
+
+    const committedRows: Array<{
+      rowNo: number;
+      commitStatus: 'imported' | 'duplicate';
+      transactionId: string | null;
+      existingTransactionId: string | null;
+      normalizedPayload: (typeof plannedRows)[number]['normalizedPayload'];
+    }> = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const row of plannedRows) {
+        const payload = row.normalizedPayload;
+
+        const existing = await tx.transaction.findFirst({
+          where: {
+            companyId,
+            dedupeHash: payload.dedupeHash,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (existing?.id) {
+          committedRows.push({
+            rowNo: row.rowNo,
+            commitStatus: 'duplicate',
+            transactionId: null,
+            existingTransactionId: existing.id,
+            normalizedPayload: payload,
+          });
+          continue;
+        }
+
+        const created = await tx.transaction.create({
+          data: {
+            companyId,
+            storeId: String(payload.storeId),
+            accountId: String(payload.accountId),
+            categoryId: null,
+            type: 'OTHER',
+            direction: 'INCOME',
+            sourceType: 'IMPORT',
+            amount: Number(payload.amount || 0),
+            currency: 'JPY',
+            occurredAt: new Date(String(payload.occurredAt)),
+            externalRef: payload.source ? `cash-source:${String(payload.source)}` : null,
+            memo: String(payload.memo || ''),
+            businessMonth: payload.businessMonth || this.normalizeBusinessMonth(payload.occurredAt),
+            dedupeHash: String(payload.dedupeHash || ''),
+            sourceFileName: filename,
+            sourceRowNo: Number(payload.sourceRowNo || row.rowNo),
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        committedRows.push({
+          rowNo: row.rowNo,
+          commitStatus: 'imported',
+          transactionId: created.id,
+          existingTransactionId: null,
+          normalizedPayload: payload,
+        });
+      }
+    });
+
+    const importedRows = committedRows.filter((row) => row.commitStatus === 'imported');
+    const duplicateRows = committedRows.filter((row) => row.commitStatus === 'duplicate');
+    const totalImportedAmount = importedRows.reduce(
+      (sum, row) => sum + Number(row.normalizedPayload.amount || 0),
+      0,
+    );
+
+    return {
+      ok: true,
+      action: 'cash-income-commit',
+      module: 'cash-income',
+      companyId,
+      filename,
+      commitReady: true,
+      commitExecuted: true,
+      blockedReasons: [],
+      importedRows: importedRows.length,
+      duplicateRows: duplicateRows.length,
+      blockedRows: 0,
+      createdTransactionIds: importedRows
+        .map((row) => row.transactionId)
+        .filter(Boolean),
+      summary: {
+        totalRows: rows.length,
+        readyRows: plannedRows.length,
+        blockedRows: 0,
+        totalReadyAmount: plannedRows.reduce(
+          (sum, row) => sum + Number(row.normalizedPayload.amount || 0),
+          0,
+        ),
+        importedRows: importedRows.length,
+        duplicateRows: duplicateRows.length,
+        totalImportedAmount,
+      },
+      storeResolution: {
+        strategy: 'first_company_store',
+        storeId: defaultStore?.id || null,
+        storeName: defaultStore?.name || null,
+      },
+      rows: plannedRows.map((row) => {
+        const committed = committedRows.find((item) => item.rowNo === row.rowNo);
+        return {
+          ...row,
+          commitStatus: committed?.commitStatus || 'blocked',
+          transactionId: committed?.transactionId || null,
+          existingTransactionId: committed?.existingTransactionId || null,
+        };
+      }),
+      message:
+        'Cash income transactions committed. Duplicate rows are skipped by dedupeHash.',
+    };
+  }
+
 
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);

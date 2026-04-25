@@ -1,4 +1,6 @@
 import type {
+  CashIncomeCommitRequest,
+  CashIncomeCommitResponse,
   CashIncomePreviewRequest,
   CashIncomePreviewResponse,
   CommitImportRequest,
@@ -110,5 +112,15 @@ export async function previewCashIncomeImport(
   }
 
   return (await res.json()) as CashIncomePreviewResponse;
+}
+
+
+export async function commitCashIncomeImport(
+  payload: CashIncomeCommitRequest
+): Promise<CashIncomeCommitResponse> {
+  return postJson<CashIncomeCommitResponse>(
+    "/api/imports/cash-income/commit",
+    payload
+  );
 }
 
