@@ -197,7 +197,20 @@ return (
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Page Actions</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {sidebarActions.map((item) =>
+          {sidebarActions.map((item: any) => {
+            if (item.label === "現金収入CSV取込") {
+              return (
+                <Link
+                  key={item.label}
+                  href="/ja/app/data/import?module=cash-income"
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
+                >
+                  {item.label}
+                </Link>
+              );
+            }
+
+            return 
             item.href ? (
               <Link
                 key={item.label}
