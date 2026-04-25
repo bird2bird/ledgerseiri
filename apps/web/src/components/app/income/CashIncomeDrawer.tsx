@@ -92,6 +92,13 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   const currentError = isCreate ? panelError : editUiError;
   const saving = isCreate ? submitLoading : editSaveLoading || deleteLoading;
   const canSubmit = isCreate ? createCanSubmit : editCanSave && !editSaveLoading;
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
+
+  function closeDrawer() {
+    if (deleteLoading) return;
+    setDeleteConfirmOpen(false);
+    onClose();
+  }
 
   async function submit() {
     if (isCreate) {
@@ -118,16 +125,16 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
     await handleEditSave();
   }
 
-  async function submitDelete() {
-    if (isCreate || !row) return;
+  function submitDelete() {
+    if (isCreate || !row || deleteLoading || editSaveLoading) return;
+    setDeleteConfirmOpen(true);
+  }
 
-    const ok = window.confirm(
-      "この現金収入明細を削除します。削除後は元に戻せません。よろしいですか？"
-    );
-
-    if (!ok) return;
+  async function confirmDelete() {
+    if (isCreate || !row || deleteLoading) return;
 
     await handleDelete();
+    setDeleteConfirmOpen(false);
     onClose();
   }
 
@@ -136,7 +143,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
       <button
         type="button"
         aria-label="Close cash income drawer backdrop"
-        onClick={onClose}
+        onClick={closeDrawer}
         className="fixed inset-y-0 right-0 left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
       />
 
@@ -156,7 +163,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={closeDrawer}
               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               閉じる
@@ -310,11 +317,79 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
             </div>
           </div>
 
+          {deleteConfirmOpen && !isCreate && row ? (
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="cash-delete-confirm-title"
+              className="rounded-[24px] border border-rose-200 bg-rose-50 p-5 shadow-sm"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div
+                    id="cash-delete-confirm-title"
+                    className="text-base font-semibold text-rose-900"
+                  >
+                    現金収入明細を削除しますか？
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-rose-700">
+                    この操作は取り消せません。削除後は一覧から除外されます。
+                  </p>
+                </div>
+                <span className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700">
+                  削除確認
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 rounded-2xl border border-rose-100 bg-white/80 p-4 text-sm md:grid-cols-2">
+                <div>
+                  <div className="text-xs font-medium text-slate-500">発生日</div>
+                  <div className="mt-1 font-semibold text-slate-900">{row.date || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">口座</div>
+                  <div className="mt-1 font-semibold text-slate-900">{row.account || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">金額</div>
+                  <div className="mt-1 font-semibold text-slate-900">
+                    {formatIncomeJPY(row.amount)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-500">メモ</div>
+                  <div className="mt-1 line-clamp-2 font-semibold text-slate-900">
+                    {row.memo || "-"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  disabled={deleteLoading}
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmDelete()}
+                  disabled={deleteLoading}
+                  className="rounded-xl border border-rose-600 bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleteLoading ? "削除中..." : "削除する"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
             {!isCreate ? (
               <button
                 type="button"
-                onClick={() => void submitDelete()}
+                onClick={submitDelete}
                 disabled={deleteLoading || editSaveLoading}
                 className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -327,7 +402,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={closeDrawer}
                 disabled={saving}
                 className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
               >
@@ -336,7 +411,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
               <button
                 type="button"
                 onClick={submit}
-                disabled={!canSubmit || deleteLoading}
+                disabled={!canSubmit || deleteLoading || deleteConfirmOpen}
                 className="rounded-xl border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? "保存中..." : "保存"}
