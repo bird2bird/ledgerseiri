@@ -31,6 +31,13 @@ const EMPTY_STAGE_CHARGE_SUMMARY = {
   other: 0,
 };
 
+export type CashDeleteFeedback = {
+  amount: number;
+  date: string;
+  memo: string;
+  account: string;
+} | null;
+
 function normalizeImportMonths(values: string[]): string[] {
   return values
     .map((x) => String(x || "").trim())
@@ -191,6 +198,7 @@ export function useIncomePageState(args: {
   const [editUiMessage, setEditUiMessage] = useState("");
   const [editSaveLoading, setEditSaveLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [cashDeleteFeedback, setCashDeleteFeedback] = useState<CashDeleteFeedback>(null);
 
   const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -455,7 +463,8 @@ export function useIncomePageState(args: {
     try {
       setDeleteLoading(true);
 
-      const deletedId = selectedRow.id;
+      const deletedRow = selectedRow;
+      const deletedId = deletedRow.id;
       await deleteTransaction(deletedId);
 
       setSelectedRowId("");
@@ -463,6 +472,12 @@ export function useIncomePageState(args: {
       setEditMemo("");
       await loadRows();
 
+      setCashDeleteFeedback({
+        amount: Number(deletedRow.amount ?? 0),
+        date: deletedRow.date || "-",
+        memo: deletedRow.memo || "",
+        account: deletedRow.account || "-",
+      });
       setEditUiMessage("削除しました。");
       setTimeout(() => {
         setEditUiMessage("");
@@ -596,6 +611,8 @@ export function useIncomePageState(args: {
     setEditUiMessage,
     editSaveLoading,
     deleteLoading,
+    cashDeleteFeedback,
+    setCashDeleteFeedback,
 
     editAmountValid,
     editMemoTooLong,

@@ -293,6 +293,8 @@ export function IncomePageClient(props: {
           editSaveLoading={state.editSaveLoading}
           editCanSave={state.editCanSave}
           deleteLoading={state.deleteLoading}
+          cashDeleteFeedback={state.cashDeleteFeedback}
+          setCashDeleteFeedback={state.setCashDeleteFeedback}
           handleEditSave={state.handleEditSave}
           handleDeleteSelected={state.handleDeleteSelected}
           sidebarActions={orchestration.sidebarActions.map((item) => {

@@ -60,6 +60,13 @@ type CashIncomeWorkspaceProps = {
   editSaveLoading: boolean;
   editCanSave: boolean;
   deleteLoading: boolean;
+  cashDeleteFeedback: {
+    amount: number;
+    date: string;
+    memo: string;
+    account: string;
+  } | null;
+  setCashDeleteFeedback: (next: null) => void;
   handleEditSave: () => Promise<void>;
   handleDeleteSelected: () => Promise<void>;
 };
@@ -208,6 +215,54 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
 return (
     <div className="space-y-4">
+      {cashDeleteFeedback ? (
+        <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-base font-semibold text-emerald-900">
+                現金収入明細を削除しました
+              </div>
+              <div className="mt-1 text-sm text-emerald-700">
+                一覧を再取得しました。削除済みの明細は現在の一覧から除外されています。
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCashDeleteFeedback(null)}
+              className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+            >
+              通知を閉じる
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-100 bg-white/80 p-4 md:grid-cols-4">
+            <div>
+              <div className="text-xs font-medium text-emerald-600">Amount</div>
+              <div className="mt-1 font-semibold text-slate-900">
+                {formatIncomeJPY(cashDeleteFeedback.amount)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-600">Date</div>
+              <div className="mt-1 font-semibold text-slate-900">
+                {cashDeleteFeedback.date || "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-600">Account</div>
+              <div className="mt-1 font-semibold text-slate-900">
+                {cashDeleteFeedback.account || "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-emerald-600">Memo</div>
+              <div className="mt-1 line-clamp-2 font-semibold text-slate-900">
+                {cashDeleteFeedback.memo || "-"}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Page Actions</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
