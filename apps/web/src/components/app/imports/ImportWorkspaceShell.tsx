@@ -103,6 +103,30 @@ function formatCashAccountMatchMode(value?: string | null) {
   return "未解決";
 }
 
+function formatCashServerMatchReason(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  return raw
+    .split(" / ")
+    .map((message) => {
+      if (message === "accountName could not be resolved") {
+        return "口座名を既存の入金先口座と照合できません";
+      }
+      if (message === "accountName is required") return "口座名が未入力です";
+      if (message === "amount must be greater than 0") {
+        return "金額は 0 より大きい数値を入力してください";
+      }
+      if (message === "occurredAt is required") return "発生日が未入力です";
+      if (message === "occurredAt is not parseable") {
+        return "発生日を日付形式で入力してください";
+      }
+      if (message === "memo is recommended") return "メモの入力を推奨します";
+      return message;
+    })
+    .join(" / ");
+}
+
 function normalizeImportModuleHint(value?: string | null): ModuleMode {
   if (value === "store-operation") return "store-operation";
   if (value === "cash-income") return "cash-income";
@@ -1201,7 +1225,27 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
                   {cashServerAccountResolutionStats.unresolved > 0 ? (
                     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-                      未解決の口座があります。正式取込前に口座名を修正してください。
+                      <div className="font-semibold text-amber-900">
+                        未解決の口座があります。正式取込前に口座名を修正してください。
+                      </div>
+                      <div className="mt-1">
+                        CSV の account 列を既存の入金先口座名に合わせるか、設定画面で口座を追加してください。現時点では未解決行は正式登録できません。
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link
+                          href={`/${lang}/app/settings/accounts`}
+                          className="inline-flex rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100"
+                        >
+                          入金先口座を設定する
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void runCashServerPreview()}
+                          className="inline-flex rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100"
+                        >
+                          Server Preview を再実行
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
@@ -1221,14 +1265,18 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                       {cashServerPreview.rows.map((row) => (
                         <div
                           key={`server-${row.rowNo}-${row.matchStatus}`}
-                          className="grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                          className={
+                            row.accountResolution?.matchMode === "unresolved"
+                              ? "grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-amber-100 bg-amber-50/60 px-4 py-3 text-sm last:border-b-0"
+                              : "grid grid-cols-[70px_120px_100px_120px_130px_1fr_150px_170px] gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0"
+                          }
                         >
                           <div className="text-slate-500">{row.rowNo}</div>
                           <div>
                             <div className="font-semibold text-slate-900">{row.matchStatus}</div>
                             {row.matchReason ? (
                               <div className="mt-1 text-[11px] leading-4 text-slate-500">
-                                {row.matchReason}
+                                {formatCashServerMatchReason(row.matchReason)}
                               </div>
                             ) : null}
                           </div>
@@ -1245,9 +1293,23 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                             <div className="font-mono text-[11px] text-slate-600">
                               {row.normalizedPayload.accountId || "unresolved"}
                             </div>
-                            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                            <div
+                              className={
+                                row.accountResolution?.matchMode === "unresolved"
+                                  ? "inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                                  : "inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
+                              }
+                            >
                               {formatCashAccountMatchMode(row.accountResolution?.matchMode)}
                             </div>
+                            {row.accountResolution?.matchMode === "unresolved" ? (
+                              <Link
+                                href={`/${lang}/app/settings/accounts`}
+                                className="inline-flex rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100"
+                              >
+                                口座設定へ
+                              </Link>
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -1283,7 +1345,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <div className="rounded-2xl bg-white p-4">
                   <div className="text-xs text-slate-500">Pending Payload</div>
                   <div className="mt-1 text-sm font-medium text-slate-900">
-                    server preview result UX / account resolution summary まで完了（No commit / No DB write）
+                    server preview unresolved UX / account correction guide まで完了（No commit / No DB write）
                   </div>
                 </div>
               </div>
@@ -1304,7 +1366,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 <li>8. account alias / cash fallback matching：完了</li>
                 <li>9. frontend companyId server preview：完了</li>
                 <li>10. server preview result UX：完了</li>
-                <li>11. 将来：正式登録 API を transaction create flow に接続</li>
+                <li>11. unresolved account correction UX：完了</li>
+                <li>12. 将来：正式登録 API を transaction create flow に接続</li>
               </ul>
             </div>
 
