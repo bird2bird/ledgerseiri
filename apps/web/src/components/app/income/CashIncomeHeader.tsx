@@ -561,21 +561,61 @@ export function CashIncomeHeader(props: {
                           />
                         ) : null}
 
-                        {coords.map((point) => (
-                          <g key={`cash-trend-point-${point.date}`}>
-                            <circle cx={point.x} cy={point.y} r="4.5" fill="#2563eb" />
-                            {point.amount > 0 ? (
-                              <text
-                                x={Math.min(point.x + 8, padding.left + innerWidth - 4)}
-                                y={point.y - 10}
-                                fontSize="11"
-                                fill="#0f172a"
-                              >
-                                {formatChartYen(point.amount)}
-                              </text>
-                            ) : null}
-                          </g>
-                        ))}
+                        {coords.map((point) => {
+                          const tooltipWidth = 132;
+                          const tooltipHeight = 48;
+                          const tooltipX = Math.min(
+                            Math.max(point.x + 12, padding.left + 8),
+                            padding.left + innerWidth - tooltipWidth
+                          );
+                          const tooltipY = Math.max(point.y - 58, padding.top + 8);
+
+                          return (
+                            <g
+                              key={`cash-trend-point-${point.date}`}
+                              className="group outline-none"
+                              tabIndex={0}
+                            >
+                              <title>{`${formatCashDateLabel(point.date)} / ${formatChartYen(point.amount)}`}</title>
+                              <circle cx={point.x} cy={point.y} r="4.5" fill="#2563eb" />
+                              <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r="13"
+                                fill="transparent"
+                                className="cursor-pointer"
+                              />
+                              <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                                <rect
+                                  x={tooltipX}
+                                  y={tooltipY}
+                                  width={tooltipWidth}
+                                  height={tooltipHeight}
+                                  rx="12"
+                                  fill="#0f172a"
+                                  opacity="0.94"
+                                />
+                                <text
+                                  x={tooltipX + 12}
+                                  y={tooltipY + 19}
+                                  fontSize="11"
+                                  fill="#cbd5e1"
+                                >
+                                  {formatCashDateLabel(point.date)}
+                                </text>
+                                <text
+                                  x={tooltipX + 12}
+                                  y={tooltipY + 38}
+                                  fontSize="13"
+                                  fontWeight="700"
+                                  fill="#ffffff"
+                                >
+                                  {formatChartYen(point.amount)}
+                                </text>
+                              </g>
+                            </g>
+                          );
+                        })}
 
                         <text
                           x={padding.left + innerWidth / 2}
