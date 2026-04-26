@@ -125,6 +125,8 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     editSaveLoading,
     editCanSave,
     deleteLoading,
+    cashDeleteFeedback,
+    setCashDeleteFeedback,
     handleEditSave,
     handleDeleteSelected,
   } = props;
@@ -213,7 +215,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     if (!exists) onSelectRow("");
   }, [sortedRows, selectedRowId, onSelectRow]);
 
-return (
+  return (
     <div className="space-y-4">
       {cashDeleteFeedback ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
