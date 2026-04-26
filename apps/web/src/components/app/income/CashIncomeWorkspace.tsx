@@ -159,15 +159,43 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
-  const normalizedSidebarActions = sidebarActions.map((item: any) =>
-    item.label === "現金収入CSV取込"
-      ? {
-          ...item,
-          href: "/ja/app/data/import?module=cash-income",
-          disabled: false,
-        }
-      : item
-  );
+  const normalizedSidebarActions: CashActionItem[] = sidebarActions.map((item) => {
+    if (item.label === "現金収入CSV取込" || item.label === "CSV取込") {
+      return {
+        ...item,
+        label: "現金収入CSV取込",
+        href: "/ja/app/data/import?module=cash-income",
+        disabled: false,
+      };
+    }
+
+    if (item.label === "現金収入を編集" || item.label === "編集") {
+      return {
+        ...item,
+        label: "現金収入を編集",
+        href: undefined,
+        disabled: !selectedRow,
+      };
+    }
+
+    if (item.label === "入金元/補助設定" || item.label === "店舗紐付け") {
+      return {
+        ...item,
+        label: "入金元/補助設定",
+        href: "/ja/app/settings/accounts",
+        disabled: false,
+      };
+    }
+
+    if (item.label === "新規収入") {
+      return {
+        ...item,
+        label: "新規現金収入",
+      };
+    }
+
+    return item;
+  });
 
   const createDrawerOpen = action === "create";
   const editDrawerOpen = editingRow !== null;
@@ -187,6 +215,14 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       clearActionMode();
     }
     setEditingRow(null);
+  }
+
+  function handlePageActionClick(item: CashActionItem) {
+    if (item.disabled) return;
+
+    if (item.label === "現金収入を編集" && selectedRow) {
+      openEdit(selectedRow);
+    }
   }
 
   React.useEffect(() => {
@@ -239,25 +275,25 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
           <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-100 bg-white/80 p-4 md:grid-cols-4">
             <div>
-              <div className="text-xs font-medium text-emerald-600">Amount</div>
+              <div className="text-xs font-medium text-emerald-600">金額</div>
               <div className="mt-1 font-semibold text-slate-900">
                 {formatIncomeJPY(cashDeleteFeedback.amount)}
               </div>
             </div>
             <div>
-              <div className="text-xs font-medium text-emerald-600">Date</div>
+              <div className="text-xs font-medium text-emerald-600">発生日</div>
               <div className="mt-1 font-semibold text-slate-900">
                 {cashDeleteFeedback.date || "-"}
               </div>
             </div>
             <div>
-              <div className="text-xs font-medium text-emerald-600">Account</div>
+              <div className="text-xs font-medium text-emerald-600">口座</div>
               <div className="mt-1 font-semibold text-slate-900">
                 {cashDeleteFeedback.account || "-"}
               </div>
             </div>
             <div>
-              <div className="text-xs font-medium text-emerald-600">Memo</div>
+              <div className="text-xs font-medium text-emerald-600">メモ</div>
               <div className="mt-1 line-clamp-2 font-semibold text-slate-900">
                 {cashDeleteFeedback.memo || "-"}
               </div>
@@ -266,9 +302,9 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         </div>
       ) : null}
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
-        <div className="text-lg font-semibold text-slate-900">Page Actions</div>
+        <div className="text-lg font-semibold text-slate-900">操作メニュー</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {normalizedSidebarActions.map((item: any) =>
+          {normalizedSidebarActions.map((item) =>
             item.href ? (
               <Link
                 key={item.label}
@@ -288,12 +324,20 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 {item.label}
               </Link>
             ) : (
-              <div
+              <button
                 key={item.label}
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-400"
+                type="button"
+                onClick={() => handlePageActionClick(item)}
+                disabled={item.disabled}
+                className={[
+                  "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
+                  item.disabled
+                    ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                ].join(" ")}
               >
                 {item.label}
-              </div>
+              </button>
             )
           )}
         </div>
@@ -302,14 +346,14 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Cash Income Rows</div>
+            <div className="text-lg font-semibold text-slate-900">現金収入明細</div>
             <div className="mt-1 text-sm text-slate-500">
-              現金入金明細を一覧で確認し、クリックした行の概要をすばやく確認できます。
+              現金入金明細を一覧で確認できます。行をクリックすると編集 drawer が開きます。
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-700">排序</span>
+            <span className="text-sm font-medium text-slate-700">並び替え</span>
             <select
               value={sortMode}
               onChange={(e) => {
@@ -318,10 +362,10 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               }}
               className="h-10 min-w-[180px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
             >
-              <option value="date_desc">日期（新→旧）</option>
-              <option value="date_asc">日期（旧→新）</option>
-              <option value="amount_desc">金额（高→低）</option>
-              <option value="amount_asc">金额（低→高）</option>
+              <option value="date_desc">発生日（新しい順）</option>
+              <option value="date_asc">発生日（古い順）</option>
+              <option value="amount_desc">金額（高い順）</option>
+              <option value="amount_asc">金額（低い順）</option>
             </select>
           </div>
         </div>
@@ -330,23 +374,23 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
             <div className="grid gap-3 md:grid-cols-5">
               <div>
-                <div className="text-xs text-slate-500">Date</div>
+                <div className="text-xs text-slate-500">発生日</div>
                 <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Label</div>
+                <div className="text-xs text-slate-500">種別</div>
                 <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Account</div>
+                <div className="text-xs text-slate-500">口座</div>
                 <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Store</div>
+                <div className="text-xs text-slate-500">入金元</div>
                 <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store || "-"}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Amount</div>
+                <div className="text-xs text-slate-500">金額</div>
                 <div className="mt-1 text-sm font-semibold text-slate-900">
                   {formatIncomeJPY(selectedRow.amount)}
                 </div>
@@ -362,11 +406,11 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
           <div className="grid grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-            <div>Date</div>
-            <div>Label</div>
-            <div>Memo / Store</div>
-            <div>Account</div>
-            <div className="text-right">Amount</div>
+            <div>発生日</div>
+            <div>種別</div>
+            <div>メモ・入金元</div>
+            <div>口座</div>
+            <div className="text-right">金額</div>
           </div>
 
           {visibleRows.length > 0 ? (
@@ -427,9 +471,9 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 }}
                 className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                <option value={20}>20 条</option>
-                <option value={50}>50 条</option>
-                <option value={100}>100 条</option>
+                <option value={20}>20 件</option>
+                <option value={50}>50 件</option>
+                <option value={100}>100 件</option>
               </select>
             </div>
 
