@@ -29,33 +29,56 @@ function makeTrendSeries(rows: IncomeRow[], range: CashHeaderRange, startDate: s
   if (range === "90d") start.setDate(now.getDate() - 89);
   if (range === "12m") start.setMonth(now.getMonth() - 11, 1);
 
-  let startMs = start.getTime();
-  let endMs = now.getTime();
+  start.setHours(0, 0, 0, 0);
+  now.setHours(23, 59, 59, 999);
+
+  let startDateObj = start;
+  let endDateObj = now;
 
   if (range === "custom") {
-    startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : 0;
-    endMs = endDate ? new Date(`${endDate}T23:59:59`).getTime() : now.getTime();
+    const customStart = startDate ? new Date(`${startDate}T00:00:00`) : null;
+    const customEnd = endDate ? new Date(`${endDate}T23:59:59`) : null;
+
+    startDateObj =
+      customStart && !Number.isNaN(customStart.getTime()) ? customStart : new Date(0);
+    endDateObj =
+      customEnd && !Number.isNaN(customEnd.getTime()) ? customEnd : now;
   }
 
-  const filtered = rows.filter((row) => {
-    const ts = parseRowDate(row);
-    if (!ts) return false;
-    if (startMs && ts < startMs) return false;
-    if (endMs && ts > endMs) return false;
-    return true;
-  });
+  const startMs = startDateObj.getTime();
+  const endMs = endDateObj.getTime();
 
   const buckets = new Map<string, number>();
-  for (const row of filtered) {
-    const raw = String(row.date || "");
-    const key = raw.includes("T") ? raw.slice(0, 10) : raw.slice(0, 10);
+
+  for (const row of rows) {
+    const ts = parseRowDate(row);
+    if (!ts) continue;
+    if (startMs && ts < startMs) continue;
+    if (endMs && ts > endMs) continue;
+
+    const date = new Date(ts);
+    const key = formatCashDateKey(date);
     buckets.set(key, (buckets.get(key) || 0) + Number(row.amount || 0));
   }
 
-  const points = Array.from(buckets.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-12)
-    .map(([date, amount]) => ({ date, amount }));
+  const points: { date: string; amount: number }[] = [];
+  const cursor = new Date(startDateObj);
+  cursor.setHours(0, 0, 0, 0);
+
+  const endCursor = new Date(endDateObj);
+  endCursor.setHours(0, 0, 0, 0);
+
+  // Safety cap: 12m can be up to 366 daily points. Avoid accidental infinite loops.
+  let guard = 0;
+  while (cursor.getTime() <= endCursor.getTime() && guard < 370) {
+    const key = formatCashDateKey(cursor);
+    points.push({
+      date: key,
+      amount: buckets.get(key) || 0,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
 
   return points;
 }
@@ -87,7 +110,14 @@ function formatChartYen(value: number) {
 function parseCashDate(value: string) {
   const raw = String(value || "").trim();
   if (!raw) return null;
-  const normalized = raw.includes("T") ? raw : `${raw}T00:00:00`;
+
+  const slashNormalized = raw.replace(/\//g, "-");
+  const directDate = new Date(slashNormalized);
+  if (!Number.isNaN(directDate.getTime())) return directDate;
+
+  const normalized = slashNormalized.includes("T")
+    ? slashNormalized
+    : `${slashNormalized}T00:00:00`;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -411,7 +441,7 @@ export function CashIncomeHeader(props: {
             <div>
               <div className="text-lg font-semibold text-slate-900">入金趋势</div>
               <div className="mt-1 text-sm leading-6 text-slate-500">
-                現在範囲に連動して、日付ごとの現金収入推移を表示します。横軸は発生日、縦軸は金額です。
+                現在範囲に連動して、日付ごとの現金収入推移を表示します。入金がない日は 0 として表示します。横軸は発生日、縦軸は金額です。
               </div>
             </div>
             <div className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
@@ -423,7 +453,7 @@ export function CashIncomeHeader(props: {
             {trendPoints.length > 0 ? (
               <div className="overflow-x-auto rounded-[24px] border border-slate-200 bg-white p-4">
                 <svg
-                  viewBox={`0 0 760 ${Math.max(280, 76 + Math.max(1, trendPoints.length - 1) * 34)}`}
+                  viewBox="0 0 760 320"
                   className="min-w-[720px]"
                   role="img"
                   aria-label="現金収入の入金趋势"
@@ -432,8 +462,9 @@ export function CashIncomeHeader(props: {
                     const width = 760;
                     const padding = { top: 18, right: 24, bottom: 44, left: 112 };
                     const innerWidth = width - padding.left - padding.right;
-                    const innerHeight = Math.max(220, Math.max(1, trendPoints.length - 1) * 34);
-                    const height = innerHeight + padding.top + padding.bottom;
+                    const innerHeight = 220;
+                    const height = 320;
+                    const xLabelEvery = Math.max(1, Math.ceil(trendPoints.length / 8));
                     const coords = trendPoints.map((point, index) => {
                       const x =
                         padding.left +
@@ -490,15 +521,18 @@ export function CashIncomeHeader(props: {
                               stroke="#eef2f7"
                               strokeWidth="1"
                             />
-                            <text
-                              x={point.x}
-                              y={height - 14}
-                              textAnchor="middle"
-                              fontSize="12"
-                              fill="#475569"
-                            >
-                              {formatCashDateLabel(point.date)}
-                            </text>
+                            {(coords.indexOf(point) % xLabelEvery === 0 ||
+                              coords.indexOf(point) === coords.length - 1) ? (
+                              <text
+                                x={point.x}
+                                y={height - 14}
+                                textAnchor="middle"
+                                fontSize="12"
+                                fill="#475569"
+                              >
+                                {formatCashDateLabel(point.date)}
+                              </text>
+                            ) : null}
                           </g>
                         ))}
 
@@ -533,14 +567,16 @@ export function CashIncomeHeader(props: {
                         {coords.map((point) => (
                           <g key={`cash-trend-point-${point.date}`}>
                             <circle cx={point.x} cy={point.y} r="4.5" fill="#2563eb" />
-                            <text
-                              x={Math.min(point.x + 8, padding.left + innerWidth - 4)}
-                              y={point.y - 10}
-                              fontSize="11"
-                              fill="#0f172a"
-                            >
-                              {formatChartYen(point.amount)}
-                            </text>
+                            {point.amount > 0 ? (
+                              <text
+                                x={Math.min(point.x + 8, padding.left + innerWidth - 4)}
+                                y={point.y - 10}
+                                fontSize="11"
+                                fill="#0f172a"
+                              >
+                                {formatChartYen(point.amount)}
+                              </text>
+                            ) : null}
                           </g>
                         ))}
 
@@ -578,17 +614,17 @@ export function CashIncomeHeader(props: {
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Points</div>
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示日数</div>
               <div className="mt-2 text-2xl font-semibold text-slate-950">{trendPoints.length}</div>
             </div>
             <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Peak Date</div>
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大入金日</div>
               <div className="mt-2 text-base font-semibold text-slate-950">
                 {cashPeakTrend ? formatCashDateLabel(cashPeakTrend.date) : "-"}
               </div>
             </div>
             <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Peak Amount</div>
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大入金額</div>
               <div className="mt-2 text-base font-semibold text-slate-950">
                 {cashPeakTrend ? formatChartYen(cashPeakTrend.amount) : "-"}
               </div>
@@ -739,13 +775,13 @@ export function CashIncomeHeader(props: {
 
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Current Granularity</div>
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示単位</div>
                 <div className="mt-2 text-base font-semibold text-slate-950">
                   {cashChartGranularity === "day" ? "日別" : cashChartGranularity === "week" ? "週別" : "月別"}
                 </div>
               </div>
               <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Peak Bucket</div>
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大区間</div>
                 <div className="mt-2 text-base font-semibold text-slate-950">
                   {cashPeakBar ? `${cashPeakBar.label} / ${formatChartYen(cashPeakBar.amount)}` : "-"}
                 </div>
@@ -753,7 +789,7 @@ export function CashIncomeHeader(props: {
             </div>
 
             <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Filter Context</div>
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示条件</div>
               <div className="mt-2 text-sm font-semibold text-slate-950">
                 {storeId === "all" ? "全店舗" : storeId} / {headerRange === "custom" ? `${customStartDate || "-"} → ${customEndDate || "-"}` : headerRange}
               </div>
