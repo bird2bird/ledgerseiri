@@ -311,16 +311,6 @@ export function CashIncomeHeader(props: {
   );
   const cashBarMax = cashBarTicks[cashBarTicks.length - 1] || 1;
 
-  const cashPeakTrend = trendPoints.reduce<{ date: string; amount: number } | null>((best, current) => {
-    if (!best) return current;
-    return current.amount > best.amount ? current : best;
-  }, null);
-
-  const cashPeakBar = safeCashBarPoints.reduce<{ label: string; amount: number } | null>((best, current) => {
-    if (!best) return current;
-    return current.amount > best.amount ? current : best;
-  }, null);
-
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
@@ -444,8 +434,8 @@ export function CashIncomeHeader(props: {
                 現在範囲に連動して、日付ごとの現金収入推移を表示します。入金がない日は 0 として表示します。横軸は発生日、縦軸は金額です。
               </div>
             </div>
-            <div className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-              現在範囲と連動
+            <div className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+              表示日数 {trendPoints.length}
             </div>
           </div>
 
@@ -511,30 +501,37 @@ export function CashIncomeHeader(props: {
                           );
                         })}
 
-                        {coords.map((point) => (
-                          <g key={`cash-trend-row-${point.date}`}>
-                            <line
-                              x1={point.x}
-                              y1={padding.top}
-                              x2={point.x}
-                              y2={padding.top + innerHeight}
-                              stroke="#eef2f7"
-                              strokeWidth="1"
-                            />
-                            {(coords.indexOf(point) % xLabelEvery === 0 ||
-                              coords.indexOf(point) === coords.length - 1) ? (
-                              <text
-                                x={point.x}
-                                y={height - 14}
-                                textAnchor="middle"
-                                fontSize="12"
-                                fill="#475569"
-                              >
-                                {formatCashDateLabel(point.date)}
-                              </text>
-                            ) : null}
-                          </g>
-                        ))}
+                        {coords.map((point, index) => {
+                          const isFirstLabel = index === 0;
+                          const isLastLabel = index === coords.length - 1;
+                          const isSparseLabel =
+                            index % xLabelEvery === 0 && index < Math.max(1, coords.length - 2);
+                          const shouldShowDateLabel = isFirstLabel || isLastLabel || isSparseLabel;
+
+                          return (
+                            <g key={`cash-trend-row-${point.date}`}>
+                              <line
+                                x1={point.x}
+                                y1={padding.top}
+                                x2={point.x}
+                                y2={padding.top + innerHeight}
+                                stroke="#eef2f7"
+                                strokeWidth="1"
+                              />
+                              {shouldShowDateLabel ? (
+                                <text
+                                  x={point.x}
+                                  y={height - 14}
+                                  textAnchor="middle"
+                                  fontSize="11"
+                                  fill="#475569"
+                                >
+                                  {formatCashDateLabel(point.date)}
+                                </text>
+                              ) : null}
+                            </g>
+                          );
+                        })}
 
                         <line
                           x1={padding.left}
@@ -612,24 +609,6 @@ export function CashIncomeHeader(props: {
             )}
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示日数</div>
-              <div className="mt-2 text-2xl font-semibold text-slate-950">{trendPoints.length}</div>
-            </div>
-            <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大入金日</div>
-              <div className="mt-2 text-base font-semibold text-slate-950">
-                {cashPeakTrend ? formatCashDateLabel(cashPeakTrend.date) : "-"}
-              </div>
-            </div>
-            <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大入金額</div>
-              <div className="mt-2 text-base font-semibold text-slate-950">
-                {cashPeakTrend ? formatChartYen(cashPeakTrend.amount) : "-"}
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-6 shadow-sm">
@@ -773,27 +752,6 @@ export function CashIncomeHeader(props: {
               />
             )}
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示単位</div>
-                <div className="mt-2 text-base font-semibold text-slate-950">
-                  {cashChartGranularity === "day" ? "日別" : cashChartGranularity === "week" ? "週別" : "月別"}
-                </div>
-              </div>
-              <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-                <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">最大区間</div>
-                <div className="mt-2 text-base font-semibold text-slate-950">
-                  {cashPeakBar ? `${cashPeakBar.label} / ${formatChartYen(cashPeakBar.amount)}` : "-"}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[20px] border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">表示条件</div>
-              <div className="mt-2 text-sm font-semibold text-slate-950">
-                {storeId === "all" ? "全店舗" : storeId} / {headerRange === "custom" ? `${customStartDate || "-"} → ${customEndDate || "-"}` : headerRange}
-              </div>
-            </div>
           </div>
         </div>
       </div>
