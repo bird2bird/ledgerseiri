@@ -768,6 +768,20 @@ export function CashIncomeHeader(props: {
                                 fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#0f172a"}
                                 opacity={index === safeCashBarPoints.length - 1 ? 0.95 : 0.82}
                               />
+                              {point.amount > 0 ? (
+                                <text
+                                  data-role="cash-bar-amount-label"
+                                  x={x + columnWidth / 2}
+                                  y={Math.max(y - 8, padding.top + 12)}
+                                  textAnchor="middle"
+                                  fontSize="11"
+                                  fontWeight="700"
+                                  fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#334155"}
+                                  className="pointer-events-none select-none"
+                                >
+                                  {formatChartYen(point.amount)}
+                                </text>
+                              ) : null}
                               <text
                                 x={x + columnWidth / 2}
                                 y={padding.top + innerHeight + 17}
