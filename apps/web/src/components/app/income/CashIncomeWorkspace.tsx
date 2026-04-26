@@ -4,6 +4,13 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
+import { createTransaction } from "@/core/transactions/api";
+import { listAccounts } from "@/core/funds/api";
+import {
+  formatCashDraftMessage,
+  parseCashIncomeCsvDraft,
+  splitCsvLine,
+} from "@/core/imports/cash-income-import-client";
 import {
   CashIncomeDrawer,
   type CashAccountOption,
@@ -69,6 +76,7 @@ type CashIncomeWorkspaceProps = {
   setCashDeleteFeedback: (next: null) => void;
   handleEditSave: () => Promise<void>;
   handleDeleteSelected: () => Promise<void>;
+  reloadRows: () => Promise<void>;
 };
 
 function parseRowDateMs(row: IncomeRow) {
@@ -85,6 +93,115 @@ function buildPageWindow(current: number, total: number) {
   for (let i = start; i <= end; i += 1) pages.push(i);
   return pages;
 }
+
+
+type CashFileImportFeedback = {
+  kind: "success" | "error";
+  title: string;
+  message: string;
+  fileName?: string;
+  importedRows?: number;
+  blockedRows?: number;
+  importedAmount?: number;
+};
+
+function escapeCsvCell(value: string) {
+  const raw = String(value ?? "");
+  if (raw.includes(",") || raw.includes("\"") || raw.includes("\n")) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function normalizeCashFileCsvHeaders(csvText: string) {
+  const lines = csvText
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/);
+
+  if (lines.length === 0) return csvText;
+
+  const header = splitCsvLine(lines[0]).map((cell) => String(cell || "").trim());
+  const headerMap: Record<string, string> = {
+    "口座": "account",
+    "口座名": "account",
+    "入金口座": "account",
+    "accountName": "account",
+    "金額": "amount",
+    "入金額": "amount",
+    "発生日": "occurredAt",
+    "日付": "occurredAt",
+    "取引日": "occurredAt",
+    "occurredAt": "occurredAt",
+    "メモ": "memo",
+    "摘要": "memo",
+    "備考": "memo",
+    "入金元": "source",
+    "店舗": "source",
+    "source": "source",
+  };
+
+  const normalizedHeader = header.map((cell) => headerMap[cell] || cell);
+  const changed = normalizedHeader.join(",") !== header.join(",");
+
+  if (!changed) return csvText;
+
+  return [
+    normalizedHeader.map(escapeCsvCell).join(","),
+    ...lines.slice(1),
+  ].join("\n");
+}
+
+async function readCashIncomeFileAsCsvText(file: File) {
+  const lower = file.name.toLowerCase();
+
+  if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+    const XLSX = await import("xlsx");
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = sheetName ? workbook.Sheets[sheetName] : null;
+
+    if (!sheet) {
+      throw new Error("Excel ファイルに読み取れるシートがありません。");
+    }
+
+    return XLSX.utils.sheet_to_csv(sheet);
+  }
+
+  return await file.text();
+}
+
+function resolveCashAccountId(args: {
+  accountName: string;
+  accounts: CashAccountOption[];
+}) {
+  const raw = String(args.accountName || "").trim();
+  const normalized = raw.toLowerCase();
+
+  const exact = args.accounts.find((item) => item.name === raw);
+  if (exact) return exact.id;
+
+  const loose = args.accounts.find((item) => {
+    const name = String(item.name || "").toLowerCase();
+    return name.includes(normalized) || normalized.includes(name);
+  });
+  if (loose) return loose.id;
+
+  const cashFallback = args.accounts.find((item) => {
+    const name = String(item.name || "");
+    return name.includes("現金") || name.toLowerCase().includes("cash");
+  });
+
+  return cashFallback?.id || "";
+}
+
+function stripCashSourceMarker(value?: string | null) {
+  return String(value || "")
+    .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 
 export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const {
@@ -129,10 +246,15 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     setCashDeleteFeedback,
     handleEditSave,
     handleDeleteSelected,
+    reloadRows,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
   const [editingRow, setEditingRow] = React.useState<IncomeRow | null>(null);
+  const cashFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [cashFileImportLoading, setCashFileImportLoading] = React.useState(false);
+  const [cashFileImportFeedback, setCashFileImportFeedback] =
+    React.useState<CashFileImportFeedback | null>(null);
 
   const sortedRows = React.useMemo(() => {
     const next = [...rows];
@@ -164,7 +286,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       return {
         ...item,
         label: "現金収入CSV取込",
-        href: "/ja/app/data/import?module=cash-income",
+        href: undefined,
         disabled: false,
       };
     }
@@ -217,8 +339,112 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     setEditingRow(null);
   }
 
+  async function handleCashIncomeFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+
+    if (!file || cashFileImportLoading) return;
+
+    setCashFileImportLoading(true);
+    setCashFileImportFeedback(null);
+
+    try {
+      const rawCsv = await readCashIncomeFileAsCsvText(file);
+      const normalizedCsv = normalizeCashFileCsvHeaders(rawCsv);
+      const draftRows = parseCashIncomeCsvDraft(normalizedCsv);
+      const validRows = draftRows.filter((row) => row.status !== "error");
+
+      if (draftRows.length === 0) {
+        throw new Error("取込できる行がありません。CSV / Excel の内容を確認してください。");
+      }
+
+      if (validRows.length === 0) {
+        const firstError = draftRows
+          .flatMap((row) => row.messages)
+          .map(formatCashDraftMessage)[0];
+
+        throw new Error(firstError || "有効な現金収入行がありません。");
+      }
+
+      const accountsRes = accounts.length > 0 ? { items: accounts } : await listAccounts();
+      const sourceAccounts = accountsRes.items ?? [];
+      let importedRows = 0;
+      let blockedRows = 0;
+      let importedAmount = 0;
+
+      for (const row of validRows) {
+        const resolvedAccountId = resolveCashAccountId({
+          accountName: row.account,
+          accounts: sourceAccounts,
+        });
+
+        if (!resolvedAccountId) {
+          blockedRows += 1;
+          continue;
+        }
+
+        const occurredAt = new Date(row.occurredAt);
+        if (Number.isNaN(occurredAt.getTime())) {
+          blockedRows += 1;
+          continue;
+        }
+
+        const visibleMemo = stripCashSourceMarker(row.memo || "現金収入");
+        const sourcePart = row.source ? ` / ${row.source}` : "";
+        const fileMarker = ` [file-import:${file.name}]`;
+
+        await createTransaction({
+          accountId: resolvedAccountId,
+          categoryId: null,
+          type: "OTHER",
+          direction: "INCOME",
+          amount: Number(row.amount || 0),
+          currency: "JPY",
+          occurredAt: occurredAt.toISOString(),
+          memo: `[cash] ${visibleMemo}${sourcePart}${fileMarker}`,
+        });
+
+        importedRows += 1;
+        importedAmount += Number(row.amount || 0);
+      }
+
+      await reloadRows();
+      setCurrentPage(1);
+
+      setCashFileImportFeedback({
+        kind: importedRows > 0 ? "success" : "error",
+        title:
+          importedRows > 0
+            ? "現金収入ファイルを取込しました"
+            : "取込できる行がありませんでした",
+        message:
+          importedRows > 0
+            ? "ファイルから Transaction を作成し、一覧を再取得しました。"
+            : "口座名が既存の入金口座と一致しているか確認してください。",
+        fileName: file.name,
+        importedRows,
+        blockedRows,
+        importedAmount,
+      });
+    } catch (e: unknown) {
+      setCashFileImportFeedback({
+        kind: "error",
+        title: "現金収入ファイルの取込に失敗しました",
+        message: e instanceof Error ? e.message : String(e),
+        fileName: file.name,
+      });
+    } finally {
+      setCashFileImportLoading(false);
+    }
+  }
+
   function handlePageActionClick(item: CashActionItem) {
     if (item.disabled) return;
+
+    if (item.label === "現金収入CSV取込") {
+      cashFileInputRef.current?.click();
+      return;
+    }
 
     if (item.label === "現金収入を編集" && selectedRow) {
       openEdit(selectedRow);
@@ -253,6 +479,13 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
   return (
     <div className="space-y-4">
+      <input
+        ref={cashFileInputRef}
+        type="file"
+        accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        className="hidden"
+        onChange={(event) => void handleCashIncomeFileSelected(event)}
+      />
       {cashDeleteFeedback ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -328,7 +561,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 key={item.label}
                 type="button"
                 onClick={() => handlePageActionClick(item)}
-                disabled={item.disabled}
+                disabled={item.disabled || (item.label === "現金収入CSV取込" && cashFileImportLoading)}
                 className={[
                   "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
                   item.disabled
@@ -336,11 +569,56 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
               >
-                {item.label}
+                {item.label === "現金収入CSV取込" && cashFileImportLoading ? "取込中..." : item.label}
               </button>
             )
           )}
         </div>
+
+        {cashFileImportFeedback ? (
+          <div
+            className={[
+              "mt-4 rounded-2xl border px-4 py-3 text-sm",
+              cashFileImportFeedback.kind === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-rose-200 bg-rose-50 text-rose-800",
+            ].join(" ")}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-semibold">{cashFileImportFeedback.title}</div>
+                <div className="mt-1 text-xs leading-5">
+                  {cashFileImportFeedback.message}
+                </div>
+                <div className="mt-2 grid gap-2 text-xs md:grid-cols-4">
+                  <div>
+                    <span className="font-semibold">File:</span>{" "}
+                    {cashFileImportFeedback.fileName || "-"}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Imported:</span>{" "}
+                    {cashFileImportFeedback.importedRows ?? 0}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Blocked:</span>{" "}
+                    {cashFileImportFeedback.blockedRows ?? 0}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Amount:</span>{" "}
+                    {formatIncomeJPY(cashFileImportFeedback.importedAmount ?? 0)}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCashFileImportFeedback(null)}
+                className="rounded-xl border border-white/70 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
@@ -398,7 +676,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
             </div>
             {selectedRow.memo ? (
               <div className="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-600">
-                {selectedRow.memo}
+                {stripCashSourceMarker(selectedRow.memo)}
               </div>
             ) : null}
           </div>
@@ -433,7 +711,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     <div className="font-medium text-slate-900">{row.label}</div>
                   </div>
                   <div>
-                    <div className="text-slate-600">{row.memo || "-"}</div>
+                    <div className="text-slate-600">{stripCashSourceMarker(row.memo) || "-"}</div>
                     <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
                   </div>
                   <div className="text-slate-600">{row.account}</div>

@@ -46,6 +46,39 @@ export type CashIncomeDrawerProps = {
   handleDelete: () => Promise<void>;
 };
 
+
+function resolveCashDataSource(row: IncomeRow | null, isCreate: boolean) {
+  if (isCreate) {
+    return {
+      label: "手動追加",
+      detail: "この画面から手動で登録します",
+    };
+  }
+
+  const memo = String(row?.memo || "");
+  const fileMatch = memo.match(/\[file-import:([^\]]+)\]/);
+
+  if (fileMatch?.[1]) {
+    return {
+      label: "ファイル取込",
+      detail: fileMatch[1],
+    };
+  }
+
+  return {
+    label: "手動追加",
+    detail: "画面から登録された明細です",
+  };
+}
+
+function stripCashSourceMarker(value?: string | null) {
+  return String(value || "")
+    .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
 export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   const {
     mode,
@@ -92,6 +125,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   const currentError = isCreate ? panelError : editUiError;
   const saving = isCreate ? submitLoading : editSaveLoading || deleteLoading;
   const canSubmit = isCreate ? createCanSubmit : editCanSave && !editSaveLoading;
+  const dataSource = resolveCashDataSource(row, isCreate);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
 
   function closeDrawer() {
@@ -187,7 +221,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
           {!isCreate && row ? (
             <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div className="text-sm font-medium text-slate-900">選択中の明細</div>
-              <div className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+              <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
                 <div>
                   <div className="text-xs text-slate-500">Date</div>
                   <div className="mt-1 font-semibold text-slate-900">{row.date}</div>
@@ -201,6 +235,11 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                   <div className="mt-1 font-semibold text-slate-900">
                     {formatIncomeJPY(row.amount)}
                   </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">データ来源</div>
+                  <div className="mt-1 font-semibold text-slate-900">{dataSource.label}</div>
+                  <div className="mt-1 truncate text-xs text-slate-500">{dataSource.detail}</div>
                 </div>
               </div>
             </div>
@@ -293,7 +332,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
             <div className="text-sm font-medium text-slate-900">
               {isCreate ? "登録プレビュー" : "編集プレビュー"}
             </div>
-            <div className="mt-3 grid gap-3 text-sm md:grid-cols-3">
+            <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
               <div>
                 <div className="text-xs text-slate-500">Amount</div>
                 <div className="mt-1 font-semibold text-slate-900">
@@ -313,6 +352,11 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                 <div className="mt-1 font-semibold text-slate-900">
                   現金収入（自動）
                 </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">データ来源</div>
+                <div className="mt-1 font-semibold text-slate-900">{dataSource.label}</div>
+                <div className="mt-1 truncate text-xs text-slate-500">{dataSource.detail}</div>
               </div>
             </div>
           </div>
@@ -359,7 +403,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                 <div>
                   <div className="text-xs font-medium text-slate-500">メモ</div>
                   <div className="mt-1 line-clamp-2 font-semibold text-slate-900">
-                    {row.memo || "-"}
+                    {stripCashSourceMarker(row.memo) || "-"}
                   </div>
                 </div>
               </div>

@@ -297,6 +297,7 @@ export function IncomePageClient(props: {
           setCashDeleteFeedback={state.setCashDeleteFeedback}
           handleEditSave={state.handleEditSave}
           handleDeleteSelected={state.handleDeleteSelected}
+          reloadRows={state.reloadRows}
           sidebarActions={orchestration.sidebarActions.map((item) => {
             const label =
               item.label === "新規収入"
@@ -311,7 +312,7 @@ export function IncomePageClient(props: {
 
             const href =
               item.label === "CSV取込"
-                ? `/${lang}/app/data/import?module=cash-income`
+                ? undefined
                 : item.label === "店舗紐付け"
                   ? `/${lang}/app/settings/accounts`
                   : item.href;
