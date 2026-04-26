@@ -300,9 +300,14 @@ export function CashIncomeHeader(props: {
   );
   const cashTrendMax = cashTrendTicks[cashTrendTicks.length - 1] || 1;
 
+  const cashBarSourcePoints = React.useMemo(
+    () => (headerRange === "12m" ? trendPoints.slice(-90) : trendPoints),
+    [trendPoints, headerRange]
+  );
+
   const cashBarPoints = React.useMemo(
-    () => buildCashBarSeries(trendPoints, cashChartGranularity),
-    [trendPoints, cashChartGranularity]
+    () => buildCashBarSeries(cashBarSourcePoints, cashChartGranularity),
+    [cashBarSourcePoints, cashChartGranularity]
   );
   const safeCashBarPoints = cashBarPoints.length > 12 ? cashBarPoints.slice(-12) : cashBarPoints;
   const cashBarTicks = React.useMemo(
@@ -618,15 +623,6 @@ export function CashIncomeHeader(props: {
                         })}
 
                         <text
-                          x={padding.left + innerWidth / 2}
-                          y={height - 2}
-                          textAnchor="middle"
-                          fontSize="12"
-                          fill="#64748b"
-                        >
-                          発生日
-                        </text>
-                        <text
                           x={20}
                           y={padding.top + innerHeight / 2}
                           textAnchor="middle"
@@ -657,7 +653,7 @@ export function CashIncomeHeader(props: {
               <div>
                 <div className="text-lg font-semibold text-slate-900">入金状況</div>
                 <div className="mt-1 text-sm leading-6 text-slate-500">
-                  現在範囲に連動しながら、日別 / 週別 / 月別の入金合計を柱状グラフで確認できます。
+                  現在範囲に連動しながら、日別 / 週別 / 月別の入金合計を柱状グラフで確認できます。12か月表示では直近90日の入金状況を表示します。
                 </div>
               </div>
               <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
@@ -732,6 +728,7 @@ export function CashIncomeHeader(props: {
                     const gap = safeCashBarPoints.length
                       ? Math.max(8, (innerWidth - safeCashBarPoints.length * columnWidth) / Math.max(1, safeCashBarPoints.length))
                       : 12;
+                    const barLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 6));
 
                     return (
                       <>
@@ -768,29 +765,41 @@ export function CashIncomeHeader(props: {
                                 fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#0f172a"}
                                 opacity={index === safeCashBarPoints.length - 1 ? 0.95 : 0.82}
                               />
-                              {point.amount > 0 ? (
-                                <text
-                                  data-role="cash-bar-amount-label"
-                                  x={x + columnWidth / 2}
-                                  y={Math.max(y - 8, padding.top + 12)}
-                                  textAnchor="middle"
-                                  fontSize="11"
-                                  fontWeight="700"
-                                  fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#334155"}
-                                  className="pointer-events-none select-none"
-                                >
-                                  {formatChartYen(point.amount)}
-                                </text>
-                              ) : null}
                               <text
+                                data-role="cash-bar-amount-label"
                                 x={x + columnWidth / 2}
-                                y={padding.top + innerHeight + 17}
+                                y={
+                                  point.amount > 0
+                                    ? Math.max(y - 8, padding.top + 12)
+                                    : padding.top + innerHeight - 10
+                                }
                                 textAnchor="middle"
                                 fontSize="11"
-                                fill="#475569"
+                                fontWeight="700"
+                                fill={
+                                  point.amount > 0
+                                    ? index === safeCashBarPoints.length - 1
+                                      ? "#2563eb"
+                                      : "#334155"
+                                    : "#64748b"
+                                }
+                                className="pointer-events-none select-none"
                               >
-                                {point.label}
+                                {formatChartYen(point.amount)}
                               </text>
+                              {(index === 0 ||
+                                index === safeCashBarPoints.length - 1 ||
+                                index % barLabelEvery === 0) ? (
+                                <text
+                                  x={x + columnWidth / 2}
+                                  y={padding.top + innerHeight + 17}
+                                  textAnchor="middle"
+                                  fontSize="10"
+                                  fill="#475569"
+                                >
+                                  {point.label}
+                                </text>
+                              ) : null}
                             </g>
                           );
                         })}
