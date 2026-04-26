@@ -411,7 +411,7 @@ export function CashIncomeHeader(props: {
             <div>
               <div className="text-lg font-semibold text-slate-900">入金趋势</div>
               <div className="mt-1 text-sm leading-6 text-slate-500">
-                現在範囲に連動して、日付ごとの現金収入推移を表示します。横軸は金額、縦軸は発生日です。
+                現在範囲に連動して、日付ごとの現金収入推移を表示します。横軸は発生日、縦軸は金額です。
               </div>
             </div>
             <div className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
@@ -435,12 +435,15 @@ export function CashIncomeHeader(props: {
                     const innerHeight = Math.max(220, Math.max(1, trendPoints.length - 1) * 34);
                     const height = innerHeight + padding.top + padding.bottom;
                     const coords = trendPoints.map((point, index) => {
-                      const x = padding.left + (point.amount / cashTrendMax) * innerWidth;
+                      const x =
+                        padding.left +
+                        (trendPoints.length <= 1
+                          ? innerWidth / 2
+                          : (index / Math.max(1, trendPoints.length - 1)) * innerWidth);
                       const y =
                         padding.top +
-                        (trendPoints.length <= 1
-                          ? innerHeight / 2
-                          : (index / Math.max(1, trendPoints.length - 1)) * innerHeight);
+                        innerHeight -
+                        (point.amount / cashTrendMax) * innerHeight;
                       return { ...point, x, y };
                     });
                     const path = coords
@@ -450,21 +453,24 @@ export function CashIncomeHeader(props: {
                     return (
                       <>
                         {cashTrendTicks.map((tick) => {
-                          const x = padding.left + (tick / cashTrendMax) * innerWidth;
+                          const y =
+                            padding.top +
+                            innerHeight -
+                            (tick / cashTrendMax) * innerHeight;
                           return (
                             <g key={`cash-trend-tick-${tick}`}>
                               <line
-                                x1={x}
-                                y1={padding.top}
-                                x2={x}
-                                y2={padding.top + innerHeight}
+                                x1={padding.left}
+                                y1={y}
+                                x2={padding.left + innerWidth}
+                                y2={y}
                                 stroke="#dbe3ee"
                                 strokeWidth="1"
                               />
                               <text
-                                x={x}
-                                y={height - 14}
-                                textAnchor="middle"
+                                x={padding.left - 12}
+                                y={y + 4}
+                                textAnchor="end"
                                 fontSize="12"
                                 fill="#64748b"
                               >
@@ -477,17 +483,17 @@ export function CashIncomeHeader(props: {
                         {coords.map((point) => (
                           <g key={`cash-trend-row-${point.date}`}>
                             <line
-                              x1={padding.left}
-                              y1={point.y}
-                              x2={padding.left + innerWidth}
-                              y2={point.y}
+                              x1={point.x}
+                              y1={padding.top}
+                              x2={point.x}
+                              y2={padding.top + innerHeight}
                               stroke="#eef2f7"
                               strokeWidth="1"
                             />
                             <text
-                              x={padding.left - 12}
-                              y={point.y + 4}
-                              textAnchor="end"
+                              x={point.x}
+                              y={height - 14}
+                              textAnchor="middle"
                               fontSize="12"
                               fill="#475569"
                             >
@@ -544,6 +550,16 @@ export function CashIncomeHeader(props: {
                           textAnchor="middle"
                           fontSize="12"
                           fill="#64748b"
+                        >
+                          発生日
+                        </text>
+                        <text
+                          x={20}
+                          y={padding.top + innerHeight / 2}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fill="#64748b"
+                          transform={`rotate(-90 20 ${padding.top + innerHeight / 2})`}
                         >
                           金額
                         </text>
