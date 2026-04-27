@@ -94,6 +94,17 @@ function buildPageWindow(current: number, total: number) {
   return pages;
 }
 
+const CASH_INLINE_IMPORT_MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const CASH_INLINE_IMPORT_MAX_ROWS = 2000;
+const CASH_INLINE_IMPORT_YIELD_EVERY = 10;
+const CASH_INLINE_IMPORT_ALLOWED_EXTENSIONS = [".csv", ".tsv", ".txt", ".xlsx", ".xls"];
+
+function formatCashImportFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.ceil(bytes / 1024)} KB`;
+}
+
 
 type CashFileImportFeedback = {
   kind: "success" | "error";
@@ -454,9 +465,30 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     try {
       await waitForCashImportPaint();
 
+      const lowerFileName = file.name.toLowerCase();
+      const allowedExtension = CASH_INLINE_IMPORT_ALLOWED_EXTENSIONS.some((extension) =>
+        lowerFileName.endsWith(extension)
+      );
+
+      if (!allowedExtension) {
+        throw new Error("対応しているファイル形式は CSV / TSV / TXT / Excel（.xlsx, .xls）です。");
+      }
+
+      if (file.size > CASH_INLINE_IMPORT_MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+          `ファイルサイズが大きすぎます。上限は ${formatCashImportFileSize(CASH_INLINE_IMPORT_MAX_FILE_SIZE_BYTES)} です。`
+        );
+      }
+
       const rawCsv = await readCashIncomeFileAsCsvText(file);
       const normalizedCsv = normalizeCashFileCsvHeaders(rawCsv);
       const draftRows = parseCashIncomeCsvDraft(normalizedCsv);
+
+      if (draftRows.length > CASH_INLINE_IMPORT_MAX_ROWS) {
+        throw new Error(
+          `一度に取込できる行数は ${CASH_INLINE_IMPORT_MAX_ROWS.toLocaleString("ja-JP")} 行までです。ファイルを分割して再度取込してください。`
+        );
+      }
 
       setCashFileImportProgress((current) =>
         current
@@ -511,7 +543,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               ...current,
               status: "importing",
               title: "現金収入を登録しています",
-              message: "重複を確認しながら Transaction を作成しています。",
+              message: "重複を確認しながら現金収入明細を登録しています。",
               totalRows: draftRows.length,
               blockedRows,
             }
@@ -573,7 +605,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
             : current
         );
 
-        if (index % 10 === 0 || index === validRows.length - 1) {
+        if (index % CASH_INLINE_IMPORT_YIELD_EVERY === 0 || index === validRows.length - 1) {
           await waitForCashImportPaint();
         }
       }
@@ -700,11 +732,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       />
 
       {cashFileImportProgress?.open ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cash-inline-import-title"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm"
+        >
           <div className="w-full max-w-[620px] rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-lg font-semibold text-slate-950">
+                <div id="cash-inline-import-title" className="text-lg font-semibold text-slate-950">
                   {cashFileImportProgress.title}
                 </div>
                 <div className="mt-1 text-sm leading-6 text-slate-500">
