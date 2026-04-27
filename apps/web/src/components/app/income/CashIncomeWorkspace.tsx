@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
-import { createTransaction } from "@/core/transactions/api";
+import { createTransaction, listTransactions } from "@/core/transactions/api";
 import { listAccounts } from "@/core/funds/api";
 import {
   formatCashDraftMessage,
@@ -100,9 +100,25 @@ type CashFileImportFeedback = {
   title: string;
   message: string;
   fileName?: string;
+  totalRows?: number;
   importedRows?: number;
+  duplicateRows?: number;
   blockedRows?: number;
   importedAmount?: number;
+};
+
+type CashFileImportProgress = {
+  open: boolean;
+  status: "idle" | "reading" | "validating" | "importing" | "done" | "error";
+  title: string;
+  message: string;
+  fileName: string;
+  totalRows: number;
+  processedRows: number;
+  importedRows: number;
+  duplicateRows: number;
+  blockedRows: number;
+  importedAmount: number;
 };
 
 function escapeCsvCell(value: string) {
@@ -202,6 +218,85 @@ function stripCashSourceMarker(value?: string | null) {
     .trim();
 }
 
+function normalizeCashImportText(value?: string | null) {
+  return stripCashSourceMarker(value)
+    .replace(/^\s*\[cash\]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeCashImportDateKey(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) {
+    return `${direct.getFullYear()}-${String(direct.getMonth() + 1).padStart(2, "0")}-${String(direct.getDate()).padStart(2, "0")}`;
+  }
+
+  const normalized = raw.replace(/\//g, "-");
+  const parsed = new Date(normalized.includes("T") ? normalized : `${normalized}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10);
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
+function buildCashImportDedupeKey(args: {
+  accountName?: string | null;
+  amount?: number | string | null;
+  occurredAt?: string | null;
+  memo?: string | null;
+}) {
+  return [
+    String(args.accountName || "").trim().toLowerCase(),
+    String(Math.round(Number(args.amount || 0))),
+    normalizeCashImportDateKey(args.occurredAt),
+    normalizeCashImportText(args.memo),
+  ].join("__");
+}
+
+function buildCashImportedMemo(args: {
+  memo?: string | null;
+  source?: string | null;
+  fileName: string;
+}) {
+  const visibleMemo = stripCashSourceMarker(args.memo || "現金収入");
+  const sourcePart = args.source ? ` / ${args.source}` : "";
+  return `[cash] ${visibleMemo}${sourcePart} [file-import:${args.fileName}]`;
+}
+
+function createInitialCashImportProgress(fileName: string): CashFileImportProgress {
+  return {
+    open: true,
+    status: "reading",
+    title: "ファイルを読み込んでいます",
+    message: "CSV / Excel ファイルの内容を確認しています。",
+    fileName,
+    totalRows: 0,
+    processedRows: 0,
+    importedRows: 0,
+    duplicateRows: 0,
+    blockedRows: 0,
+    importedAmount: 0,
+  };
+}
+
+function getCashImportProgressPercent(progress: CashFileImportProgress | null) {
+  if (!progress) return 0;
+  if (progress.status === "done") return 100;
+  if (progress.totalRows <= 0) {
+    return progress.status === "reading" ? 12 : progress.status === "validating" ? 24 : 0;
+  }
+  return Math.min(100, Math.round((progress.processedRows / progress.totalRows) * 100));
+}
+
+function waitForCashImportPaint() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
+
 
 export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const {
@@ -255,6 +350,8 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const [cashFileImportLoading, setCashFileImportLoading] = React.useState(false);
   const [cashFileImportFeedback, setCashFileImportFeedback] =
     React.useState<CashFileImportFeedback | null>(null);
+  const [cashFileImportProgress, setCashFileImportProgress] =
+    React.useState<CashFileImportProgress | null>(null);
 
   const sortedRows = React.useMemo(() => {
     const next = [...rows];
@@ -282,10 +379,15 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
 
   const normalizedSidebarActions: CashActionItem[] = sidebarActions.map((item) => {
-    if (item.label === "現金収入CSV取込" || item.label === "CSV取込") {
+    if (
+      item.label === "現金収入CSV/Excel取込" ||
+      item.label === "現金収入CSV取込" ||
+      item.label === "CSV/Excel取込" ||
+      item.label === "CSV取込"
+    ) {
       return {
         ...item,
-        label: "現金収入CSV取込",
+        label: "現金収入CSV/Excel取込",
         href: undefined,
         disabled: false,
       };
@@ -347,11 +449,28 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
     setCashFileImportLoading(true);
     setCashFileImportFeedback(null);
+    setCashFileImportProgress(createInitialCashImportProgress(file.name));
 
     try {
+      await waitForCashImportPaint();
+
       const rawCsv = await readCashIncomeFileAsCsvText(file);
       const normalizedCsv = normalizeCashFileCsvHeaders(rawCsv);
       const draftRows = parseCashIncomeCsvDraft(normalizedCsv);
+
+      setCashFileImportProgress((current) =>
+        current
+          ? {
+              ...current,
+              status: "validating",
+              title: "取込データを検証しています",
+              message: "金額・発生日・口座名を確認しています。",
+              totalRows: draftRows.length,
+            }
+          : current
+      );
+      await waitForCashImportPaint();
+
       const validRows = draftRows.filter((row) => row.status !== "error");
 
       if (draftRows.length === 0) {
@@ -368,69 +487,162 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
       const accountsRes = accounts.length > 0 ? { items: accounts } : await listAccounts();
       const sourceAccounts = accountsRes.items ?? [];
+      const transactionsRes = await listTransactions("INCOME");
+      const existingKeys = new Set(
+        (transactionsRes.items ?? []).map((item) =>
+          buildCashImportDedupeKey({
+            accountName: item.accountName || "",
+            amount: item.amount,
+            occurredAt: item.occurredAt,
+            memo: item.memo || "",
+          })
+        )
+      );
+      const seenInFileKeys = new Set<string>();
+
       let importedRows = 0;
-      let blockedRows = 0;
+      let duplicateRows = 0;
+      let blockedRows = draftRows.length - validRows.length;
       let importedAmount = 0;
 
-      for (const row of validRows) {
+      setCashFileImportProgress((current) =>
+        current
+          ? {
+              ...current,
+              status: "importing",
+              title: "現金収入を登録しています",
+              message: "重複を確認しながら Transaction を作成しています。",
+              totalRows: draftRows.length,
+              blockedRows,
+            }
+          : current
+      );
+      await waitForCashImportPaint();
+
+      for (const [index, row] of validRows.entries()) {
         const resolvedAccountId = resolveCashAccountId({
           accountName: row.account,
           accounts: sourceAccounts,
         });
-
-        if (!resolvedAccountId) {
-          blockedRows += 1;
-          continue;
-        }
-
+        const resolvedAccount = sourceAccounts.find((item) => item.id === resolvedAccountId);
         const occurredAt = new Date(row.occurredAt);
-        if (Number.isNaN(occurredAt.getTime())) {
-          blockedRows += 1;
-          continue;
-        }
-
-        const visibleMemo = stripCashSourceMarker(row.memo || "現金収入");
-        const sourcePart = row.source ? ` / ${row.source}` : "";
-        const fileMarker = ` [file-import:${file.name}]`;
-
-        await createTransaction({
-          accountId: resolvedAccountId,
-          categoryId: null,
-          type: "OTHER",
-          direction: "INCOME",
-          amount: Number(row.amount || 0),
-          currency: "JPY",
-          occurredAt: occurredAt.toISOString(),
-          memo: `[cash] ${visibleMemo}${sourcePart}${fileMarker}`,
+        const memoForTransaction = buildCashImportedMemo({
+          memo: row.memo || "現金収入",
+          source: row.source,
+          fileName: file.name,
+        });
+        const dedupeKey = buildCashImportDedupeKey({
+          accountName: resolvedAccount?.name || row.account,
+          amount: row.amount,
+          occurredAt: row.occurredAt,
+          memo: memoForTransaction,
         });
 
-        importedRows += 1;
-        importedAmount += Number(row.amount || 0);
+        if (!resolvedAccountId || Number.isNaN(occurredAt.getTime())) {
+          blockedRows += 1;
+        } else if (existingKeys.has(dedupeKey) || seenInFileKeys.has(dedupeKey)) {
+          duplicateRows += 1;
+        } else {
+          await createTransaction({
+            accountId: resolvedAccountId,
+            categoryId: null,
+            type: "OTHER",
+            direction: "INCOME",
+            amount: Number(row.amount || 0),
+            currency: "JPY",
+            occurredAt: occurredAt.toISOString(),
+            memo: memoForTransaction,
+          });
+
+          existingKeys.add(dedupeKey);
+          seenInFileKeys.add(dedupeKey);
+          importedRows += 1;
+          importedAmount += Number(row.amount || 0);
+        }
+
+        setCashFileImportProgress((current) =>
+          current
+            ? {
+                ...current,
+                processedRows: Math.min(draftRows.length, index + 1),
+                importedRows,
+                duplicateRows,
+                blockedRows,
+                importedAmount,
+              }
+            : current
+        );
+
+        if (index % 10 === 0 || index === validRows.length - 1) {
+          await waitForCashImportPaint();
+        }
       }
 
       await reloadRows();
       setCurrentPage(1);
 
+      const success = importedRows > 0 || duplicateRows > 0;
+      const title =
+        importedRows > 0
+          ? "現金収入ファイルを登録しました"
+          : duplicateRows > 0
+            ? "すべて重複データとして検出されました"
+            : "取込できる行がありませんでした";
+      const message =
+        importedRows > 0
+          ? "ファイルから現金収入を登録し、一覧を再取得しました。"
+          : duplicateRows > 0
+            ? "既に登録済みの明細は重複作成せず、既存データとして扱いました。"
+            : "口座名・金額・発生日を確認してください。";
+
+      setCashFileImportProgress((current) =>
+        current
+          ? {
+              ...current,
+              status: success ? "done" : "error",
+              title,
+              message,
+              processedRows: draftRows.length,
+              importedRows,
+              duplicateRows,
+              blockedRows,
+              importedAmount,
+            }
+          : current
+      );
+
       setCashFileImportFeedback({
-        kind: importedRows > 0 ? "success" : "error",
-        title:
-          importedRows > 0
-            ? "現金収入ファイルを取込しました"
-            : "取込できる行がありませんでした",
-        message:
-          importedRows > 0
-            ? "ファイルから Transaction を作成し、一覧を再取得しました。"
-            : "口座名が既存の入金口座と一致しているか確認してください。",
+        kind: success ? "success" : "error",
+        title,
+        message,
         fileName: file.name,
+        totalRows: draftRows.length,
         importedRows,
+        duplicateRows,
         blockedRows,
         importedAmount,
       });
     } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setCashFileImportProgress((current) =>
+        current
+          ? {
+              ...current,
+              status: "error",
+              title: "現金収入ファイルの取込に失敗しました",
+              message,
+            }
+          : {
+              ...createInitialCashImportProgress(file.name),
+              status: "error",
+              title: "現金収入ファイルの取込に失敗しました",
+              message,
+            }
+      );
       setCashFileImportFeedback({
         kind: "error",
         title: "現金収入ファイルの取込に失敗しました",
-        message: e instanceof Error ? e.message : String(e),
+        message,
         fileName: file.name,
       });
     } finally {
@@ -441,7 +653,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   function handlePageActionClick(item: CashActionItem) {
     if (item.disabled) return;
 
-    if (item.label === "現金収入CSV取込") {
+    if (item.label === "現金収入CSV/Excel取込") {
       cashFileInputRef.current?.click();
       return;
     }
@@ -486,6 +698,123 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         className="hidden"
         onChange={(event) => void handleCashIncomeFileSelected(event)}
       />
+
+      {cashFileImportProgress?.open ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[620px] rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-slate-950">
+                  {cashFileImportProgress.title}
+                </div>
+                <div className="mt-1 text-sm leading-6 text-slate-500">
+                  {cashFileImportProgress.message}
+                </div>
+              </div>
+              <div
+                className={[
+                  "rounded-full px-3 py-1 text-xs font-semibold",
+                  cashFileImportProgress.status === "done"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : cashFileImportProgress.status === "error"
+                      ? "bg-rose-50 text-rose-700"
+                      : "bg-blue-50 text-blue-700",
+                ].join(" ")}
+              >
+                {cashFileImportProgress.status === "reading"
+                  ? "読取中"
+                  : cashFileImportProgress.status === "validating"
+                    ? "検証中"
+                    : cashFileImportProgress.status === "importing"
+                      ? "登録中"
+                      : cashFileImportProgress.status === "done"
+                        ? "完了"
+                        : cashFileImportProgress.status === "error"
+                          ? "エラー"
+                          : "待機中"}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                File
+              </div>
+              <div className="mt-1 truncate text-sm font-semibold text-slate-900">
+                {cashFileImportProgress.fileName}
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+                <span>取込進捗</span>
+                <span>{getCashImportProgressPercent(cashFileImportProgress)}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={[
+                    "h-full rounded-full transition-all duration-300",
+                    cashFileImportProgress.status === "error"
+                      ? "bg-rose-500"
+                      : cashFileImportProgress.status === "done"
+                        ? "bg-emerald-500"
+                        : "bg-blue-600",
+                  ].join(" ")}
+                  style={{ width: `${getCashImportProgressPercent(cashFileImportProgress)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-5">
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs text-slate-500">Total</div>
+                <div className="mt-1 text-lg font-semibold text-slate-950">
+                  {cashFileImportProgress.totalRows}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs text-slate-500">Imported</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-700">
+                  {cashFileImportProgress.importedRows}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs text-slate-500">Duplicate</div>
+                <div className="mt-1 text-lg font-semibold text-amber-700">
+                  {cashFileImportProgress.duplicateRows}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs text-slate-500">Blocked</div>
+                <div className="mt-1 text-lg font-semibold text-rose-700">
+                  {cashFileImportProgress.blockedRows}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <div className="text-xs text-slate-500">Amount</div>
+                <div className="mt-1 text-lg font-semibold text-slate-950">
+                  {formatIncomeJPY(cashFileImportProgress.importedAmount)}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={
+                  cashFileImportProgress.status === "reading" ||
+                  cashFileImportProgress.status === "validating" ||
+                  cashFileImportProgress.status === "importing"
+                }
+                onClick={() => setCashFileImportProgress(null)}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {cashDeleteFeedback ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -506,7 +835,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-100 bg-white/80 p-4 md:grid-cols-4">
+          <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-100 bg-white/80 p-4 md:grid-cols-5">
             <div>
               <div className="text-xs font-medium text-emerald-600">金額</div>
               <div className="mt-1 font-semibold text-slate-900">
@@ -549,7 +878,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     ? "pointer-events-none cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
                     : item.label === "新規現金収入"
                       ? "border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800"
-                      : item.label === "現金収入CSV取込"
+                      : item.label === "現金収入CSV/Excel取込"
                         ? "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
@@ -561,7 +890,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 key={item.label}
                 type="button"
                 onClick={() => handlePageActionClick(item)}
-                disabled={item.disabled || (item.label === "現金収入CSV取込" && cashFileImportLoading)}
+                disabled={item.disabled || (item.label === "現金収入CSV/Excel取込" && cashFileImportLoading)}
                 className={[
                   "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-medium transition",
                   item.disabled
@@ -569,7 +898,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                 ].join(" ")}
               >
-                {item.label === "現金収入CSV取込" && cashFileImportLoading ? "取込中..." : item.label}
+                {item.label}
               </button>
             )
           )}
@@ -596,8 +925,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     {cashFileImportFeedback.fileName || "-"}
                   </div>
                   <div>
+                    <span className="font-semibold">Total:</span>{" "}
+                    {cashFileImportFeedback.totalRows ?? 0}
+                  </div>
+                  <div>
                     <span className="font-semibold">Imported:</span>{" "}
                     {cashFileImportFeedback.importedRows ?? 0}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Duplicate:</span>{" "}
+                    {cashFileImportFeedback.duplicateRows ?? 0}
                   </div>
                   <div>
                     <span className="font-semibold">Blocked:</span>{" "}
@@ -726,7 +1063,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
                 <div className="text-base font-medium text-slate-900">現金収入データがまだ登録されていません</div>
                 <div className="mt-2 text-sm text-slate-500">
-                  「新規現金収入」または「現金収入CSV取込」からデータを追加すると、ここに明細が表示されます。
+                  「新規現金収入」または「現金収入CSV/Excel取込」からデータを追加すると、ここに明細が表示されます。
                 </div>
               </div>
             </div>
