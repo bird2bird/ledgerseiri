@@ -51,7 +51,7 @@ function resolveCashDataSource(row: IncomeRow | null, isCreate: boolean) {
   if (isCreate) {
     return {
       label: "手動追加",
-      detail: "この画面から手動で登録します",
+      detail: "この画面から手動登録します",
     };
   }
 
@@ -67,7 +67,7 @@ function resolveCashDataSource(row: IncomeRow | null, isCreate: boolean) {
 
   return {
     label: "手動追加",
-    detail: "画面から登録された明細です",
+    detail: "画面から手動登録された明細です",
   };
 }
 
@@ -223,22 +223,22 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
               <div className="text-sm font-medium text-slate-900">選択中の明細</div>
               <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
                 <div>
-                  <div className="text-xs text-slate-500">Date</div>
+                  <div className="text-xs text-slate-500">発生日</div>
                   <div className="mt-1 font-semibold text-slate-900">{row.date}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">Account</div>
+                  <div className="text-xs text-slate-500">口座</div>
                   <div className="mt-1 font-semibold text-slate-900">{row.account}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">Current Amount</div>
+                  <div className="text-xs text-slate-500">現在金額</div>
                   <div className="mt-1 font-semibold text-slate-900">
                     {formatIncomeJPY(row.amount)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">データ来源</div>
-                  <div className="mt-1 font-semibold text-slate-900">{dataSource.label}</div>
+                  <div className="text-xs text-slate-500">データソース</div>
+                  <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800">{dataSource.label}</div>
                   <div className="mt-1 truncate text-xs text-slate-500">{dataSource.detail}</div>
                 </div>
               </div>
@@ -334,13 +334,13 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
             </div>
             <div className="mt-3 grid gap-3 text-sm md:grid-cols-4">
               <div>
-                <div className="text-xs text-slate-500">Amount</div>
+                <div className="text-xs text-slate-500">金額</div>
                 <div className="mt-1 font-semibold text-slate-900">
                   {amountValid ? formatIncomeJPY(parsedAmount) : "-"}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Account</div>
+                <div className="text-xs text-slate-500">口座</div>
                 <div className="mt-1 font-semibold text-slate-900">
                   {isCreate
                     ? accounts.find((item) => item.id === accountId)?.name || "-"
@@ -348,14 +348,14 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Category</div>
+                <div className="text-xs text-slate-500">カテゴリ</div>
                 <div className="mt-1 font-semibold text-slate-900">
                   現金収入（自動）
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">データ来源</div>
-                <div className="mt-1 font-semibold text-slate-900">{dataSource.label}</div>
+                <div className="text-xs text-slate-500">データソース</div>
+                <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800">{dataSource.label}</div>
                 <div className="mt-1 truncate text-xs text-slate-500">{dataSource.detail}</div>
               </div>
             </div>

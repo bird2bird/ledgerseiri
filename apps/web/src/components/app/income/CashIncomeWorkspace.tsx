@@ -584,15 +584,15 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       const success = importedRows > 0 || duplicateRows > 0;
       const title =
         importedRows > 0
-          ? "現金収入ファイルを登録しました"
+          ? "現金収入ファイルの取込が完了しました"
           : duplicateRows > 0
-            ? "すべて重複データとして検出されました"
+            ? "すべて登録済みデータとして検出されました"
             : "取込できる行がありませんでした";
       const message =
         importedRows > 0
-          ? "ファイルから現金収入を登録し、一覧を再取得しました。"
+          ? "ファイルから現金収入を登録し、一覧を再取得しました。登録済みデータは現在の一覧とグラフに反映されています。"
           : duplicateRows > 0
-            ? "既に登録済みの明細は重複作成せず、既存データとして扱いました。"
+            ? "既に登録済みの明細は重複作成せず、既存データとして扱いました。一覧は最新状態に再取得済みです。"
             : "口座名・金額・発生日を確認してください。";
 
       setCashFileImportProgress((current) =>
@@ -764,33 +764,51 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               </div>
             </div>
 
+            {cashFileImportProgress.status === "done" ? (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <div className="font-semibold">一覧再取得済み</div>
+                <div className="mt-1 text-xs leading-5">
+                  取込結果は現金収入一覧・KPI・グラフに反映されています。重複データは新規作成していません。
+                </div>
+              </div>
+            ) : null}
+
+            {cashFileImportProgress.status === "error" ? (
+              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                <div className="font-semibold">取込を完了できませんでした</div>
+                <div className="mt-1 text-xs leading-5">
+                  ファイル形式、口座名、金額、発生日の内容を確認してください。
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-3 md:grid-cols-5">
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                <div className="text-xs text-slate-500">Total</div>
+                <div className="text-xs text-slate-500">対象行数</div>
                 <div className="mt-1 text-lg font-semibold text-slate-950">
                   {cashFileImportProgress.totalRows}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                <div className="text-xs text-slate-500">Imported</div>
+                <div className="text-xs text-slate-500">新規登録</div>
                 <div className="mt-1 text-lg font-semibold text-emerald-700">
                   {cashFileImportProgress.importedRows}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                <div className="text-xs text-slate-500">Duplicate</div>
+                <div className="text-xs text-slate-500">重複</div>
                 <div className="mt-1 text-lg font-semibold text-amber-700">
                   {cashFileImportProgress.duplicateRows}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                <div className="text-xs text-slate-500">Blocked</div>
+                <div className="text-xs text-slate-500">ブロック</div>
                 <div className="mt-1 text-lg font-semibold text-rose-700">
                   {cashFileImportProgress.blockedRows}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
-                <div className="text-xs text-slate-500">Amount</div>
+                <div className="text-xs text-slate-500">登録金額</div>
                 <div className="mt-1 text-lg font-semibold text-slate-950">
                   {formatIncomeJPY(cashFileImportProgress.importedAmount)}
                 </div>
@@ -921,27 +939,27 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 </div>
                 <div className="mt-2 grid gap-2 text-xs md:grid-cols-4">
                   <div>
-                    <span className="font-semibold">File:</span>{" "}
+                    <span className="font-semibold">ファイル:</span>{" "}
                     {cashFileImportFeedback.fileName || "-"}
                   </div>
                   <div>
-                    <span className="font-semibold">Total:</span>{" "}
+                    <span className="font-semibold">対象行数:</span>{" "}
                     {cashFileImportFeedback.totalRows ?? 0}
                   </div>
                   <div>
-                    <span className="font-semibold">Imported:</span>{" "}
+                    <span className="font-semibold">新規登録:</span>{" "}
                     {cashFileImportFeedback.importedRows ?? 0}
                   </div>
                   <div>
-                    <span className="font-semibold">Duplicate:</span>{" "}
+                    <span className="font-semibold">重複:</span>{" "}
                     {cashFileImportFeedback.duplicateRows ?? 0}
                   </div>
                   <div>
-                    <span className="font-semibold">Blocked:</span>{" "}
+                    <span className="font-semibold">ブロック:</span>{" "}
                     {cashFileImportFeedback.blockedRows ?? 0}
                   </div>
                   <div>
-                    <span className="font-semibold">Amount:</span>{" "}
+                    <span className="font-semibold">登録金額:</span>{" "}
                     {formatIncomeJPY(cashFileImportFeedback.importedAmount ?? 0)}
                   </div>
                 </div>
