@@ -703,6 +703,193 @@ function downloadOtherIncomeTextFile(args: { filename: string; text: string }) {
   URL.revokeObjectURL(url);
 }
 
+type OtherIncomeDashboardRange = "30d" | "90d" | "12m";
+type OtherIncomeDashboardGranularity = "day" | "week" | "month";
+
+type OtherIncomeDashboardPoint = {
+  key: string;
+  label: string;
+  amount: number;
+  count: number;
+  start: Date;
+  end: Date;
+};
+
+function getOtherIncomeRangeDays(range: OtherIncomeDashboardRange) {
+  if (range === "12m") return 365;
+  if (range === "90d") return 90;
+  return 30;
+}
+
+function getOtherIncomeRangeLabel(range: OtherIncomeDashboardRange) {
+  if (range === "12m") return "直近12ヶ月";
+  if (range === "90d") return "直近90日";
+  return "直近30日";
+}
+
+function getOtherIncomeRangeDefaultGranularity(range: OtherIncomeDashboardRange): OtherIncomeDashboardGranularity {
+  if (range === "30d") return "day";
+  return "week";
+}
+
+function getOtherIncomeGranularityLabel(granularity: OtherIncomeDashboardGranularity) {
+  if (granularity === "month") return "月別";
+  if (granularity === "week") return "週別";
+  return "日別";
+}
+
+function cloneOtherIncomeDate(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addOtherIncomeDays(date: Date, days: number) {
+  const next = cloneOtherIncomeDate(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addOtherIncomeMonths(date: Date, months: number) {
+  const next = new Date(date.getFullYear(), date.getMonth(), 1);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function startOfOtherIncomeWeek(date: Date) {
+  const next = cloneOtherIncomeDate(date);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return next;
+}
+
+function startOfOtherIncomeMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function formatOtherIncomeDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatOtherIncomeShortDate(date: Date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function formatOtherIncomeMonthLabel(date: Date) {
+  return `${date.getFullYear()}/${date.getMonth() + 1}`;
+}
+
+function getOtherIncomeDashboardLatestDate(rows: IncomeRow[]) {
+  const maxMs = rows.reduce((max, row) => Math.max(max, parseOtherIncomeDateMs(row)), 0);
+  return maxMs > 0 ? cloneOtherIncomeDate(new Date(maxMs)) : cloneOtherIncomeDate(new Date());
+}
+
+function getOtherIncomeRangeStartDate(rows: IncomeRow[], range: OtherIncomeDashboardRange) {
+  const latest = getOtherIncomeDashboardLatestDate(rows);
+  return addOtherIncomeDays(latest, -(getOtherIncomeRangeDays(range) - 1));
+}
+
+function isOtherIncomeRowInDashboardRange(row: IncomeRow, rows: IncomeRow[], range: OtherIncomeDashboardRange) {
+  const ms = parseOtherIncomeDateMs(row);
+  if (ms <= 0) return false;
+  const current = cloneOtherIncomeDate(new Date(ms));
+  const latest = getOtherIncomeDashboardLatestDate(rows);
+  const start = getOtherIncomeRangeStartDate(rows, range);
+  return current.getTime() >= start.getTime() && current.getTime() <= latest.getTime();
+}
+
+function getOtherIncomeBucketStart(date: Date, granularity: OtherIncomeDashboardGranularity) {
+  if (granularity === "month") return startOfOtherIncomeMonth(date);
+  if (granularity === "week") return startOfOtherIncomeWeek(date);
+  return cloneOtherIncomeDate(date);
+}
+
+function getOtherIncomeBucketEnd(start: Date, granularity: OtherIncomeDashboardGranularity) {
+  if (granularity === "month") return addOtherIncomeDays(addOtherIncomeMonths(start, 1), -1);
+  if (granularity === "week") return addOtherIncomeDays(start, 6);
+  return cloneOtherIncomeDate(start);
+}
+
+function getOtherIncomeBucketLabel(start: Date, end: Date, granularity: OtherIncomeDashboardGranularity) {
+  if (granularity === "month") return formatOtherIncomeMonthLabel(start);
+  if (granularity === "week") return `${formatOtherIncomeShortDate(start)}–${formatOtherIncomeShortDate(end)}`;
+  return formatOtherIncomeShortDate(start);
+}
+
+function getOtherIncomeBucketStep(start: Date, granularity: OtherIncomeDashboardGranularity) {
+  if (granularity === "month") return addOtherIncomeMonths(start, 1);
+  if (granularity === "week") return addOtherIncomeDays(start, 7);
+  return addOtherIncomeDays(start, 1);
+}
+
+function buildOtherIncomeDashboardSeries(
+  rows: IncomeRow[],
+  range: OtherIncomeDashboardRange,
+  granularity: OtherIncomeDashboardGranularity
+): OtherIncomeDashboardPoint[] {
+  const latest = getOtherIncomeDashboardLatestDate(rows);
+  const rawStart = getOtherIncomeRangeStartDate(rows, range);
+  const start = getOtherIncomeBucketStart(rawStart, granularity);
+  const buckets = new Map<string, OtherIncomeDashboardPoint>();
+
+  let cursor = cloneOtherIncomeDate(start);
+  let guard = 0;
+  while (cursor.getTime() <= latest.getTime() && guard < 500) {
+    const bucketStart = getOtherIncomeBucketStart(cursor, granularity);
+    const bucketEnd = getOtherIncomeBucketEnd(bucketStart, granularity);
+    const key = formatOtherIncomeDateKey(bucketStart);
+    buckets.set(key, {
+      key,
+      label: getOtherIncomeBucketLabel(bucketStart, bucketEnd, granularity),
+      amount: 0,
+      count: 0,
+      start: bucketStart,
+      end: bucketEnd,
+    });
+    cursor = getOtherIncomeBucketStep(bucketStart, granularity);
+    guard += 1;
+  }
+
+  for (const row of rows) {
+    const ms = parseOtherIncomeDateMs(row);
+    if (ms <= 0) continue;
+    const rowDate = cloneOtherIncomeDate(new Date(ms));
+    if (rowDate.getTime() < rawStart.getTime() || rowDate.getTime() > latest.getTime()) continue;
+
+    const bucketStart = getOtherIncomeBucketStart(rowDate, granularity);
+    const key = formatOtherIncomeDateKey(bucketStart);
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+
+    bucket.amount += Number(row.amount || 0);
+    bucket.count += 1;
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+function getOtherIncomeNiceChartMax(points: OtherIncomeDashboardPoint[]) {
+  const max = Math.max(0, ...points.map((point) => Number(point.amount || 0)));
+  if (max <= 0) return 10000;
+  const power = Math.pow(10, Math.max(3, Math.floor(Math.log10(max))));
+  return Math.ceil(max / power) * power;
+}
+
+function getOtherIncomePeakPoint(points: OtherIncomeDashboardPoint[]) {
+  return points.reduce<OtherIncomeDashboardPoint | null>((peak, point) => {
+    if (!peak || point.amount > peak.amount) return point;
+    return peak;
+  }, null);
+}
+
+function getOtherIncomeXAxisLabelEvery(points: OtherIncomeDashboardPoint[]) {
+  if (points.length <= 8) return 1;
+  if (points.length <= 18) return 2;
+  if (points.length <= 36) return 5;
+  if (points.length <= 60) return 8;
+  return 12;
+}
+
+
 
 export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const {
@@ -758,6 +945,11 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [drawerRow, setDrawerRow] = React.useState<IncomeRow | null>(null);
   const [editCategoryLabel, setEditCategoryLabel] = React.useState("その他収入");
+  const [otherIncomeSourceFilter, setOtherIncomeSourceFilter] = React.useState("all");
+  const [otherIncomeDashboardRange, setOtherIncomeDashboardRange] =
+    React.useState<OtherIncomeDashboardRange>("30d");
+  const [otherIncomeStatusGranularity, setOtherIncomeStatusGranularity] =
+    React.useState<OtherIncomeDashboardGranularity>("day");
   const otherIncomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [importLoading, setImportLoading] = React.useState(false);
   const [importFeedback, setImportFeedback] = React.useState<{
@@ -794,6 +986,61 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     () => new Set(rows.map((row) => String(row.account || "-"))).size,
     [rows]
   );
+
+  const otherIncomeSourceOptions = React.useMemo(() => {
+    const values = new Set<string>();
+
+    for (const row of rows) {
+      const source = String(row.store || "").trim();
+      if (source) values.add(source);
+    }
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "ja-JP"));
+  }, [rows]);
+
+  const otherIncomeDashboardRows = React.useMemo(() => {
+    return rows.filter((row) => {
+      const source = String(row.store || "").trim();
+      const sourceOk = otherIncomeSourceFilter === "all" || source === otherIncomeSourceFilter;
+      return sourceOk && isOtherIncomeRowInDashboardRange(row, rows, otherIncomeDashboardRange);
+    });
+  }, [rows, otherIncomeSourceFilter, otherIncomeDashboardRange]);
+
+  const otherIncomeDashboardAmount = React.useMemo(
+    () => otherIncomeDashboardRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    [otherIncomeDashboardRows]
+  );
+
+  const otherIncomeDashboardAccountCount = React.useMemo(
+    () => new Set(otherIncomeDashboardRows.map((row) => String(row.account || "-"))).size,
+    [otherIncomeDashboardRows]
+  );
+
+  const otherIncomeDashboardLatestDate = getLatestOtherIncomeDate(otherIncomeDashboardRows);
+  const otherIncomeDashboardAverage = formatOtherIncomeAverage(
+    otherIncomeDashboardRows,
+    otherIncomeDashboardAmount
+  );
+
+  const otherIncomeTrendGranularity = getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange);
+  const otherIncomeTrendPoints = React.useMemo(
+    () => buildOtherIncomeDashboardSeries(otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeTrendGranularity),
+    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeTrendGranularity]
+  );
+
+  const otherIncomeStatusPoints = React.useMemo(
+    () => buildOtherIncomeDashboardSeries(otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeStatusGranularity),
+    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeStatusGranularity]
+  );
+
+  const otherIncomeTrendMax = getOtherIncomeNiceChartMax(otherIncomeTrendPoints);
+  const otherIncomeStatusMax = getOtherIncomeNiceChartMax(otherIncomeStatusPoints);
+  const otherIncomePeakTrendPoint = getOtherIncomePeakPoint(otherIncomeTrendPoints);
+  const otherIncomePeakStatusPoint = getOtherIncomePeakPoint(otherIncomeStatusPoints);
+  const otherIncomeLatestTrendPoint = otherIncomeTrendPoints[otherIncomeTrendPoints.length - 1] ?? null;
+  const otherIncomeLatestStatusPoint = otherIncomeStatusPoints[otherIncomeStatusPoints.length - 1] ?? null;
+
+
 
   const filteredRows = React.useMemo(() => {
     if (categoryFilter === "all") return rows;
@@ -847,6 +1094,17 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
       setCurrentPage(safeCurrentPage);
     }
   }, [safeCurrentPage, currentPage, setCurrentPage]);
+
+  React.useEffect(() => {
+    if (otherIncomeSourceFilter === "all") return;
+    if (!otherIncomeSourceOptions.includes(otherIncomeSourceFilter)) {
+      setOtherIncomeSourceFilter("all");
+    }
+  }, [otherIncomeSourceFilter, otherIncomeSourceOptions]);
+
+  React.useEffect(() => {
+    setOtherIncomeStatusGranularity(getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange));
+  }, [otherIncomeDashboardRange]);
 
   React.useEffect(() => {
     if (action !== "edit") return;
@@ -1094,7 +1352,306 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         </div>
       ) : null}
 
-      <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+      
+      <section
+        data-scope="other-income-top-dashboard-parity-z1e"
+        className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700">収入元選択</span>
+            <select
+              value={otherIncomeSourceFilter}
+              onChange={(event) => setOtherIncomeSourceFilter(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+            >
+              <option value="all">全収入元</option>
+              {otherIncomeSourceOptions.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700">現在範囲</span>
+            <select
+              value={otherIncomeDashboardRange}
+              onChange={(event) => setOtherIncomeDashboardRange(event.target.value as OtherIncomeDashboardRange)}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+            >
+              <option value="30d">直近30日</option>
+              <option value="90d">直近90日</option>
+              <option value="12m">直近12ヶ月</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-4">
+          <div className="rounded-[22px] bg-slate-50 px-5 py-5">
+            <div className="text-sm font-medium text-slate-500">表示中のその他収入</div>
+            <div className="mt-3 text-xl font-bold text-slate-950">
+              {formatIncomeJPY(otherIncomeDashboardAmount)}
+            </div>
+          </div>
+          <div className="rounded-[22px] bg-slate-50 px-5 py-5">
+            <div className="text-sm font-medium text-slate-500">明細数</div>
+            <div className="mt-3 text-xl font-bold text-slate-950">
+              {otherIncomeDashboardRows.length.toLocaleString("ja-JP")}
+            </div>
+          </div>
+          <div className="rounded-[22px] bg-slate-50 px-5 py-5">
+            <div className="text-sm font-medium text-slate-500">口座数</div>
+            <div className="mt-3 text-xl font-bold text-slate-950">
+              {otherIncomeDashboardAccountCount.toLocaleString("ja-JP")}
+            </div>
+          </div>
+          <div className="rounded-[22px] bg-slate-50 px-5 py-5">
+            <div className="text-sm font-medium text-slate-500">平均金額</div>
+            <div className="mt-3 text-xl font-bold text-slate-950">
+              {otherIncomeDashboardAverage}
+            </div>
+            <div className="mt-2 text-xs text-slate-500">最新日 {otherIncomeDashboardLatestDate}</div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        data-scope="other-income-chart-dashboard-parity-z1e"
+        className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"
+      >
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="text-xl font-semibold text-slate-950">入金推移</div>
+              <div className="mt-2 text-sm leading-6 text-slate-500">
+                選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+              <div className="text-xs font-semibold text-slate-500">表示範囲</div>
+              <div className="mt-1 text-sm font-bold text-slate-900">{getOtherIncomeRangeLabel(otherIncomeDashboardRange)}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                表示粒度 {getOtherIncomeGranularityLabel(otherIncomeTrendGranularity)} / 表示点数 {otherIncomeTrendPoints.length}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold text-slate-500">合計入金</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">{formatIncomeJPY(otherIncomeDashboardAmount)}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold text-slate-500">最大入金日</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">
+                {otherIncomePeakTrendPoint ? otherIncomePeakTrendPoint.label : "-"}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold text-slate-500">最新入金</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">
+                {otherIncomeLatestTrendPoint
+                  ? `${otherIncomeLatestTrendPoint.label} / ${formatIncomeJPY(otherIncomeLatestTrendPoint.amount)}`
+                  : "-"}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
+            <svg viewBox="0 0 640 280" className="h-[300px] w-full">
+              {(() => {
+                const padding = { top: 22, right: 24, bottom: 44, left: 70 };
+                const innerWidth = 640 - padding.left - padding.right;
+                const innerHeight = 280 - padding.top - padding.bottom;
+                const points = otherIncomeTrendPoints;
+                const max = otherIncomeTrendMax;
+                const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                const plot = points.map((point, index) => {
+                  const x = padding.left + (points.length <= 1 ? innerWidth : (index / Math.max(1, points.length - 1)) * innerWidth);
+                  const y = padding.top + innerHeight - (point.amount / max) * innerHeight;
+                  return { ...point, x, y };
+                });
+                const linePath = plot.length
+                  ? plot.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ")
+                  : "";
+                const areaPath = plot.length
+                  ? `${linePath} L ${padding.left + innerWidth} ${padding.top + innerHeight} L ${padding.left} ${padding.top + innerHeight} Z`
+                  : "";
+
+                return (
+                  <>
+                    {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+                      const y = padding.top + innerHeight - tick * innerHeight;
+                      const value = Math.round(max * tick);
+                      return (
+                        <g key={tick}>
+                          <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} stroke="#E2E8F0" />
+                          <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill="#475569">
+                            {formatIncomeJPY(value)}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    {plot.map((point, index) =>
+                      index % labelEvery === 0 || index === plot.length - 1 ? (
+                        <text key={point.key} x={point.x} y={padding.top + innerHeight + 30} textAnchor="middle" fontSize="12" fill="#334155">
+                          {point.label}
+                        </text>
+                      ) : null
+                    )}
+                    {areaPath ? <path d={areaPath} fill="#DBEAFE" opacity="0.35" /> : null}
+                    {linePath ? <path d={linePath} fill="none" stroke="#0F172A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                    {plot.map((point, index) => {
+                      const isLatest = index === plot.length - 1;
+                      const isPeak = otherIncomePeakTrendPoint?.key === point.key && point.amount > 0;
+                      return (
+                        <g key={point.key}>
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r={isPeak ? 5.5 : isLatest ? 5 : 3.5}
+                            fill={isLatest ? "#059669" : isPeak ? "#2563EB" : "#2563EB"}
+                            stroke="white"
+                            strokeWidth="2"
+                          />
+                          <title>{`${point.label}: ${formatIncomeJPY(point.amount)} / ${point.count}件`}</title>
+                        </g>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="text-xl font-semibold text-slate-950">入金状況</div>
+              <div className="mt-2 text-sm leading-6 text-slate-500">
+                期間別の入金合計を比較します。表示範囲は左側の入金推移と連動します。
+              </div>
+            </div>
+            <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+              {(["day", "week", "month"] as OtherIncomeDashboardGranularity[]).map((unit) => (
+                <button
+                  key={unit}
+                  type="button"
+                  onClick={() => setOtherIncomeStatusGranularity(unit)}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-xs font-bold transition",
+                    otherIncomeStatusGranularity === unit
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {getOtherIncomeGranularityLabel(unit).replace("別", "")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold text-slate-500">表示単位</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">
+                {getOtherIncomeGranularityLabel(otherIncomeStatusGranularity)}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs font-semibold text-slate-500">最大区間</div>
+              <div className="mt-2 text-lg font-bold text-slate-950">
+                {otherIncomePeakStatusPoint
+                  ? `${otherIncomePeakStatusPoint.label} / ${formatIncomeJPY(otherIncomePeakStatusPoint.amount)}`
+                  : "-"}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
+            <svg viewBox="0 0 460 280" className="h-[300px] w-full">
+              {(() => {
+                const padding = { top: 22, right: 18, bottom: 44, left: 66 };
+                const innerWidth = 460 - padding.left - padding.right;
+                const innerHeight = 280 - padding.top - padding.bottom;
+                const points = otherIncomeStatusPoints;
+                const max = otherIncomeStatusMax;
+                const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                const barCount = Math.max(1, points.length);
+                const gap = barCount > 40 ? 2 : barCount > 24 ? 4 : 8;
+                const columnWidth = Math.max(4, Math.min(32, (innerWidth - gap * Math.max(0, barCount - 1)) / barCount));
+
+                return (
+                  <>
+                    {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+                      const y = padding.top + innerHeight - tick * innerHeight;
+                      const value = Math.round(max * tick);
+                      return (
+                        <g key={tick}>
+                          <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} stroke="#E2E8F0" />
+                          <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill="#475569">
+                            {formatIncomeJPY(value)}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    {points.map((point, index) => {
+                      const x = padding.left + index * (columnWidth + gap);
+                      const h = (point.amount / max) * innerHeight;
+                      const y = padding.top + innerHeight - h;
+                      const isLatest = index === points.length - 1;
+                      const isPeak = otherIncomePeakStatusPoint?.key === point.key && point.amount > 0;
+
+                      return (
+                        <g key={point.key}>
+                          <rect
+                            x={x}
+                            y={y}
+                            width={columnWidth}
+                            height={Math.max(2, h)}
+                            rx={Math.min(10, columnWidth / 2)}
+                            fill={isLatest ? "#2563EB" : isPeak ? "#475569" : "#64748B"}
+                            opacity={isLatest || isPeak ? "1" : "0.92"}
+                          />
+                          <title>{`${point.label}: ${formatIncomeJPY(point.amount)} / ${point.count}件`}</title>
+                          {index % labelEvery === 0 || index === points.length - 1 ? (
+                            <text
+                              x={x + columnWidth / 2}
+                              y={padding.top + innerHeight + 30}
+                              textAnchor="middle"
+                              fontSize="11"
+                              fill="#334155"
+                            >
+                              {point.label}
+                            </text>
+                          ) : null}
+                          {isLatest && point.amount > 0 ? (
+                            <text
+                              x={Math.min(x + columnWidth / 2 + 18, padding.left + innerWidth)}
+                              y={Math.max(y - 8, padding.top + 14)}
+                              textAnchor="start"
+                              fontSize="11"
+                              fontWeight="700"
+                              fill="#2563EB"
+                            >
+                              Current
+                            </text>
+                          ) : null}
+                        </g>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+        </div>
+      </section>
+
+<section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-lg font-semibold text-slate-950">操作メニュー</div>
           <div className="text-xs text-slate-500">その他収入の登録・編集・取込導線</div>
