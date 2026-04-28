@@ -205,6 +205,14 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
   const c = String(item.categoryName ?? "").toLowerCase();
   const m = String(item.memo ?? "").toLowerCase();
 
+  // Step109-Z1-B-FIX4:
+  // Other income CSV import preserves the imported category in a memo marker.
+  // This marker must win before source-name heuristics such as "amazon",
+  // otherwise rows imported from "Amazon JP Seed Store" are misclassified as store-order.
+  if (m.includes("[other-income-category:") || t === "other") {
+    return "other";
+  }
+
   if (
     m.includes("[imports:store-orders]") ||
     t.includes("sale") ||
