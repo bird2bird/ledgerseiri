@@ -16,6 +16,7 @@ import { useIncomePageOrchestration } from "@/core/transactions/use-income-page-
 import { renderIncomePageShell } from "@/core/transactions/income-page-shell";
 import { CashIncomeHeader } from "@/components/app/income/CashIncomeHeader";
 import { CashIncomeWorkspace } from "@/components/app/income/CashIncomeWorkspace";
+import { OtherIncomeWorkspace } from "@/components/app/income/OtherIncomeWorkspace";
 
 type IncomePageVariant = "root" | "cash" | "store-order" | "other";
 
@@ -200,6 +201,51 @@ export function IncomePageClient(props: {
         category: next,
       }),
   });
+
+  if (pageVariant === "other") {
+    return (
+      <OtherIncomeWorkspace
+        lang={lang}
+        rows={state.rows}
+        selectedRowId={state.selectedRowId}
+        onSelectRow={state.setSelectedRowId}
+        selectedRow={state.selectedRow}
+        pageSize={state.pageSize}
+        setPageSize={state.setPageSize}
+        currentPage={state.currentPage}
+        setCurrentPage={state.setCurrentPage}
+        action={action}
+        clearActionMode={orchestration.clearActionMode}
+        sidebarActions={orchestration.sidebarActions}
+        accounts={state.accounts}
+        txCategories={state.txCategories}
+        formLoading={state.formLoading}
+        submitLoading={state.submitLoading}
+        panelError={state.panelError}
+        setPanelError={state.setPanelError}
+        accountId={state.accountId}
+        setAccountId={state.setAccountId}
+        categoryId={state.categoryId}
+        setCategoryId={state.setCategoryId}
+        amount={state.amount}
+        setAmount={state.setAmount}
+        occurredAt={state.occurredAt}
+        setOccurredAt={state.setOccurredAt}
+        memo={state.memo}
+        setMemo={state.setMemo}
+        submitCreate={state.submitCreate}
+        editAmount={state.editAmount}
+        setEditAmount={state.setEditAmount}
+        editMemo={state.editMemo}
+        setEditMemo={state.setEditMemo}
+        editUiError={state.editUiError}
+        editUiMessage={state.editUiMessage}
+        editSaveLoading={state.editSaveLoading}
+        editCanSave={state.editCanSave}
+        handleEditSave={state.handleEditSave}
+      />
+    );
+  }
 
   if (pageVariant === "cash") {
     return (
