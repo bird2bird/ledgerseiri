@@ -205,11 +205,24 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
   const c = String(item.categoryName ?? "").toLowerCase();
   const m = String(item.memo ?? "").toLowerCase();
 
-  // Step109-Z1-B-FIX4:
-  // Other income CSV import preserves the imported category in a memo marker.
-  // This marker must win before source-name heuristics such as "amazon",
-  // otherwise rows imported from "Amazon JP Seed Store" are misclassified as store-order.
-  if (m.includes("[other-income-category:") || t === "other") {
+  // Step109-Z1-B-FIX5-v2:
+  // Marker priority must be deterministic:
+  // 1) cash-income technical markers
+  // 2) other-income import marker
+  // 3) store-order source heuristics such as Amazon/Shopify.
+  // This prevents cash rows from leaking into /income/other and prevents
+  // other-income rows imported from "Amazon JP Seed Store" from becoming store-order.
+  if (
+    m.includes("[cash]") ||
+    m.includes("[revenue-category:") ||
+    t.includes("cash") ||
+    c.includes("現金") ||
+    m.includes("cash")
+  ) {
+    return "cash";
+  }
+
+  if (m.includes("[other-income-category:")) {
     return "other";
   }
 
@@ -222,10 +235,6 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
     m.includes("shopify")
   ) {
     return "store-order";
-  }
-
-  if (t.includes("cash") || c.includes("現金") || m.includes("cash")) {
-    return "cash";
   }
 
   return "other";

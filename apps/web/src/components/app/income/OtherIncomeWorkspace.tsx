@@ -274,6 +274,48 @@ function normalizeOtherIncomeHeader(value: string) {
   return map[raw] || raw;
 }
 
+
+function scoreOtherIncomeDecodedText(value: string) {
+  const text = String(value || "");
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  const japaneseCount = (text.match(/[ぁ-んァ-ヶ一-龠]/g) || []).length;
+  const headerHits = ["口座", "収入カテゴリ", "金額", "発生日", "メモ", "収入元", "account", "category", "amount"]
+    .filter((token) => text.includes(token)).length;
+
+  return headerHits * 100 + japaneseCount - replacementCount * 50;
+}
+
+function decodeOtherIncomeCsvBuffer(buffer: ArrayBuffer) {
+  const candidates = [
+    { encoding: "utf-8", label: "UTF-8" },
+    { encoding: "shift_jis", label: "Shift_JIS/CP932" },
+  ];
+
+  let best = "";
+  let bestLabel = "UTF-8";
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    try {
+      const decoded = new TextDecoder(candidate.encoding).decode(buffer);
+      const score = scoreOtherIncomeDecodedText(decoded);
+      if (score > bestScore) {
+        best = decoded;
+        bestLabel = candidate.label;
+        bestScore = score;
+      }
+    } catch {
+      // Some runtimes may not support every TextDecoder label.
+    }
+  }
+
+  return {
+    text: best,
+    encoding: bestLabel,
+  };
+}
+
+
 function parseOtherIncomeCsvDraft(csvText: string): OtherIncomeDraftRow[] {
   const lines = String(csvText || "")
     .replace(/^\uFEFF/, "")
@@ -575,7 +617,8 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     setImportFeedback(null);
 
     try {
-      const csvText = await file.text();
+      const decodedCsv = decodeOtherIncomeCsvBuffer(await file.arrayBuffer());
+      const csvText = decodedCsv.text;
       const draftRows = parseOtherIncomeCsvDraft(csvText);
       const validRows = draftRows.filter((row) => row.status !== "error");
 
@@ -630,7 +673,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         title: importedRows > 0 ? "その他収入CSVの取込が完了しました" : "取込できる行がありませんでした",
         message:
           importedRows > 0
-            ? "CSV からその他収入を登録し、一覧を再取得しました。"
+            ? `CSV からその他収入を登録し、一覧を再取得しました。文字コード: ${decodedCsv.encoding}`
             : "金額・発生日を確認してください。口座名・収入カテゴリは一致しない場合でも取込し、区分はメモ内マーカーで保持します。",
         importedRows,
         blockedRows,
@@ -707,7 +750,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
       <input
         ref={otherIncomeFileInputRef}
-        data-scope="other-income-csv-hidden-input-z1b other-income-nullable-import-fix3"
+        data-scope="other-income-csv-hidden-input-z1b other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
         type="file"
         accept=".csv,.txt"
         className="hidden"
