@@ -242,7 +242,9 @@ export function IncomePageClient(props: {
         editUiMessage={state.editUiMessage}
         editSaveLoading={state.editSaveLoading}
         editCanSave={state.editCanSave}
+        deleteLoading={state.deleteLoading}
         handleEditSave={state.handleEditSave}
+        handleDeleteSelected={state.handleDeleteSelected}
         reloadRows={state.reloadRows}
       />
     );

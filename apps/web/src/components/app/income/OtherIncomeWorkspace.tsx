@@ -59,7 +59,9 @@ type OtherIncomeWorkspaceProps = {
   editUiMessage: string;
   editSaveLoading: boolean;
   editCanSave: boolean;
+  deleteLoading: boolean;
   handleEditSave: (override?: { memo?: string }) => Promise<void>;
+  handleDeleteSelected: () => Promise<void>;
   reloadRows: () => Promise<void>;
 };
 
@@ -108,6 +110,49 @@ function getOtherIncomeCategoryLabel(row: IncomeRow) {
 
 function getOtherIncomeMemo(row: IncomeRow) {
   return stripOtherIncomeMarkers(row.memo);
+}
+
+const OTHER_INCOME_STANDARD_CATEGORY_LABELS = [
+  "サービス収入",
+  "補助金・助成金",
+  "返金・調整入金",
+  "雑収入",
+  "受取利息",
+  "その他収入",
+];
+
+function normalizeOtherIncomeCategoryLabel(value?: string | null) {
+  const raw = String(value || "").trim();
+  return raw || "その他収入";
+}
+
+function buildOtherIncomeEditableMemo(args: {
+  memo?: string | null;
+  category?: string | null;
+  previousCategory?: string | null;
+}) {
+  const category = normalizeOtherIncomeCategoryLabel(args.category);
+  const previousCategory = normalizeOtherIncomeCategoryLabel(args.previousCategory);
+  const rawMemo = stripOtherIncomeMarkers(args.memo || "");
+  const normalizedMemo = rawMemo.trim();
+
+  let visibleMemo = normalizedMemo || category;
+
+  // Step109-Z1-C-FIX2:
+  // If the memo was automatically generated from the previous category,
+  // keep memo/category visually consistent when only the category is changed.
+  // Custom user-written memo is preserved.
+  if (
+    previousCategory &&
+    category !== previousCategory &&
+    (normalizedMemo === previousCategory ||
+      normalizedMemo.startsWith(`${previousCategory} /`) ||
+      normalizedMemo.startsWith(`${previousCategory}／`))
+  ) {
+    visibleMemo = normalizedMemo.replace(previousCategory, category);
+  }
+
+  return `[other-income-category:${category}] ${visibleMemo}`.trim();
 }
 
 function buildOtherIncomeImportedMemo(args: {
@@ -703,13 +748,16 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     editUiMessage,
     editSaveLoading,
     editCanSave,
+    deleteLoading,
     handleEditSave,
+    handleDeleteSelected,
     reloadRows,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<OtherIncomeSortMode>("date_desc");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [drawerRow, setDrawerRow] = React.useState<IncomeRow | null>(null);
+  const [editCategoryLabel, setEditCategoryLabel] = React.useState("その他収入");
   const otherIncomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [importLoading, setImportLoading] = React.useState(false);
   const [importFeedback, setImportFeedback] = React.useState<{
@@ -726,6 +774,22 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     [rows]
   );
   const categorySummary = React.useMemo(() => buildOtherIncomeCategorySummary(rows), [rows]);
+  const otherIncomeEditCategoryOptions = React.useMemo(() => {
+    const labels = new Set<string>();
+
+    for (const label of OTHER_INCOME_STANDARD_CATEGORY_LABELS) labels.add(label);
+    for (const item of categorySummary) labels.add(item.label);
+    for (const item of txCategories) {
+      if (item.direction !== "INCOME") continue;
+      const name = String(item.name || "").trim();
+      if (!name) continue;
+      if (name.includes("現金")) continue;
+      if (name.includes("店舗注文")) continue;
+      labels.add(name);
+    }
+
+    return Array.from(labels);
+  }, [categorySummary, txCategories]);
   const accountCount = React.useMemo(
     () => new Set(rows.map((row) => String(row.account || "-"))).size,
     [rows]
@@ -785,12 +849,14 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     setDrawerRow(selectedRow);
     setEditAmount(String(selectedRow.amount || ""));
     setEditMemo(getOtherIncomeMemo(selectedRow));
+    setEditCategoryLabel(getOtherIncomeCategoryLabel(selectedRow));
   }, [action, selectedRow, setEditAmount, setEditMemo]);
 
   function openEdit(row: IncomeRow) {
     onSelectRow(row.id);
     setEditAmount(String(row.amount || ""));
     setEditMemo(getOtherIncomeMemo(row));
+    setEditCategoryLabel(getOtherIncomeCategoryLabel(row));
     setDrawerRow(row);
   }
 
@@ -805,7 +871,26 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   }
 
   async function saveEdit() {
-    await handleEditSave();
+    await handleEditSave({
+      memo: buildOtherIncomeEditableMemo({
+        memo: editMemo,
+        category: editCategoryLabel,
+        previousCategory: editingRow ? getOtherIncomeCategoryLabel(editingRow) : null,
+      }),
+    });
+    await reloadRows();
+    setCategoryFilter("all");
+    setCurrentPage(1);
+    closeDrawer();
+  }
+
+  async function deleteSelectedOtherIncome() {
+    if (!editingRow) return;
+    onSelectRow(editingRow.id);
+    await handleDeleteSelected();
+    await reloadRows();
+    setCategoryFilter("all");
+    setCurrentPage(1);
     closeDrawer();
   }
 
@@ -1337,7 +1422,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                   <div className="mt-1 text-sm text-slate-500">
                     {drawerMode === "create"
                       ? "その他収入データを手動で追加します。"
-                      : "選択したその他収入データの金額・メモを編集します。"}
+                      : "選択したその他収入データの金額・収入区分・メモを編集します。"}
                   </div>
                 </div>
                 <button
@@ -1375,6 +1460,46 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                   </div>
                 </div>
               ) : null}
+
+              {drawerMode === "edit" && editingRow ? (
+                <div data-scope="other-income-edit-category-z1c-v2 other-income-drawer-polish-fix2" className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-sm font-semibold text-slate-900">収入区分</label>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-500">
+                      summary/filter 同期
+                    </span>
+                  </div>
+                  <select
+                    value={editCategoryLabel}
+                    onChange={(event) => setEditCategoryLabel(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+                  >
+                    {otherIncomeEditCategoryOptions.map((label) => (
+                      <option key={label} value={label}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+                    保存後、収入区分別サマリー・フィルター・税務CSVに反映されます。
+                  </div>
+                </div>
+              ) : null}
+
+              {drawerMode === "edit" ? (
+                <div data-scope="other-income-delete-action-z1c-v2" className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={deleteSelectedOtherIncome}
+                    disabled={deleteLoading || editSaveLoading}
+                    className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleteLoading ? "削除中..." : "削除"}
+                  </button>
+                </div>
+              ) : null}
+
+
 
               {panelError && drawerMode === "create" ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1481,7 +1606,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                       {editingRow ? getOtherIncomeCategoryLabel(editingRow) : "-"}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      現在のPATCH APIは categoryId 更新未対応のため、既存明細は金額とメモを保存できます。カテゴリ変更は次段階でAPIを拡張して対応します。
+                      収入区分はメモ内の管理タグとして保存され、サマリー・フィルター・税務CSVに反映されます。
                     </div>
                   </div>
 
