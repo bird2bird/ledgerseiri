@@ -889,6 +889,31 @@ function getOtherIncomeXAxisLabelEvery(points: OtherIncomeDashboardPoint[]) {
   return 12;
 }
 
+function buildOtherIncomeSegmentedLinePaths<T extends { x: number; y: number | null; amount: number }>(plot: T[]) {
+  const segments: T[][] = [];
+  let current: T[] = [];
+
+  for (const point of plot) {
+    if (point.amount > 0 && point.y != null) {
+      current.push(point);
+      continue;
+    }
+
+    if (current.length > 0) {
+      segments.push(current);
+      current = [];
+    }
+  }
+
+  if (current.length > 0) {
+    segments.push(current);
+  }
+
+  return segments.map((segment) =>
+    segment.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ")
+  );
+}
+
 
 
 export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
@@ -950,6 +975,8 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     React.useState<OtherIncomeDashboardRange>("30d");
   const [otherIncomeStatusGranularity, setOtherIncomeStatusGranularity] =
     React.useState<OtherIncomeDashboardGranularity>("day");
+  const [otherIncomeTrendHoverKey, setOtherIncomeTrendHoverKey] = React.useState<string | null>(null);
+  const [otherIncomeStatusHoverKey, setOtherIncomeStatusHoverKey] = React.useState<string | null>(null);
   const otherIncomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [importLoading, setImportLoading] = React.useState(false);
   const [importFeedback, setImportFeedback] = React.useState<{
@@ -1362,7 +1389,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
 
       <section
-        data-scope="other-income-chart-dashboard-parity-z1e"
+        data-scope="other-income-chart-dashboard-parity-z1e other-income-chart-smoothing-fix2"
         className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"
       >
         <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
@@ -1404,7 +1431,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
-            <svg viewBox="0 0 640 280" className="h-[300px] w-full">
+            <svg viewBox="0 0 640 280" className="h-[300px] w-full overflow-visible">
               {(() => {
                 const padding = { top: 22, right: 24, bottom: 44, left: 70 };
                 const innerWidth = 640 - padding.left - padding.right;
@@ -1414,15 +1441,12 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                 const labelEvery = getOtherIncomeXAxisLabelEvery(points);
                 const plot = points.map((point, index) => {
                   const x = padding.left + (points.length <= 1 ? innerWidth : (index / Math.max(1, points.length - 1)) * innerWidth);
-                  const y = padding.top + innerHeight - (point.amount / max) * innerHeight;
-                  return { ...point, x, y };
+                  const hasData = point.amount > 0;
+                  const y = hasData ? padding.top + innerHeight - (point.amount / max) * innerHeight : null;
+                  return { ...point, x, y, hasData };
                 });
-                const linePath = plot.length
-                  ? plot.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ")
-                  : "";
-                const areaPath = plot.length
-                  ? `${linePath} L ${padding.left + innerWidth} ${padding.top + innerHeight} L ${padding.left} ${padding.top + innerHeight} Z`
-                  : "";
+                const linePaths = buildOtherIncomeSegmentedLinePaths(plot);
+                const hoveredTrendPoint = plot.find((point) => point.key === otherIncomeTrendHoverKey && point.hasData) ?? null;
 
                 return (
                   <>
@@ -1445,25 +1469,90 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                         </text>
                       ) : null
                     )}
-                    {areaPath ? <path d={areaPath} fill="#DBEAFE" opacity="0.35" /> : null}
-                    {linePath ? <path d={linePath} fill="none" stroke="#0F172A" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /> : null}
+                    {linePaths.map((path, index) => (
+                      <path
+                        key={`trend-line-${index}`}
+                        d={path}
+                        fill="none"
+                        stroke="#0F172A"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ))}
                     {plot.map((point, index) => {
+                      if (!point.hasData || point.y == null) return null;
+
                       const isLatest = index === plot.length - 1;
                       const isPeak = otherIncomePeakTrendPoint?.key === point.key && point.amount > 0;
+                      const isHovered = otherIncomeTrendHoverKey === point.key;
+                      const dotRadius = isHovered ? 7 : isPeak ? 5.5 : isLatest ? 5 : 3.5;
+
                       return (
-                        <g key={point.key}>
+                        <g
+                          key={point.key}
+                          onMouseEnter={() => setOtherIncomeTrendHoverKey(point.key)}
+                          onMouseLeave={() => setOtherIncomeTrendHoverKey(null)}
+                          className="cursor-pointer"
+                        >
                           <circle
                             cx={point.x}
                             cy={point.y}
-                            r={isPeak ? 5.5 : isLatest ? 5 : 3.5}
+                            r={Math.max(12, dotRadius + 7)}
+                            fill="transparent"
+                          />
+                          <circle
+                            cx={point.x}
+                            cy={point.y}
+                            r={dotRadius}
                             fill={isLatest ? "#059669" : isPeak ? "#2563EB" : "#2563EB"}
                             stroke="white"
                             strokeWidth="2"
                           />
-                          <title>{`${point.label}: ${formatIncomeJPY(point.amount)} / ${point.count}件`}</title>
                         </g>
                       );
                     })}
+                    {hoveredTrendPoint && hoveredTrendPoint.y != null ? (
+                      <g className="pointer-events-none">
+                        {(() => {
+                          const tooltipWidth = 148;
+                          const tooltipHeight = 58;
+                          const tooltipX = Math.min(
+                            Math.max(hoveredTrendPoint.x - tooltipWidth / 2, padding.left),
+                            padding.left + innerWidth - tooltipWidth
+                          );
+                          const tooltipY = Math.max(hoveredTrendPoint.y - tooltipHeight - 14, padding.top + 2);
+
+                          return (
+                            <>
+                              <line
+                                x1={hoveredTrendPoint.x}
+                                y1={padding.top}
+                                x2={hoveredTrendPoint.x}
+                                y2={padding.top + innerHeight}
+                                stroke="#CBD5E1"
+                                strokeDasharray="4 4"
+                              />
+                              <rect
+                                x={tooltipX}
+                                y={tooltipY}
+                                width={tooltipWidth}
+                                height={tooltipHeight}
+                                rx="14"
+                                fill="#0F172A"
+                                opacity="0.96"
+                              />
+                              <text x={tooltipX + 14} y={tooltipY + 22} fontSize="12" fontWeight="700" fill="#FFFFFF">
+                                {hoveredTrendPoint.label}
+                              </text>
+                              <text x={tooltipX + 14} y={tooltipY + 42} fontSize="12" fill="#CBD5E1">
+                                {formatIncomeJPY(hoveredTrendPoint.amount)} / {hoveredTrendPoint.count}件
+                              </text>
+                            </>
+                          );
+                        })()}
+                      </g>
+                    ) : null}
                   </>
                 );
               })()}
@@ -1516,7 +1605,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
-            <svg viewBox="0 0 460 280" className="h-[300px] w-full">
+            <svg viewBox="0 0 460 280" className="h-[300px] w-full overflow-visible">
               {(() => {
                 const padding = { top: 22, right: 18, bottom: 44, left: 66 };
                 const innerWidth = 460 - padding.left - padding.right;
@@ -1548,9 +1637,28 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                       const y = padding.top + innerHeight - h;
                       const isLatest = index === points.length - 1;
                       const isPeak = otherIncomePeakStatusPoint?.key === point.key && point.amount > 0;
+                      const isHovered = otherIncomeStatusHoverKey === point.key;
+
+                      const currentLabelX = Math.min(
+                        Math.max(x + columnWidth / 2, padding.left + 28),
+                        padding.left + innerWidth - 36
+                      );
+                      const currentLabelY = Math.max(y - 12, padding.top + 16);
 
                       return (
-                        <g key={point.key}>
+                        <g
+                          key={point.key}
+                          onMouseEnter={() => setOtherIncomeStatusHoverKey(point.key)}
+                          onMouseLeave={() => setOtherIncomeStatusHoverKey(null)}
+                          className="cursor-pointer"
+                        >
+                          <rect
+                            x={x}
+                            y={padding.top}
+                            width={Math.max(columnWidth, 8)}
+                            height={innerHeight}
+                            fill="transparent"
+                          />
                           <rect
                             x={x}
                             y={y}
@@ -1558,9 +1666,41 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                             height={Math.max(2, h)}
                             rx={Math.min(10, columnWidth / 2)}
                             fill={isLatest ? "#2563EB" : isPeak ? "#475569" : "#64748B"}
-                            opacity={isLatest || isPeak ? "1" : "0.92"}
+                            opacity={isHovered || isLatest || isPeak ? "1" : "0.78"}
                           />
-                          <title>{`${point.label}: ${formatIncomeJPY(point.amount)} / ${point.count}件`}</title>
+                          {isHovered && point.amount > 0 ? (
+                            <g className="pointer-events-none">
+                              {(() => {
+                                const tooltipWidth = 138;
+                                const tooltipHeight = 56;
+                                const tooltipX = Math.min(
+                                  Math.max(x + columnWidth / 2 - tooltipWidth / 2, padding.left),
+                                  padding.left + innerWidth - tooltipWidth
+                                );
+                                const tooltipY = Math.max(y - tooltipHeight - 12, padding.top + 2);
+
+                                return (
+                                  <>
+                                    <rect
+                                      x={tooltipX}
+                                      y={tooltipY}
+                                      width={tooltipWidth}
+                                      height={tooltipHeight}
+                                      rx="14"
+                                      fill="#0F172A"
+                                      opacity="0.96"
+                                    />
+                                    <text x={tooltipX + 14} y={tooltipY + 22} fontSize="12" fontWeight="700" fill="#FFFFFF">
+                                      {point.label}
+                                    </text>
+                                    <text x={tooltipX + 14} y={tooltipY + 42} fontSize="12" fill="#CBD5E1">
+                                      {formatIncomeJPY(point.amount)} / {point.count}件
+                                    </text>
+                                  </>
+                                );
+                              })()}
+                            </g>
+                          ) : null}
                           {index % labelEvery === 0 || index === points.length - 1 ? (
                             <text
                               x={x + columnWidth / 2}
@@ -1574,9 +1714,9 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                           ) : null}
                           {isLatest && point.amount > 0 ? (
                             <text
-                              x={Math.min(x + columnWidth / 2 + 18, padding.left + innerWidth)}
-                              y={Math.max(y - 8, padding.top + 14)}
-                              textAnchor="start"
+                              x={currentLabelX}
+                              y={currentLabelY}
+                              textAnchor="middle"
                               fontSize="11"
                               fontWeight="700"
                               fill="#2563EB"
