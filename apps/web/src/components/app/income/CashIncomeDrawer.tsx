@@ -136,6 +136,8 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   );
   const [revenueCategory, setRevenueCategory] = React.useState(selectedRevenueCategoryFromRow);
   const revenueCategoryLabel = getCashRevenueCategoryLabel(revenueCategory);
+  const revenueCategoryDescription =
+    CASH_REVENUE_CATEGORIES.find((item) => item.code === revenueCategory)?.description || "";
   const categoryDirty = !isCreate && revenueCategory !== selectedRevenueCategoryFromRow;
   const canSubmit = isCreate
     ? createCanSubmit
@@ -269,6 +271,12 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                   </div>
                 </div>
                 <div>
+                  <div className="text-xs text-slate-500">現在区分</div>
+                  <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800">
+                    {getCashRevenueCategoryLabel(row.revenueCategory || row.memo || row.label)}
+                  </div>
+                </div>
+                <div>
                   <div className="text-xs text-slate-500">データソース</div>
                   <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800">{dataSource.label}</div>
                   <div className="mt-1 truncate text-xs text-slate-500">{dataSource.detail}</div>
@@ -304,13 +312,18 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
               </div>
             )}
 
-            <label className="block">
-              <div className="mb-2 text-sm font-medium text-slate-700">収入区分</div>
+            <div className="block">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-sm font-medium text-slate-700">収入区分</div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                  税務確認用
+                </span>
+              </div>
               <select
                 value={revenueCategory}
                 onChange={(e) => setRevenueCategory(normalizeCashRevenueCategory(e.target.value))}
                 disabled={formLoading || saving}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 disabled:bg-slate-50"
               >
                 {CASH_REVENUE_CATEGORIES.map((item) => (
                   <option key={item.code} value={item.code}>
@@ -318,10 +331,13 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                   </option>
                 ))}
               </select>
-              <div className="mt-2 text-xs text-slate-500">
-                税務申告・税理士確認用の収入区分として保存します。
+              <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="text-sm font-semibold text-slate-900">{revenueCategoryLabel}</div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {revenueCategoryDescription || "税務申告・税理士確認用の収入区分として保存します。"}
+                </div>
               </div>
-            </label>
+            </div>
 
             <label className="block">
               <div className="mb-2 text-sm font-medium text-slate-700">金額</div>

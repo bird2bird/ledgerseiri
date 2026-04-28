@@ -7,6 +7,15 @@ export const CASH_INCOME_SAMPLE_TEXT = [
   "現金,3000,2026-04-26,現金補正入金,手動調整,返金・調整入金",
 ].join("\n");
 
+
+export const CASH_INCOME_CATEGORY_SAMPLE_TEXT = [
+  "account,amount,occurredAt,memo,source,revenueCategory",
+  "現金,12000,2026-04-24,店頭現金売上,横浜店,商品売上",
+  "現金,8500,2026-04-25,イベント現金売上,展示会,イベント売上",
+  "現金,3000,2026-04-26,現金補正入金,手動調整,返金・調整入金",
+  "現金,223,2026-04-28,補助金入金,自治体,補助金・助成金",
+].join("\n");
+
 export const CASH_INCOME_ERROR_SAMPLE_TEXT = [
   "account,amount,occurredAt,memo,source",
   ",12000,2026-04-24,店頭現金売上,横浜店",
@@ -36,6 +45,7 @@ export function formatCashDraftMessage(message: string) {
     return "発生日を日付形式で入力してください";
   }
   if (message === "memo is recommended") return "メモの入力を推奨します";
+  if (message === "revenueCategory inferred") return "収入区分をメモ・入金元から自動推定しました";
   if (message === "memo is too long") return "メモは 240 文字以内で入力してください";
   return message;
 }

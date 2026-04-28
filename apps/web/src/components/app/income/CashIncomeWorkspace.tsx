@@ -13,6 +13,7 @@ import {
 } from "@/core/imports/cash-income-import-client";
 import {
   buildCashRevenueCategoryMemo,
+  CASH_REVENUE_CATEGORIES,
   getCashRevenueCategoryLabel,
   stripCashRevenueCategoryMarker,
 } from "@/core/transactions/cash-revenue-category";
@@ -111,6 +112,13 @@ function formatCashImportFileSize(bytes: number) {
 }
 
 
+type CashRevenueCategorySummaryItem = {
+  code: string;
+  label: string;
+  count: number;
+  amount: number;
+};
+
 type CashFileImportFeedback = {
   kind: "success" | "error";
   title: string;
@@ -121,6 +129,7 @@ type CashFileImportFeedback = {
   duplicateRows?: number;
   blockedRows?: number;
   importedAmount?: number;
+  categorySummary?: CashRevenueCategorySummaryItem[];
 };
 
 type CashFileImportProgress = {
@@ -135,7 +144,36 @@ type CashFileImportProgress = {
   duplicateRows: number;
   blockedRows: number;
   importedAmount: number;
+  categorySummary: CashRevenueCategorySummaryItem[];
 };
+
+
+function buildCashRevenueCategorySummary(
+  rows: { amount?: number | string | null; revenueCategory?: string | null; memo?: string | null; label?: string | null }[]
+): CashRevenueCategorySummaryItem[] {
+  const map = new Map<string, CashRevenueCategorySummaryItem>();
+
+  for (const row of rows) {
+    const code = String(row.revenueCategory || row.memo || row.label || "PRODUCT_SALES");
+    const label = getCashRevenueCategoryLabel(code);
+    const found = map.get(label);
+    const amount = Number(row.amount || 0);
+
+    if (found) {
+      found.count += 1;
+      found.amount += amount;
+    } else {
+      map.set(label, {
+        code,
+        label,
+        count: 1,
+        amount,
+      });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+}
 
 function escapeCsvCell(value: string) {
   const raw = String(value ?? "");
@@ -307,6 +345,7 @@ function createInitialCashImportProgress(fileName: string): CashFileImportProgre
     duplicateRows: 0,
     blockedRows: 0,
     importedAmount: 0,
+    categorySummary: [],
   };
 }
 
@@ -405,6 +444,11 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageStartRow = totalRows === 0 ? 0 : pageStart + 1;
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
+
+  const cashRevenueCategorySummary = React.useMemo(
+    () => buildCashRevenueCategorySummary(rows).slice(0, 6),
+    [rows]
+  );
 
   const normalizedSidebarActions: CashActionItem[] = sidebarActions.map((item) => {
     if (
@@ -515,12 +559,14 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               title: "取込データを検証しています",
               message: "金額・発生日・口座名を確認しています。",
               totalRows: draftRows.length,
+              categorySummary: importRevenueCategorySummary,
             }
           : current
       );
       await waitForCashImportPaint();
 
       const validRows = draftRows.filter((row) => row.status !== "error");
+      const importRevenueCategorySummary = buildCashRevenueCategorySummary(validRows);
 
       if (draftRows.length === 0) {
         throw new Error("取込できる行がありません。CSV / Excel の内容を確認してください。");
@@ -563,6 +609,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               message: "重複を確認しながら現金収入明細を登録しています。",
               totalRows: draftRows.length,
               blockedRows,
+              categorySummary: importRevenueCategorySummary,
             }
           : current
       );
@@ -619,6 +666,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 duplicateRows,
                 blockedRows,
                 importedAmount,
+                categorySummary: importRevenueCategorySummary,
               }
             : current
         );
@@ -657,6 +705,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               duplicateRows,
               blockedRows,
               importedAmount,
+              categorySummary: importRevenueCategorySummary,
             }
           : current
       );
@@ -671,6 +720,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         duplicateRows,
         blockedRows,
         importedAmount,
+        categorySummary: importRevenueCategorySummary,
       });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -870,6 +920,38 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               </div>
             </div>
 
+            {cashFileImportProgress.categorySummary.length > 0 ? (
+              <div
+                data-scope="cash-inline-import-category-summary"
+                className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">収入区分別の取込内訳</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      CSV / Excel の収入区分を確認し、未指定の行はメモから自動推定しています。
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                    税務確認用
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {cashFileImportProgress.categorySummary.slice(0, 6).map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold text-slate-900">{item.label}</span>
+                        <span className="text-xs text-slate-500">{item.count}件</span>
+                      </div>
+                      <div className="mt-1 text-xs font-semibold text-slate-600">
+                        {formatIncomeJPY(item.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
@@ -1018,6 +1100,21 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     {formatIncomeJPY(cashFileImportFeedback.importedAmount ?? 0)}
                   </div>
                 </div>
+                {cashFileImportFeedback.categorySummary?.length ? (
+                  <div
+                    data-scope="cash-import-feedback-category-summary"
+                    className="mt-3 grid gap-2 text-xs md:grid-cols-3"
+                  >
+                    {cashFileImportFeedback.categorySummary.slice(0, 6).map((item) => (
+                      <div key={item.label} className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
+                        <div className="font-semibold text-slate-800">{item.label}</div>
+                        <div className="mt-1 text-slate-600">
+                          {item.count}件 / {formatIncomeJPY(item.amount)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1057,6 +1154,40 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
             </select>
           </div>
         </div>
+
+        {cashRevenueCategorySummary.length > 0 ? (
+          <div
+            data-scope="cash-category-summary-panel-l4c"
+            className="mt-4 rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">収入区分別サマリー</div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  現金収入を税務申告・税理士確認で使いやすい区分に整理しています。
+                </div>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                表示中 {cashRevenueCategorySummary.length} 区分
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {cashRevenueCategorySummary.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+                    <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                      {item.count}件
+                    </div>
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-950">
+                    {formatIncomeJPY(item.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {selectedRow ? (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -1118,7 +1249,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 >
                   <div className="text-slate-600">{row.date}</div>
                   <div>
-                    <div className="font-medium text-slate-900">{row.label || getCashRevenueCategoryLabel(row.revenueCategory || row.memo)}</div>
+                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800">{row.label || getCashRevenueCategoryLabel(row.revenueCategory || row.memo)}</div>
                   </div>
                   <div>
                     <div className="text-slate-600">{stripCashSourceMarker(row.memo) || "-"}</div>
