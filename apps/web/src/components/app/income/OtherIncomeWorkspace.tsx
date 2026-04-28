@@ -146,7 +146,7 @@ function buildOtherIncomeCategorySummary(rows: IncomeRow[]) {
 
 function getOtherIncomeActionLabel(label: string) {
   if (label === "新規収入") return "新規その他収入";
-  if (label === "CSV取込") return "その他収入CSV取込";
+  if (label === "CSV取込") return "その他収入CSV/Excel取込";
   if (label === "編集") return "その他収入を編集";
   if (label === "店舗紐付け") return "収入元/補助設定";
   return label;
@@ -186,6 +186,10 @@ function findAccountName(accountId: string, accounts: AccountItem[]) {
   return accounts.find((item) => item.id === accountId)?.name || "未選択";
 }
 
+
+const OTHER_INCOME_IMPORT_ALLOWED_EXTENSIONS = [".csv", ".tsv", ".txt", ".xlsx", ".xls"];
+const OTHER_INCOME_IMPORT_MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const OTHER_INCOME_IMPORT_MAX_ROWS = 2000;
 
 type OtherIncomeDraftRow = {
   account: string;
@@ -424,6 +428,96 @@ function decodeOtherIncomeCsvBuffer(
     encoding: best.label,
   };
 }
+
+
+function formatOtherIncomeImportFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.ceil(bytes / 1024)} KB`;
+}
+
+function escapeOtherIncomeCsvHeaderCell(value: string) {
+  const raw = String(value ?? "");
+  if (raw.includes(",") || raw.includes("\"") || raw.includes("\n")) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
+  const lines = String(csvText || "")
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/);
+
+  if (lines.length === 0) return csvText;
+
+  const header = splitOtherIncomeCsvLine(lines[0]).map((cell) => String(cell || "").trim());
+  const headerMap: Record<string, string> = {
+    "口座": "account",
+    "口座名": "account",
+    "入金口座": "account",
+    "accountName": "account",
+    "account": "account",
+
+    "カテゴリ": "category",
+    "カテゴリー": "category",
+    "収入カテゴリ": "category",
+    "収入区分": "category",
+    "種別": "category",
+    "区分": "category",
+    "category": "category",
+
+    "金額": "amount",
+    "入金額": "amount",
+    "amount": "amount",
+
+    "発生日": "occurredAt",
+    "日付": "occurredAt",
+    "取引日": "occurredAt",
+    "occurredAt": "occurredAt",
+
+    "メモ": "memo",
+    "摘要": "memo",
+    "備考": "memo",
+    "memo": "memo",
+
+    "収入元": "source",
+    "入金元": "source",
+    "店舗": "source",
+    "source": "source",
+  };
+
+  const normalizedHeader = header.map((cell) => headerMap[cell] || normalizeOtherIncomeHeader(cell));
+  const changed = normalizedHeader.join(",") !== header.join(",");
+
+  if (!changed) return csvText;
+
+  return [
+    normalizedHeader.map(escapeOtherIncomeCsvHeaderCell).join(","),
+    ...lines.slice(1),
+  ].join("\n");
+}
+
+async function readOtherIncomeFileAsCsvText(file: File) {
+  const lower = file.name.toLowerCase();
+
+  if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+    const XLSX = await import("xlsx");
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = sheetName ? workbook.Sheets[sheetName] : null;
+
+    if (!sheet) {
+      throw new Error("Excel ファイルに読み取れるシートがありません。");
+    }
+
+    return XLSX.utils.sheet_to_csv(sheet);
+  }
+
+  return await file.text();
+}
+
 
 function parseOtherIncomeCsvDraft(csvText: string): OtherIncomeDraftRow[] {
   const lines = String(csvText || "")
@@ -726,13 +820,34 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     setImportFeedback(null);
 
     try {
-      const decodedCsv = decodeOtherIncomeCsvBuffer(await file.arrayBuffer(), { accounts, txCategories });
-      const csvText = decodedCsv.text;
-      const draftRows = parseOtherIncomeCsvDraft(csvText);
+      const lowerFileName = file.name.toLowerCase();
+      const allowedExtension = OTHER_INCOME_IMPORT_ALLOWED_EXTENSIONS.some((extension) =>
+        lowerFileName.endsWith(extension)
+      );
+
+      if (!allowedExtension) {
+        throw new Error("対応しているファイル形式は CSV / TSV / TXT / Excel（.xlsx, .xls）です。");
+      }
+
+      if (file.size > OTHER_INCOME_IMPORT_MAX_FILE_SIZE_BYTES) {
+        throw new Error(
+          `ファイルサイズが大きすぎます。上限は ${formatOtherIncomeImportFileSize(OTHER_INCOME_IMPORT_MAX_FILE_SIZE_BYTES)} です。`
+        );
+      }
+
+      const rawCsv = await readOtherIncomeFileAsCsvText(file);
+      const normalizedCsv = normalizeOtherIncomeFileCsvHeaders(rawCsv);
+      const draftRows = parseOtherIncomeCsvDraft(normalizedCsv);
       const validRows = draftRows.filter((row) => row.status !== "error");
 
       if (draftRows.length === 0) {
-        throw new Error("取込できる行がありません。CSV の内容を確認してください。");
+        throw new Error("取込できる行がありません。CSV / Excel の内容を確認してください。");
+      }
+
+      if (draftRows.length > OTHER_INCOME_IMPORT_MAX_ROWS) {
+        throw new Error(
+          `一度に取込できる行数は ${OTHER_INCOME_IMPORT_MAX_ROWS.toLocaleString("ja-JP")} 行までです。ファイルを分割して再度取込してください。`
+        );
       }
       if (validRows.length === 0) {
         throw new Error(draftRows.flatMap((row) => row.messages)[0] || "有効なその他収入行がありません。");
@@ -782,7 +897,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         title: importedRows > 0 ? "その他収入CSVの取込が完了しました" : "取込できる行がありませんでした",
         message:
           importedRows > 0
-            ? `CSV からその他収入を登録し、一覧を再取得しました。文字コード: ${decodedCsv.encoding}`
+            ? `CSV からその他収入を登録し、一覧を再取得しました。Excel/CSV 解析方式: Cash Income parity reader`
             : "金額・発生日を確認してください。口座名・収入カテゴリは一致しない場合でも取込し、区分はメモ内マーカーで保持します。",
         importedRows,
         blockedRows,
@@ -859,9 +974,9 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
       <input
         ref={otherIncomeFileInputRef}
-        data-scope="other-income-csv-hidden-input-z1b other-income-context-decoder-fix14 other-income-force-eucjp-fix13 other-income-eucjp-decoder-fix12-v2 other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
+        data-scope="other-income-csv-hidden-input-z1b other-income-cash-reader-parity-fix16 other-income-context-decoder-fix14 other-income-force-eucjp-fix13 other-income-eucjp-decoder-fix12-v2 other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
         type="file"
-        accept=".csv,.txt"
+        accept=".csv,.tsv,.txt,.xlsx,.xls"
         className="hidden"
         onChange={(event) => {
           void handleOtherIncomeFileSelected(event);
@@ -918,7 +1033,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
               );
             }
 
-            if (item.label === "その他収入CSV取込") {
+            if (item.label === "その他収入CSV/Excel取込") {
               return (
                 <button
                   key={item.label}
