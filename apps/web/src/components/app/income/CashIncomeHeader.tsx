@@ -513,7 +513,6 @@ export function CashIncomeHeader(props: {
     null
   );
   const cashBarLatest = safeCashBarPoints[safeCashBarPoints.length - 1] ?? null;
-  const cashBarAmountLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 5));
 
   return (
     <div className="space-y-6">
@@ -931,7 +930,7 @@ export function CashIncomeHeader(props: {
 
         </div>
 
-        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-hover-layer-polish-l3">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-hover-layer-polish-l3 cash-bar-fit-full-range-fix2-v4">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
@@ -1021,12 +1020,12 @@ export function CashIncomeHeader(props: {
                     const padding = { top: 16, right: 16, bottom: 46, left: 58 };
                     const innerWidth = 420 - padding.left - padding.right;
                     const innerHeight = 300 - padding.top - padding.bottom;
-                    const columnWidth = safeCashBarPoints.length
-                      ? Math.max(18, Math.min(42, innerWidth / safeCashBarPoints.length - 8))
+                    const barCount = safeCashBarPoints.length;
+                    const barGap = barCount > 24 ? 3 : barCount > 16 ? 5 : 8;
+                    const columnWidth = barCount
+                      ? Math.max(5, Math.min(38, (innerWidth - barGap * Math.max(0, barCount - 1)) / barCount))
                       : 28;
-                    const gap = safeCashBarPoints.length
-                      ? Math.max(8, (innerWidth - safeCashBarPoints.length * columnWidth) / Math.max(1, safeCashBarPoints.length))
-                      : 12;
+                    const gap = barCount ? barGap : 12;
                     const barLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 5));
 
                     return (
@@ -1049,14 +1048,11 @@ export function CashIncomeHeader(props: {
                         />
 
                         {safeCashBarPoints.map((point, index) => {
-                          const x = padding.left + gap / 2 + index * (columnWidth + gap);
+                          const x = padding.left + index * (columnWidth + gap);
                           const h = (point.amount / cashBarMax) * innerHeight;
                           const y = padding.top + innerHeight - h;
                           const isCurrentBar = index === safeCashBarPoints.length - 1;
                           const isPeakBar = cashBarPeak != null && point.amount === cashBarPeak.amount;
-                          const shouldShowBarAmount =
-                            point.amount > 0 &&
-                            (isCurrentBar || isPeakBar || index % cashBarAmountLabelEvery === 0 || safeCashBarPoints.length <= 6);
 
                           const tooltipWidth = 132;
                           const tooltipHeight = 62;
@@ -1137,20 +1133,7 @@ export function CashIncomeHeader(props: {
                                   {isCurrentBar ? "現在区間" : isPeakBar ? "最大区間" : "入金額"}
                                 </text>
                               </g>
-                              {shouldShowBarAmount ? (
-                                <text
-                                  data-role="cash-bar-amount-label"
-                                  x={x + columnWidth / 2}
-                                  y={Math.max(y - 8, padding.top + 12)}
-                                  textAnchor="middle"
-                                  fontSize={safeCashBarPoints.length > 8 ? "10" : "11"}
-                                  fontWeight="700"
-                                  fill={isCurrentBar ? "#1d4ed8" : "#1f2937"}
-                                  className="pointer-events-none select-none"
-                                >
-                                  {formatChartYen(point.amount)}
-                                </text>
-                              ) : null}
+                              
                               {isCurrentBar && point.amount > 0 ? (
                                 <text
                                   x={x + columnWidth / 2}
