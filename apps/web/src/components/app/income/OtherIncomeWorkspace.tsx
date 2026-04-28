@@ -592,12 +592,12 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
       for (const row of validRows) {
         const accountIdForRow =
-          resolveOtherIncomeAccountId(row.account, accounts) || accountId || accounts[0]?.id || "";
+          resolveOtherIncomeAccountId(row.account, accounts) || accountId || accounts[0]?.id || null;
         const categoryIdForRow =
-          resolveOtherIncomeCategoryId(row.category, txCategories) || categoryId || txCategories[0]?.id || "";
+          resolveOtherIncomeCategoryId(row.category, txCategories) || categoryId || txCategories[0]?.id || null;
         const occurredAt = new Date(row.occurredAt);
 
-        if (!accountIdForRow || !categoryIdForRow || Number.isNaN(occurredAt.getTime())) {
+        if (!Number.isFinite(Number(row.amount || 0)) || Number(row.amount || 0) <= 0 || Number.isNaN(occurredAt.getTime())) {
           blockedRows += 1;
           continue;
         }
@@ -631,7 +631,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         message:
           importedRows > 0
             ? "CSV からその他収入を登録し、一覧を再取得しました。"
-            : "金額・発生日を確認してください。口座名・収入カテゴリは一致しない場合でも既定値で取込できます。",
+            : "金額・発生日を確認してください。口座名・収入カテゴリは一致しない場合でも取込し、区分はメモ内マーカーで保持します。",
         importedRows,
         blockedRows,
         importedAmount,
@@ -707,7 +707,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
       <input
         ref={otherIncomeFileInputRef}
-        data-scope="other-income-csv-hidden-input-z1b"
+        data-scope="other-income-csv-hidden-input-z1b other-income-nullable-import-fix3"
         type="file"
         accept=".csv,.txt"
         className="hidden"
