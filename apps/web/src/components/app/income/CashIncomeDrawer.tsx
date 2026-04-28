@@ -81,6 +81,7 @@ function resolveCashDataSource(row: IncomeRow | null, isCreate: boolean) {
 function stripCashSourceMarker(value?: string | null) {
   return stripCashRevenueCategoryMarker(value)
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/^\s*\[cash\]\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -131,13 +132,15 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
 
   const currentError = isCreate ? panelError : editUiError;
   const saving = isCreate ? submitLoading : editSaveLoading || deleteLoading;
-  const selectedRevenueCategoryFromRow = normalizeCashRevenueCategory(
-    row?.revenueCategory || row?.memo || row?.label
+  const selectedRevenueCategoryFromRow = React.useMemo(
+    () => normalizeCashRevenueCategory(row?.revenueCategory || row?.memo || row?.label),
+    [row?.id, row?.revenueCategory, row?.memo, row?.label]
   );
   const [revenueCategory, setRevenueCategory] = React.useState(selectedRevenueCategoryFromRow);
   const revenueCategoryLabel = getCashRevenueCategoryLabel(revenueCategory);
   const revenueCategoryDescription =
     CASH_REVENUE_CATEGORIES.find((item) => item.code === revenueCategory)?.description || "";
+  const visibleMemo = isCreate ? memo : stripCashSourceMarker(editMemo);
   const categoryDirty = !isCreate && revenueCategory !== selectedRevenueCategoryFromRow;
   const canSubmit = isCreate
     ? createCanSubmit
@@ -148,7 +151,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
   React.useEffect(() => {
     if (!open) return;
     setRevenueCategory(isCreate ? "PRODUCT_SALES" : selectedRevenueCategoryFromRow);
-  }, [open, isCreate, selectedRevenueCategoryFromRow]);
+  }, [open, isCreate, row?.id, selectedRevenueCategoryFromRow]);
 
   function closeDrawer() {
     if (deleteLoading) return;
@@ -215,7 +218,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
         className="fixed inset-y-0 right-0 left-[260px] z-40 bg-slate-950/30 backdrop-blur-[1px]"
       />
 
-      <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
+      <aside data-scope="cash-category-drawer-sync-l4c-fix1" className="fixed right-0 top-0 z-50 h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
         <div className="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -374,7 +377,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
           <label className="block">
             <div className="mb-2 text-sm font-medium text-slate-700">メモ</div>
             <textarea
-              value={isCreate ? memo : editMemo}
+              value={visibleMemo}
               onChange={(e) =>
                 isCreate ? setMemo(e.target.value) : setEditMemo(e.target.value)
               }

@@ -274,6 +274,7 @@ function resolveCashAccountId(args: {
 function stripCashSourceMarker(value?: string | null) {
   return stripCashRevenueCategoryMarker(value)
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/^\s*\[cash\]\s*/i, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -502,7 +503,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   function openEdit(row: IncomeRow) {
     onSelectRow(row.id);
     setEditAmount(String(row.amount || ""));
-    setEditMemo(row.memo || "");
+    setEditMemo(stripCashSourceMarker(row.memo) || "");
     setEditingRow(row);
   }
 
@@ -772,7 +773,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     }
 
     setEditAmount(String(selectedRow.amount || ""));
-    setEditMemo(selectedRow.memo || "");
+    setEditMemo(stripCashSourceMarker(selectedRow.memo) || "");
     setEditingRow(selectedRow);
     clearActionMode();
   }, [action, selectedRow, clearActionMode, setEditAmount, setEditMemo]);
@@ -1157,7 +1158,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
         {cashRevenueCategorySummary.length > 0 ? (
           <div
-            data-scope="cash-category-summary-panel-l4c"
+            data-scope="cash-category-summary-panel-l4c cash-category-marker-cleanup-l4c-fix1"
             className="mt-4 rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
