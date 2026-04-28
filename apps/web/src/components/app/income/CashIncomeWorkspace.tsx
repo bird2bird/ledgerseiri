@@ -188,13 +188,13 @@ function buildCashRevenueCategorySummary(
 
 function buildCashRevenueCategoryTaxCsv(rows: IncomeRow[]) {
   const header = [
-    "occurredAt",
-    "revenueCategory",
-    "revenueCategoryCode",
-    "amount",
-    "account",
-    "source",
-    "memo",
+    "発生日",
+    "収入区分",
+    "収入区分コード",
+    "金額",
+    "口座",
+    "入金元",
+    "メモ",
   ];
 
   const lines = rows.map((row) => {
@@ -1293,7 +1293,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         ) : null}
 
         <div
-          data-scope="cash-category-filter-tax-export-l4d cash-tax-export-excel-bom-fix1"
+          data-scope="cash-category-filter-tax-export-l4d cash-tax-export-excel-bom-fix1 cash-tax-export-japanese-header-fix2-v3"
           className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4"
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
