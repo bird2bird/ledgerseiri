@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
 import type { TransactionCategoryItem } from "@/core/transactions/api";
+import { createTransaction } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 
 type OtherIncomeActionItem = {
@@ -59,6 +60,7 @@ type OtherIncomeWorkspaceProps = {
   editSaveLoading: boolean;
   editCanSave: boolean;
   handleEditSave: (override?: { memo?: string }) => Promise<void>;
+  reloadRows: () => Promise<void>;
 };
 
 function parseOtherIncomeDateMs(row: IncomeRow) {
@@ -146,6 +148,215 @@ function findAccountName(accountId: string, accounts: AccountItem[]) {
   return accounts.find((item) => item.id === accountId)?.name || "未選択";
 }
 
+
+type OtherIncomeDraftRow = {
+  account: string;
+  category: string;
+  amount: number;
+  occurredAt: string;
+  memo: string;
+  source: string;
+  status: "ready" | "warning" | "error";
+  messages: string[];
+};
+
+function splitOtherIncomeCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quote = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+
+    if (ch === '"' && quote && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      quote = !quote;
+      continue;
+    }
+    if (ch === "," && !quote) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => cell.trim());
+}
+
+function escapeOtherIncomeCsvCell(value: string) {
+  const raw = String(value ?? "");
+  if (raw.includes(",") || raw.includes('"') || raw.includes("\n") || raw.includes("\r")) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function normalizeOtherIncomeHeader(value: string) {
+  const raw = String(value || "").trim();
+  const map: Record<string, string> = {
+    "口座": "account",
+    "口座名": "account",
+    "入金口座": "account",
+    "account": "account",
+    "accountName": "account",
+
+    "カテゴリ": "category",
+    "カテゴリー": "category",
+    "収入カテゴリ": "category",
+    "種別": "category",
+    "区分": "category",
+    "category": "category",
+
+    "金額": "amount",
+    "入金額": "amount",
+    "amount": "amount",
+
+    "発生日": "occurredAt",
+    "日付": "occurredAt",
+    "取引日": "occurredAt",
+    "occurredAt": "occurredAt",
+
+    "メモ": "memo",
+    "摘要": "memo",
+    "備考": "memo",
+    "memo": "memo",
+
+    "収入元": "source",
+    "入金元": "source",
+    "店舗": "source",
+    "source": "source",
+  };
+  return map[raw] || raw;
+}
+
+function parseOtherIncomeCsvDraft(csvText: string): OtherIncomeDraftRow[] {
+  const lines = String(csvText || "")
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+
+  const first = splitOtherIncomeCsvLine(lines[0]).map(normalizeOtherIncomeHeader);
+  const hasHeader =
+    first.includes("account") ||
+    first.includes("category") ||
+    first.includes("amount") ||
+    first.includes("occurredAt");
+
+  const header = hasHeader ? first : ["account", "category", "amount", "occurredAt", "memo", "source"];
+  const body = hasHeader ? lines.slice(1) : lines;
+
+  const index = {
+    account: header.indexOf("account"),
+    category: header.indexOf("category"),
+    amount: header.indexOf("amount"),
+    occurredAt: header.indexOf("occurredAt"),
+    memo: header.indexOf("memo"),
+    source: header.indexOf("source"),
+  };
+
+  return body.map((line) => {
+    const cells = splitOtherIncomeCsvLine(line);
+    const account = index.account >= 0 ? String(cells[index.account] || "").trim() : "";
+    const category = index.category >= 0 ? String(cells[index.category] || "").trim() : "";
+    const amountRaw = index.amount >= 0 ? String(cells[index.amount] || "").replace(/[¥,\s]/g, "") : "";
+    const amount = Number(amountRaw || 0);
+    const occurredAt = index.occurredAt >= 0 ? String(cells[index.occurredAt] || "").trim() : "";
+    const memo = index.memo >= 0 ? String(cells[index.memo] || "").trim() : "";
+    const source = index.source >= 0 ? String(cells[index.source] || "").trim() : "";
+
+    const messages: string[] = [];
+    if (!account) messages.push("口座が未指定です");
+    if (!category) messages.push("収入カテゴリが未指定です");
+    if (!Number.isFinite(amount) || amount <= 0) messages.push("金額が不正です");
+    if (!occurredAt || Number.isNaN(new Date(occurredAt).getTime())) messages.push("発生日が不正です");
+    if (!memo) messages.push("メモの入力を推奨します");
+
+    const hasError = messages.some((message) => message.includes("不正") || message.includes("未指定"));
+
+    return {
+      account,
+      category,
+      amount,
+      occurredAt,
+      memo,
+      source,
+      status: hasError ? "error" : messages.length > 0 ? "warning" : "ready",
+      messages,
+    };
+  });
+}
+
+function resolveOtherIncomeAccountId(accountName: string, accounts: AccountItem[]) {
+  const raw = String(accountName || "").trim();
+  if (!raw) return "";
+
+  const exact = accounts.find((item) => item.name === raw);
+  if (exact) return exact.id;
+
+  const lower = raw.toLowerCase();
+  const loose = accounts.find((item) => {
+    const name = String(item.name || "").toLowerCase();
+    return name.includes(lower) || lower.includes(name);
+  });
+
+  return loose?.id || "";
+}
+
+function resolveOtherIncomeCategoryId(categoryName: string, categories: TransactionCategoryItem[]) {
+  const raw = String(categoryName || "").trim();
+  if (!raw) return "";
+
+  const exact = categories.find((item) => item.name === raw);
+  if (exact) return exact.id;
+
+  const lower = raw.toLowerCase();
+  const loose = categories.find((item) => {
+    const name = String(item.name || "").toLowerCase();
+    return name.includes(lower) || lower.includes(name);
+  });
+
+  return loose?.id || "";
+}
+
+function buildOtherIncomeTaxCsv(rows: IncomeRow[]) {
+  const header = ["発生日", "収入区分", "金額", "口座", "収入元", "メモ"];
+  const lines = rows.map((row) =>
+    [
+      row.date || "",
+      getOtherIncomeCategoryLabel(row),
+      String(Number(row.amount || 0)),
+      row.account || "",
+      row.store || "",
+      getOtherIncomeMemo(row) || "",
+    ].map(escapeOtherIncomeCsvCell).join(",")
+  );
+
+  return [header.join(","), ...lines].join("\r\n");
+}
+
+function downloadOtherIncomeTextFile(args: { filename: string; text: string }) {
+  const blob = new Blob(["\uFEFF", args.text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = args.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+
 export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const {
     lang,
@@ -191,11 +402,22 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     editSaveLoading,
     editCanSave,
     handleEditSave,
+    reloadRows,
   } = props;
 
   const [sortMode, setSortMode] = React.useState<OtherIncomeSortMode>("date_desc");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [drawerRow, setDrawerRow] = React.useState<IncomeRow | null>(null);
+  const otherIncomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [importLoading, setImportLoading] = React.useState(false);
+  const [importFeedback, setImportFeedback] = React.useState<{
+    kind: "success" | "error";
+    title: string;
+    message: string;
+    importedRows?: number;
+    blockedRows?: number;
+    importedAmount?: number;
+  } | null>(null);
 
   const totalAmount = React.useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
@@ -285,6 +507,93 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     closeDrawer();
   }
 
+
+  async function handleOtherIncomeFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+
+    if (!file || importLoading) return;
+
+    setImportLoading(true);
+    setImportFeedback(null);
+
+    try {
+      const csvText = await file.text();
+      const draftRows = parseOtherIncomeCsvDraft(csvText);
+      const validRows = draftRows.filter((row) => row.status !== "error");
+
+      if (draftRows.length === 0) {
+        throw new Error("取込できる行がありません。CSV の内容を確認してください。");
+      }
+      if (validRows.length === 0) {
+        throw new Error(draftRows.flatMap((row) => row.messages)[0] || "有効なその他収入行がありません。");
+      }
+
+      let importedRows = 0;
+      let blockedRows = draftRows.length - validRows.length;
+      let importedAmount = 0;
+
+      for (const row of validRows) {
+        const accountIdForRow = resolveOtherIncomeAccountId(row.account, accounts);
+        const categoryIdForRow = resolveOtherIncomeCategoryId(row.category, txCategories);
+        const occurredAt = new Date(row.occurredAt);
+
+        if (!accountIdForRow || !categoryIdForRow || Number.isNaN(occurredAt.getTime())) {
+          blockedRows += 1;
+          continue;
+        }
+
+        await createTransaction({
+          accountId: accountIdForRow,
+          categoryId: categoryIdForRow,
+          type: "OTHER",
+          direction: "INCOME",
+          amount: Number(row.amount || 0),
+          currency: "JPY",
+          occurredAt: occurredAt.toISOString(),
+          memo: row.source ? `${row.memo || row.category} / ${row.source}` : row.memo || row.category,
+        });
+
+        importedRows += 1;
+        importedAmount += Number(row.amount || 0);
+      }
+
+      await reloadRows();
+      setCurrentPage(1);
+
+      setImportFeedback({
+        kind: importedRows > 0 ? "success" : "error",
+        title: importedRows > 0 ? "その他収入CSVの取込が完了しました" : "取込できる行がありませんでした",
+        message:
+          importedRows > 0
+            ? "CSV からその他収入を登録し、一覧を再取得しました。"
+            : "口座名・収入カテゴリ・金額・発生日を確認してください。",
+        importedRows,
+        blockedRows,
+        importedAmount,
+      });
+    } catch (e: unknown) {
+      setImportFeedback({
+        kind: "error",
+        title: "その他収入CSVの取込に失敗しました",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  function handleOtherIncomeTaxExport() {
+    const csv = buildOtherIncomeTaxCsv(filteredRows);
+    const date = new Date();
+    const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+    const suffix = categoryFilter === "all" ? "all" : "filtered";
+    downloadOtherIncomeTextFile({
+      filename: `other-income-tax-export-${suffix}-${stamp}.csv`,
+      text: csv,
+    });
+  }
+
   const normalizedActions = sidebarActions.map((item) => ({
     ...item,
     label: getOtherIncomeActionLabel(item.label),
@@ -332,6 +641,38 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         </div>
       </section>
 
+      <input
+        ref={otherIncomeFileInputRef}
+        data-scope="other-income-csv-hidden-input-z1b"
+        type="file"
+        accept=".csv,.txt"
+        className="hidden"
+        onChange={(event) => {
+          void handleOtherIncomeFileSelected(event);
+        }}
+      />
+
+      {importFeedback ? (
+        <div
+          className={[
+            "rounded-[24px] border px-5 py-4 text-sm",
+            importFeedback.kind === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-rose-200 bg-rose-50 text-rose-700",
+          ].join(" ")}
+        >
+          <div className="font-semibold">{importFeedback.title}</div>
+          <div className="mt-1 text-xs leading-5">{importFeedback.message}</div>
+          {importFeedback.importedRows != null ? (
+            <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
+              <div>取込件数: <span className="font-semibold">{importFeedback.importedRows}</span></div>
+              <div>blocked: <span className="font-semibold">{importFeedback.blockedRows ?? 0}</span></div>
+              <div>取込金額: <span className="font-semibold">{formatIncomeJPY(importFeedback.importedAmount ?? 0)}</span></div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-lg font-semibold text-slate-950">操作メニュー</div>
@@ -357,6 +698,20 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                   ].join(" ")}
                 >
                   {item.label}
+                </button>
+              );
+            }
+
+            if (item.label === "その他収入CSV取込") {
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => otherIncomeFileInputRef.current?.click()}
+                  disabled={importLoading}
+                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {importLoading ? "取込中..." : item.label}
                 </button>
               );
             }
@@ -491,6 +846,21 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                 </span>
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-slate-500">
+              CSV取込: account,category,amount,occurredAt,memo,source / または日本語ヘッダーに対応
+            </div>
+            <button
+              type="button"
+              data-scope="other-income-tax-export-z1b"
+              onClick={handleOtherIncomeTaxExport}
+              disabled={filteredRows.length === 0}
+              className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              税務用CSV出力
+            </button>
           </div>
 
           <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
@@ -780,7 +1150,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                       {editingRow ? getOtherIncomeCategoryLabel(editingRow) : "-"}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
-                      カテゴリ変更は次段階で対応します。現在は金額とメモを保存できます。
+                      現在のPATCH APIは categoryId 更新未対応のため、既存明細は金額とメモを保存できます。カテゴリ変更は次段階でAPIを拡張して対応します。
                     </div>
                   </div>
 

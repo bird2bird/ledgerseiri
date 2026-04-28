@@ -243,6 +243,7 @@ export function IncomePageClient(props: {
         editSaveLoading={state.editSaveLoading}
         editCanSave={state.editCanSave}
         handleEditSave={state.handleEditSave}
+        reloadRows={state.reloadRows}
       />
     );
   }
