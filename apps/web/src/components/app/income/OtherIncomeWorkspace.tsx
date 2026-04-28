@@ -302,7 +302,7 @@ function normalizeOtherIncomeHeader(value: string) {
     "category": "category",
 
     "金額": "amount",
-    "入金額": "amount",
+    "収入額": "amount",
     "amount": "amount",
 
     "発生日": "occurredAt",
@@ -513,7 +513,7 @@ function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
     "category": "category",
 
     "金額": "amount",
-    "入金額": "amount",
+    "収入額": "amount",
     "amount": "amount",
 
     "発生日": "occurredAt",
@@ -1281,83 +1281,26 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
-      <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <section
+        data-scope="other-income-top-dashboard-merged-fix1-v3"
+        className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-2xl font-semibold text-slate-950">その他収入</div>
-            <div className="mt-2 text-sm leading-6 text-slate-500">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">その他収入</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Amazon 以外の入金、サービス収入、補助金、調整入金などを現金収入ページと同じ操作感で管理します。
-            </div>
+            </p>
           </div>
           <Link
             href={`/${lang}/app/income`}
-            className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             収入 root に戻る
           </Link>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">表示中のその他収入</div>
-            <div className="mt-2 text-xl font-semibold text-slate-950">{formatIncomeJPY(totalAmount)}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">明細数</div>
-            <div className="mt-2 text-xl font-semibold text-slate-950">{rows.length.toLocaleString("ja-JP")}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">口座数</div>
-            <div className="mt-2 text-xl font-semibold text-slate-950">{accountCount}</div>
-          </div>
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <div className="text-sm text-slate-500">平均金額</div>
-            <div className="mt-2 text-xl font-semibold text-slate-950">
-              {formatOtherIncomeAverage(rows, totalAmount)}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">最新日 {getLatestOtherIncomeDate(rows)}</div>
-          </div>
-        </div>
-      </section>
-
-      <input
-        ref={otherIncomeFileInputRef}
-        data-scope="other-income-csv-hidden-input-z1b other-income-cash-reader-parity-fix16 other-income-context-decoder-fix14 other-income-force-eucjp-fix13 other-income-eucjp-decoder-fix12-v2 other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
-        type="file"
-        accept=".csv,.tsv,.txt,.xlsx,.xls"
-        className="hidden"
-        onChange={(event) => {
-          void handleOtherIncomeFileSelected(event);
-        }}
-      />
-
-      {importFeedback ? (
-        <div
-          className={[
-            "rounded-[24px] border px-5 py-4 text-sm",
-            importFeedback.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-700",
-          ].join(" ")}
-        >
-          <div className="font-semibold">{importFeedback.title}</div>
-          <div className="mt-1 text-xs leading-5">{importFeedback.message}</div>
-          {importFeedback.importedRows != null ? (
-            <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
-              <div>取込件数: <span className="font-semibold">{importFeedback.importedRows}</span></div>
-              <div>blocked: <span className="font-semibold">{importFeedback.blockedRows ?? 0}</span></div>
-              <div>取込金額: <span className="font-semibold">{formatIncomeJPY(importFeedback.importedAmount ?? 0)}</span></div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      
-      <section
-        data-scope="other-income-top-dashboard-parity-z1e"
-        className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
-      >
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">収入元選択</span>
             <select
@@ -1417,6 +1360,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         </div>
       </section>
 
+
       <section
         data-scope="other-income-chart-dashboard-parity-z1e"
         className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"
@@ -1424,7 +1368,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-xl font-semibold text-slate-950">入金推移</div>
+              <div className="text-xl font-semibold text-slate-950">収入推移</div>
               <div className="mt-2 text-sm leading-6 text-slate-500">
                 選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。
               </div>
@@ -1440,17 +1384,17 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold text-slate-500">合計入金</div>
+              <div className="text-xs font-semibold text-slate-500">合計その他収入</div>
               <div className="mt-2 text-lg font-bold text-slate-950">{formatIncomeJPY(otherIncomeDashboardAmount)}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold text-slate-500">最大入金日</div>
+              <div className="text-xs font-semibold text-slate-500">最大発生日</div>
               <div className="mt-2 text-lg font-bold text-slate-950">
                 {otherIncomePeakTrendPoint ? otherIncomePeakTrendPoint.label : "-"}
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold text-slate-500">最新入金</div>
+              <div className="text-xs font-semibold text-slate-500">最新発生</div>
               <div className="mt-2 text-lg font-bold text-slate-950">
                 {otherIncomeLatestTrendPoint
                   ? `${otherIncomeLatestTrendPoint.label} / ${formatIncomeJPY(otherIncomeLatestTrendPoint.amount)}`
@@ -1530,9 +1474,9 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-xl font-semibold text-slate-950">入金状況</div>
+              <div className="text-xl font-semibold text-slate-950">収入状況</div>
               <div className="mt-2 text-sm leading-6 text-slate-500">
-                期間別の入金合計を比較します。表示範囲は左側の入金推移と連動します。
+                期間別の収入合計を比較します。表示範囲は左側の収入推移と連動します。
               </div>
             </div>
             <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
