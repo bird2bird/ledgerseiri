@@ -825,6 +825,11 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
+  const filteredCategorySummary = React.useMemo(
+    () => buildOtherIncomeCategorySummary(filteredRows),
+    [filteredRows]
+  );
 
   const createOpen = action === "create";
   const editOpen = action === "edit" || drawerRow !== null;
@@ -1161,66 +1166,27 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         </div>
       </section>
 
-      <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div
+        data-scope="other-income-layout-parity-z1d"
+        className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm"
+      >
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-950">収入区分別サマリー</div>
+            <div className="text-lg font-semibold text-slate-900">その他収入明細</div>
             <div className="mt-1 text-sm text-slate-500">
-              その他収入をカテゴリ別に整理します。カードをクリックすると明細を絞り込めます。
+              その他収入明細を一覧で確認できます。行をクリックすると編集 drawer が開きます。
             </div>
           </div>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-            表示中 {categorySummary.length} 区分
-          </span>
-        </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {categorySummary.length > 0 ? (
-            categorySummary.slice(0, 6).map((item) => {
-              const active = categoryFilter === item.label;
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => setCategoryFilter(active ? "all" : item.label)}
-                  className={[
-                    "rounded-2xl border px-4 py-3 text-left shadow-sm transition",
-                    active
-                      ? "border-slate-950 bg-slate-950 text-white"
-                      : "border-slate-200 bg-white text-slate-950 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold">{item.label}</div>
-                    <div className={active ? "rounded-full bg-white/15 px-2.5 py-1 text-xs" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600"}>
-                      {item.count}件
-                    </div>
-                  </div>
-                  <div className="mt-2 text-lg font-semibold">{formatIncomeJPY(item.amount)}</div>
-                </button>
-              );
-            })
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              その他収入データがまだありません。
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="text-lg font-semibold text-slate-950">その他収入明細</div>
-            <div className="mt-1 text-sm text-slate-500">
-              行をクリックすると編集 drawer が開きます。
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-700">並び替え</span>
             <select
               value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as OtherIncomeSortMode)}
-              className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800"
+              onChange={(e) => {
+                setSortMode(e.target.value as OtherIncomeSortMode);
+                setCurrentPage(1);
+              }}
+              className="h-10 min-w-[180px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
             >
               <option value="date_desc">発生日（新しい順）</option>
               <option value="date_asc">発生日（古い順）</option>
@@ -1230,53 +1196,129 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
           </div>
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-2">
+        {categorySummary.length > 0 ? (
+          <div
+            data-scope="other-income-category-summary-panel-z1d"
+            className="mt-4 rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">収入区分別サマリー</div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  その他収入を税務申告・税理士確認で使いやすい区分に整理しています。
+                </div>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                表示中 {categorySummary.length} 区分
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {categorySummary.map((item) => {
+                const active = categoryFilter === item.label;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setCategoryFilter(active ? "all" : item.label)}
+                    className={[
+                      "rounded-2xl border px-4 py-3 text-left shadow-sm transition",
+                      active
+                        ? "border-slate-900 bg-slate-900 text-white shadow-md"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className={["text-sm font-semibold", active ? "text-white" : "text-slate-900"].join(" ")}>
+                        {item.label}
+                      </div>
+                      <div
+                        className={[
+                          "rounded-full px-2.5 py-1 text-xs font-semibold",
+                          active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600",
+                        ].join(" ")}
+                      >
+                        {item.count}件
+                      </div>
+                    </div>
+                    <div className={["mt-2 text-lg font-semibold", active ? "text-white" : "text-slate-950"].join(" ")}>
+                      {formatIncomeJPY(item.amount)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div
+            data-scope="other-income-category-summary-empty-z1d"
+            className="mt-4 rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500"
+          >
+            その他収入データがまだありません。新規登録または CSV/Excel 取込を行うと、ここに収入区分別の集計が表示されます。
+          </div>
+        )}
+
+        <div
+          data-scope="other-income-category-filter-tax-export-z1d"
+          className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">収入区分フィルター</div>
+              <div className="mt-1 text-xs leading-5 text-slate-500">
+                サマリーカードまたは下のボタンから絞り込みできます。税務用CSVは現在の絞り込み結果を出力します。
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                現在: {activeOtherIncomeCategoryLabel}
+              </span>
+              <button
+                type="button"
+                data-scope="other-income-tax-export-z1d"
+                onClick={handleOtherIncomeTaxExport}
+                disabled={filteredRows.length === 0}
+                className="rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                税務用CSV出力
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setCategoryFilter("all")}
               className={[
                 "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
                 categoryFilter === "all"
-                  ? "border-slate-950 bg-slate-950 text-white"
+                  ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
               ].join(" ")}
             >
               全部
             </button>
-            {categorySummary.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={() => setCategoryFilter(item.label)}
-                className={[
-                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                  categoryFilter === item.label
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-                ].join(" ")}
-              >
-                {item.label}
-                <span className={categoryFilter === item.label ? "ml-1 text-white/80" : "ml-1 text-slate-400"}>
-                  {item.count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs text-slate-500">
-              CSV取込: account,category,amount,occurredAt,memo,source / または日本語ヘッダーに対応
-            </div>
-            <button
-              type="button"
-              data-scope="other-income-tax-export-z1b"
-              onClick={handleOtherIncomeTaxExport}
-              disabled={filteredRows.length === 0}
-              className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              税務用CSV出力
-            </button>
+            {categorySummary.map((item) => {
+              const active = categoryFilter === item.label;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => setCategoryFilter(item.label)}
+                  className={[
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                    active
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {item.label}
+                  <span className={active ? "ml-1 text-white/80" : "ml-1 text-slate-400"}>
+                    {item.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
@@ -1284,131 +1326,186 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
               表示件数: <span className="font-semibold text-slate-800">{filteredRows.length}</span> / {rows.length}
             </div>
             <div>
-              表示金額: <span className="font-semibold text-slate-800">{formatIncomeJPY(filteredAmount)}</span>
+              表示金額:{" "}
+              <span className="font-semibold text-slate-800">
+                {formatIncomeJPY(filteredAmount)}
+              </span>
             </div>
             <div>
-              現在区分: <span className="font-semibold text-slate-800">{categoryFilter === "all" ? "全部" : categoryFilter}</span>
+              出力区分:{" "}
+              <span className="font-semibold text-slate-800">
+                {filteredCategorySummary.length} 区分
+              </span>
             </div>
           </div>
         </div>
 
+        {selectedRow ? (
+          <div
+            data-scope="other-income-selected-row-summary-z1d"
+            className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+          >
+            <div className="grid gap-3 md:grid-cols-5">
+              <div>
+                <div className="text-xs text-slate-500">発生日</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.date}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">種別</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">{getOtherIncomeCategoryLabel(selectedRow)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">口座</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.account || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">収入元</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.store || "-"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">金額</div>
+                <div className="mt-1 text-sm font-semibold text-slate-900">
+                  {formatIncomeJPY(selectedRow.amount)}
+                </div>
+              </div>
+            </div>
+            {selectedRow.memo ? (
+              <div className="mt-3 border-t border-slate-200 pt-3 text-sm text-slate-600">
+                {getOtherIncomeMemo(selectedRow)}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
-              <tr>
-                <th className="px-4 py-3">発生日</th>
-                <th className="px-4 py-3">種別</th>
-                <th className="px-4 py-3">メモ・収入元</th>
-                <th className="px-4 py-3">口座</th>
-                <th className="px-4 py-3 text-right">金額</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {visibleRows.length > 0 ? (
-                visibleRows.map((row) => {
-                  const active = selectedRowId === row.id;
-                  return (
-                    <tr
-                      key={row.id}
-                      onClick={() => openEdit(row)}
-                      className={[
-                        "cursor-pointer transition hover:bg-slate-50",
-                        active ? "bg-indigo-50/50 ring-1 ring-inset ring-indigo-200" : "bg-white",
-                      ].join(" ")}
-                    >
-                      <td className="px-4 py-3 text-slate-700">{row.date}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800">
-                          {getOtherIncomeCategoryLabel(row)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800">{getOtherIncomeMemo(row) || "-"}</div>
-                        <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-700">{row.account || "-"}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-950">
-                        {formatIncomeJPY(row.amount)}
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
-                    {categoryFilter === "all" ? "その他収入データがまだ登録されていません。" : "選択した区分の明細はありません。"}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div className="grid grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+            <div>発生日</div>
+            <div>種別</div>
+            <div>メモ・収入元</div>
+            <div>口座</div>
+            <div className="text-right">金額</div>
+          </div>
+
+          {visibleRows.length > 0 ? (
+            visibleRows.map((row) => {
+              const active = selectedRowId === row.id;
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => openEdit(row)}
+                  className={[
+                    "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
+                    active
+                      ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300 shadow-sm"
+                      : "bg-white hover:bg-slate-50/80 hover:shadow-[inset_3px_0_0_#CBD5E1]",
+                  ].join(" ")}
+                >
+                  <div className="text-slate-600">{row.date}</div>
+                  <div>
+                    <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800">
+                      {getOtherIncomeCategoryLabel(row)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-600">{getOtherIncomeMemo(row) || "-"}</div>
+                    <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
+                  </div>
+                  <div className="text-slate-600">{row.account || "-"}</div>
+                  <div className="text-right font-medium text-slate-900">
+                    {formatIncomeJPY(row.amount)}
+                  </div>
+                </button>
+              );
+            })
+          ) : (
+            <div className="border-t border-slate-100 bg-white px-6 py-12">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+                <div className="text-base font-medium text-slate-900">
+                  {categoryFilter === "all" ? "その他収入データがまだ登録されていません" : "選択した収入区分の明細はありません"}
+                </div>
+                <div className="mt-2 text-sm text-slate-500">
+                  「新規その他収入」または「その他収入CSV/Excel取込」からデータを追加すると、ここに明細が表示されます。
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
-          <div>
+        <div className="mt-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="text-sm text-slate-500">
             全 {totalRows.toLocaleString("ja-JP")} 行のうち、{pageStartRow} - {pageEndRow} 行を表示
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span>1ページあたり</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value) as 20 | 50 | 100)}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800"
-            >
-              <option value={20}>20 件</option>
-              <option value={50}>50 件</option>
-              <option value={100}>100 件</option>
-            </select>
-            <button
-              type="button"
-              disabled={safeCurrentPage <= 1}
-              onClick={() => setCurrentPage(1)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
-            >
-              最初
-            </button>
-            <button
-              type="button"
-              disabled={safeCurrentPage <= 1}
-              onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
-            >
-              前へ
-            </button>
-            {pageWindow.map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => setCurrentPage(page)}
-                className={[
-                  "rounded-xl border px-3 py-2 text-xs font-semibold",
-                  page === safeCurrentPage
-                    ? "border-slate-950 bg-slate-950 text-white"
-                    : "border-slate-200 bg-white text-slate-700",
-                ].join(" ")}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-slate-700">1ページあたり</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value) as 20 | 50 | 100);
+                  setCurrentPage(1);
+                }}
+                className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"
               >
-                {page}
+                <option value={20}>20 件</option>
+                <option value={50}>50 件</option>
+                <option value={100}>100 件</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={safeCurrentPage <= 1}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                最初
               </button>
-            ))}
-            <button
-              type="button"
-              disabled={safeCurrentPage >= totalPages}
-              onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
-            >
-              次へ
-            </button>
-            <button
-              type="button"
-              disabled={safeCurrentPage >= totalPages}
-              onClick={() => setCurrentPage(totalPages)}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
-            >
-              最後
-            </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
+                disabled={safeCurrentPage <= 1}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                前へ
+              </button>
+              {pageWindow.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={[
+                    "inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-4 text-sm font-medium transition",
+                    page === safeCurrentPage
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
+                disabled={safeCurrentPage >= totalPages}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                次へ
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={safeCurrentPage >= totalPages}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                最後
+              </button>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
       {drawerOpen ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]">
