@@ -210,11 +210,11 @@ function buildCashRevenueCategoryTaxCsv(rows: IncomeRow[]) {
     ].map(escapeCsvCell).join(",");
   });
 
-  return [header.join(","), ...lines].join("\n");
+  return [header.join(","), ...lines].join("\r\n");
 }
 
 function downloadCashTextFile(args: { filename: string; text: string }) {
-  const blob = new Blob([args.text], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(["\uFEFF", args.text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -1293,7 +1293,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         ) : null}
 
         <div
-          data-scope="cash-category-filter-tax-export-l4d"
+          data-scope="cash-category-filter-tax-export-l4d cash-tax-export-excel-bom-fix1"
           className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4"
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
