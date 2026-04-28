@@ -77,12 +77,50 @@ function buildOtherIncomePageWindow(current: number, total: number) {
   return pages;
 }
 
+function normalizeOtherIncomeLookupText(value: string) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[（]/g, "(")
+    .replace(/[）]/g, ")")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function extractOtherIncomeCategoryMarker(value?: string | null) {
+  const raw = String(value || "");
+  const match = raw.match(/\[other-income-category:([^\]]+)\]/);
+  return match?.[1]?.trim() || "";
+}
+
+function stripOtherIncomeMarkers(value?: string | null) {
+  return String(value || "")
+    .replace(/\s*\[other-income-category:[^\]]+\]\s*/g, " ")
+    .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getOtherIncomeCategoryLabel(row: IncomeRow) {
-  return String(row.label || "その他収入");
+  const marker = extractOtherIncomeCategoryMarker(row.memo);
+  return String(marker || row.label || "その他収入");
 }
 
 function getOtherIncomeMemo(row: IncomeRow) {
-  return String(row.memo || "").trim();
+  return stripOtherIncomeMarkers(row.memo);
+}
+
+function buildOtherIncomeImportedMemo(args: {
+  memo?: string | null;
+  source?: string | null;
+  category?: string | null;
+  fileName?: string | null;
+}) {
+  const category = String(args.category || "その他収入").trim() || "その他収入";
+  const visibleMemo = stripOtherIncomeMarkers(args.memo || category);
+  const sourcePart = args.source ? ` / ${args.source}` : "";
+  const filePart = args.fileName ? ` [file-import:${args.fileName}]` : "";
+  return `[other-income-category:${category}] ${visibleMemo}${sourcePart}${filePart}`.trim();
 }
 
 function buildOtherIncomeCategorySummary(rows: IncomeRow[]) {
@@ -275,8 +313,8 @@ function parseOtherIncomeCsvDraft(csvText: string): OtherIncomeDraftRow[] {
     const source = index.source >= 0 ? String(cells[index.source] || "").trim() : "";
 
     const messages: string[] = [];
-    if (!account) messages.push("口座が未指定です");
-    if (!category) messages.push("収入カテゴリが未指定です");
+    if (!account) messages.push("口座が未指定のため既定口座を使用します");
+    if (!category) messages.push("収入カテゴリが未指定のため既定カテゴリを使用します");
     if (!Number.isFinite(amount) || amount <= 0) messages.push("金額が不正です");
     if (!occurredAt || Number.isNaN(new Date(occurredAt).getTime())) messages.push("発生日が不正です");
     if (!memo) messages.push("メモの入力を推奨します");
@@ -300,13 +338,14 @@ function resolveOtherIncomeAccountId(accountName: string, accounts: AccountItem[
   const raw = String(accountName || "").trim();
   if (!raw) return "";
 
-  const exact = accounts.find((item) => item.name === raw);
+  const normalizedRaw = normalizeOtherIncomeLookupText(raw);
+
+  const exact = accounts.find((item) => normalizeOtherIncomeLookupText(item.name) === normalizedRaw);
   if (exact) return exact.id;
 
-  const lower = raw.toLowerCase();
   const loose = accounts.find((item) => {
-    const name = String(item.name || "").toLowerCase();
-    return name.includes(lower) || lower.includes(name);
+    const name = normalizeOtherIncomeLookupText(item.name);
+    return name.includes(normalizedRaw) || normalizedRaw.includes(name);
   });
 
   return loose?.id || "";
@@ -316,16 +355,34 @@ function resolveOtherIncomeCategoryId(categoryName: string, categories: Transact
   const raw = String(categoryName || "").trim();
   if (!raw) return "";
 
-  const exact = categories.find((item) => item.name === raw);
+  const normalizedRaw = normalizeOtherIncomeLookupText(raw);
+
+  const exact = categories.find((item) => normalizeOtherIncomeLookupText(item.name) === normalizedRaw);
   if (exact) return exact.id;
 
-  const lower = raw.toLowerCase();
   const loose = categories.find((item) => {
-    const name = String(item.name || "").toLowerCase();
-    return name.includes(lower) || lower.includes(name);
+    const name = normalizeOtherIncomeLookupText(item.name);
+    return name.includes(normalizedRaw) || normalizedRaw.includes(name);
   });
 
-  return loose?.id || "";
+  if (loose) return loose.id;
+
+  const alias = (() => {
+    if (raw.includes("サービス")) return "サービス";
+    if (raw.includes("補助金") || raw.includes("助成金")) return "補助";
+    if (raw.includes("返金") || raw.includes("調整")) return "調整";
+    if (raw.includes("雑")) return "雑";
+    if (raw.includes("手数料")) return "手数料";
+    return "";
+  })();
+
+  if (alias) {
+    const aliasNormalized = normalizeOtherIncomeLookupText(alias);
+    const aliasHit = categories.find((item) => normalizeOtherIncomeLookupText(item.name).includes(aliasNormalized));
+    if (aliasHit) return aliasHit.id;
+  }
+
+  return "";
 }
 
 function buildOtherIncomeTaxCsv(rows: IncomeRow[]) {
@@ -534,8 +591,10 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
       let importedAmount = 0;
 
       for (const row of validRows) {
-        const accountIdForRow = resolveOtherIncomeAccountId(row.account, accounts);
-        const categoryIdForRow = resolveOtherIncomeCategoryId(row.category, txCategories);
+        const accountIdForRow =
+          resolveOtherIncomeAccountId(row.account, accounts) || accountId || accounts[0]?.id || "";
+        const categoryIdForRow =
+          resolveOtherIncomeCategoryId(row.category, txCategories) || categoryId || txCategories[0]?.id || "";
         const occurredAt = new Date(row.occurredAt);
 
         if (!accountIdForRow || !categoryIdForRow || Number.isNaN(occurredAt.getTime())) {
@@ -551,7 +610,12 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
           amount: Number(row.amount || 0),
           currency: "JPY",
           occurredAt: occurredAt.toISOString(),
-          memo: row.source ? `${row.memo || row.category} / ${row.source}` : row.memo || row.category,
+          memo: buildOtherIncomeImportedMemo({
+            memo: row.memo,
+            source: row.source,
+            category: row.category || "その他収入",
+            fileName: file.name,
+          }),
         });
 
         importedRows += 1;
@@ -567,7 +631,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
         message:
           importedRows > 0
             ? "CSV からその他収入を登録し、一覧を再取得しました。"
-            : "口座名・収入カテゴリ・金額・発生日を確認してください。",
+            : "金額・発生日を確認してください。口座名・収入カテゴリは一致しない場合でも既定値で取込できます。",
         importedRows,
         blockedRows,
         importedAmount,
