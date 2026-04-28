@@ -15,7 +15,9 @@ import {
   buildCashRevenueCategoryMemo,
   CASH_REVENUE_CATEGORIES,
   getCashRevenueCategoryLabel,
+  normalizeCashRevenueCategory,
   stripCashRevenueCategoryMarker,
+  type CashRevenueCategoryCode,
 } from "@/core/transactions/cash-revenue-category";
 import {
   CashIncomeDrawer,
@@ -23,6 +25,7 @@ import {
 } from "@/components/app/income/CashIncomeDrawer";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+type CashRevenueCategoryFilter = "all" | CashRevenueCategoryCode;
 
 type CashActionItem = {
   label: string;
@@ -148,22 +151,30 @@ type CashFileImportProgress = {
 };
 
 
+function resolveCashRevenueCategoryCodeFromRow(row: {
+  revenueCategory?: string | null;
+  memo?: string | null;
+  label?: string | null;
+}): CashRevenueCategoryCode {
+  return normalizeCashRevenueCategory(row.revenueCategory || row.memo || row.label);
+}
+
 function buildCashRevenueCategorySummary(
   rows: { amount?: number | string | null; revenueCategory?: string | null; memo?: string | null; label?: string | null }[]
 ): CashRevenueCategorySummaryItem[] {
   const map = new Map<string, CashRevenueCategorySummaryItem>();
 
   for (const row of rows) {
-    const code = String(row.revenueCategory || row.memo || row.label || "PRODUCT_SALES");
+    const code = resolveCashRevenueCategoryCodeFromRow(row);
     const label = getCashRevenueCategoryLabel(code);
-    const found = map.get(label);
+    const found = map.get(code);
     const amount = Number(row.amount || 0);
 
     if (found) {
       found.count += 1;
       found.amount += amount;
     } else {
-      map.set(label, {
+      map.set(code, {
         code,
         label,
         count: 1,
@@ -173,6 +184,45 @@ function buildCashRevenueCategorySummary(
   }
 
   return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+}
+
+function buildCashRevenueCategoryTaxCsv(rows: IncomeRow[]) {
+  const header = [
+    "occurredAt",
+    "revenueCategory",
+    "revenueCategoryCode",
+    "amount",
+    "account",
+    "source",
+    "memo",
+  ];
+
+  const lines = rows.map((row) => {
+    const code = resolveCashRevenueCategoryCodeFromRow(row);
+    return [
+      row.date || "",
+      getCashRevenueCategoryLabel(code),
+      code,
+      String(Number(row.amount || 0)),
+      row.account || "",
+      row.store || "",
+      stripCashSourceMarker(row.memo) || "",
+    ].map(escapeCsvCell).join(",");
+  });
+
+  return [header.join(","), ...lines].join("\n");
+}
+
+function downloadCashTextFile(args: { filename: string; text: string }) {
+  const blob = new Blob([args.text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = args.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function escapeCsvCell(value: string) {
@@ -420,9 +470,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     React.useState<CashFileImportFeedback | null>(null);
   const [cashFileImportProgress, setCashFileImportProgress] =
     React.useState<CashFileImportProgress | null>(null);
+  const [cashRevenueCategoryFilter, setCashRevenueCategoryFilter] =
+    React.useState<CashRevenueCategoryFilter>("all");
+
+  const filteredRows = React.useMemo(() => {
+    if (cashRevenueCategoryFilter === "all") return rows;
+    return rows.filter((row) => resolveCashRevenueCategoryCodeFromRow(row) === cashRevenueCategoryFilter);
+  }, [rows, cashRevenueCategoryFilter]);
 
   const sortedRows = React.useMemo(() => {
-    const next = [...rows];
+    const next = [...filteredRows];
     next.sort((a, b) => {
       const aDate = parseRowDateMs(a);
       const bDate = parseRowDateMs(b);
@@ -435,7 +492,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       return bAmount - aAmount;
     });
     return next;
-  }, [rows, sortMode]);
+  }, [filteredRows, sortMode]);
 
   const totalRows = sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
@@ -449,6 +506,14 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const cashRevenueCategorySummary = React.useMemo(
     () => buildCashRevenueCategorySummary(rows).slice(0, 6),
     [rows]
+  );
+  const activeRevenueCategoryLabel =
+    cashRevenueCategoryFilter === "all"
+      ? "全区分"
+      : getCashRevenueCategoryLabel(cashRevenueCategoryFilter);
+  const filteredRevenueCategorySummary = React.useMemo(
+    () => buildCashRevenueCategorySummary(filteredRows),
+    [filteredRows]
   );
 
   const normalizedSidebarActions: CashActionItem[] = sidebarActions.map((item) => {
@@ -514,6 +579,18 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     setEditingRow(null);
   }
 
+  function handleCashTaxExport() {
+    const csv = buildCashRevenueCategoryTaxCsv(filteredRows);
+    const date = new Date();
+    const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+    const suffix =
+      cashRevenueCategoryFilter === "all" ? "all" : String(cashRevenueCategoryFilter).toLowerCase();
+    downloadCashTextFile({
+      filename: `cash-income-tax-export-${suffix}-${stamp}.csv`,
+      text: csv,
+    });
+  }
+
   async function handleCashIncomeFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     event.target.value = "";
@@ -552,6 +629,9 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         );
       }
 
+      const validRows = draftRows.filter((row) => row.status !== "error");
+      const importRevenueCategorySummary = buildCashRevenueCategorySummary(validRows);
+
       setCashFileImportProgress((current) =>
         current
           ? {
@@ -565,9 +645,6 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
           : current
       );
       await waitForCashImportPaint();
-
-      const validRows = draftRows.filter((row) => row.status !== "error");
-      const importRevenueCategorySummary = buildCashRevenueCategorySummary(validRows);
 
       if (draftRows.length === 0) {
         throw new Error("取込できる行がありません。CSV / Excel の内容を確認してください。");
@@ -777,6 +854,11 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     setEditingRow(selectedRow);
     clearActionMode();
   }, [action, selectedRow, clearActionMode, setEditAmount, setEditMemo]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+    onSelectRow("");
+  }, [cashRevenueCategoryFilter, setCurrentPage, onSelectRow]);
 
   React.useEffect(() => {
     if (safeCurrentPage !== currentPage) {
@@ -1173,22 +1255,123 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               </span>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {cashRevenueCategorySummary.map((item) => (
-                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900">{item.label}</div>
-                    <div className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                      {item.count}件
+              {cashRevenueCategorySummary.map((item) => {
+                const active = cashRevenueCategoryFilter === item.code;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setCashRevenueCategoryFilter(active ? "all" : (item.code as CashRevenueCategoryFilter))}
+                    className={[
+                      "rounded-2xl border px-4 py-3 text-left shadow-sm transition",
+                      active
+                        ? "border-slate-900 bg-slate-900 text-white shadow-md"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className={["text-sm font-semibold", active ? "text-white" : "text-slate-900"].join(" ")}>
+                        {item.label}
+                      </div>
+                      <div
+                        className={[
+                          "rounded-full px-2.5 py-1 text-xs font-semibold",
+                          active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600",
+                        ].join(" ")}
+                      >
+                        {item.count}件
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-950">
-                    {formatIncomeJPY(item.amount)}
-                  </div>
-                </div>
-              ))}
+                    <div className={["mt-2 text-lg font-semibold", active ? "text-white" : "text-slate-950"].join(" ")}>
+                      {formatIncomeJPY(item.amount)}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
+
+        <div
+          data-scope="cash-category-filter-tax-export-l4d"
+          className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">収入区分フィルター</div>
+              <div className="mt-1 text-xs leading-5 text-slate-500">
+                サマリーカードまたは下のボタンから絞り込みできます。税務用CSVは現在の絞り込み結果を出力します。
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                現在: {activeRevenueCategoryLabel}
+              </span>
+              <button
+                type="button"
+                onClick={handleCashTaxExport}
+                disabled={filteredRows.length === 0}
+                className="rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                税務用CSV出力
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCashRevenueCategoryFilter("all")}
+              className={[
+                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                cashRevenueCategoryFilter === "all"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+              ].join(" ")}
+            >
+              全部
+            </button>
+            {cashRevenueCategorySummary.map((item) => {
+              const active = cashRevenueCategoryFilter === item.code;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => setCashRevenueCategoryFilter(item.code as CashRevenueCategoryFilter)}
+                  className={[
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                    active
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {item.label}
+                  <span className={active ? "ml-1 text-white/80" : "ml-1 text-slate-400"}>
+                    {item.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 grid gap-2 text-xs text-slate-500 md:grid-cols-3">
+            <div>
+              表示件数: <span className="font-semibold text-slate-800">{filteredRows.length}</span> / {rows.length}
+            </div>
+            <div>
+              表示金額:{" "}
+              <span className="font-semibold text-slate-800">
+                {formatIncomeJPY(filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0))}
+              </span>
+            </div>
+            <div>
+              出力区分:{" "}
+              <span className="font-semibold text-slate-800">
+                {filteredRevenueCategorySummary.length} 区分
+              </span>
+            </div>
+          </div>
+        </div>
 
         {selectedRow ? (
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -1266,7 +1449,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
           ) : (
             <div className="border-t border-slate-100 bg-white px-6 py-12">
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
-                <div className="text-base font-medium text-slate-900">現金収入データがまだ登録されていません</div>
+                <div className="text-base font-medium text-slate-900">{cashRevenueCategoryFilter === "all" ? "現金収入データがまだ登録されていません" : "選択した収入区分の明細はありません"}</div>
                 <div className="mt-2 text-sm text-slate-500">
                   「新規現金収入」または「現金収入CSV/Excel取込」からデータを追加すると、ここに明細が表示されます。
                 </div>
