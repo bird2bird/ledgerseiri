@@ -457,7 +457,7 @@ export function CashIncomeHeader(props: {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
-        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-chart-density-professional-polish-l2">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-chart-hover-layer-polish-l3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="text-lg font-semibold text-slate-900">入金趋势</div>
@@ -641,6 +641,25 @@ export function CashIncomeHeader(props: {
                           const isLatestPoint =
                             cashTrendLatestNonZero != null && point.date === cashTrendLatestNonZero.date;
                           const isVisiblePoint = point.amount > 0 || isPeakPoint || isLatestPoint;
+
+                          return isVisiblePoint ? (
+                            <circle
+                              key={`cash-trend-dot-${point.date}`}
+                              cx={point.x}
+                              cy={point.y}
+                              r={isPeakPoint || isLatestPoint ? "5.8" : "3.6"}
+                              fill={isPeakPoint ? "#1d4ed8" : isLatestPoint ? "#059669" : "#2563eb"}
+                              stroke="#ffffff"
+                              strokeWidth="2"
+                            />
+                          ) : null;
+                        })}
+
+                        {coords.map((point, index) => {
+                          const isPeakPoint = point.amount > 0 && point.amount === peakAmount;
+                          const isLatestPoint =
+                            cashTrendLatestNonZero != null && point.date === cashTrendLatestNonZero.date;
+                          const isVisiblePoint = point.amount > 0 || isPeakPoint || isLatestPoint;
                           const tooltipWidth = 148;
                           const tooltipHeight = 64;
                           const tooltipX = Math.min(
@@ -649,34 +668,31 @@ export function CashIncomeHeader(props: {
                           );
                           const tooltipY = Math.max(point.y - 58, padding.top + 8);
 
-                          return (
+                          return isVisiblePoint ? (
                             <g
-                              key={`cash-trend-point-${point.date}`}
+                              key={`cash-trend-hover-layer-${point.date}`}
                               className="group outline-none"
                               tabIndex={0}
                             >
                               <title>{`${formatCashDateLabel(point.date)} / ${formatChartYen(point.amount)}`}</title>
-                              {isVisiblePoint ? (
-                                <circle
-                                  cx={point.x}
-                                  cy={point.y}
-                                  r={isPeakPoint || isLatestPoint ? "5.8" : "3.6"}
-                                  fill={isPeakPoint ? "#1d4ed8" : isLatestPoint ? "#059669" : "#2563eb"}
-                                  stroke="#ffffff"
-                                  strokeWidth="2"
+                              <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r="15"
+                                fill="transparent"
+                                className="cursor-pointer"
+                              />
+                              <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                                <line
+                                  x1={point.x}
+                                  y1={padding.top}
+                                  x2={point.x}
+                                  y2={padding.top + innerHeight}
+                                  stroke="#94a3b8"
+                                  strokeDasharray="4 4"
+                                  strokeWidth="1"
+                                  opacity="0.55"
                                 />
-                              ) : null}
-                              {isVisiblePoint ? (
-                                <circle
-                                  cx={point.x}
-                                  cy={point.y}
-                                  r="13"
-                                  fill="transparent"
-                                  className="cursor-pointer"
-                                />
-                              ) : null}
-                              {isVisiblePoint ? (
-                                <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
                                 <rect
                                   x={tooltipX}
                                   y={tooltipY}
@@ -684,7 +700,7 @@ export function CashIncomeHeader(props: {
                                   height={tooltipHeight}
                                   rx="14"
                                   fill="#0f172a"
-                                  opacity="0.95"
+                                  opacity="0.96"
                                 />
                                 <text
                                   x={tooltipX + 12}
@@ -712,10 +728,9 @@ export function CashIncomeHeader(props: {
                                 >
                                   {isPeakPoint ? "最大入金日" : isLatestPoint ? "最新入金" : "日別入金"}
                                 </text>
-                                </g>
-                              ) : null}
+                              </g>
                             </g>
-                          );
+                          ) : null;
                         })}
 
                         <text
@@ -743,7 +758,7 @@ export function CashIncomeHeader(props: {
 
         </div>
 
-        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-density-professional-polish-l2">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-hover-layer-polish-l3">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
@@ -870,8 +885,18 @@ export function CashIncomeHeader(props: {
                             point.amount > 0 &&
                             (isCurrentBar || isPeakBar || index % cashBarAmountLabelEvery === 0 || safeCashBarPoints.length <= 6);
 
+                          const tooltipWidth = 132;
+                          const tooltipHeight = 62;
+                          const tooltipX = Math.min(
+                            Math.max(x + columnWidth / 2 - tooltipWidth / 2, padding.left + 4),
+                            padding.left + innerWidth - tooltipWidth
+                          );
+                          const tooltipY = Math.max(y - tooltipHeight - 12, padding.top + 6);
+                          const granularityLabel =
+                            cashChartGranularity === "day" ? "日別" : cashChartGranularity === "week" ? "週別" : "月別";
+
                           return (
-                            <g key={`cash-bar-${point.key}`}>
+                            <g key={`cash-bar-${point.key}`} className="group outline-none" tabIndex={0}>
                               <rect
                                 x={x}
                                 y={y}
@@ -880,7 +905,65 @@ export function CashIncomeHeader(props: {
                                 rx="10"
                                 fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#334155"}
                                 opacity={index === safeCashBarPoints.length - 1 ? 0.96 : 0.9}
+                                className="transition-opacity duration-150 group-hover:opacity-75 group-focus:opacity-75"
                               />
+                              <rect
+                                x={x - 4}
+                                y={padding.top}
+                                width={columnWidth + 8}
+                                height={innerHeight}
+                                rx="12"
+                                fill="transparent"
+                                className="cursor-pointer"
+                              />
+                              <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                                <line
+                                  x1={x + columnWidth / 2}
+                                  y1={padding.top}
+                                  x2={x + columnWidth / 2}
+                                  y2={padding.top + innerHeight}
+                                  stroke="#94a3b8"
+                                  strokeDasharray="4 4"
+                                  strokeWidth="1"
+                                  opacity="0.45"
+                                />
+                                <rect
+                                  x={tooltipX}
+                                  y={tooltipY}
+                                  width={tooltipWidth}
+                                  height={tooltipHeight}
+                                  rx="14"
+                                  fill="#0f172a"
+                                  opacity="0.96"
+                                />
+                                <text
+                                  x={tooltipX + 12}
+                                  y={tooltipY + 18}
+                                  fontSize="10"
+                                  fontWeight="600"
+                                  fill="#94a3b8"
+                                >
+                                  {granularityLabel} / {point.label}
+                                </text>
+                                <text
+                                  x={tooltipX + 12}
+                                  y={tooltipY + 39}
+                                  fontSize="14"
+                                  fontWeight="700"
+                                  fill="#ffffff"
+                                >
+                                  {formatChartYen(point.amount)}
+                                </text>
+                                <text
+                                  x={tooltipX + 12}
+                                  y={tooltipY + 54}
+                                  fontSize="10"
+                                  fontWeight="600"
+                                  fill={isCurrentBar ? "#93c5fd" : isPeakBar ? "#fde68a" : "#94a3b8"}
+                                >
+                                  {isCurrentBar ? "Current bucket" : isPeakBar ? "Peak bucket" : "Cash in"}
+                                </text>
+                              </g>
                               {shouldShowBarAmount ? (
                                 <text
                                   data-role="cash-bar-amount-label"
