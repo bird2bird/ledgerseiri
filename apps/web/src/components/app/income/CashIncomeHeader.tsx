@@ -20,7 +20,7 @@ function parseRowDate(row: IncomeRow) {
   return Number.isNaN(ts) ? 0 : ts;
 }
 
-function makeTrendSeries(rows: IncomeRow[], range: CashHeaderRange, startDate: string, endDate: string) {
+function resolveCashRangeWindow(range: CashHeaderRange, startDate: string, endDate: string) {
   const now = new Date();
   const start = new Date(now);
 
@@ -40,47 +40,189 @@ function makeTrendSeries(rows: IncomeRow[], range: CashHeaderRange, startDate: s
     const customEnd = endDate ? new Date(`${endDate}T23:59:59`) : null;
 
     startDateObj =
-      customStart && !Number.isNaN(customStart.getTime()) ? customStart : new Date(0);
-    endDateObj =
-      customEnd && !Number.isNaN(customEnd.getTime()) ? customEnd : now;
+      customStart && !Number.isNaN(customStart.getTime())
+        ? customStart
+        : new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+
+    endDateObj = customEnd && !Number.isNaN(customEnd.getTime()) ? customEnd : now;
+
+    if (startDateObj.getTime() > endDateObj.getTime()) {
+      const tmp = startDateObj;
+      startDateObj = endDateObj;
+      endDateObj = tmp;
+    }
   }
 
+  startDateObj.setHours(0, 0, 0, 0);
+  endDateObj.setHours(23, 59, 59, 999);
+
+  return { startDateObj, endDateObj };
+}
+
+function getCashRangeDays(startDateObj: Date, endDateObj: Date) {
+  const start = new Date(startDateObj);
+  const end = new Date(endDateObj);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  return Math.max(
+    1,
+    Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+  );
+}
+
+function resolveCashTrendAggregation(
+  range: CashHeaderRange,
+  startDateObj: Date,
+  endDateObj: Date
+): CashChartGranularity {
+  if (range === "7d" || range === "30d") return "day";
+  if (range === "90d" || range === "12m") return "week";
+
+  const days = getCashRangeDays(startDateObj, endDateObj);
+  if (days <= 31) return "day";
+  if (days <= 366) return "week";
+  return "month";
+}
+
+function resolveCashBarGranularity(
+  range: CashHeaderRange,
+  startDateObj: Date,
+  endDateObj: Date
+): CashChartGranularity {
+  if (range === "7d" || range === "30d") return "day";
+  if (range === "90d") return "week";
+  if (range === "12m") return "month";
+
+  const days = getCashRangeDays(startDateObj, endDateObj);
+  if (days <= 31) return "day";
+  if (days <= 120) return "week";
+  return "month";
+}
+
+function getCashAggregationLabel(granularity: CashChartGranularity) {
+  if (granularity === "day") return "日別";
+  if (granularity === "week") return "週別";
+  return "月別";
+}
+
+function getCashBucketMeta(date: Date, granularity: CashChartGranularity) {
+  if (granularity === "month") {
+    return {
+      key: getCashMonthKey(date),
+      label: getCashMonthLabel(date),
+      dateValue: new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+    };
+  }
+
+  if (granularity === "week") {
+    return {
+      key: getCashWeekKey(date),
+      label: getCashWeekLabel(date),
+      dateValue: getCashWeekStart(date).getTime(),
+    };
+  }
+
+  return {
+    key: formatCashDateKey(date),
+    label: `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`,
+    dateValue: new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(),
+  };
+}
+
+function getCashSeriesCursorStart(date: Date, granularity: CashChartGranularity) {
+  const cursor = new Date(date);
+  cursor.setHours(0, 0, 0, 0);
+
+  if (granularity === "week") return getCashWeekStart(cursor);
+  if (granularity === "month") return new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+
+  return cursor;
+}
+
+function stepCashSeriesCursor(cursor: Date, granularity: CashChartGranularity) {
+  if (granularity === "month") {
+    cursor.setMonth(cursor.getMonth() + 1, 1);
+    return;
+  }
+
+  if (granularity === "week") {
+    cursor.setDate(cursor.getDate() + 7);
+    return;
+  }
+
+  cursor.setDate(cursor.getDate() + 1);
+}
+
+function buildCashRangeSeries(
+  rows: IncomeRow[],
+  range: CashHeaderRange,
+  startDate: string,
+  endDate: string,
+  granularity: CashChartGranularity
+) {
+  const { startDateObj, endDateObj } = resolveCashRangeWindow(range, startDate, endDate);
   const startMs = startDateObj.getTime();
   const endMs = endDateObj.getTime();
 
-  const buckets = new Map<string, number>();
+  const buckets = new Map<string, { amount: number; label: string; dateValue: number }>();
 
   for (const row of rows) {
     const ts = parseRowDate(row);
     if (!ts) continue;
-    if (startMs && ts < startMs) continue;
-    if (endMs && ts > endMs) continue;
+    if (ts < startMs) continue;
+    if (ts > endMs) continue;
 
     const date = new Date(ts);
-    const key = formatCashDateKey(date);
-    buckets.set(key, (buckets.get(key) || 0) + Number(row.amount || 0));
+    const meta = getCashBucketMeta(date, granularity);
+    const found = buckets.get(meta.key);
+
+    if (found) {
+      found.amount += Number(row.amount || 0);
+    } else {
+      buckets.set(meta.key, {
+        amount: Number(row.amount || 0),
+        label: meta.label,
+        dateValue: meta.dateValue,
+      });
+    }
   }
 
-  const points: { date: string; amount: number }[] = [];
-  const cursor = new Date(startDateObj);
-  cursor.setHours(0, 0, 0, 0);
+  const points: { date: string; amount: number; label: string; dateValue: number }[] = [];
+  const cursor = getCashSeriesCursorStart(startDateObj, granularity);
+  const endCursor = getCashSeriesCursorStart(endDateObj, granularity);
 
-  const endCursor = new Date(endDateObj);
-  endCursor.setHours(0, 0, 0, 0);
-
-  // Safety cap: 12m can be up to 366 daily points. Avoid accidental infinite loops.
   let guard = 0;
-  while (cursor.getTime() <= endCursor.getTime() && guard < 370) {
-    const key = formatCashDateKey(cursor);
+  const maxGuard = granularity === "day" ? 1500 : granularity === "week" ? 260 : 120;
+
+  while (cursor.getTime() <= endCursor.getTime() && guard < maxGuard) {
+    const meta = getCashBucketMeta(cursor, granularity);
+    const found = buckets.get(meta.key);
+
     points.push({
-      date: key,
-      amount: buckets.get(key) || 0,
+      date: meta.key,
+      amount: found?.amount || 0,
+      label: meta.label,
+      dateValue: meta.dateValue,
     });
-    cursor.setDate(cursor.getDate() + 1);
+
+    stepCashSeriesCursor(cursor, granularity);
     guard += 1;
   }
 
   return points;
+}
+
+function makeTrendSeries(rows: IncomeRow[], range: CashHeaderRange, startDate: string, endDate: string) {
+  const { startDateObj, endDateObj } = resolveCashRangeWindow(range, startDate, endDate);
+
+  return buildCashRangeSeries(
+    rows,
+    range,
+    startDate,
+    endDate,
+    resolveCashTrendAggregation(range, startDateObj, endDateObj)
+  );
 }
 
 function buildPath(values: number[], width: number, height: number) {
@@ -130,6 +272,10 @@ function formatCashDateLabel(key: string) {
   const date = parseCashDate(key);
   if (!date) return key;
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function getCashPointDisplayLabel(point: { date: string; label?: string }): string {
+  return point.label || formatCashDateLabel(point.date);
 }
 
 function getCashWeekStart(date: Date) {
@@ -239,6 +385,7 @@ function EmptyCashChartState(props: { title: string; description: string }) {
   );
 }
 
+// cash-chart-range-aware-productization-l4a-v3
 export function CashIncomeHeader(props: {
   lang: string;
   isDashboard: boolean;
@@ -254,9 +401,27 @@ export function CashIncomeHeader(props: {
   const [headerRange, setHeaderRange] = React.useState<CashHeaderRange>(
     range === "7d" || range === "30d" || range === "90d" || range === "12m" ? range : "30d"
   );
-  const [cashChartGranularity, setCashChartGranularity] = React.useState<CashChartGranularity>("week");
-  const [customStartDate, setCustomStartDate] = React.useState(toDateInputValue(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)));
+  const [customStartDate, setCustomStartDate] = React.useState(
+    toDateInputValue(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000))
+  );
   const [customEndDate, setCustomEndDate] = React.useState(toDateInputValue(new Date()));
+
+  const cashRangeWindow = React.useMemo(
+    () => resolveCashRangeWindow(headerRange, customStartDate, customEndDate),
+    [headerRange, customStartDate, customEndDate]
+  );
+
+  const defaultCashBarGranularity = React.useMemo(
+    () => resolveCashBarGranularity(headerRange, cashRangeWindow.startDateObj, cashRangeWindow.endDateObj),
+    [headerRange, cashRangeWindow.startDateObj, cashRangeWindow.endDateObj]
+  );
+
+  const [cashChartGranularity, setCashChartGranularity] =
+    React.useState<CashChartGranularity>(defaultCashBarGranularity);
+
+  React.useEffect(() => {
+    setCashChartGranularity(defaultCashBarGranularity);
+  }, [defaultCashBarGranularity]);
 
   React.useEffect(() => {
     if (headerRange !== "custom") {
@@ -286,9 +451,15 @@ export function CashIncomeHeader(props: {
   const avgAmount = visible明細数Count > 0 ? totalAmount / visible明細数Count : 0;
   const latestDate = rows[0]?.date || "-";
 
+  const cashTrendAggregation = React.useMemo(
+    () => resolveCashTrendAggregation(headerRange, cashRangeWindow.startDateObj, cashRangeWindow.endDateObj),
+    [headerRange, cashRangeWindow.startDateObj, cashRangeWindow.endDateObj]
+  );
+  const cashTrendAggregationLabel = getCashAggregationLabel(cashTrendAggregation);
+
   const trendPoints = React.useMemo(
-    () => makeTrendSeries(rows, headerRange, customStartDate, customEndDate),
-    [rows, headerRange, customStartDate, customEndDate]
+    () => buildCashRangeSeries(rows, headerRange, customStartDate, customEndDate, cashTrendAggregation),
+    [rows, headerRange, customStartDate, customEndDate, cashTrendAggregation]
   );
 
   const trendValues = trendPoints.map((p) => p.amount);
@@ -301,15 +472,17 @@ export function CashIncomeHeader(props: {
   const cashTrendMax = cashTrendTicks[cashTrendTicks.length - 1] || 1;
 
   const cashBarSourcePoints = React.useMemo(
-    () => (headerRange === "12m" ? trendPoints.slice(-90) : trendPoints),
-    [trendPoints, headerRange]
+    () => buildCashRangeSeries(rows, headerRange, customStartDate, customEndDate, "day"),
+    [rows, headerRange, customStartDate, customEndDate]
   );
 
   const cashBarPoints = React.useMemo(
     () => buildCashBarSeries(cashBarSourcePoints, cashChartGranularity),
     [cashBarSourcePoints, cashChartGranularity]
   );
-  const safeCashBarPoints = cashBarPoints.length > 12 ? cashBarPoints.slice(-12) : cashBarPoints;
+  const cashBarDisplayLimit = cashChartGranularity === "day" ? 31 : cashChartGranularity === "week" ? 16 : 12;
+  const safeCashBarPoints =
+    cashBarPoints.length > cashBarDisplayLimit ? cashBarPoints.slice(-cashBarDisplayLimit) : cashBarPoints;
   const cashBarTicks = React.useMemo(
     () => buildCashNiceTicks(Math.max(...safeCashBarPoints.map((item) => item.amount), 0), 4),
     [safeCashBarPoints]
@@ -317,7 +490,7 @@ export function CashIncomeHeader(props: {
   const cashBarMax = cashBarTicks[cashBarTicks.length - 1] || 1;
 
   const cashTrendTotal = trendPoints.reduce((sum, item) => sum + item.amount, 0);
-  const cashTrendPeak = trendPoints.reduce<{ date: string; amount: number } | null>(
+  const cashTrendPeak = trendPoints.reduce<{ date: string; amount: number; label?: string } | null>(
     (best, current) => (!best || current.amount > best.amount ? current : best),
     null
   );
@@ -462,13 +635,13 @@ export function CashIncomeHeader(props: {
             <div>
               <div className="text-lg font-semibold text-slate-900">入金趋势</div>
               <div className="mt-1 text-sm leading-6 text-slate-500">
-                現在範囲に連動した現金収入の推移です。入金のない日は 0 として表示します。
+                選択した期間に応じて、日別・週別・月別に自動集計した現金収入の推移です。
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-right shadow-inner shadow-white/60">
               <div className="text-[11px] font-semibold text-slate-500">表示範囲</div>
               <div className="mt-0.5 text-sm font-semibold text-slate-950">{cashRangeLabel}</div>
-              <div className="text-[11px] text-slate-500">表示日数 {trendPoints.length}日</div>
+              <div className="text-[11px] text-slate-500">表示粒度 {cashTrendAggregationLabel} / 表示点数 {trendPoints.length}点</div>
             </div>
           </div>
 
@@ -478,15 +651,15 @@ export function CashIncomeHeader(props: {
               <div className="mt-1 text-base font-semibold text-slate-950">{formatChartYen(cashTrendTotal)}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">最大入金日</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{cashTrendAggregation === "day" ? "最大入金日" : "最大区間"}</div>
               <div className="mt-1 text-base font-semibold text-slate-950">
-                {cashTrendPeak ? formatCashDateLabel(cashTrendPeak.date) : "-"}
+                {cashTrendPeak ? getCashPointDisplayLabel(cashTrendPeak) : "-"}
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">最新入金</div>
               <div className="mt-1 text-base font-semibold text-slate-950">
-                {cashTrendLatestNonZero ? `${formatCashDateLabel(cashTrendLatestNonZero.date)} / ${formatChartYen(cashTrendLatestNonZero.amount)}` : "-"}
+                {cashTrendLatestNonZero ? `${getCashPointDisplayLabel(cashTrendLatestNonZero)} / ${formatChartYen(cashTrendLatestNonZero.amount)}` : "-"}
               </div>
             </div>
           </div>
@@ -586,7 +759,7 @@ export function CashIncomeHeader(props: {
                                   fontSize="11"
                                   fill="#475569"
                                 >
-                                  {formatCashDateLabel(point.date)}
+                                  {getCashPointDisplayLabel(point)}
                                 </text>
                               ) : null}
                             </g>
@@ -674,7 +847,7 @@ export function CashIncomeHeader(props: {
                               className="group outline-none"
                               tabIndex={0}
                             >
-                              <title>{`${formatCashDateLabel(point.date)} / ${formatChartYen(point.amount)}`}</title>
+                              <title>{`${getCashPointDisplayLabel(point)} / ${formatChartYen(point.amount)}`}</title>
                               <circle
                                 cx={point.x}
                                 cy={point.y}
@@ -708,7 +881,7 @@ export function CashIncomeHeader(props: {
                                   fontSize="11"
                                   fill="#cbd5e1"
                                 >
-                                  {formatCashDateLabel(point.date)}
+                                  {getCashPointDisplayLabel(point)}
                                 </text>
                                 <text
                                   x={tooltipX + 12}
@@ -726,7 +899,7 @@ export function CashIncomeHeader(props: {
                                   fontWeight="600"
                                   fill={isPeakPoint ? "#93c5fd" : isLatestPoint ? "#86efac" : "#94a3b8"}
                                 >
-                                  {isPeakPoint ? "最大入金日" : isLatestPoint ? "最新入金" : "日別入金"}
+                                  {isPeakPoint ? (cashTrendAggregation === "day" ? "最大入金日" : "最大区間") : isLatestPoint ? "最新入金" : `${cashTrendAggregationLabel}入金`}
                                 </text>
                               </g>
                             </g>
@@ -764,7 +937,7 @@ export function CashIncomeHeader(props: {
               <div>
                 <div className="text-lg font-semibold text-slate-900">入金状況</div>
                 <div className="mt-1 text-sm leading-6 text-slate-500">
-                  期間別の入金合計を比較します。12か月表示では直近90日を表示します。
+                  期間別の入金合計を比較します。表示範囲は左側の入金推移と連動します。
                 </div>
               </div>
               <div className="inline-flex rounded-full border border-slate-200 bg-white p-1">
@@ -961,7 +1134,7 @@ export function CashIncomeHeader(props: {
                                   fontWeight="600"
                                   fill={isCurrentBar ? "#93c5fd" : isPeakBar ? "#fde68a" : "#94a3b8"}
                                 >
-                                  {isCurrentBar ? "Current bucket" : isPeakBar ? "Peak bucket" : "Cash in"}
+                                  {isCurrentBar ? "現在区間" : isPeakBar ? "最大区間" : "入金額"}
                                 </text>
                               </g>
                               {shouldShowBarAmount ? (
