@@ -1,8 +1,10 @@
+import { normalizeCashRevenueCategory } from "@/core/transactions/cash-revenue-category";
+
 export const CASH_INCOME_SAMPLE_TEXT = [
-  "account,amount,occurredAt,memo,source",
-  "現金,12000,2026-04-24,店頭現金売上,横浜店",
-  "現金,8500,2026-04-25,イベント現金売上,展示会",
-  "現金,3000,2026-04-26,現金補正入金,手動調整",
+  "account,amount,occurredAt,memo,source,revenueCategory",
+  "現金,12000,2026-04-24,店頭現金売上,横浜店,商品売上",
+  "現金,8500,2026-04-25,イベント現金売上,展示会,イベント売上",
+  "現金,3000,2026-04-26,現金補正入金,手動調整,返金・調整入金",
 ].join("\n");
 
 export const CASH_INCOME_ERROR_SAMPLE_TEXT = [
@@ -19,6 +21,7 @@ export type CashIncomeDraftRow = {
   occurredAt: string;
   memo: string;
   source: string;
+  revenueCategory: string;
   status: "valid" | "warning" | "error";
   messages: string[];
 };
@@ -129,6 +132,7 @@ export function parseCashIncomeCsvDraft(csvText: string): CashIncomeDraftRow[] {
     occurredAt: hasHeader ? header.indexOf("occurredAt") : 2,
     memo: hasHeader ? header.indexOf("memo") : 3,
     source: hasHeader ? header.indexOf("source") : 4,
+    revenueCategory: hasHeader ? header.indexOf("revenueCategory") : 5,
   };
 
   return dataLines.map((line, index) => {
@@ -141,6 +145,10 @@ export function parseCashIncomeCsvDraft(csvText: string): CashIncomeDraftRow[] {
     const memo = String(cells[columnIndex.memo] || "").trim();
     const source =
       columnIndex.source >= 0 ? String(cells[columnIndex.source] || "").trim() : "";
+    const revenueCategory =
+      columnIndex.revenueCategory >= 0
+        ? normalizeCashRevenueCategory(String(cells[columnIndex.revenueCategory] || "").trim())
+        : normalizeCashRevenueCategory(`${memo} ${source}`);
 
     const messages: string[] = [];
 
@@ -175,6 +183,7 @@ export function parseCashIncomeCsvDraft(csvText: string): CashIncomeDraftRow[] {
       occurredAt,
       memo,
       source,
+      revenueCategory,
       status: hasError ? "error" : messages.length > 0 ? "warning" : "valid",
       messages,
     };

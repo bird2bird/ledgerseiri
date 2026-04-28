@@ -3,6 +3,13 @@
 import React from "react";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
+import {
+  buildCashRevenueCategoryMemo,
+  CASH_REVENUE_CATEGORIES,
+  getCashRevenueCategoryLabel,
+  normalizeCashRevenueCategory,
+  stripCashRevenueCategoryMarker,
+} from "@/core/transactions/cash-revenue-category";
 
 export type CashAccountOption = {
   id: string;
@@ -31,7 +38,7 @@ export type CashIncomeDrawerProps = {
   setOccurredAt: (next: string) => void;
   memo: string;
   setMemo: (next: string) => void;
-  submitCreate: () => Promise<void>;
+  submitCreate: (override?: { memo?: string }) => Promise<void>;
 
   editAmount: string;
   setEditAmount: (next: string) => void;
@@ -42,7 +49,7 @@ export type CashIncomeDrawerProps = {
   editSaveLoading: boolean;
   editCanSave: boolean;
   deleteLoading: boolean;
-  handleEditSave: () => Promise<void>;
+  handleEditSave: (override?: { memo?: string }) => Promise<void>;
   handleDelete: () => Promise<void>;
 };
 
@@ -72,7 +79,7 @@ function resolveCashDataSource(row: IncomeRow | null, isCreate: boolean) {
 }
 
 function stripCashSourceMarker(value?: string | null) {
-  return String(value || "")
+  return stripCashRevenueCategoryMarker(value)
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -124,9 +131,22 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
 
   const currentError = isCreate ? panelError : editUiError;
   const saving = isCreate ? submitLoading : editSaveLoading || deleteLoading;
-  const canSubmit = isCreate ? createCanSubmit : editCanSave && !editSaveLoading;
+  const selectedRevenueCategoryFromRow = normalizeCashRevenueCategory(
+    row?.revenueCategory || row?.memo || row?.label
+  );
+  const [revenueCategory, setRevenueCategory] = React.useState(selectedRevenueCategoryFromRow);
+  const revenueCategoryLabel = getCashRevenueCategoryLabel(revenueCategory);
+  const categoryDirty = !isCreate && revenueCategory !== selectedRevenueCategoryFromRow;
+  const canSubmit = isCreate
+    ? createCanSubmit
+    : (editCanSave || categoryDirty) && !editSaveLoading;
   const dataSource = resolveCashDataSource(row, isCreate);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setRevenueCategory(isCreate ? "PRODUCT_SALES" : selectedRevenueCategoryFromRow);
+  }, [open, isCreate, selectedRevenueCategoryFromRow]);
 
   function closeDrawer() {
     if (deleteLoading) return;
@@ -151,12 +171,24 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
         return;
       }
 
-      await submitCreate();
+      await submitCreate({
+        memo: buildCashRevenueCategoryMemo({
+          memo: memo || revenueCategoryLabel,
+          revenueCategory,
+          prefixCash: false,
+        }),
+      });
       onClose();
       return;
     }
 
-    await handleEditSave();
+    await handleEditSave({
+      memo: buildCashRevenueCategoryMemo({
+        memo: editMemo || row?.memo || revenueCategoryLabel,
+        revenueCategory,
+        prefixCash: true,
+      }),
+    });
   }
 
   function submitDelete() {
@@ -191,7 +223,7 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
               <div className="mt-1 text-sm text-slate-500">
                 {isCreate
                   ? "現金入金データを手動で追加します。"
-                  : "選択した現金入金データの金額とメモを編集します。"}
+                  : "選択した現金入金データの金額・収入区分・メモを編集します。"}
               </div>
             </div>
 
@@ -272,15 +304,24 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
               </div>
             )}
 
-            <div>
-              <div className="mb-2 text-sm font-medium text-slate-700">カテゴリ</div>
-              <div className="flex h-11 w-full items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-900">
-                現金収入（自動）
-              </div>
+            <label className="block">
+              <div className="mb-2 text-sm font-medium text-slate-700">収入区分</div>
+              <select
+                value={revenueCategory}
+                onChange={(e) => setRevenueCategory(normalizeCashRevenueCategory(e.target.value))}
+                disabled={formLoading || saving}
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+              >
+                {CASH_REVENUE_CATEGORIES.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
               <div className="mt-2 text-xs text-slate-500">
-                現金収入ワークスペースではカテゴリを自動設定します。
+                税務申告・税理士確認用の収入区分として保存します。
               </div>
-            </div>
+            </label>
 
             <label className="block">
               <div className="mb-2 text-sm font-medium text-slate-700">金額</div>
@@ -348,9 +389,9 @@ export function CashIncomeDrawer(props: CashIncomeDrawerProps) {
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">カテゴリ</div>
+                <div className="text-xs text-slate-500">収入区分</div>
                 <div className="mt-1 font-semibold text-slate-900">
-                  現金収入（自動）
+                  {revenueCategoryLabel}
                 </div>
               </div>
               <div>

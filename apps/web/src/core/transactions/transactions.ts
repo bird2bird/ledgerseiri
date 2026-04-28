@@ -1,6 +1,7 @@
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import { listFundTransfers, type FundTransferItem } from "@/core/funds/api";
 import type { AmazonStoreOrderFact } from "@/core/jobs";
+import { getCashRevenueCategoryLabel, resolveCashRevenueCategoryFromText } from "@/core/transactions/cash-revenue-category";
 
 export type IncomeCategory = "all" | "store-order" | "cash" | "other";
 export type ExpenseCategory = "all" | "advertising" | "logistics" | "payroll" | "other";
@@ -28,6 +29,7 @@ export type IncomeRow = {
   account: string;
   store: string;
   memo?: string | null;
+  revenueCategory?: string | null;
 
   sourceType?: string | null;
   externalRef?: string | null;
@@ -234,18 +236,25 @@ function mapExpenseCategory(item: TransactionItem): Exclude<ExpenseCategory, "al
 
 function mapIncomeRow(item: TransactionItem): IncomeRow {
   const category = mapIncomeCategory(item);
+  const cashRevenueCategory = resolveCashRevenueCategoryFromText({
+    memo: item.memo,
+    categoryName: item.categoryName,
+    label: item.type,
+  });
+
   return {
     id: item.id,
     date: item.occurredAt ? new Date(item.occurredAt).toLocaleDateString("ja-JP") : "-",
     category,
     label:
       category === "cash"
-        ? item.categoryName ?? "現金収入"
+        ? getCashRevenueCategoryLabel(cashRevenueCategory)
         : item.categoryName ?? item.productName ?? item.type ?? "収入",
     amount: Number(item.amount ?? 0),
     account: item.accountName ?? "-",
     store: item.storeName ?? item.storeId ?? "-",
     memo: item.memo ?? null,
+    revenueCategory: category === "cash" ? cashRevenueCategory : null,
     sourceType: item.sourceType ?? "api-transaction",
     externalRef: item.externalRef ?? null,
     sku: item.sku ?? null,

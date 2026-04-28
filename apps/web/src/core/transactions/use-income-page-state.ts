@@ -18,6 +18,7 @@ import {
 import { listAccounts, type AccountItem } from "@/core/funds/api";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { getNowLocalInputValue } from "@/core/transactions/income-page-constants";
+import { buildCashRevenueCategoryMemo } from "@/core/transactions/cash-revenue-category";
 
 const EMPTY_STAGE_CHARGE_SUMMARY = {
   orderSale: 0,
@@ -372,7 +373,7 @@ export function useIncomePageState(args: {
   const editCanSave =
     !!selectedRow && editAmountValid && !editMemoTooLong && editDirty;
 
-  async function handleEditSave() {
+  async function handleEditSave(override?: { memo?: string }) {
     setEditUiError("");
     setEditUiMessage("");
 
@@ -384,11 +385,16 @@ export function useIncomePageState(args: {
       setEditUiError("金額は 0 より大きい数値を入力してください。");
       return;
     }
-    if (editMemoTooLong) {
+    const nextMemo = override?.memo ?? editMemo;
+    const nextDirty =
+      String(editAmount) !== String(selectedRow.amount ?? "") ||
+      String(nextMemo) !== String(selectedRow.memo ?? "");
+
+    if (nextMemo.length > 500) {
       setEditUiError("メモは 500 文字以内で入力してください。");
       return;
     }
-    if (!editDirty) {
+    if (!nextDirty) {
       setEditUiError("変更内容がありません。");
       return;
     }
@@ -398,7 +404,7 @@ export function useIncomePageState(args: {
 
       await updateTransaction(selectedRow.id, {
         amount: Number(editAmount),
-        memo: editMemo,
+        memo: nextMemo,
       });
 
       const preservedId = selectedRow.id;
@@ -406,7 +412,7 @@ export function useIncomePageState(args: {
       setSelectedRowId(preservedId);
 
       setEditAmount(String(Number(editAmount)));
-      setEditMemo(editMemo);
+      setEditMemo(nextMemo);
       setEditUiError("");
       setEditUiMessage("保存しました。");
       setTimeout(() => {
@@ -420,10 +426,12 @@ export function useIncomePageState(args: {
     }
   }
 
-  async function submitCreate() {
+  async function submitCreate(override?: { memo?: string }) {
     try {
       setSubmitLoading(true);
       setPanelError("");
+
+      const nextMemo = override?.memo ?? memo;
 
       await createTransaction({
         accountId: accountId || null,
@@ -435,8 +443,12 @@ export function useIncomePageState(args: {
         occurredAt: new Date(occurredAt).toISOString(),
         memo:
           category === "cash"
-            ? `[cash] ${memo || "現金収入"}`
-            : memo,
+            ? buildCashRevenueCategoryMemo({
+                memo: nextMemo || "現金収入",
+                revenueCategory: nextMemo,
+                prefixCash: true,
+              })
+            : nextMemo,
       });
 
       setAmount("");

@@ -12,6 +12,11 @@ import {
   splitCsvLine,
 } from "@/core/imports/cash-income-import-client";
 import {
+  buildCashRevenueCategoryMemo,
+  getCashRevenueCategoryLabel,
+  stripCashRevenueCategoryMarker,
+} from "@/core/transactions/cash-revenue-category";
+import {
   CashIncomeDrawer,
   type CashAccountOption,
 } from "@/components/app/income/CashIncomeDrawer";
@@ -56,7 +61,7 @@ type CashIncomeWorkspaceProps = {
   setOccurredAt: (next: string) => void;
   memo: string;
   setMemo: (next: string) => void;
-  submitCreate: () => Promise<void>;
+  submitCreate: (override?: { memo?: string }) => Promise<void>;
 
   editAmount: string;
   setEditAmount: (next: string) => void;
@@ -74,7 +79,7 @@ type CashIncomeWorkspaceProps = {
     account: string;
   } | null;
   setCashDeleteFeedback: (next: null) => void;
-  handleEditSave: () => Promise<void>;
+  handleEditSave: (override?: { memo?: string }) => Promise<void>;
   handleDeleteSelected: () => Promise<void>;
   reloadRows: () => Promise<void>;
 };
@@ -162,6 +167,12 @@ function normalizeCashFileCsvHeaders(csvText: string) {
     "メモ": "memo",
     "摘要": "memo",
     "備考": "memo",
+    "種別": "revenueCategory",
+    "区分": "revenueCategory",
+    "収入区分": "revenueCategory",
+    "売上区分": "revenueCategory",
+    "category": "revenueCategory",
+    "revenueCategory": "revenueCategory",
     "入金元": "source",
     "店舗": "source",
     "source": "source",
@@ -223,7 +234,7 @@ function resolveCashAccountId(args: {
 }
 
 function stripCashSourceMarker(value?: string | null) {
-  return String(value || "")
+  return stripCashRevenueCategoryMarker(value)
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -271,10 +282,16 @@ function buildCashImportedMemo(args: {
   memo?: string | null;
   source?: string | null;
   fileName: string;
+  revenueCategory?: string | null;
 }) {
   const visibleMemo = stripCashSourceMarker(args.memo || "現金収入");
   const sourcePart = args.source ? ` / ${args.source}` : "";
-  return `[cash] ${visibleMemo}${sourcePart} [file-import:${args.fileName}]`;
+  const categorizedMemo = buildCashRevenueCategoryMemo({
+    memo: `${visibleMemo}${sourcePart}`,
+    revenueCategory: args.revenueCategory,
+    prefixCash: true,
+  });
+  return `${categorizedMemo} [file-import:${args.fileName}]`;
 }
 
 function createInitialCashImportProgress(fileName: string): CashFileImportProgress {
@@ -562,6 +579,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
           memo: row.memo || "現金収入",
           source: row.source,
           fileName: file.name,
+          revenueCategory: row.revenueCategory,
         });
         const dedupeKey = buildCashImportDedupeKey({
           accountName: resolvedAccount?.name || row.account,
@@ -1049,7 +1067,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
               </div>
               <div>
                 <div className="text-xs text-slate-500">種別</div>
-                <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label}</div>
+                <div className="mt-1 text-sm font-medium text-slate-900">{selectedRow.label || getCashRevenueCategoryLabel(selectedRow.revenueCategory || selectedRow.memo)}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500">口座</div>
@@ -1100,7 +1118,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 >
                   <div className="text-slate-600">{row.date}</div>
                   <div>
-                    <div className="font-medium text-slate-900">{row.label}</div>
+                    <div className="font-medium text-slate-900">{row.label || getCashRevenueCategoryLabel(row.revenueCategory || row.memo)}</div>
                   </div>
                   <div>
                     <div className="text-slate-600">{stripCashSourceMarker(row.memo) || "-"}</div>
