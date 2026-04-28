@@ -205,18 +205,22 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
   const c = String(item.categoryName ?? "").toLowerCase();
   const m = String(item.memo ?? "").toLowerCase();
 
-  // Step109-Z1-B-FIX10:
-  // Priority must distinguish explicit markers from loose filename/source heuristics.
+  // Step109-Z1-B-FIX11:
+  // Cash and other income are both currently created through Transaction.type = OTHER.
+  // Therefore type OTHER alone must never classify a row as "other".
   //
-  // 1) explicit cash-income markers
-  // 2) explicit other-income marker / type OTHER
-  // 3) loose cash category/memo heuristics
+  // Priority:
+  // 1) explicit cash technical markers / sample-cash seed marker
+  // 2) explicit other-income import marker
+  // 3) cash categoryName heuristic
   // 4) store-order source heuristics
+  // 5) fallback other.
   //
-  // Important:
-  // Other-income CSV files can be named like "cash-income-tax-export-xxx.csv".
-  // Therefore generic m.includes("cash") must NOT run before [other-income-category:*].
+  // This keeps [sample-cash] / [cash] / [revenue-category:*] rows on /income/cash,
+  // while [other-income-category:*] rows stay on /income/other even when the CSV
+  // filename contains "cash-income-tax-export".
   if (
+    m.includes("[sample-cash]") ||
     m.includes("[cash]") ||
     m.includes("[revenue-category:") ||
     t.includes("cash")
@@ -224,11 +228,11 @@ function mapIncomeCategory(item: TransactionItem): Exclude<IncomeCategory, "all"
     return "cash";
   }
 
-  if (m.includes("[other-income-category:") || t === "other") {
+  if (m.includes("[other-income-category:")) {
     return "other";
   }
 
-  if (c.includes("現金") || m.includes("cash")) {
+  if (c.includes("現金")) {
     return "cash";
   }
 

@@ -275,46 +275,155 @@ function normalizeOtherIncomeHeader(value: string) {
 }
 
 
-function scoreOtherIncomeDecodedText(value: string) {
-  const text = String(value || "");
-  const replacementCount = (text.match(/\uFFFD/g) || []).length;
-  const japaneseCount = (text.match(/[ぁ-んァ-ヶ一-龠]/g) || []).length;
-  const headerHits = ["口座", "収入カテゴリ", "金額", "発生日", "メモ", "収入元", "account", "category", "amount"]
-    .filter((token) => text.includes(token)).length;
-
-  return headerHits * 100 + japaneseCount - replacementCount * 50;
+function normalizeOtherIncomeDecodeLookup(value: string) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[（]/g, "(")
+    .replace(/[）]/g, ")")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLowerCase();
 }
 
-function decodeOtherIncomeCsvBuffer(buffer: ArrayBuffer) {
-  const candidates = [
-    { encoding: "utf-8", label: "UTF-8" },
-    { encoding: "shift_jis", label: "Shift_JIS/CP932" },
+function countOtherIncomeMojibake(value: string) {
+  const text = String(value || "");
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  const halfWidthKatakanaCount = (text.match(/[\uFF61-\uFF9F]/g) || []).length;
+  const brokenGlyphCount = (text.match(/[�･｡｢｣､]/g) || []).length;
+  const classicEucAsCp932Count = (text.match(/･[ァ-ヶｦ-ﾟ]|｡[ァ-ヶｦ-ﾟ]|･ｵ|･ﾓ|･ｹ|｡ｼ/g) || []).length;
+
+  return replacementCount * 12 + brokenGlyphCount * 8 + halfWidthKatakanaCount * 4 + classicEucAsCp932Count * 60;
+}
+
+function scoreOtherIncomeDecodedText(value: string) {
+  const text = String(value || "");
+  const japaneseCount = (text.match(/[ぁ-んァ-ヶ一-龠]/g) || []).length;
+  const headerHits = [
+    "口座",
+    "収入カテゴリ",
+    "収入区分",
+    "金額",
+    "発生日",
+    "メモ",
+    "収入元",
+    "account",
+    "category",
+    "amount",
+    "occurredAt",
+  ].filter((token) => text.includes(token)).length;
+
+  return headerHits * 1000 + japaneseCount * 4 - countOtherIncomeMojibake(text) * 100;
+}
+
+function scoreOtherIncomeDecodedCsv(
+  value: string,
+  context?: {
+    accounts?: AccountItem[];
+    txCategories?: TransactionCategoryItem[];
+  }
+) {
+  const text = String(value || "");
+  let score = scoreOtherIncomeDecodedText(text);
+
+  const rows = parseOtherIncomeCsvDraft(text).slice(0, 120);
+  const accounts = context?.accounts ?? [];
+  const txCategories = context?.txCategories ?? [];
+
+  const knownCategoryTokens = [
+    "サービス",
+    "補助金",
+    "助成金",
+    "返金",
+    "調整",
+    "商品売上",
+    "イベント",
+    "雑収入",
+    "受取利息",
   ];
 
-  let best = "";
-  let bestLabel = "UTF-8";
+  for (const row of rows) {
+    const category = String(row.category || "");
+    const account = String(row.account || "");
+    const memo = String(row.memo || "");
+
+    const categoryMojibake = countOtherIncomeMojibake(category);
+    const accountMojibake = countOtherIncomeMojibake(account);
+    const memoMojibake = countOtherIncomeMojibake(memo);
+
+    score -= categoryMojibake * 500;
+    score -= accountMojibake * 200;
+    score -= memoMojibake * 80;
+
+    if (category && /[ぁ-んァ-ヶ一-龠]/.test(category)) score += 120;
+    if (account && /[ぁ-んァ-ヶ一-龠]/.test(account)) score += 60;
+    if (memo && /[ぁ-んァ-ヶ一-龠]/.test(memo)) score += 30;
+
+    if (knownCategoryTokens.some((token) => category.includes(token) || memo.includes(token))) {
+      score += 700;
+    }
+
+    const normalizedCategory = normalizeOtherIncomeDecodeLookup(category);
+    if (normalizedCategory) {
+      const categoryHit = txCategories.some((item) => {
+        const name = normalizeOtherIncomeDecodeLookup(item.name);
+        return name === normalizedCategory || name.includes(normalizedCategory) || normalizedCategory.includes(name);
+      });
+      if (categoryHit) score += 500;
+    }
+
+    const normalizedAccount = normalizeOtherIncomeDecodeLookup(account);
+    if (normalizedAccount) {
+      const accountHit = accounts.some((item) => {
+        const name = normalizeOtherIncomeDecodeLookup(item.name);
+        return name === normalizedAccount || name.includes(normalizedAccount) || normalizedAccount.includes(name);
+      });
+      if (accountHit) score += 250;
+    }
+
+    if (row.status !== "error") score += 20;
+  }
+
+  return score;
+}
+
+function safeDecodeOtherIncomeCsv(buffer: ArrayBuffer, encoding: string) {
+  try {
+    return new TextDecoder(encoding).decode(buffer);
+  } catch {
+    return "";
+  }
+}
+
+function decodeOtherIncomeCsvBuffer(
+  buffer: ArrayBuffer,
+  context?: {
+    accounts?: AccountItem[];
+    txCategories?: TransactionCategoryItem[];
+  }
+) {
+  const candidates = [
+    { text: safeDecodeOtherIncomeCsv(buffer, "utf-8"), label: "UTF-8" },
+    { text: safeDecodeOtherIncomeCsv(buffer, "shift_jis"), label: "Shift_JIS/CP932" },
+    { text: safeDecodeOtherIncomeCsv(buffer, "euc-jp"), label: "EUC-JP" },
+    { text: safeDecodeOtherIncomeCsv(buffer, "iso-2022-jp"), label: "ISO-2022-JP" },
+  ].filter((item) => item.text);
+
+  let best = candidates[0] ?? { text: "", label: "UTF-8" };
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const candidate of candidates) {
-    try {
-      const decoded = new TextDecoder(candidate.encoding).decode(buffer);
-      const score = scoreOtherIncomeDecodedText(decoded);
-      if (score > bestScore) {
-        best = decoded;
-        bestLabel = candidate.label;
-        bestScore = score;
-      }
-    } catch {
-      // Some runtimes may not support every TextDecoder label.
+    const candidateScore = scoreOtherIncomeDecodedCsv(candidate.text, context);
+    if (candidateScore > bestScore) {
+      best = candidate;
+      bestScore = candidateScore;
     }
   }
 
   return {
-    text: best,
-    encoding: bestLabel,
+    text: best.text,
+    encoding: best.label,
   };
 }
-
 
 function parseOtherIncomeCsvDraft(csvText: string): OtherIncomeDraftRow[] {
   const lines = String(csvText || "")
@@ -617,7 +726,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     setImportFeedback(null);
 
     try {
-      const decodedCsv = decodeOtherIncomeCsvBuffer(await file.arrayBuffer());
+      const decodedCsv = decodeOtherIncomeCsvBuffer(await file.arrayBuffer(), { accounts, txCategories });
       const csvText = decodedCsv.text;
       const draftRows = parseOtherIncomeCsvDraft(csvText);
       const validRows = draftRows.filter((row) => row.status !== "error");
@@ -750,7 +859,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
       <input
         ref={otherIncomeFileInputRef}
-        data-scope="other-income-csv-hidden-input-z1b other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
+        data-scope="other-income-csv-hidden-input-z1b other-income-context-decoder-fix14 other-income-force-eucjp-fix13 other-income-eucjp-decoder-fix12-v2 other-income-nullable-import-fix3 other-income-csv-encoding-fix5-v2"
         type="file"
         accept=".csv,.txt"
         className="hidden"
