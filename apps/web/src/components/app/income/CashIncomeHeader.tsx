@@ -322,6 +322,8 @@ export function CashIncomeHeader(props: {
     null
   );
   const cashTrendLatest = trendPoints[trendPoints.length - 1] ?? null;
+  const cashTrendLatestNonZero =
+    [...trendPoints].reverse().find((item) => item.amount > 0) ?? cashTrendLatest;
   const cashRangeLabel =
     headerRange === "7d"
       ? "直近7日"
@@ -338,6 +340,7 @@ export function CashIncomeHeader(props: {
     null
   );
   const cashBarLatest = safeCashBarPoints[safeCashBarPoints.length - 1] ?? null;
+  const cashBarAmountLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 5));
 
   return (
     <div className="space-y-6">
@@ -454,7 +457,7 @@ export function CashIncomeHeader(props: {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
-        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-chart-visual-productization-l1">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-chart-density-professional-polish-l2">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="text-lg font-semibold text-slate-900">入金趋势</div>
@@ -462,28 +465,28 @@ export function CashIncomeHeader(props: {
                 現在範囲に連動した現金収入の推移です。入金のない日は 0 として表示します。
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Range</div>
-              <div className="text-sm font-semibold text-slate-900">{cashRangeLabel}</div>
-              <div className="text-[11px] text-slate-500">{trendPoints.length}日</div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-right shadow-inner shadow-white/60">
+              <div className="text-[11px] font-semibold text-slate-500">表示範囲</div>
+              <div className="mt-0.5 text-sm font-semibold text-slate-950">{cashRangeLabel}</div>
+              <div className="text-[11px] text-slate-500">表示日数 {trendPoints.length}日</div>
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Total Cash In</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">合計入金</div>
               <div className="mt-1 text-base font-semibold text-slate-950">{formatChartYen(cashTrendTotal)}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Peak Day</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">最大入金日</div>
               <div className="mt-1 text-base font-semibold text-slate-950">
                 {cashTrendPeak ? formatCashDateLabel(cashTrendPeak.date) : "-"}
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Latest</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">最新入金</div>
               <div className="mt-1 text-base font-semibold text-slate-950">
-                {cashTrendLatest ? `${formatCashDateLabel(cashTrendLatest.date)} / ${formatChartYen(cashTrendLatest.amount)}` : "-"}
+                {cashTrendLatestNonZero ? `${formatCashDateLabel(cashTrendLatestNonZero.date)} / ${formatChartYen(cashTrendLatestNonZero.amount)}` : "-"}
               </div>
             </div>
           </div>
@@ -503,7 +506,7 @@ export function CashIncomeHeader(props: {
                     const innerWidth = width - padding.left - padding.right;
                     const innerHeight = 220;
                     const height = 320;
-                    const xLabelEvery = Math.max(1, Math.ceil(trendPoints.length / 8));
+                    const xLabelEvery = Math.max(1, Math.ceil(trendPoints.length / 7));
                     const coords = trendPoints.map((point, index) => {
                       const x =
                         padding.left +
@@ -565,14 +568,16 @@ export function CashIncomeHeader(props: {
 
                           return (
                             <g key={`cash-trend-row-${point.date}`}>
-                              <line
-                                x1={point.x}
-                                y1={padding.top}
-                                x2={point.x}
-                                y2={padding.top + innerHeight}
-                                stroke="#f1f5f9"
-                                strokeWidth="1"
-                              />
+                              {shouldShowDateLabel ? (
+                                <line
+                                  x1={point.x}
+                                  y1={padding.top}
+                                  x2={point.x}
+                                  y2={padding.top + innerHeight}
+                                  stroke="#f1f5f9"
+                                  strokeWidth="1"
+                                />
+                              ) : null}
                               {shouldShowDateLabel ? (
                                 <text
                                   x={point.x}
@@ -633,7 +638,9 @@ export function CashIncomeHeader(props: {
 
                         {coords.map((point, index) => {
                           const isPeakPoint = point.amount > 0 && point.amount === peakAmount;
-                          const isLatestPoint = index === coords.length - 1;
+                          const isLatestPoint =
+                            cashTrendLatestNonZero != null && point.date === cashTrendLatestNonZero.date;
+                          const isVisiblePoint = point.amount > 0 || isPeakPoint || isLatestPoint;
                           const tooltipWidth = 148;
                           const tooltipHeight = 64;
                           const tooltipX = Math.min(
@@ -649,22 +656,27 @@ export function CashIncomeHeader(props: {
                               tabIndex={0}
                             >
                               <title>{`${formatCashDateLabel(point.date)} / ${formatChartYen(point.amount)}`}</title>
-                              <circle
-                                cx={point.x}
-                                cy={point.y}
-                                r={isPeakPoint || isLatestPoint ? "5.8" : "3.8"}
-                                fill={isPeakPoint ? "#1d4ed8" : isLatestPoint ? "#059669" : "#2563eb"}
-                                stroke="#ffffff"
-                                strokeWidth="2"
-                              />
-                              <circle
-                                cx={point.x}
-                                cy={point.y}
-                                r="13"
-                                fill="transparent"
-                                className="cursor-pointer"
-                              />
-                              <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
+                              {isVisiblePoint ? (
+                                <circle
+                                  cx={point.x}
+                                  cy={point.y}
+                                  r={isPeakPoint || isLatestPoint ? "5.8" : "3.6"}
+                                  fill={isPeakPoint ? "#1d4ed8" : isLatestPoint ? "#059669" : "#2563eb"}
+                                  stroke="#ffffff"
+                                  strokeWidth="2"
+                                />
+                              ) : null}
+                              {isVisiblePoint ? (
+                                <circle
+                                  cx={point.x}
+                                  cy={point.y}
+                                  r="13"
+                                  fill="transparent"
+                                  className="cursor-pointer"
+                                />
+                              ) : null}
+                              {isVisiblePoint ? (
+                                <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">
                                 <rect
                                   x={tooltipX}
                                   y={tooltipY}
@@ -698,9 +710,10 @@ export function CashIncomeHeader(props: {
                                   fontWeight="600"
                                   fill={isPeakPoint ? "#93c5fd" : isLatestPoint ? "#86efac" : "#94a3b8"}
                                 >
-                                  {isPeakPoint ? "Peak day" : isLatestPoint ? "Latest point" : "Daily cash in"}
+                                  {isPeakPoint ? "最大入金日" : isLatestPoint ? "最新入金" : "日別入金"}
                                 </text>
-                              </g>
+                                </g>
+                              ) : null}
                             </g>
                           );
                         })}
@@ -730,7 +743,7 @@ export function CashIncomeHeader(props: {
 
         </div>
 
-        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-visual-productization-l1">
+        <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]" data-scope="cash-bar-density-professional-polish-l2">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
@@ -767,13 +780,13 @@ export function CashIncomeHeader(props: {
 
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Current View</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">表示単位</div>
                 <div className="mt-1 text-base font-semibold text-slate-950">
                   {cashChartGranularity === "day" ? "日別" : cashChartGranularity === "week" ? "週別" : "月別"}
                 </div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Peak Bucket</div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">最大区間</div>
                 <div className="mt-1 text-base font-semibold text-slate-950">
                   {cashBarPeak ? `${cashBarPeak.label} / ${formatChartYen(cashBarPeak.amount)}` : "-"}
                 </div>
@@ -826,7 +839,7 @@ export function CashIncomeHeader(props: {
                     const gap = safeCashBarPoints.length
                       ? Math.max(8, (innerWidth - safeCashBarPoints.length * columnWidth) / Math.max(1, safeCashBarPoints.length))
                       : 12;
-                    const barLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 6));
+                    const barLabelEvery = Math.max(1, Math.ceil(safeCashBarPoints.length / 5));
 
                     return (
                       <>
@@ -851,6 +864,11 @@ export function CashIncomeHeader(props: {
                           const x = padding.left + gap / 2 + index * (columnWidth + gap);
                           const h = (point.amount / cashBarMax) * innerHeight;
                           const y = padding.top + innerHeight - h;
+                          const isCurrentBar = index === safeCashBarPoints.length - 1;
+                          const isPeakBar = cashBarPeak != null && point.amount === cashBarPeak.amount;
+                          const shouldShowBarAmount =
+                            point.amount > 0 &&
+                            (isCurrentBar || isPeakBar || index % cashBarAmountLabelEvery === 0 || safeCashBarPoints.length <= 6);
 
                           return (
                             <g key={`cash-bar-${point.key}`}>
@@ -863,32 +881,24 @@ export function CashIncomeHeader(props: {
                                 fill={index === safeCashBarPoints.length - 1 ? "#2563eb" : "#334155"}
                                 opacity={index === safeCashBarPoints.length - 1 ? 0.96 : 0.9}
                               />
-                              <text
-                                data-role="cash-bar-amount-label"
-                                x={x + columnWidth / 2}
-                                y={
-                                  point.amount > 0
-                                    ? Math.max(y - 8, padding.top + 12)
-                                    : padding.top + innerHeight - 10
-                                }
-                                textAnchor="middle"
-                                fontSize="11"
-                                fontWeight="700"
-                                fill={
-                                  point.amount > 0
-                                    ? index === safeCashBarPoints.length - 1
-                                      ? "#1d4ed8"
-                                      : "#1f2937"
-                                    : "#94a3b8"
-                                }
-                                className="pointer-events-none select-none"
-                              >
-                                {formatChartYen(point.amount)}
-                              </text>
-                              {index === safeCashBarPoints.length - 1 ? (
+                              {shouldShowBarAmount ? (
+                                <text
+                                  data-role="cash-bar-amount-label"
+                                  x={x + columnWidth / 2}
+                                  y={Math.max(y - 8, padding.top + 12)}
+                                  textAnchor="middle"
+                                  fontSize={safeCashBarPoints.length > 8 ? "10" : "11"}
+                                  fontWeight="700"
+                                  fill={isCurrentBar ? "#1d4ed8" : "#1f2937"}
+                                  className="pointer-events-none select-none"
+                                >
+                                  {formatChartYen(point.amount)}
+                                </text>
+                              ) : null}
+                              {isCurrentBar && point.amount > 0 ? (
                                 <text
                                   x={x + columnWidth / 2}
-                                  y={Math.max(y - 26, padding.top + 10)}
+                                  y={Math.max(y - 24, padding.top + 10)}
                                   textAnchor="middle"
                                   fontSize="9"
                                   fontWeight="700"
@@ -900,7 +910,7 @@ export function CashIncomeHeader(props: {
 
                               {(index === 0 ||
                                 index === safeCashBarPoints.length - 1 ||
-                                index % barLabelEvery === 0) ? (
+                                (index % barLabelEvery === 0 && index < safeCashBarPoints.length - 2)) ? (
                                 <text
                                   x={x + columnWidth / 2}
                                   y={padding.top + innerHeight + 17}
