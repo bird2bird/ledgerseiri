@@ -703,7 +703,7 @@ function downloadOtherIncomeTextFile(args: { filename: string; text: string }) {
   URL.revokeObjectURL(url);
 }
 
-type OtherIncomeDashboardRange = "30d" | "90d" | "12m";
+type OtherIncomeDashboardRange = "30d" | "90d" | "12m" | "custom";
 type OtherIncomeDashboardGranularity = "day" | "week" | "month";
 
 type OtherIncomeDashboardPoint = {
@@ -722,6 +722,7 @@ function getOtherIncomeRangeDays(range: OtherIncomeDashboardRange) {
 }
 
 function getOtherIncomeRangeLabel(range: OtherIncomeDashboardRange) {
+  if (range === "custom") return "カスタム期間";
   if (range === "12m") return "直近12ヶ月";
   if (range === "90d") return "直近90日";
   return "直近30日";
@@ -730,6 +731,28 @@ function getOtherIncomeRangeLabel(range: OtherIncomeDashboardRange) {
 function getOtherIncomeRangeDefaultGranularity(range: OtherIncomeDashboardRange): OtherIncomeDashboardGranularity {
   if (range === "30d") return "day";
   return "week";
+}
+
+function getOtherIncomeAutoGranularityForDays(days: number): OtherIncomeDashboardGranularity {
+  if (!Number.isFinite(days) || days <= 31) return "day";
+  if (days <= 180) return "week";
+  return "month";
+}
+
+function parseOtherIncomeDateInput(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const date = new Date(`${raw}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : cloneOtherIncomeDate(date);
+}
+
+function formatOtherIncomeDateInput(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getOtherIncomeInclusiveRangeDays(start: Date, end: Date) {
+  const diff = cloneOtherIncomeDate(end).getTime() - cloneOtherIncomeDate(start).getTime();
+  return Math.max(1, Math.round(diff / 86400000) + 1);
 }
 
 function getOtherIncomeGranularityLabel(granularity: OtherIncomeDashboardGranularity) {
@@ -824,10 +847,11 @@ function getOtherIncomeBucketStep(start: Date, granularity: OtherIncomeDashboard
 function buildOtherIncomeDashboardSeries(
   rows: IncomeRow[],
   range: OtherIncomeDashboardRange,
-  granularity: OtherIncomeDashboardGranularity
+  granularity: OtherIncomeDashboardGranularity,
+  customBounds?: { start: Date; end: Date } | null
 ): OtherIncomeDashboardPoint[] {
-  const latest = getOtherIncomeDashboardLatestDate(rows);
-  const rawStart = getOtherIncomeRangeStartDate(rows, range);
+  const latest = customBounds?.end ? cloneOtherIncomeDate(customBounds.end) : getOtherIncomeDashboardLatestDate(rows);
+  const rawStart = customBounds?.start ? cloneOtherIncomeDate(customBounds.start) : getOtherIncomeRangeStartDate(rows, range);
   const start = getOtherIncomeBucketStart(rawStart, granularity);
   const buckets = new Map<string, OtherIncomeDashboardPoint>();
 
@@ -889,12 +913,17 @@ function getOtherIncomeXAxisLabelEvery(points: OtherIncomeDashboardPoint[]) {
   return 12;
 }
 
-function buildOtherIncomeSegmentedLinePaths<T extends { x: number; y: number | null; amount: number }>(plot: T[]) {
+function buildOtherIncomeSegmentedLinePaths<
+  T extends { x: number; y: number | null; amount: number; isPartialLatest?: boolean }
+>(plot: T[]) {
   const segments: T[][] = [];
   let current: T[] = [];
 
   for (const point of plot) {
-    if (point.amount > 0 && point.y != null) {
+    // Step109-Z1-E-FIX3-v2:
+    // Latest partial week/month should be shown as a dot/bar,
+    // but not connected into the trend line because the period is not complete.
+    if (point.amount > 0 && point.y != null && !point.isPartialLatest) {
       current.push(point);
       continue;
     }
@@ -973,6 +1002,8 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const [otherIncomeSourceFilter, setOtherIncomeSourceFilter] = React.useState("all");
   const [otherIncomeDashboardRange, setOtherIncomeDashboardRange] =
     React.useState<OtherIncomeDashboardRange>("30d");
+  const [otherIncomeCustomStartDate, setOtherIncomeCustomStartDate] = React.useState("");
+  const [otherIncomeCustomEndDate, setOtherIncomeCustomEndDate] = React.useState("");
   const [otherIncomeStatusGranularity, setOtherIncomeStatusGranularity] =
     React.useState<OtherIncomeDashboardGranularity>("day");
   const [otherIncomeTrendHoverKey, setOtherIncomeTrendHoverKey] = React.useState<string | null>(null);
@@ -1025,13 +1056,60 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     return Array.from(values).sort((a, b) => a.localeCompare(b, "ja-JP"));
   }, [rows]);
 
+
+  const otherIncomeCustomRangeBounds = React.useMemo(() => {
+    const fallbackEnd = getOtherIncomeDashboardLatestDate(rows);
+    const fallbackStart = addOtherIncomeDays(fallbackEnd, -29);
+
+    const parsedStart = parseOtherIncomeDateInput(otherIncomeCustomStartDate) ?? fallbackStart;
+    const parsedEnd = parseOtherIncomeDateInput(otherIncomeCustomEndDate) ?? fallbackEnd;
+
+    const start = parsedStart.getTime() <= parsedEnd.getTime() ? parsedStart : parsedEnd;
+    const end = parsedStart.getTime() <= parsedEnd.getTime() ? parsedEnd : parsedStart;
+
+    return { start, end };
+  }, [rows, otherIncomeCustomStartDate, otherIncomeCustomEndDate]);
+
+  const otherIncomeDashboardRangeDays = React.useMemo(() => {
+    if (otherIncomeDashboardRange === "custom") {
+      return getOtherIncomeInclusiveRangeDays(
+        otherIncomeCustomRangeBounds.start,
+        otherIncomeCustomRangeBounds.end
+      );
+    }
+
+    return getOtherIncomeRangeDays(otherIncomeDashboardRange);
+  }, [otherIncomeDashboardRange, otherIncomeCustomRangeBounds]);
+
+  const otherIncomeDashboardRangeLabel = React.useMemo(() => {
+    if (otherIncomeDashboardRange !== "custom") {
+      return getOtherIncomeRangeLabel(otherIncomeDashboardRange);
+    }
+
+    return `${formatOtherIncomeShortDate(otherIncomeCustomRangeBounds.start)}–${formatOtherIncomeShortDate(
+      otherIncomeCustomRangeBounds.end
+    )}`;
+  }, [otherIncomeDashboardRange, otherIncomeCustomRangeBounds]);
+
   const otherIncomeDashboardRows = React.useMemo(() => {
     return rows.filter((row) => {
       const source = String(row.store || "").trim();
       const sourceOk = otherIncomeSourceFilter === "all" || source === otherIncomeSourceFilter;
-      return sourceOk && isOtherIncomeRowInDashboardRange(row, rows, otherIncomeDashboardRange);
+      if (!sourceOk) return false;
+
+      if (otherIncomeDashboardRange === "custom") {
+        const ms = parseOtherIncomeDateMs(row);
+        if (ms <= 0) return false;
+        const rowDate = cloneOtherIncomeDate(new Date(ms));
+        return (
+          rowDate.getTime() >= otherIncomeCustomRangeBounds.start.getTime() &&
+          rowDate.getTime() <= otherIncomeCustomRangeBounds.end.getTime()
+        );
+      }
+
+      return isOtherIncomeRowInDashboardRange(row, rows, otherIncomeDashboardRange);
     });
-  }, [rows, otherIncomeSourceFilter, otherIncomeDashboardRange]);
+  }, [rows, otherIncomeSourceFilter, otherIncomeDashboardRange, otherIncomeCustomRangeBounds]);
 
   const otherIncomeDashboardAmount = React.useMemo(
     () => otherIncomeDashboardRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
@@ -1049,15 +1127,28 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     otherIncomeDashboardAmount
   );
 
-  const otherIncomeTrendGranularity = getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange);
+  const otherIncomeTrendGranularity =
+    otherIncomeDashboardRange === "custom"
+      ? getOtherIncomeAutoGranularityForDays(otherIncomeDashboardRangeDays)
+      : getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange);
   const otherIncomeTrendPoints = React.useMemo(
-    () => buildOtherIncomeDashboardSeries(otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeTrendGranularity),
-    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeTrendGranularity]
+    () => buildOtherIncomeDashboardSeries(
+      otherIncomeDashboardRows,
+      otherIncomeDashboardRange,
+      otherIncomeTrendGranularity,
+      otherIncomeDashboardRange === "custom" ? otherIncomeCustomRangeBounds : null
+    ),
+    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeTrendGranularity, otherIncomeCustomRangeBounds]
   );
 
   const otherIncomeStatusPoints = React.useMemo(
-    () => buildOtherIncomeDashboardSeries(otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeStatusGranularity),
-    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeStatusGranularity]
+    () => buildOtherIncomeDashboardSeries(
+      otherIncomeDashboardRows,
+      otherIncomeDashboardRange,
+      otherIncomeStatusGranularity,
+      otherIncomeDashboardRange === "custom" ? otherIncomeCustomRangeBounds : null
+    ),
+    [otherIncomeDashboardRows, otherIncomeDashboardRange, otherIncomeStatusGranularity, otherIncomeCustomRangeBounds]
   );
 
   const otherIncomeTrendMax = getOtherIncomeNiceChartMax(otherIncomeTrendPoints);
@@ -1130,8 +1221,27 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   }, [otherIncomeSourceFilter, otherIncomeSourceOptions]);
 
   React.useEffect(() => {
-    setOtherIncomeStatusGranularity(getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange));
-  }, [otherIncomeDashboardRange]);
+    if (otherIncomeDashboardRange !== "custom") {
+      setOtherIncomeStatusGranularity(getOtherIncomeRangeDefaultGranularity(otherIncomeDashboardRange));
+      return;
+    }
+
+    setOtherIncomeStatusGranularity(getOtherIncomeAutoGranularityForDays(otherIncomeDashboardRangeDays));
+  }, [otherIncomeDashboardRange, otherIncomeDashboardRangeDays]);
+
+  React.useEffect(() => {
+    if (otherIncomeDashboardRange !== "custom") return;
+
+    const latest = getOtherIncomeDashboardLatestDate(rows);
+    const start = addOtherIncomeDays(latest, -29);
+
+    if (!otherIncomeCustomStartDate) {
+      setOtherIncomeCustomStartDate(formatOtherIncomeDateInput(start));
+    }
+    if (!otherIncomeCustomEndDate) {
+      setOtherIncomeCustomEndDate(formatOtherIncomeDateInput(latest));
+    }
+  }, [otherIncomeDashboardRange, rows, otherIncomeCustomStartDate, otherIncomeCustomEndDate]);
 
   React.useEffect(() => {
     if (action !== "edit") return;
@@ -1309,7 +1419,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1354,9 +1464,47 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
               <option value="30d">直近30日</option>
               <option value="90d">直近90日</option>
               <option value="12m">直近12ヶ月</option>
+              <option value="custom">カスタム期間</option>
             </select>
           </label>
         </div>
+
+        {otherIncomeDashboardRange === "custom" ? (
+          <div
+            data-scope="other-income-custom-range-fix5"
+            className="mt-4 grid gap-4 rounded-[24px] border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_1fr_auto]"
+          >
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">開始日</span>
+              <input
+                type="date"
+                value={otherIncomeCustomStartDate}
+                onChange={(event) => setOtherIncomeCustomStartDate(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-semibold text-slate-700">終了日</span>
+              <input
+                type="date"
+                value={otherIncomeCustomEndDate}
+                onChange={(event) => setOtherIncomeCustomEndDate(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+              />
+            </label>
+            <div className="flex items-end">
+              <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                <div className="text-xs font-semibold text-slate-500">表示粒度</div>
+                <div className="mt-1 font-bold text-slate-900">
+                  {getOtherIncomeGranularityLabel(otherIncomeTrendGranularity)}
+                  <span className="ml-2 text-xs font-semibold text-slate-500">
+                    {otherIncomeDashboardRangeDays}日
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5 grid gap-4 md:grid-cols-4">
           <div className="rounded-[22px] bg-slate-50 px-5 py-5">
@@ -1389,7 +1537,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
 
       <section
-        data-scope="other-income-chart-dashboard-parity-z1e other-income-chart-smoothing-fix2"
+        data-scope="other-income-chart-dashboard-parity-z1e other-income-chart-smoothing-fix2 other-income-weekly-chart-polish-fix3-v2 other-income-remove-latest-badge-fix4"
         className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"
       >
         <div className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
@@ -1402,7 +1550,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
               <div className="text-xs font-semibold text-slate-500">表示範囲</div>
-              <div className="mt-1 text-sm font-bold text-slate-900">{getOtherIncomeRangeLabel(otherIncomeDashboardRange)}</div>
+              <div className="mt-1 text-sm font-bold text-slate-900">{otherIncomeDashboardRangeLabel}</div>
               <div className="mt-1 text-xs text-slate-500">
                 表示粒度 {getOtherIncomeGranularityLabel(otherIncomeTrendGranularity)} / 表示点数 {otherIncomeTrendPoints.length}
               </div>
@@ -1439,11 +1587,18 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                 const points = otherIncomeTrendPoints;
                 const max = otherIncomeTrendMax;
                 const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                const latestDataDate = getOtherIncomeDashboardLatestDate(otherIncomeDashboardRows);
                 const plot = points.map((point, index) => {
                   const x = padding.left + (points.length <= 1 ? innerWidth : (index / Math.max(1, points.length - 1)) * innerWidth);
                   const hasData = point.amount > 0;
+                  const isPartialLatest =
+                    otherIncomeTrendGranularity !== "day" &&
+                    hasData &&
+                    point.start.getTime() <= latestDataDate.getTime() &&
+                    point.end.getTime() > latestDataDate.getTime() &&
+                    index === points.length - 1;
                   const y = hasData ? padding.top + innerHeight - (point.amount / max) * innerHeight : null;
-                  return { ...point, x, y, hasData };
+                  return { ...point, x, y, hasData, isPartialLatest };
                 });
                 const linePaths = buildOtherIncomeSegmentedLinePaths(plot);
                 const hoveredTrendPoint = plot.find((point) => point.key === otherIncomeTrendHoverKey && point.hasData) ?? null;
@@ -1462,13 +1617,23 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                         </g>
                       );
                     })}
-                    {plot.map((point, index) =>
-                      index % labelEvery === 0 || index === plot.length - 1 ? (
-                        <text key={point.key} x={point.x} y={padding.top + innerHeight + 30} textAnchor="middle" fontSize="12" fill="#334155">
+                    {plot.map((point, index) => {
+                      const isLast = index === plot.length - 1;
+                      const isPenultimate = index === plot.length - 2;
+                      const showLabel = (index % labelEvery === 0 || isLast) && !(isPenultimate && plot.length > 8);
+                      return showLabel ? (
+                        <text
+                          key={point.key}
+                          x={point.x}
+                          y={padding.top + innerHeight + 30}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fill="#334155"
+                        >
                           {point.label}
                         </text>
-                      ) : null
-                    )}
+                      ) : null;
+                    })}
                     {linePaths.map((path, index) => (
                       <path
                         key={`trend-line-${index}`}
@@ -1501,6 +1666,17 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                             r={Math.max(12, dotRadius + 7)}
                             fill="transparent"
                           />
+                          {point.isPartialLatest ? (
+                            <line
+                              x1={point.x}
+                              y1={point.y}
+                              x2={point.x}
+                              y2={padding.top + innerHeight}
+                              stroke="#059669"
+                              strokeDasharray="4 4"
+                              opacity="0.55"
+                            />
+                          ) : null}
                           <circle
                             cx={point.x}
                             cy={point.y}
@@ -1604,6 +1780,11 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
             </div>
           </div>
 
+          <div className="mt-3 flex items-center justify-end gap-2 text-xs text-slate-500">
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-blue-600" />
+            <span>青色の棒は最新区間です</span>
+          </div>
+
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
             <svg viewBox="0 0 460 280" className="h-[300px] w-full overflow-visible">
               {(() => {
@@ -1613,6 +1794,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                 const points = otherIncomeStatusPoints;
                 const max = otherIncomeStatusMax;
                 const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                const latestDataDate = getOtherIncomeDashboardLatestDate(otherIncomeDashboardRows);
                 const barCount = Math.max(1, points.length);
                 const gap = barCount > 40 ? 2 : barCount > 24 ? 4 : 8;
                 const columnWidth = Math.max(4, Math.min(32, (innerWidth - gap * Math.max(0, barCount - 1)) / barCount));
@@ -1639,11 +1821,12 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                       const isPeak = otherIncomePeakStatusPoint?.key === point.key && point.amount > 0;
                       const isHovered = otherIncomeStatusHoverKey === point.key;
 
-                      const currentLabelX = Math.min(
-                        Math.max(x + columnWidth / 2, padding.left + 28),
-                        padding.left + innerWidth - 36
-                      );
-                      const currentLabelY = Math.max(y - 12, padding.top + 16);
+                      const isPartialLatest =
+                        otherIncomeStatusGranularity !== "day" &&
+                        point.amount > 0 &&
+                        point.start.getTime() <= latestDataDate.getTime() &&
+                        point.end.getTime() > latestDataDate.getTime() &&
+                        index === points.length - 1;
 
                       return (
                         <g
@@ -1701,29 +1884,22 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
                               })()}
                             </g>
                           ) : null}
-                          {index % labelEvery === 0 || index === points.length - 1 ? (
-                            <text
-                              x={x + columnWidth / 2}
-                              y={padding.top + innerHeight + 30}
-                              textAnchor="middle"
-                              fontSize="11"
-                              fill="#334155"
-                            >
-                              {point.label}
-                            </text>
-                          ) : null}
-                          {isLatest && point.amount > 0 ? (
-                            <text
-                              x={currentLabelX}
-                              y={currentLabelY}
-                              textAnchor="middle"
-                              fontSize="11"
-                              fontWeight="700"
-                              fill="#2563EB"
-                            >
-                              Current
-                            </text>
-                          ) : null}
+                          {(() => {
+                            const isLast = index === points.length - 1;
+                            const isPenultimate = index === points.length - 2;
+                            const showLabel = (index % labelEvery === 0 || isLast) && !(isPenultimate && points.length > 8);
+                            return showLabel ? (
+                              <text
+                                x={x + columnWidth / 2}
+                                y={padding.top + innerHeight + 30}
+                                textAnchor="middle"
+                                fontSize="11"
+                                fill="#334155"
+                              >
+                                {point.label}
+                              </text>
+                            ) : null;
+                          })()}
                         </g>
                       );
                     })}
