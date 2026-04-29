@@ -703,6 +703,8 @@ function downloadOtherIncomeTextFile(args: { filename: string; text: string }) {
   URL.revokeObjectURL(url);
 }
 
+type OtherIncomeImportDialogPhase = "idle" | "reading" | "parsing" | "importing" | "done" | "error";
+
 type OtherIncomeDashboardRange = "30d" | "90d" | "12m" | "custom";
 type OtherIncomeDashboardGranularity = "day" | "week" | "month";
 
@@ -1020,6 +1022,11 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const [otherIncomeSourceFilter, setOtherIncomeSourceFilter] = React.useState("all");
   const [otherIncomeDashboardRange, setOtherIncomeDashboardRange] =
     React.useState<OtherIncomeDashboardRange>("30d");
+
+  // Step109-Z1-E-FIX8:
+  // Remember the last fixed range so custom range can be cancelled/closed safely.
+  const [otherIncomeLastPresetRange, setOtherIncomeLastPresetRange] =
+    React.useState<Exclude<OtherIncomeDashboardRange, "custom">>("30d");
   const [otherIncomeCustomStartDate, setOtherIncomeCustomStartDate] = React.useState("");
   const [otherIncomeCustomEndDate, setOtherIncomeCustomEndDate] = React.useState("");
   const [otherIncomeDraftStartDate, setOtherIncomeDraftStartDate] = React.useState("");
@@ -1028,6 +1035,19 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     React.useState<OtherIncomeDashboardGranularity>("day");
   const [otherIncomeTrendHoverKey, setOtherIncomeTrendHoverKey] = React.useState<string | null>(null);
   const [otherIncomeStatusHoverKey, setOtherIncomeStatusHoverKey] = React.useState<string | null>(null);
+  const [otherIncomeImportDialogOpen, setOtherIncomeImportDialogOpen] = React.useState(false);
+  const [otherIncomeImportPhase, setOtherIncomeImportPhase] =
+    React.useState<OtherIncomeImportDialogPhase>("idle");
+  const [otherIncomeImportProgress, setOtherIncomeImportProgress] = React.useState(0);
+  const [otherIncomeImportFileName, setOtherIncomeImportFileName] = React.useState("");
+  const [otherIncomeImportResult, setOtherIncomeImportResult] = React.useState<{
+    importedRows: number;
+    blockedRows: number;
+    importedAmount: number;
+    encoding?: string;
+    message?: string;
+  } | null>(null);
+
   const otherIncomeFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [importLoading, setImportLoading] = React.useState(false);
   const [importFeedback, setImportFeedback] = React.useState<{
@@ -1290,6 +1310,18 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
       }),
     });
   }, [memo, otherIncomeCreateCategoryLabel, submitCreate]);
+
+  const handleOtherIncomeDashboardRangeChange = React.useCallback((next: OtherIncomeDashboardRange) => {
+    if (next !== "custom") {
+      setOtherIncomeLastPresetRange(next);
+    }
+    setOtherIncomeDashboardRange(next);
+  }, []);
+
+  const handleOtherIncomeCustomRangeCancelClose = React.useCallback(() => {
+    setOtherIncomeDashboardRange(otherIncomeLastPresetRange || "30d");
+  }, [otherIncomeLastPresetRange]);
+
 const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
@@ -1428,6 +1460,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
   async function handleOtherIncomeFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
+
+      if (file) {
+        setOtherIncomeImportDialogOpen(true);
+        setOtherIncomeImportPhase("reading");
+        setOtherIncomeImportProgress(6);
+        setOtherIncomeImportFileName(file.name);
+        setOtherIncomeImportResult(null);
+      }
     event.target.value = "";
 
     if (!file || importLoading) return;
@@ -1454,6 +1494,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       const rawCsv = await readOtherIncomeFileAsCsvText(file);
       const normalizedCsv = normalizeOtherIncomeFileCsvHeaders(rawCsv);
       const draftRows = parseOtherIncomeCsvDraft(normalizedCsv);
+      setOtherIncomeImportProgress(42);
       const validRows = draftRows.filter((row) => row.status !== "error");
 
       if (draftRows.length === 0) {
@@ -1473,6 +1514,8 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       let blockedRows = draftRows.length - validRows.length;
       let importedAmount = 0;
 
+      setOtherIncomeImportPhase("importing");
+      setOtherIncomeImportProgress(55);
       for (const row of validRows) {
         const accountIdForRow =
           resolveOtherIncomeAccountId(row.account, accounts) || accountId || accounts[0]?.id || null;
@@ -1502,10 +1545,20 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
         });
 
         importedRows += 1;
+        setOtherIncomeImportProgress(Math.min(92, 55 + Math.round((importedRows / Math.max(1, validRows.length)) * 37)));
         importedAmount += Number(row.amount || 0);
       }
 
       await reloadRows();
+      setOtherIncomeImportPhase("done");
+      setOtherIncomeImportProgress(100);
+      setOtherIncomeImportResult({
+        importedRows,
+        blockedRows,
+        importedAmount,
+        encoding: typeof decodedCsv !== "undefined" ? decodedCsv.encoding : undefined,
+        message: `取込が完了しました。${importedRows.toLocaleString("ja-JP")}件を登録しました。`,
+      });
       setCurrentPage(1);
 
       setImportFeedback({
@@ -1592,7 +1645,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
             <span className="text-sm font-semibold text-slate-700">現在範囲</span>
             <select
               value={otherIncomeDashboardRange}
-              onChange={(event) => setOtherIncomeDashboardRange(event.target.value as OtherIncomeDashboardRange)}
+              onChange={(event) => handleOtherIncomeDashboardRangeChange(event.target.value as OtherIncomeDashboardRange)}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
             >
               <option value="30d">直近30日</option>
@@ -1627,7 +1680,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
               />
             </label>
             <div className="flex items-end justify-end gap-2">
-              <button
+                            <button
+                type="button"
+                onClick={handleOtherIncomeCustomRangeCancelClose}
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                キャンセル
+              </button>
+<button
                 type="button"
                 onClick={handleOtherIncomeCustomRangeApply}
                 disabled={!isOtherIncomeCustomRangeDirty || !isOtherIncomeCustomRangeValid}
@@ -2457,7 +2517,99 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
         </div>
       </div>
 
-      {drawerOpen ? (
+      
+      {otherIncomeImportDialogOpen ? (
+        <div
+          data-scope="other-income-import-progress-dialog-fix8"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-[2px]"
+        >
+          <div className="w-full max-w-[560px] rounded-[30px] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-bold text-slate-950">その他収入CSV/Excel取込</div>
+                <div className="mt-1 text-sm text-slate-500">
+                  {otherIncomeImportFileName || "選択ファイル"} を処理しています。
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOtherIncomeImportDialogOpen(false)}
+                disabled={otherIncomeImportPhase === "reading" || otherIncomeImportPhase === "parsing" || otherIncomeImportPhase === "importing"}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                閉じる
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                <span>
+                  {otherIncomeImportPhase === "reading"
+                    ? "ファイル読み取り中"
+                    : otherIncomeImportPhase === "parsing"
+                      ? "データ解析中"
+                      : otherIncomeImportPhase === "importing"
+                        ? "明細登録中"
+                        : otherIncomeImportPhase === "done"
+                          ? "取込完了"
+                          : otherIncomeImportPhase === "error"
+                            ? "取込エラー"
+                            : "待機中"}
+                </span>
+                <span>{Math.max(0, Math.min(100, Math.round(otherIncomeImportProgress)))}%</span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-slate-900 transition-all duration-300"
+                  style={{ width: `${Math.max(4, Math.min(100, otherIncomeImportProgress))}%` }}
+                />
+              </div>
+            </div>
+
+            {otherIncomeImportResult ? (
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold text-slate-500">登録件数</div>
+                  <div className="mt-2 text-xl font-bold text-slate-950">
+                    {otherIncomeImportResult.importedRows.toLocaleString("ja-JP")}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold text-slate-500">スキップ</div>
+                  <div className="mt-2 text-xl font-bold text-slate-950">
+                    {otherIncomeImportResult.blockedRows.toLocaleString("ja-JP")}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold text-slate-500">登録金額</div>
+                  <div className="mt-2 text-xl font-bold text-slate-950">
+                    {formatIncomeJPY(otherIncomeImportResult.importedAmount)}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {otherIncomeImportResult?.message ? (
+              <div className={[
+                "mt-4 rounded-2xl px-4 py-3 text-sm font-semibold",
+                otherIncomeImportPhase === "error"
+                  ? "border border-rose-200 bg-rose-50 text-rose-700"
+                  : "border border-emerald-200 bg-emerald-50 text-emerald-700",
+              ].join(" ")}>
+                {otherIncomeImportResult.message}
+              </div>
+            ) : null}
+
+            {otherIncomeImportResult?.encoding ? (
+              <div className="mt-3 text-xs text-slate-500">
+                文字コード: {otherIncomeImportResult.encoding}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+{drawerOpen ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-[2px]">
           <aside className="h-full w-full max-w-[720px] overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
             <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
