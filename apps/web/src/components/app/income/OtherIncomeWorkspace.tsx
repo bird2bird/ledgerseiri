@@ -912,201 +912,10 @@ function buildOtherIncomeDashboardSeries(
 }
 
 
-// Step109-Z1-F1B-DENSE-TIMELINE:
-// Build a complete dashboard timeline for the selected period.
-// Missing day/week/month buckets are kept as amount=0/count=0 so
-// the chart represents true zero-income periods instead of looking like demo-only sampled data.
-function normalizeOtherIncomeDenseBucketStart(
-  date: Date,
-  granularity: OtherIncomeDashboardGranularity
-) {
-  const next = cloneOtherIncomeDate(date);
-
-  if (granularity === "day") {
-    next.setHours(0, 0, 0, 0);
-    return next;
-  }
-
-  if (granularity === "month") {
-    next.setDate(1);
-    next.setHours(0, 0, 0, 0);
-    return next;
-  }
-
-  const day = next.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  next.setDate(next.getDate() + diff);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function getOtherIncomeDenseBucketEnd(
-  start: Date,
-  granularity: OtherIncomeDashboardGranularity
-) {
-  const end = cloneOtherIncomeDate(start);
-
-  if (granularity === "day") {
-    end.setHours(23, 59, 59, 999);
-    return end;
-  }
-
-  if (granularity === "month") {
-    end.setMonth(end.getMonth() + 1, 0);
-    end.setHours(23, 59, 59, 999);
-    return end;
-  }
-
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
-
-function stepOtherIncomeDenseBucket(
-  date: Date,
-  granularity: OtherIncomeDashboardGranularity
-) {
-  const next = cloneOtherIncomeDate(date);
-
-  if (granularity === "day") {
-    next.setDate(next.getDate() + 1);
-    return next;
-  }
-
-  if (granularity === "month") {
-    next.setMonth(next.getMonth() + 1, 1);
-    return next;
-  }
-
-  next.setDate(next.getDate() + 7);
-  return next;
-}
-
-function formatOtherIncomeDenseBucketKey(
-  date: Date,
-  granularity: OtherIncomeDashboardGranularity
-) {
-  const start = normalizeOtherIncomeDenseBucketStart(date, granularity);
-  const y = start.getFullYear();
-  const m = String(start.getMonth() + 1).padStart(2, "0");
-  const d = String(start.getDate()).padStart(2, "0");
-
-  if (granularity === "month") {
-    return `${y}-${m}`;
-  }
-
-  return `${y}-${m}-${d}`;
-}
-
-function formatOtherIncomeDenseBucketLabel(
-  date: Date,
-  granularity: OtherIncomeDashboardGranularity
-) {
-  const start = normalizeOtherIncomeDenseBucketStart(date, granularity);
-
-  if (granularity === "month") {
-    return `${start.getMonth() + 1}月`;
-  }
-
-  return `${start.getMonth() + 1}/${start.getDate()}`;
-}
-
-function buildOtherIncomeDenseDashboardPoints(args: {
-  rows: IncomeRow[];
-  range: OtherIncomeDashboardRange;
-  granularity: OtherIncomeDashboardGranularity;
-  customBounds?: { start: Date; end: Date } | null;
-}): OtherIncomeDashboardPoint[] {
-  const { rows, range, granularity, customBounds } = args;
-
-  const latest = customBounds?.end
-    ? cloneOtherIncomeDate(customBounds.end)
-    : getOtherIncomeDashboardLatestDate(rows);
-
-  const rawStart = customBounds?.start
-    ? cloneOtherIncomeDate(customBounds.start)
-    : getOtherIncomeRangeStartDate(rows, range);
-
-  const start = normalizeOtherIncomeDenseBucketStart(rawStart, granularity);
-  const end = normalizeOtherIncomeDenseBucketStart(latest, granularity);
-
-  const map = new Map<string, OtherIncomeDashboardPoint>();
-
-  let cursor = cloneOtherIncomeDate(start);
-  let guard = 0;
-
-  while (cursor.getTime() <= end.getTime() && guard < 1200) {
-    const bucketStart = normalizeOtherIncomeDenseBucketStart(cursor, granularity);
-    const key = formatOtherIncomeDenseBucketKey(bucketStart, granularity);
-
-    map.set(key, {
-      key,
-      label: formatOtherIncomeDenseBucketLabel(bucketStart, granularity),
-      amount: 0,
-      count: 0,
-      start: bucketStart,
-      end: getOtherIncomeDenseBucketEnd(bucketStart, granularity),
-    });
-
-    cursor = stepOtherIncomeDenseBucket(cursor, granularity);
-    guard += 1;
-  }
-
-  const customStartMs = customBounds
-    ? cloneOtherIncomeDate(customBounds.start).getTime()
-    : 0;
-  const customEndMs = customBounds
-    ? cloneOtherIncomeDate(customBounds.end).getTime()
-    : 0;
-
-  for (const row of rows) {
-    const ts = parseOtherIncomeDateMs(row);
-    if (!ts) continue;
-
-    const rowDate = cloneOtherIncomeDate(new Date(ts));
-    if (Number.isNaN(rowDate.getTime())) continue;
-
-    if (customBounds) {
-      const rowMs = rowDate.getTime();
-      if (rowMs < customStartMs || rowMs > customEndMs) continue;
-    } else if (!isOtherIncomeRowInDashboardRange(row, rows, range)) {
-      continue;
-    }
-
-    const bucketStart = normalizeOtherIncomeDenseBucketStart(rowDate, granularity);
-    const key = formatOtherIncomeDenseBucketKey(bucketStart, granularity);
-    const existing = map.get(key);
-
-    if (!existing) {
-      map.set(key, {
-        key,
-        label: formatOtherIncomeDenseBucketLabel(bucketStart, granularity),
-        amount: Number(row.amount || 0),
-        count: 1,
-        start: bucketStart,
-        end: getOtherIncomeDenseBucketEnd(bucketStart, granularity),
-      });
-      continue;
-    }
-
-    map.set(key, {
-      ...existing,
-      amount: Number(existing.amount || 0) + Number(row.amount || 0),
-      count: Number(existing.count || 0) + 1,
-    });
-  }
-
-  return Array.from(map.values()).sort(
-    (a, b) => a.start.getTime() - b.start.getTime()
-  );
-}
-
-
-// Step109-Z1-F1B0-ZERO-BUCKET-FIX:
+// Step109-Z1-F1B3-ZERO-BUCKET-CLEAN-COMMIT:
 // Build a complete continuous timeline for the chart.
-// Missing day/week/month buckets must stay visible as amount=0,count=0,
-// so the chart shows true zero-income periods instead of carrying forward
-// the previous non-zero bucket visually.
+// Missing day/week/month buckets are kept as amount=0,count=0.
+// This makes zero-income days explicit instead of visually skipping them.
 function normalizeOtherIncomeDenseBucketStart(
   date: Date,
   granularity: OtherIncomeDashboardGranularity
@@ -1999,7 +1808,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-dense-timeline-f1b"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2134,7 +1943,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
             <div>
               <div className="text-xl font-semibold text-slate-950">収入推移</div>
               <div className="mt-2 text-sm leading-6 text-slate-500">
-                選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。収入が発生しなかった日も 0 円として連続表示します。収入が発生しなかった日も 0 円として連続表示します。
+                選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。収入が発生しなかった日も 0 円として連続表示します。
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
@@ -2371,7 +2180,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
           <div className="mt-3 flex items-center justify-end gap-2 text-xs text-slate-500">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-blue-600" />
-            <span>青色の棒は最新区間です。収入がない日も 0 円の区間として表示します。収入がない日も 0 円の区間として表示します</span>
+            <span>青色の棒は最新区間です。収入がない日も 0 円の区間として表示します</span>
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
