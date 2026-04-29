@@ -750,6 +750,24 @@ function formatOtherIncomeDateInput(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function formatOtherIncomeCreateDateInput(value?: string | null) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}\/\d{2}\/\d{2}/.test(raw)) return raw.slice(0, 10).replace(/\//g, "-");
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) return raw.slice(0, 10);
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10);
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
+function formatOtherIncomeCreateDateDisplay(value?: string | null) {
+  const input = formatOtherIncomeCreateDateInput(value);
+  return input ? input.replace(/-/g, "/") : "-";
+}
+
 function getOtherIncomeInclusiveRangeDays(start: Date, end: Date) {
   const diff = cloneOtherIncomeDate(end).getTime() - cloneOtherIncomeDate(start).getTime();
   return Math.max(1, Math.round(diff / 86400000) + 1);
@@ -1258,14 +1276,30 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入"
   );
 
+    // Step109-Z1-E-FIX7D-v3:
+  // Persist manual create category through [other-income-category:*] memo marker.
+  // The backend categoryId can remain a generic OTHER category; table/summary/filter use this marker.
   const submitOtherIncomeCreateWithCategory = React.useCallback(async () => {
+    const categoryLabel =
+      otherIncomeCreateCategoryLabel || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入";
+
     await submitCreate({
       memo: buildOtherIncomeEditableMemo({
         memo,
-        category: otherIncomeCreateCategoryLabel || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入",
+        category: categoryLabel,
       }),
     });
   }, [memo, otherIncomeCreateCategoryLabel, submitCreate]);
+
+  // Step109-Z1-E-FIX7D-v4: repaired malformed drawer save onClick after replacing legacy inline handler.
+  const handleOtherIncomeDrawerSave = React.useCallback(async () => {
+    if (drawerMode === "create") {
+      await submitOtherIncomeCreateWithCategory();
+      return;
+    }
+
+    await handleEditSave();
+  }, [drawerMode, submitOtherIncomeCreateWithCategory, handleEditSave]);
 
 const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -2555,35 +2589,50 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
                     <label className="block">
                 {/* Step109-Z1-E-FIX7C: create drawer category options use stable Other Income labels, not empty txCategories. */}
+                    {/* Step109-Z1-E-FIX7D-v3: persist selected category through memo marker on create save. */}
                       <div className="mb-2 text-sm font-medium text-slate-700">収入カテゴリ</div>
                       <select
-                  value={otherIncomeCreateCategoryLabel}
-                  onChange={(event) => {
-                    const nextLabel = event.target.value || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入";
-                    setOtherIncomeCreateCategoryLabel(nextLabel);
+                        value={otherIncomeCreateCategoryLabel}
+                        onChange={(e) => {
+                          const nextLabel = e.target.value || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入";
+                          const previousLabel =
+                            otherIncomeCreateCategoryLabel || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入";
 
-                    const matchedCategory = txCategories.find((item) => {
-                      const itemName = normalizeOtherIncomeCategoryLabel(item.name);
-                      const optionName = normalizeOtherIncomeCategoryLabel(nextLabel);
-                      return (
-                        itemName === optionName ||
-                        itemName.includes(optionName) ||
-                        optionName.includes(itemName)
-                      );
-                    });
+                          setOtherIncomeCreateCategoryLabel(nextLabel);
 
-                    if (matchedCategory) {
-                      setCategoryId(matchedCategory.id);
-                    }
-                  }}
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
-                >
-                  {otherIncomeCreateCategoryOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                          const matchedCategory = txCategories.find((item) => {
+                            const itemName = normalizeOtherIncomeCategoryLabel(item.name);
+                            const optionName = normalizeOtherIncomeCategoryLabel(nextLabel);
+                            return (
+                              itemName === optionName ||
+                              itemName.includes(optionName) ||
+                              optionName.includes(itemName)
+                            );
+                          });
+
+                          if (matchedCategory) {
+                            setCategoryId(matchedCategory.id);
+                          }
+
+                          const currentVisibleMemo = stripOtherIncomeMarkers(memo || "");
+                          if (
+                            !currentVisibleMemo ||
+                            currentVisibleMemo === previousLabel ||
+                            currentVisibleMemo.startsWith(`${previousLabel} /`) ||
+                            currentVisibleMemo.startsWith(`${previousLabel}／`)
+                          ) {
+                            setMemo(nextLabel);
+                          }
+                        }}
+                        disabled={formLoading || submitLoading}
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
+                      >
+                        {otherIncomeCreateCategoryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
                     </label>
 
                     <label className="block">
@@ -2599,10 +2648,11 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                     <label className="block">
                       <div className="mb-2 text-sm font-medium text-slate-700">発生日</div>
                       <input
-                        type="datetime-local"
-                        value={occurredAt}
+                        type="date"
+                        value={formatOtherIncomeCreateDateInput(occurredAt)}
                         onChange={(e) => setOccurredAt(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+                        disabled={formLoading || submitLoading}
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-50"
                       />
                     </label>
 
@@ -2684,7 +2734,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                   <div>
                     <div className="text-xs text-slate-500">発生日</div>
                     <div className="mt-1 font-semibold text-slate-900">
-                      {drawerMode === "create" ? occurredAt || "-" : editingRow?.date || "-"}
+                      {drawerMode === "create" ? formatOtherIncomeCreateDateDisplay(occurredAt) : editingRow?.date || "-"}
                     </div>
                   </div>
                 </div>
@@ -2701,14 +2751,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                   キャンセル
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (drawerMode === "create") {
-                      void saveCreate();
-                    } else {
-                      void saveEdit();
-                    }
-                  }}
+                  type="button" onClick={handleOtherIncomeDrawerSave}
                   disabled={drawerMode === "create" ? submitLoading : !editCanSave || editSaveLoading}
                   className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
