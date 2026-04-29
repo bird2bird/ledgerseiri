@@ -1116,6 +1116,82 @@ function getOtherIncomePeakPoint(points: OtherIncomeDashboardPoint[]) {
   }, null);
 }
 
+
+// Step109-Z1-F1C-ZERO-RENDER-FIX:
+// Rendering helpers. These intentionally keep amount=0 points in the SVG path.
+// Previous chart rendering visually skipped zero buckets, so empty days did not
+// drop to the ¥0 baseline and the trend line looked disconnected.
+function getOtherIncomePointAmount(point: OtherIncomeDashboardPoint) {
+  const value = Number(point.amount || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getOtherIncomeChartY(args: {
+  amount: number;
+  max: number;
+  top: number;
+  bottom: number;
+}) {
+  const max = Math.max(1, Number(args.max || 0));
+  const amount = Math.max(0, Number(args.amount || 0));
+  const plotHeight = Math.max(1, args.bottom - args.top);
+  const ratio = Math.min(1, amount / max);
+  return args.bottom - ratio * plotHeight;
+}
+
+function buildOtherIncomeTrendPolyline(args: {
+  points: OtherIncomeDashboardPoint[];
+  max: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}) {
+  const { points, max, left, right, top, bottom } = args;
+  if (!points.length) return "";
+
+  const width = Math.max(1, right - left);
+  const denominator = Math.max(1, points.length - 1);
+
+  return points
+    .map((point, index) => {
+      const x = left + (index / denominator) * width;
+      const y = getOtherIncomeChartY({
+        amount: getOtherIncomePointAmount(point),
+        max,
+        top,
+        bottom,
+      });
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function getOtherIncomeChartX(args: {
+  index: number;
+  total: number;
+  left: number;
+  right: number;
+}) {
+  const width = Math.max(1, args.right - args.left);
+  const denominator = Math.max(1, args.total - 1);
+  return args.left + (args.index / denominator) * width;
+}
+
+function getOtherIncomeStatusBarHeight(args: {
+  amount: number;
+  max: number;
+  plotHeight: number;
+}) {
+  const amount = Math.max(0, Number(args.amount || 0));
+  const max = Math.max(1, Number(args.max || 0));
+  const plotHeight = Math.max(1, Number(args.plotHeight || 0));
+
+  if (amount <= 0) return 3;
+
+  return Math.max(8, (amount / max) * plotHeight);
+}
+
 function getOtherIncomeXAxisLabelEvery(points: OtherIncomeDashboardPoint[]) {
   if (points.length <= 8) return 1;
   if (points.length <= 18) return 2;
@@ -1808,7 +1884,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-render-fix-f1c"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1943,7 +2019,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
             <div>
               <div className="text-xl font-semibold text-slate-950">収入推移</div>
               <div className="mt-2 text-sm leading-6 text-slate-500">
-                選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。収入が発生しなかった日も 0 円として連続表示します。
+                選択した期間に応じて、日別・週別・月別に自動集計したその他収入の推移です。収入が発生しなかった日も 0 円として基線まで表示します。
               </div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
