@@ -1884,7 +1884,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-render-fix-f1c"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-zero-render-fix-f1c"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2053,160 +2053,146 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
-            <svg viewBox="0 0 640 280" className="h-[300px] w-full overflow-visible">
-              {(() => {
-                const padding = { top: 22, right: 24, bottom: 44, left: 70 };
-                const innerWidth = 640 - padding.left - padding.right;
-                const innerHeight = 280 - padding.top - padding.bottom;
-                const points = otherIncomeTrendPoints;
-                const max = otherIncomeTrendMax;
-                const labelEvery = getOtherIncomeXAxisLabelEvery(points);
-                const latestDataDate = getOtherIncomeDashboardLatestDate(otherIncomeDashboardRows);
-                const plot = points.map((point, index) => {
-                  const x = padding.left + (points.length <= 1 ? innerWidth : (index / Math.max(1, points.length - 1)) * innerWidth);
-                  const hasData = point.amount > 0;
-                  const isPartialLatest =
-                    otherIncomeTrendGranularity !== "day" &&
-                    hasData &&
-                    point.start.getTime() <= latestDataDate.getTime() &&
-                    point.end.getTime() > latestDataDate.getTime() &&
-                    index === points.length - 1;
-                  const y = hasData ? padding.top + innerHeight - (point.amount / max) * innerHeight : null;
-                  return { ...point, x, y, hasData, isPartialLatest };
-                });
-                const linePaths = buildOtherIncomeSegmentedLinePaths(plot);
-                const hoveredTrendPoint = plot.find((point) => point.key === otherIncomeTrendHoverKey && point.hasData) ?? null;
+            <svg
+                data-scope="other-income-trend-svg-zero-render-f1d2"
+                viewBox="0 0 800 300"
+                className="h-full w-full overflow-visible"
+                role="img"
+                aria-label="その他収入の推移"
+              >
+                {/* Step109-Z1-F1D2-ZERO-SVG-RENDER */}
+                {(() => {
+                  const chartLeft = 92;
+                  const chartRight = 744;
+                  const chartTop = 28;
+                  const chartBottom = 250;
+                  const chartWidth = chartRight - chartLeft;
+                  const chartHeight = chartBottom - chartTop;
+                  const safeMax = Math.max(1, Number(otherIncomeTrendMax || 0));
+                  const points = otherIncomeTrendPoints;
+                  const denominator = Math.max(1, points.length - 1);
+                  const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                  const latestKey = points[points.length - 1]?.key || "";
+                  const peakKey =
+                    points
+                      .filter((point) => Number(point.amount || 0) > 0)
+                      .reduce<OtherIncomeDashboardPoint | null>((peak, point) => {
+                        if (!peak || Number(point.amount || 0) > Number(peak.amount || 0)) return point;
+                        return peak;
+                      }, null)?.key || "";
 
-                return (
-                  <>
-                    {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-                      const y = padding.top + innerHeight - tick * innerHeight;
-                      const value = Math.round(max * tick);
-                      return (
-                        <g key={tick}>
-                          <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} stroke="#E2E8F0" />
-                          <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill="#475569">
-                            {formatIncomeJPY(value)}
-                          </text>
-                        </g>
-                      );
-                    })}
-                    {plot.map((point, index) => {
-                      const isLast = index === plot.length - 1;
-                      const isPenultimate = index === plot.length - 2;
-                      const showLabel = (index % labelEvery === 0 || isLast) && !(isPenultimate && plot.length > 8);
-                      return showLabel ? (
-                        <text
-                          key={point.key}
-                          x={point.x}
-                          y={padding.top + innerHeight + 30}
-                          textAnchor="middle"
-                          fontSize="12"
-                          fill="#334155"
-                        >
-                          {point.label}
-                        </text>
-                      ) : null;
-                    })}
-                    {linePaths.map((path, index) => (
-                      <path
-                        key={`trend-line-${index}`}
-                        d={path}
+                  const toX = (index: number) =>
+                    chartLeft + (index / denominator) * chartWidth;
+
+                  const toY = (amount: number) => {
+                    const value = Math.max(0, Number(amount || 0));
+                    const ratio = Math.min(1, value / safeMax);
+                    return chartBottom - ratio * chartHeight;
+                  };
+
+                  const polylinePoints = points
+                    .map((point, index) => `${toX(index).toFixed(2)},${toY(point.amount).toFixed(2)}`)
+                    .join(" ");
+
+                  const zeroLineY = toY(0);
+
+                  return (
+                    <>
+                      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                        const y = chartBottom - ratio * chartHeight;
+                        const value = safeMax * ratio;
+                        return (
+                          <g key={`trend-grid-${ratio}`}>
+                            <line
+                              x1={chartLeft}
+                              x2={chartRight}
+                              y1={y}
+                              y2={y}
+                              stroke={ratio === 0 ? "#cbd5e1" : "#e2e8f0"}
+                              strokeWidth={ratio === 0 ? 1.4 : 1}
+                            />
+                            <text
+                              x={chartLeft - 14}
+                              y={y + 4}
+                              textAnchor="end"
+                              className="fill-slate-600 text-[12px] font-medium"
+                            >
+                              {formatIncomeJPY(value)}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      <polyline
+                        points={polylinePoints}
                         fill="none"
-                        stroke="#0F172A"
-                        strokeWidth="3.5"
+                        stroke="#111827"
+                        strokeWidth={4}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
-                    ))}
-                    {plot.map((point, index) => {
-                      if (!point.hasData || point.y == null) return null;
 
-                      const isLatest = index === plot.length - 1;
-                      const isPeak = otherIncomePeakTrendPoint?.key === point.key && point.amount > 0;
-                      const isHovered = otherIncomeTrendHoverKey === point.key;
-                      const dotRadius = isHovered ? 7 : isPeak ? 5.5 : isLatest ? 5 : 3.5;
+                      <polyline
+                        points={polylinePoints}
+                        fill="none"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity={0.35}
+                      />
 
-                      return (
-                        <g
-                          key={point.key}
-                          onMouseEnter={() => setOtherIncomeTrendHoverKey(point.key)}
-                          onMouseLeave={() => setOtherIncomeTrendHoverKey(null)}
-                          className="cursor-pointer"
-                        >
-                          <circle
-                            cx={point.x}
-                            cy={point.y}
-                            r={Math.max(12, dotRadius + 7)}
-                            fill="transparent"
-                          />
-                          {point.isPartialLatest ? (
-                            <line
-                              x1={point.x}
-                              y1={point.y}
-                              x2={point.x}
-                              y2={padding.top + innerHeight}
-                              stroke="#059669"
-                              strokeDasharray="4 4"
-                              opacity="0.55"
-                            />
-                          ) : null}
-                          <circle
-                            cx={point.x}
-                            cy={point.y}
-                            r={dotRadius}
-                            fill={isLatest ? "#059669" : isPeak ? "#2563EB" : "#2563EB"}
-                            stroke="white"
-                            strokeWidth="2"
-                          />
-                        </g>
-                      );
-                    })}
-                    {hoveredTrendPoint && hoveredTrendPoint.y != null ? (
-                      <g className="pointer-events-none">
-                        {(() => {
-                          const tooltipWidth = 148;
-                          const tooltipHeight = 58;
-                          const tooltipX = Math.min(
-                            Math.max(hoveredTrendPoint.x - tooltipWidth / 2, padding.left),
-                            padding.left + innerWidth - tooltipWidth
-                          );
-                          const tooltipY = Math.max(hoveredTrendPoint.y - tooltipHeight - 14, padding.top + 2);
+                      {points.map((point, index) => {
+                        const x = toX(index);
+                        const y = toY(point.amount);
+                        const amount = Number(point.amount || 0);
+                        const isZero = amount <= 0;
+                        const isLatest = point.key === latestKey;
+                        const isPeak = point.key === peakKey && amount > 0;
 
-                          return (
-                            <>
-                              <line
-                                x1={hoveredTrendPoint.x}
-                                y1={padding.top}
-                                x2={hoveredTrendPoint.x}
-                                y2={padding.top + innerHeight}
-                                stroke="#CBD5E1"
-                                strokeDasharray="4 4"
+                        return (
+                          <g key={`trend-point-${point.key}`}>
+                            {isZero ? (
+                              <circle
+                                cx={x}
+                                cy={zeroLineY}
+                                r={2.6}
+                                className="fill-white stroke-slate-300"
+                                strokeWidth={1.4}
                               />
-                              <rect
-                                x={tooltipX}
-                                y={tooltipY}
-                                width={tooltipWidth}
-                                height={tooltipHeight}
-                                rx="14"
-                                fill="#0F172A"
-                                opacity="0.96"
+                            ) : (
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r={isLatest || isPeak ? 5.8 : 3.2}
+                                className={
+                                  isLatest
+                                    ? "fill-emerald-500 stroke-white"
+                                    : isPeak
+                                      ? "fill-blue-600 stroke-white"
+                                      : "fill-blue-600 stroke-white"
+                                }
+                                strokeWidth={2}
                               />
-                              <text x={tooltipX + 14} y={tooltipY + 22} fontSize="12" fontWeight="700" fill="#FFFFFF">
-                                {hoveredTrendPoint.label}
+                            )}
+
+                            {index % labelEvery === 0 || index === points.length - 1 ? (
+                              <text
+                                x={x}
+                                y={chartBottom + 30}
+                                textAnchor="middle"
+                                className="fill-slate-700 text-[12px] font-medium"
+                              >
+                                {point.label}
                               </text>
-                              <text x={tooltipX + 14} y={tooltipY + 42} fontSize="12" fill="#CBD5E1">
-                                {formatIncomeJPY(hoveredTrendPoint.amount)} / {hoveredTrendPoint.count}件
-                              </text>
-                            </>
-                          );
-                        })()}
-                      </g>
-                    ) : null}
-                  </>
-                );
-              })()}
-            </svg>
+                            ) : null}
+                          </g>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </svg>
           </div>
         </div>
 
@@ -2260,127 +2246,118 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           </div>
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
-            <svg viewBox="0 0 460 280" className="h-[300px] w-full overflow-visible">
-              {(() => {
-                const padding = { top: 22, right: 18, bottom: 44, left: 66 };
-                const innerWidth = 460 - padding.left - padding.right;
-                const innerHeight = 280 - padding.top - padding.bottom;
-                const points = otherIncomeStatusPoints;
-                const max = otherIncomeStatusMax;
-                const labelEvery = getOtherIncomeXAxisLabelEvery(points);
-                const latestDataDate = getOtherIncomeDashboardLatestDate(otherIncomeDashboardRows);
-                const barCount = Math.max(1, points.length);
-                const gap = barCount > 40 ? 2 : barCount > 24 ? 4 : 8;
-                const columnWidth = Math.max(4, Math.min(32, (innerWidth - gap * Math.max(0, barCount - 1)) / barCount));
+            <svg
+                data-scope="other-income-status-svg-zero-render-f1d2"
+                viewBox="0 0 800 300"
+                className="h-full w-full overflow-visible"
+                role="img"
+                aria-label="その他収入の期間別状況"
+              >
+                {/* Step109-Z1-F1D2-ZERO-SVG-RENDER */}
+                {(() => {
+                  const chartLeft = 92;
+                  const chartRight = 744;
+                  const chartTop = 28;
+                  const chartBottom = 250;
+                  const chartWidth = chartRight - chartLeft;
+                  const chartHeight = chartBottom - chartTop;
+                  const safeMax = Math.max(1, Number(otherIncomeStatusMax || 0));
+                  const points = otherIncomeStatusPoints;
+                  const count = Math.max(1, points.length);
+                  const gap = points.length > 45 ? 3 : points.length > 28 ? 5 : 8;
+                  const barWidth = Math.max(4, Math.min(18, (chartWidth - gap * (count - 1)) / count));
+                  const labelEvery = getOtherIncomeXAxisLabelEvery(points);
+                  const latestKey = points[points.length - 1]?.key || "";
+                  const peakKey =
+                    points
+                      .filter((point) => Number(point.amount || 0) > 0)
+                      .reduce<OtherIncomeDashboardPoint | null>((peak, point) => {
+                        if (!peak || Number(point.amount || 0) > Number(peak.amount || 0)) return point;
+                        return peak;
+                      }, null)?.key || "";
 
-                return (
-                  <>
-                    {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
-                      const y = padding.top + innerHeight - tick * innerHeight;
-                      const value = Math.round(max * tick);
-                      return (
-                        <g key={tick}>
-                          <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} stroke="#E2E8F0" />
-                          <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill="#475569">
-                            {formatIncomeJPY(value)}
-                          </text>
-                        </g>
-                      );
-                    })}
-                    {points.map((point, index) => {
-                      const x = padding.left + index * (columnWidth + gap);
-                      const h = (point.amount / max) * innerHeight;
-                      const y = padding.top + innerHeight - h;
-                      const isLatest = index === points.length - 1;
-                      const isPeak = otherIncomePeakStatusPoint?.key === point.key && point.amount > 0;
-                      const isHovered = otherIncomeStatusHoverKey === point.key;
+                  const toX = (index: number) =>
+                    chartLeft + index * (barWidth + gap);
 
-                      const isPartialLatest =
-                        otherIncomeStatusGranularity !== "day" &&
-                        point.amount > 0 &&
-                        point.start.getTime() <= latestDataDate.getTime() &&
-                        point.end.getTime() > latestDataDate.getTime() &&
-                        index === points.length - 1;
+                  const toBarHeight = (amount: number) => {
+                    const value = Math.max(0, Number(amount || 0));
+                    if (value <= 0) return 4;
+                    const ratio = Math.min(1, value / safeMax);
+                    return Math.max(8, ratio * chartHeight);
+                  };
 
-                      return (
-                        <g
-                          key={point.key}
-                          onMouseEnter={() => setOtherIncomeStatusHoverKey(point.key)}
-                          onMouseLeave={() => setOtherIncomeStatusHoverKey(null)}
-                          className="cursor-pointer"
-                        >
-                          <rect
-                            x={x}
-                            y={padding.top}
-                            width={Math.max(columnWidth, 8)}
-                            height={innerHeight}
-                            fill="transparent"
-                          />
-                          <rect
-                            x={x}
-                            y={y}
-                            width={columnWidth}
-                            height={Math.max(2, h)}
-                            rx={Math.min(10, columnWidth / 2)}
-                            fill={isLatest ? "#2563EB" : isPeak ? "#475569" : "#64748B"}
-                            opacity={isHovered || isLatest || isPeak ? "1" : "0.78"}
-                          />
-                          {isHovered && point.amount > 0 ? (
-                            <g className="pointer-events-none">
-                              {(() => {
-                                const tooltipWidth = 138;
-                                const tooltipHeight = 56;
-                                const tooltipX = Math.min(
-                                  Math.max(x + columnWidth / 2 - tooltipWidth / 2, padding.left),
-                                  padding.left + innerWidth - tooltipWidth
-                                );
-                                const tooltipY = Math.max(y - tooltipHeight - 12, padding.top + 2);
+                  return (
+                    <>
+                      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                        const y = chartBottom - ratio * chartHeight;
+                        const value = safeMax * ratio;
+                        return (
+                          <g key={`status-grid-${ratio}`}>
+                            <line
+                              x1={chartLeft}
+                              x2={chartRight}
+                              y1={y}
+                              y2={y}
+                              stroke={ratio === 0 ? "#cbd5e1" : "#e2e8f0"}
+                              strokeWidth={ratio === 0 ? 1.4 : 1}
+                            />
+                            <text
+                              x={chartLeft - 14}
+                              y={y + 4}
+                              textAnchor="end"
+                              className="fill-slate-600 text-[12px] font-medium"
+                            >
+                              {formatIncomeJPY(value)}
+                            </text>
+                          </g>
+                        );
+                      })}
 
-                                return (
-                                  <>
-                                    <rect
-                                      x={tooltipX}
-                                      y={tooltipY}
-                                      width={tooltipWidth}
-                                      height={tooltipHeight}
-                                      rx="14"
-                                      fill="#0F172A"
-                                      opacity="0.96"
-                                    />
-                                    <text x={tooltipX + 14} y={tooltipY + 22} fontSize="12" fontWeight="700" fill="#FFFFFF">
-                                      {point.label}
-                                    </text>
-                                    <text x={tooltipX + 14} y={tooltipY + 42} fontSize="12" fill="#CBD5E1">
-                                      {formatIncomeJPY(point.amount)} / {point.count}件
-                                    </text>
-                                  </>
-                                );
-                              })()}
-                            </g>
-                          ) : null}
-                          {(() => {
-                            const isLast = index === points.length - 1;
-                            const isPenultimate = index === points.length - 2;
-                            const showLabel = (index % labelEvery === 0 || isLast) && !(isPenultimate && points.length > 8);
-                            return showLabel ? (
+                      {points.map((point, index) => {
+                        const amount = Number(point.amount || 0);
+                        const height = toBarHeight(amount);
+                        const x = toX(index);
+                        const y = chartBottom - height;
+                        const isZero = amount <= 0;
+                        const isLatest = point.key === latestKey;
+                        const isPeak = point.key === peakKey && amount > 0;
+
+                        return (
+                          <g key={`status-bar-${point.key}`}>
+                            <rect
+                              x={x}
+                              y={isZero ? chartBottom - 4 : y}
+                              width={barWidth}
+                              height={height}
+                              rx={barWidth / 2}
+                              className={
+                                isLatest
+                                  ? "fill-blue-600"
+                                  : isPeak
+                                    ? "fill-slate-500"
+                                    : isZero
+                                      ? "fill-slate-300"
+                                      : "fill-slate-400"
+                              }
+                              opacity={isZero ? 0.7 : 1}
+                            />
+                            {index % labelEvery === 0 || index === points.length - 1 ? (
                               <text
-                                x={x + columnWidth / 2}
-                                y={padding.top + innerHeight + 30}
+                                x={x + barWidth / 2}
+                                y={chartBottom + 30}
                                 textAnchor="middle"
-                                fontSize="11"
-                                fill="#334155"
+                                className="fill-slate-700 text-[12px] font-medium"
                               >
                                 {point.label}
                               </text>
-                            ) : null;
-                          })()}
-                        </g>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </svg>
+                            ) : null}
+                          </g>
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </svg>
           </div>
         </div>
       </section>
