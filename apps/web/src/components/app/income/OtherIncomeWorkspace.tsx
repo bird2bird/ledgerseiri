@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
@@ -1251,6 +1251,22 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     );
   }, [rows]);
 
+
+  // Step109-Z1-E-FIX7B:
+
+  const [otherIncomeCreateCategoryLabel, setOtherIncomeCreateCategoryLabel] = React.useState(
+    OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入"
+  );
+
+  const submitOtherIncomeCreateWithCategory = React.useCallback(async () => {
+    await submitCreate({
+      memo: buildOtherIncomeEditableMemo({
+        memo,
+        category: otherIncomeCreateCategoryLabel || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入",
+      }),
+    });
+  }, [memo, otherIncomeCreateCategoryLabel, submitCreate]);
+
 const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
@@ -1522,14 +1538,33 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">収入元選択</span>
             <select
-              value={otherIncomeSourceFilter}
-              onChange={(event) =>
-                    <option value="">未選択</option>
-                    {otherIncomeCreateCategoryOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}</select>
+                value={otherIncomeCreateCategoryLabel}
+                onChange={(event) => {
+                  const nextLabel = event.target.value;
+                  setOtherIncomeCreateCategoryLabel(nextLabel);
+
+                  const matchedCategory = txCategories.find((item) => {
+                    const itemName = normalizeOtherIncomeCategoryLabel(item.name);
+                    const optionName = normalizeOtherIncomeCategoryLabel(nextLabel);
+                    return (
+                      itemName === optionName ||
+                      itemName.includes(optionName) ||
+                      optionName.includes(itemName)
+                    );
+                  });
+
+                  if (matchedCategory) {
+                    setCategoryId(matchedCategory.id);
+                  }
+                }}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+              >
+                {otherIncomeCreateCategoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
           </label>
 
           <label className="space-y-2">
