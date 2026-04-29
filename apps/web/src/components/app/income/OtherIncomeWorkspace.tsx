@@ -1884,7 +1884,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-zero-render-fix-f1c"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-chart-visual-refine-f1e other-income-zero-render-fix-f1c"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2054,13 +2054,23 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
             <svg
-                data-scope="other-income-trend-svg-zero-render-f1d2"
+                data-scope="other-income-trend-svg-visual-refine-f1e"
                 viewBox="0 0 800 300"
                 className="h-full w-full overflow-visible"
                 role="img"
                 aria-label="その他収入の推移"
               >
-                {/* Step109-Z1-F1D2-ZERO-SVG-RENDER */}
+                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE */}
+                <defs>
+                  <linearGradient id="otherIncomeTrendAreaF1E" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.18" />
+                    <stop offset="68%" stopColor="#2563eb" stopOpacity="0.06" />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+                  </linearGradient>
+                  <filter id="otherIncomePointShadowF1E" x="-40%" y="-40%" width="180%" height="180%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#0f172a" floodOpacity="0.18" />
+                  </filter>
+                </defs>
                 {(() => {
                   const chartLeft = 92;
                   const chartRight = 744;
@@ -2094,10 +2104,27 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                     .map((point, index) => `${toX(index).toFixed(2)},${toY(point.amount).toFixed(2)}`)
                     .join(" ");
 
+                  const areaPoints =
+                    points.length > 0
+                      ? `${chartLeft},${chartBottom} ${polylinePoints} ${chartRight},${chartBottom}`
+                      : "";
+
                   const zeroLineY = toY(0);
+
+                  const tooltipX = (x: number) => Math.min(chartRight - 170, Math.max(chartLeft + 8, x - 80));
+                  const tooltipY = (y: number) => Math.max(chartTop + 8, y - 58);
 
                   return (
                     <>
+                      <rect
+                        x={chartLeft}
+                        y={chartTop}
+                        width={chartWidth}
+                        height={chartHeight}
+                        rx={18}
+                        className="fill-white/40"
+                      />
+
                       {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                         const y = chartBottom - ratio * chartHeight;
                         const value = safeMax * ratio;
@@ -2108,8 +2135,9 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               x2={chartRight}
                               y1={y}
                               y2={y}
-                              stroke={ratio === 0 ? "#cbd5e1" : "#e2e8f0"}
-                              strokeWidth={ratio === 0 ? 1.4 : 1}
+                              stroke={ratio === 0 ? "#cbd5e1" : "#e5e7eb"}
+                              strokeWidth={ratio === 0 ? 1.5 : 1}
+                              strokeDasharray={ratio === 0 ? "0" : "4 8"}
                             />
                             <text
                               x={chartLeft - 14}
@@ -2123,11 +2151,18 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                         );
                       })}
 
+                      {areaPoints ? (
+                        <polygon
+                          points={areaPoints}
+                          fill="url(#otherIncomeTrendAreaF1E)"
+                        />
+                      ) : null}
+
                       <polyline
                         points={polylinePoints}
                         fill="none"
-                        stroke="#111827"
-                        strokeWidth={4}
+                        stroke="#020617"
+                        strokeWidth={4.2}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
@@ -2135,11 +2170,11 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                       <polyline
                         points={polylinePoints}
                         fill="none"
-                        stroke="#2563eb"
-                        strokeWidth={2}
+                        stroke="#3b82f6"
+                        strokeWidth={2.2}
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        opacity={0.35}
+                        opacity={0.5}
                       />
 
                       {points.map((point, index) => {
@@ -2149,32 +2184,85 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                         const isZero = amount <= 0;
                         const isLatest = point.key === latestKey;
                         const isPeak = point.key === peakKey && amount > 0;
+                        const tx = tooltipX(x);
+                        const ty = tooltipY(y);
 
                         return (
-                          <g key={`trend-point-${point.key}`}>
+                          <g key={`trend-point-${point.key}`} className="group">
+                            <rect
+                              x={x - 11}
+                              y={chartTop}
+                              width={22}
+                              height={chartHeight + 24}
+                              fill="transparent"
+                            />
+
                             {isZero ? (
                               <circle
                                 cx={x}
                                 cy={zeroLineY}
-                                r={2.6}
+                                r={2.2}
                                 className="fill-white stroke-slate-300"
-                                strokeWidth={1.4}
+                                strokeWidth={1.2}
+                                opacity={0.62}
                               />
                             ) : (
-                              <circle
-                                cx={x}
-                                cy={y}
-                                r={isLatest || isPeak ? 5.8 : 3.2}
-                                className={
-                                  isLatest
-                                    ? "fill-emerald-500 stroke-white"
-                                    : isPeak
-                                      ? "fill-blue-600 stroke-white"
-                                      : "fill-blue-600 stroke-white"
-                                }
-                                strokeWidth={2}
-                              />
+                              <>
+                                {(isLatest || isPeak) ? (
+                                  <circle
+                                    cx={x}
+                                    cy={y}
+                                    r={8.6}
+                                    className={
+                                      isLatest
+                                        ? "fill-emerald-100 stroke-emerald-500"
+                                        : "fill-blue-100 stroke-blue-500"
+                                    }
+                                    strokeWidth={2}
+                                    filter="url(#otherIncomePointShadowF1E)"
+                                  />
+                                ) : null}
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={isLatest || isPeak ? 5.2 : 3.2}
+                                  className={
+                                    isLatest
+                                      ? "fill-emerald-500 stroke-white"
+                                      : isPeak
+                                        ? "fill-blue-600 stroke-white"
+                                        : "fill-blue-600 stroke-white"
+                                  }
+                                  strokeWidth={2}
+                                />
+                              </>
                             )}
+
+                            <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                              <rect
+                                x={tx}
+                                y={ty}
+                                width={164}
+                                height={48}
+                                rx={12}
+                                className="fill-white stroke-slate-200"
+                                filter="url(#otherIncomePointShadowF1E)"
+                              />
+                              <text
+                                x={tx + 14}
+                                y={ty + 19}
+                                className="fill-slate-500 text-[11px] font-semibold"
+                              >
+                                {point.label}
+                              </text>
+                              <text
+                                x={tx + 14}
+                                y={ty + 36}
+                                className="fill-slate-950 text-[13px] font-bold"
+                              >
+                                {formatIncomeJPY(amount)}
+                              </text>
+                            </g>
 
                             {index % labelEvery === 0 || index === points.length - 1 ? (
                               <text
@@ -2247,13 +2335,22 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
             <svg
-                data-scope="other-income-status-svg-zero-render-f1d2"
+                data-scope="other-income-status-svg-visual-refine-f1e"
                 viewBox="0 0 800 300"
                 className="h-full w-full overflow-visible"
                 role="img"
                 aria-label="その他収入の期間別状況"
               >
-                {/* Step109-Z1-F1D2-ZERO-SVG-RENDER */}
+                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE */}
+                <defs>
+                  <linearGradient id="otherIncomeStatusLatestF1E" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity="1" />
+                  </linearGradient>
+                  <filter id="otherIncomeBarShadowF1E" x="-30%" y="-30%" width="160%" height="160%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#0f172a" floodOpacity="0.12" />
+                  </filter>
+                </defs>
                 {(() => {
                   const chartLeft = 92;
                   const chartRight = 744;
@@ -2281,13 +2378,25 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
                   const toBarHeight = (amount: number) => {
                     const value = Math.max(0, Number(amount || 0));
-                    if (value <= 0) return 4;
+                    if (value <= 0) return 3;
                     const ratio = Math.min(1, value / safeMax);
-                    return Math.max(8, ratio * chartHeight);
+                    return Math.max(9, ratio * chartHeight);
                   };
+
+                  const tooltipX = (x: number) => Math.min(chartRight - 170, Math.max(chartLeft + 8, x - 78));
+                  const tooltipY = (height: number) => Math.max(chartTop + 8, chartBottom - height - 58);
 
                   return (
                     <>
+                      <rect
+                        x={chartLeft}
+                        y={chartTop}
+                        width={chartWidth}
+                        height={chartHeight}
+                        rx={18}
+                        className="fill-white/40"
+                      />
+
                       {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                         const y = chartBottom - ratio * chartHeight;
                         const value = safeMax * ratio;
@@ -2298,8 +2407,9 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               x2={chartRight}
                               y1={y}
                               y2={y}
-                              stroke={ratio === 0 ? "#cbd5e1" : "#e2e8f0"}
-                              strokeWidth={ratio === 0 ? 1.4 : 1}
+                              stroke={ratio === 0 ? "#cbd5e1" : "#e5e7eb"}
+                              strokeWidth={ratio === 0 ? 1.5 : 1}
+                              strokeDasharray={ratio === 0 ? "0" : "4 8"}
                             />
                             <text
                               x={chartLeft - 14}
@@ -2321,26 +2431,64 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                         const isZero = amount <= 0;
                         const isLatest = point.key === latestKey;
                         const isPeak = point.key === peakKey && amount > 0;
+                        const tx = tooltipX(x + barWidth / 2);
+                        const ty = tooltipY(height);
 
                         return (
-                          <g key={`status-bar-${point.key}`}>
+                          <g key={`status-bar-${point.key}`} className="group">
+                            <rect
+                              x={x - Math.max(3, gap / 2)}
+                              y={chartTop}
+                              width={barWidth + Math.max(6, gap)}
+                              height={chartHeight + 24}
+                              fill="transparent"
+                            />
+
                             <rect
                               x={x}
-                              y={isZero ? chartBottom - 4 : y}
+                              y={isZero ? chartBottom - 3 : y}
                               width={barWidth}
                               height={height}
                               rx={barWidth / 2}
                               className={
                                 isLatest
-                                  ? "fill-blue-600"
+                                  ? "fill-[url(#otherIncomeStatusLatestF1E)]"
                                   : isPeak
                                     ? "fill-slate-500"
                                     : isZero
-                                      ? "fill-slate-300"
+                                      ? "fill-slate-200"
                                       : "fill-slate-400"
                               }
-                              opacity={isZero ? 0.7 : 1}
+                              opacity={isZero ? 0.78 : 1}
+                              filter={isLatest || isPeak ? "url(#otherIncomeBarShadowF1E)" : undefined}
                             />
+
+                            <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                              <rect
+                                x={tx}
+                                y={ty}
+                                width={164}
+                                height={48}
+                                rx={12}
+                                className="fill-white stroke-slate-200"
+                                filter="url(#otherIncomeBarShadowF1E)"
+                              />
+                              <text
+                                x={tx + 14}
+                                y={ty + 19}
+                                className="fill-slate-500 text-[11px] font-semibold"
+                              >
+                                {point.label}
+                              </text>
+                              <text
+                                x={tx + 14}
+                                y={ty + 36}
+                                className="fill-slate-950 text-[13px] font-bold"
+                              >
+                                {formatIncomeJPY(amount)}
+                              </text>
+                            </g>
+
                             {index % labelEvery === 0 || index === points.length - 1 ? (
                               <text
                                 x={x + barWidth / 2}
