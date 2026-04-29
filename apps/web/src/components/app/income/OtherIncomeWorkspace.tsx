@@ -1556,7 +1556,8 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
         importedRows,
         blockedRows,
         importedAmount,
-        encoding: typeof decodedCsv !== "undefined" ? decodedCsv.encoding : undefined,
+        // Step109-Z1-E-FIX8D: active reader does not expose encoding in this scope.
+        encoding: undefined,
         message: `取込が完了しました。${importedRows.toLocaleString("ja-JP")}件を登録しました。`,
       });
       setCurrentPage(1);
