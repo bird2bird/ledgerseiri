@@ -458,7 +458,8 @@ export function DashboardSidebar() {
           leaf("store-ops", t.storeOpsExpense, "/app/expenses/store-operation"),
           leaf("company-ops", t.companyOpsExpense, "/app/expenses?category=other"),
           leaf("salary", t.salary, "/app/expenses?category=payroll"),
-          leaf("other-expense", t.otherExpense, "/app/expenses?category=other"),
+          // Step109-Z1-G2-EXACT-FIX-OTHER-EXPENSE-SIDEBAR-HREF: その他支出 must route to /app/other-expense, not category=other.
+          leaf("other-expense", t.otherExpense, "/app/other-expense"),
         ], "/app/expenses"),
       ]),
 
