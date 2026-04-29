@@ -1,10 +1,11 @@
 "use client";
-import React from "react";
-export default function Page(){
-  return (
-    <div className="ls-card-solid p-4">
-      <div className="text-sm font-semibold text-slate-900">MVP</div>
-      <div className="mt-2 text-[12px] text-slate-500">This page is a placeholder. Next step: real UI + API wiring.</div>
-    </div>
-  );
+
+import { useParams } from "next/navigation";
+import { ExpenseCategoryProductWorkspace } from "@/components/app/expenses/ExpenseCategoryProductWorkspace";
+
+export default function OtherExpensePage() {
+  const params = useParams<{ lang: string }>();
+  const lang = params?.lang ?? "ja";
+
+  return <ExpenseCategoryProductWorkspace lang={lang} kind="other-expense" />;
 }

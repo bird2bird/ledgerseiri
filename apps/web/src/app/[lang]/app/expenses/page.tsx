@@ -12,6 +12,7 @@ import {
 import { useExpensesPageState } from "@/core/transactions/use-expenses-page-state";
 import { useExpensesPageOrchestration } from "@/core/transactions/use-expenses-page-orchestration";
 import { renderExpensesPageShell } from "@/core/transactions/expenses-page-shell";
+import { ExpenseCategoryProductWorkspace } from "@/components/app/expenses/ExpenseCategoryProductWorkspace";
 
 export default function Page() {
   const params = useParams<{ lang: string }>();
@@ -28,6 +29,20 @@ export default function Page() {
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
 
   const category = normalizeExpenseCategoryParam(searchParams.get("category"));
+
+  // Step109-Z1-G1B-EXPENSE-CATEGORY-EXISTING-ROUTES:
+  // Keep current sidebar URLs stable.
+  // /app/expenses?category=payroll -> 給与 product page
+  // /app/expenses?category=other   -> 会社運営費 product page
+  // /app/other-expense             -> その他支出 product page alias
+  if (category === "payroll") {
+    return <ExpenseCategoryProductWorkspace lang={lang} kind="payroll" />;
+  }
+
+  if (category === "other") {
+    return <ExpenseCategoryProductWorkspace lang={lang} kind="company-operation" />;
+  }
+
   const isDashboard = isDashboardSource(from);
 
   const state = useExpensesPageState({
