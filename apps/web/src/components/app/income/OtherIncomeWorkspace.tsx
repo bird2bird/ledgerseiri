@@ -1290,17 +1290,6 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
       }),
     });
   }, [memo, otherIncomeCreateCategoryLabel, submitCreate]);
-
-  // Step109-Z1-E-FIX7D-v4: repaired malformed drawer save onClick after replacing legacy inline handler.
-  const handleOtherIncomeDrawerSave = React.useCallback(async () => {
-    if (drawerMode === "create") {
-      await submitOtherIncomeCreateWithCategory();
-      return;
-    }
-
-    await handleEditSave();
-  }, [drawerMode, submitOtherIncomeCreateWithCategory, handleEditSave]);
-
 const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
@@ -1312,6 +1301,17 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const createOpen = action === "create";
   const editOpen = action === "edit" || drawerRow !== null;
   const drawerMode: "create" | "edit" = createOpen ? "create" : "edit";
+  // Step109-Z1-E-FIX7E-v2:
+  // Drawer save handler must be declared after drawerMode.
+  const handleOtherIncomeDrawerSave = React.useCallback(async () => {
+    if (drawerMode === "create") {
+      await submitOtherIncomeCreateWithCategory();
+      return;
+    }
+
+    await handleEditSave();
+  }, [drawerMode, submitOtherIncomeCreateWithCategory, handleEditSave]);
+
   const editingRow = drawerRow ?? selectedRow;
   const drawerOpen = createOpen || (editOpen && !!editingRow);
 
