@@ -1538,33 +1538,20 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">収入元選択</span>
             <select
-                value={otherIncomeCreateCategoryLabel}
-                onChange={(event) => {
-                  const nextLabel = event.target.value;
-                  setOtherIncomeCreateCategoryLabel(nextLabel);
-
-                  const matchedCategory = txCategories.find((item) => {
-                    const itemName = normalizeOtherIncomeCategoryLabel(item.name);
-                    const optionName = normalizeOtherIncomeCategoryLabel(nextLabel);
-                    return (
-                      itemName === optionName ||
-                      itemName.includes(optionName) ||
-                      optionName.includes(itemName)
-                    );
-                  });
-
-                  if (matchedCategory) {
-                    setCategoryId(matchedCategory.id);
-                  }
-                }}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
-              >
-                {otherIncomeCreateCategoryOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+              value={otherIncomeSourceFilter}
+              onChange={(event) => {
+                setOtherIncomeSourceFilter(event.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+            >
+              <option value="all">全収入元</option>
+              {otherIncomeSourceOptions.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="space-y-2">
@@ -2567,19 +2554,36 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                     </label>
 
                     <label className="block">
+                {/* Step109-Z1-E-FIX7C: create drawer category options use stable Other Income labels, not empty txCategories. */}
                       <div className="mb-2 text-sm font-medium text-slate-700">収入カテゴリ</div>
                       <select
-                        value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
-                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm"
-                      >
-                        <option value="">未選択</option>
-                        {txCategories.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
+                  value={otherIncomeCreateCategoryLabel}
+                  onChange={(event) => {
+                    const nextLabel = event.target.value || OTHER_INCOME_STANDARD_CATEGORY_LABELS[0] || "その他収入";
+                    setOtherIncomeCreateCategoryLabel(nextLabel);
+
+                    const matchedCategory = txCategories.find((item) => {
+                      const itemName = normalizeOtherIncomeCategoryLabel(item.name);
+                      const optionName = normalizeOtherIncomeCategoryLabel(nextLabel);
+                      return (
+                        itemName === optionName ||
+                        itemName.includes(optionName) ||
+                        optionName.includes(itemName)
+                      );
+                    });
+
+                    if (matchedCategory) {
+                      setCategoryId(matchedCategory.id);
+                    }
+                  }}
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
+                >
+                  {otherIncomeCreateCategoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
                     </label>
 
                     <label className="block">
