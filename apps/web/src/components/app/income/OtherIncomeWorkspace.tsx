@@ -1201,7 +1201,57 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const visibleRows = sortedRows.slice(pageStart, pageStart + pageSize);
   const pageStartRow = totalRows === 0 ? 0 : pageStart + 1;
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
-  const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
+  
+  // Step109-Z1-E-FIX7:
+  // Keep custom-range date inputs as draft state.
+  // KPI / charts continue to follow the applied state (otherIncomeDraftStartDate / otherIncomeDraftEndDate)
+  // until the user clicks "確定".
+  const [otherIncomeDraftCustomStartDate, setOtherIncomeDraftCustomStartDate] = useState(otherIncomeDraftStartDate);
+  const [otherIncomeDraftCustomEndDate, setOtherIncomeDraftCustomEndDate] = useState(otherIncomeDraftEndDate);
+
+  useEffect(() => {
+    setOtherIncomeDraftCustomStartDate(otherIncomeDraftStartDate);
+    setOtherIncomeDraftCustomEndDate(otherIncomeDraftEndDate);
+  }, [otherIncomeDraftStartDate, otherIncomeDraftEndDate]);
+
+  const isOtherIncomeCustomRangeValid =
+    !!otherIncomeDraftCustomStartDate &&
+    !!otherIncomeDraftCustomEndDate &&
+    otherIncomeDraftCustomStartDate <= otherIncomeDraftCustomEndDate;
+
+  const isOtherIncomeCustomRangeDirty =
+    otherIncomeDraftCustomStartDate !== otherIncomeDraftStartDate ||
+    otherIncomeDraftCustomEndDate !== otherIncomeDraftEndDate;
+
+  const handleOtherIncomeCustomRangeCancel = () => {
+    setOtherIncomeDraftCustomStartDate(otherIncomeDraftStartDate);
+    setOtherIncomeDraftCustomEndDate(otherIncomeDraftEndDate);
+  };
+
+  const handleOtherIncomeCustomRangeApply = () => {
+    if (!isOtherIncomeCustomRangeValid) return;
+    setOtherIncomeDraftStartDate(otherIncomeDraftCustomStartDate);
+    setOtherIncomeDraftEndDate(otherIncomeDraftCustomEndDate);
+  };
+
+  const otherIncomeCreateCategoryOptions = useMemo(() => {
+    const discovered = Array.from(
+      new Set(
+        (rows || [])
+          .map((row) => normalizeOtherIncomeCategoryLabel(getOtherIncomeCategoryLabel(row)))
+          .filter(Boolean)
+      )
+    );
+
+    return Array.from(
+      new Set([
+        ...OTHER_INCOME_STANDARD_CATEGORY_LABELS,
+        ...discovered,
+      ])
+    );
+  }, [rows]);
+
+const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
   const filteredCategorySummary = React.useMemo(
@@ -1473,16 +1523,13 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
             <span className="text-sm font-semibold text-slate-700">収入元選択</span>
             <select
               value={otherIncomeSourceFilter}
-              onChange={(event) => setOtherIncomeSourceFilter(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
-            >
-              <option value="all">全収入元</option>
-              {otherIncomeSourceOptions.map((source) => (
-                <option key={source} value={source}>
-                  {source}
-                </option>
-              ))}
-            </select>
+              onChange={(event) =>
+                    <option value="">未選択</option>
+                    {otherIncomeCreateCategoryOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}</select>
           </label>
 
           <label className="space-y-2">
@@ -1509,8 +1556,8 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
               <span className="text-sm font-semibold text-slate-700">開始日</span>
               <input
                 type="date"
-                value={otherIncomeDraftStartDate}
-                onChange={(event) => setOtherIncomeDraftStartDate(event.target.value)}
+                value={otherIncomeDraftCustomStartDate}
+                onChange={(event) => setOtherIncomeDraftCustomStartDate(event.target.value)}
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
               />
             </label>
@@ -1518,32 +1565,17 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
               <span className="text-sm font-semibold text-slate-700">終了日</span>
               <input
                 type="date"
-                value={otherIncomeDraftEndDate}
-                onChange={(event) => setOtherIncomeDraftEndDate(event.target.value)}
+                value={otherIncomeDraftCustomEndDate}
+                onChange={(event) => setOtherIncomeDraftCustomEndDate(event.target.value)}
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-slate-400"
               />
             </label>
             <div className="flex items-end justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setOtherIncomeDraftStartDate(otherIncomeCustomStartDate);
-                  setOtherIncomeDraftEndDate(otherIncomeCustomEndDate);
-                }}
-                disabled={!otherIncomeDraftRangeDirty}
-                className="h-12 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!otherIncomeDraftRangeIsValid) return;
-                  setOtherIncomeCustomStartDate(otherIncomeDraftStartDate);
-                  setOtherIncomeCustomEndDate(otherIncomeDraftEndDate);
-                }}
-                disabled={!otherIncomeDraftRangeIsValid || !otherIncomeDraftRangeDirty}
-                className="h-12 rounded-2xl bg-slate-950 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                onClick={handleOtherIncomeCustomRangeApply}
+                disabled={!isOtherIncomeCustomRangeDirty || !isOtherIncomeCustomRangeValid}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-900 bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-500"
               >
                 確定
               </button>
