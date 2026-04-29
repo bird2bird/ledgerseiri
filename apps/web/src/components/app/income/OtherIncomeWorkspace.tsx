@@ -775,6 +775,20 @@ function getOtherIncomeInclusiveRangeDays(start: Date, end: Date) {
   return Math.max(1, Math.round(diff / 86400000) + 1);
 }
 
+
+// Step109-Z1-F1E4-TOOLTIP-FULL-DATE:
+// Tooltip date should show full calendar date while axis labels stay compact.
+function formatOtherIncomeDashboardTooltipDate(point: OtherIncomeDashboardPoint) {
+  const raw = point.start instanceof Date ? point.start : new Date(point.start);
+  if (Number.isNaN(raw.getTime())) return point.label;
+
+  const yyyy = raw.getFullYear();
+  const mm = String(raw.getMonth() + 1).padStart(2, "0");
+  const dd = String(raw.getDate()).padStart(2, "0");
+
+  return `${yyyy}/${mm}/${dd}`;
+}
+
 function getOtherIncomeGranularityLabel(granularity: OtherIncomeDashboardGranularity) {
   if (granularity === "month") return "月別";
   if (granularity === "week") return "週別";
@@ -1884,7 +1898,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
       <section
-        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-chart-visual-refine-f1e other-income-zero-render-fix-f1c"
+        data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-chart-visual-refine-f1e other-income-chart-spacing-micro-polish-f1e2b other-income-tooltip-full-date-f1e4 other-income-status-tooltip-overlay-f1e3 other-income-zero-render-fix-f1c"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"
       >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2060,11 +2074,11 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                 role="img"
                 aria-label="その他収入の推移"
               >
-                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE */}
+                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE / Step109-Z1-F1E2B-CHART-SPACING-MICRO-POLISH */}
                 <defs>
                   <linearGradient id="otherIncomeTrendAreaF1E" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.18" />
-                    <stop offset="68%" stopColor="#2563eb" stopOpacity="0.06" />
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity="0.24" />
+                    <stop offset="68%" stopColor="#2563eb" stopOpacity="0.085" />
                     <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
                   </linearGradient>
                   <filter id="otherIncomePointShadowF1E" x="-40%" y="-40%" width="180%" height="180%">
@@ -2072,10 +2086,10 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                   </filter>
                 </defs>
                 {(() => {
-                  const chartLeft = 92;
-                  const chartRight = 744;
-                  const chartTop = 28;
-                  const chartBottom = 250;
+                  const chartLeft = 78;
+                  const chartRight = 762;
+                  const chartTop = 20;
+                  const chartBottom = 262;
                   const chartWidth = chartRight - chartLeft;
                   const chartHeight = chartBottom - chartTop;
                   const safeMax = Math.max(1, Number(otherIncomeTrendMax || 0));
@@ -2143,7 +2157,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               x={chartLeft - 14}
                               y={y + 4}
                               textAnchor="end"
-                              className="fill-slate-600 text-[12px] font-medium"
+                              className="fill-slate-500 text-[11px] font-medium"
                             >
                               {formatIncomeJPY(value)}
                             </text>
@@ -2242,22 +2256,22 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               <rect
                                 x={tx}
                                 y={ty}
-                                width={164}
-                                height={48}
+                                width={174}
+                                height={52}
                                 rx={12}
-                                className="fill-white stroke-slate-200"
+                                className="fill-white stroke-slate-200/90"
                                 filter="url(#otherIncomePointShadowF1E)"
                               />
                               <text
                                 x={tx + 14}
-                                y={ty + 19}
+                                y={ty + 20}
                                 className="fill-slate-500 text-[11px] font-semibold"
                               >
-                                {point.label}
+                                {formatOtherIncomeDashboardTooltipDate(point)}
                               </text>
                               <text
                                 x={tx + 14}
-                                y={ty + 36}
+                                y={ty + 39}
                                 className="fill-slate-950 text-[13px] font-bold"
                               >
                                 {formatIncomeJPY(amount)}
@@ -2335,13 +2349,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
           <div className="mt-5 overflow-hidden rounded-[26px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4">
             <svg
-                data-scope="other-income-status-svg-visual-refine-f1e"
+                data-scope="other-income-status-svg-tooltip-overlay-f1e3"
                 viewBox="0 0 800 300"
                 className="h-full w-full overflow-visible"
                 role="img"
                 aria-label="その他収入の期間別状況"
+                onMouseLeave={() => setOtherIncomeStatusHoverKey(null)}
               >
-                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE */}
+                {/* Step109-Z1-F1E-CHART-VISUAL-REFINE / Step109-Z1-F1E2B-CHART-SPACING-MICRO-POLISH / Step109-Z1-F1E3-STATUS-TOOLTIP-OVERLAY */}
                 <defs>
                   <linearGradient id="otherIncomeStatusLatestF1E" x1="0" x2="0" y1="0" y2="1">
                     <stop offset="0%" stopColor="#2563eb" stopOpacity="1" />
@@ -2352,10 +2367,10 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                   </filter>
                 </defs>
                 {(() => {
-                  const chartLeft = 92;
-                  const chartRight = 744;
-                  const chartTop = 28;
-                  const chartBottom = 250;
+                  const chartLeft = 78;
+                  const chartRight = 762;
+                  const chartTop = 20;
+                  const chartBottom = 262;
                   const chartWidth = chartRight - chartLeft;
                   const chartHeight = chartBottom - chartTop;
                   const safeMax = Math.max(1, Number(otherIncomeStatusMax || 0));
@@ -2373,6 +2388,11 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                         return peak;
                       }, null)?.key || "";
 
+                  const hoveredIndex = points.findIndex(
+                    (point) => point.key === otherIncomeStatusHoverKey,
+                  );
+                  const hoveredPoint = hoveredIndex >= 0 ? points[hoveredIndex] : null;
+
                   const toX = (index: number) =>
                     chartLeft + index * (barWidth + gap);
 
@@ -2383,8 +2403,11 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                     return Math.max(9, ratio * chartHeight);
                   };
 
-                  const tooltipX = (x: number) => Math.min(chartRight - 170, Math.max(chartLeft + 8, x - 78));
-                  const tooltipY = (height: number) => Math.max(chartTop + 8, chartBottom - height - 58);
+                  const tooltipX = (x: number) =>
+                    Math.min(chartRight - 178, Math.max(chartLeft + 8, x - 80));
+
+                  const tooltipY = (height: number) =>
+                    Math.max(chartTop + 8, chartBottom - height - 58);
 
                   return (
                     <>
@@ -2415,7 +2438,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               x={chartLeft - 14}
                               y={y + 4}
                               textAnchor="end"
-                              className="fill-slate-600 text-[12px] font-medium"
+                              className="fill-slate-500 text-[11px] font-medium"
                             >
                               {formatIncomeJPY(value)}
                             </text>
@@ -2431,11 +2454,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                         const isZero = amount <= 0;
                         const isLatest = point.key === latestKey;
                         const isPeak = point.key === peakKey && amount > 0;
-                        const tx = tooltipX(x + barWidth / 2);
-                        const ty = tooltipY(height);
 
                         return (
-                          <g key={`status-bar-${point.key}`} className="group">
+                          <g
+                            key={`status-bar-${point.key}`}
+                            className="group"
+                            onMouseEnter={() => setOtherIncomeStatusHoverKey(point.key)}
+                            onMouseLeave={() => setOtherIncomeStatusHoverKey(null)}
+                          >
                             <rect
                               x={x - Math.max(3, gap / 2)}
                               y={chartTop}
@@ -2450,44 +2476,18 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                               width={barWidth}
                               height={height}
                               rx={barWidth / 2}
-                              className={
+                              fill={
                                 isLatest
-                                  ? "fill-[url(#otherIncomeStatusLatestF1E)]"
+                                  ? "url(#otherIncomeStatusLatestF1E)"
                                   : isPeak
-                                    ? "fill-slate-500"
+                                    ? "#64748b"
                                     : isZero
-                                      ? "fill-slate-200"
-                                      : "fill-slate-400"
+                                      ? "#f1f5f9"
+                                      : "#94a3b8"
                               }
-                              opacity={isZero ? 0.78 : 1}
+                              opacity={isZero ? 0.92 : 1}
                               filter={isLatest || isPeak ? "url(#otherIncomeBarShadowF1E)" : undefined}
                             />
-
-                            <g className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                              <rect
-                                x={tx}
-                                y={ty}
-                                width={164}
-                                height={48}
-                                rx={12}
-                                className="fill-white stroke-slate-200"
-                                filter="url(#otherIncomeBarShadowF1E)"
-                              />
-                              <text
-                                x={tx + 14}
-                                y={ty + 19}
-                                className="fill-slate-500 text-[11px] font-semibold"
-                              >
-                                {point.label}
-                              </text>
-                              <text
-                                x={tx + 14}
-                                y={ty + 36}
-                                className="fill-slate-950 text-[13px] font-bold"
-                              >
-                                {formatIncomeJPY(amount)}
-                              </text>
-                            </g>
 
                             {index % labelEvery === 0 || index === points.length - 1 ? (
                               <text
@@ -2502,6 +2502,42 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                           </g>
                         );
                       })}
+
+                      {hoveredPoint ? (() => {
+                        const amount = Number(hoveredPoint.amount || 0);
+                        const height = toBarHeight(amount);
+                        const x = toX(hoveredIndex) + barWidth / 2;
+                        const tx = tooltipX(x);
+                        const ty = tooltipY(height);
+
+                        return (
+                          <g key={`status-tooltip-overlay-${hoveredPoint.key}`} pointerEvents="none">
+                            <rect
+                              x={tx}
+                              y={ty}
+                              width={174}
+                              height={52}
+                              rx={12}
+                              className="fill-white stroke-slate-200/90"
+                              filter="url(#otherIncomeBarShadowF1E)"
+                            />
+                            <text
+                              x={tx + 14}
+                              y={ty + 20}
+                              className="fill-slate-500 text-[11px] font-semibold"
+                            >
+                              {formatOtherIncomeDashboardTooltipDate(hoveredPoint)}
+                            </text>
+                            <text
+                              x={tx + 14}
+                              y={ty + 39}
+                              className="fill-slate-950 text-[13px] font-bold"
+                            >
+                              {formatIncomeJPY(amount)}
+                            </text>
+                          </g>
+                        );
+                      })() : null}
                     </>
                   );
                 })()}
