@@ -312,3 +312,49 @@ export type CashIncomeCommitResponse = {
   message: string;
 };
 
+
+
+export type ExpenseImportCommitRequest = {
+  companyId?: string;
+  filename?: string;
+  ledgerScope: string;
+  category?: string;
+  rows: Array<{
+    rowNo: number;
+    occurredAt: string;
+    amount: number;
+    currency?: string;
+    category: string;
+    vendor?: string;
+    accountName?: string;
+    evidenceNo?: string;
+    memo?: string;
+    status?: "ok" | "error" | string;
+    error?: string;
+  }>;
+};
+
+export type ExpenseImportCommitResponse = {
+  ok: boolean;
+  action: "expense-import-commit";
+  module: string;
+  companyId: string | null;
+  filename: string | null;
+  importJobId: string;
+  importedRows: number;
+  duplicateRows: number;
+  blockedRows: number;
+  errorRows: number;
+  totalImportedAmount: number;
+  createdTransactionIds: string[];
+  job?: {
+    id: string;
+    filename?: string | null;
+    status?: string | null;
+    totalRows?: number | null;
+    successRows?: number | null;
+    failedRows?: number | null;
+    importedAt?: string | null;
+  } | null;
+  message: string;
+};

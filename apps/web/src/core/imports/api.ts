@@ -5,6 +5,8 @@ import type {
   CashIncomePreviewResponse,
   CommitImportRequest,
   CommitImportResponse,
+  ExpenseImportCommitRequest,
+  ExpenseImportCommitResponse,
   DetectMonthConflictsRequest,
   DetectMonthConflictsResponse,
   ImportHistoryResponse,
@@ -124,3 +126,13 @@ export async function commitCashIncomeImport(
   );
 }
 
+
+
+export async function commitExpenseImport(
+  payload: ExpenseImportCommitRequest
+): Promise<ExpenseImportCommitResponse> {
+  return postJson<ExpenseImportCommitResponse>(
+    "/api/imports/expense/commit",
+    payload
+  );
+}

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
@@ -109,6 +109,28 @@ type PreviewRowItem = {
   matchStatus: 'new' | 'duplicate' | 'conflict' | 'error';
   matchReason?: string;
   normalizedPayload: Record<string, unknown>;
+};
+
+type ExpenseImportCommitRow = {
+  rowNo?: number;
+  occurredAt?: string;
+  amount?: number;
+  currency?: string;
+  category?: string;
+  vendor?: string;
+  accountName?: string;
+  evidenceNo?: string;
+  memo?: string;
+  status?: 'ok' | 'error' | string;
+  error?: string;
+};
+
+type ExpenseImportCommitDto = {
+  companyId?: string;
+  filename?: string;
+  ledgerScope?: string;
+  category?: string;
+  rows?: ExpenseImportCommitRow[];
 };
 
 @Injectable()
@@ -2509,4 +2531,372 @@ export class ImportsService {
       message: 'imports history loaded',
     };
   }
+  // Step109-Z1-H5D-EXPENSE-COMMIT-SERVICE:
+  // Commit ledger_scope scoped expense import rows into Transaction.
+  private normalizeExpenseLedgerScope(value?: string | null): string {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  private assertExpenseLedgerScope(scope: string): void {
+    const allowed = new Set([
+      'company-operation-expense',
+      'payroll-expense',
+      'other-expense',
+      'store-operation-expense',
+    ]);
+
+    if (!allowed.has(scope)) {
+      throw new BadRequestException(`Unsupported expense ledger_scope: ${scope || '-'}`);
+    }
+  }
+
+  private parseExpenseImportDate(value?: string | null): Date {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      throw new BadRequestException('occurredAt is required');
+    }
+
+    const normalized = raw
+      .replace(/[.]/g, '/')
+      .replace(/年/g, '/')
+      .replace(/月/g, '/')
+      .replace(/日/g, '')
+      .trim();
+
+    const ymd = normalized.match(/^(20\d{2})[/-](\d{1,2})[/-](\d{1,2})$/);
+    if (ymd) {
+      const y = Number(ymd[1]);
+      const m = Number(ymd[2]);
+      const d = Number(ymd[3]);
+      return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    throw new BadRequestException(`Invalid occurredAt: ${raw}`);
+  }
+
+  private async resolveImportStoreId(companyId: string): Promise<string> {
+    const existing = await this.prisma.store.findFirst({
+      where: { companyId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (existing?.id) return existing.id;
+
+    const created = await this.prisma.store.create({
+      data: {
+        companyId,
+        name: 'LedgerSeiri Import Store',
+        platform: 'LEDGERSEIRI',
+        region: 'JP',
+      },
+      select: { id: true },
+    });
+
+    return created.id;
+  }
+
+  private async resolveExpenseAccountId(args: {
+    companyId: string;
+    accountName?: string | null;
+  }): Promise<string | null> {
+    const accountName = String(args.accountName || '').trim();
+    if (!accountName) return null;
+
+    const account = await this.prisma.account.findFirst({
+      where: {
+        companyId: args.companyId,
+        name: accountName,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    return account?.id || null;
+  }
+
+  private buildExpenseImportMemo(args: {
+    ledgerScope: string;
+    category: string;
+    vendor?: string | null;
+    evidenceNo?: string | null;
+    memo?: string | null;
+  }): string {
+    const parts = [
+      `[ledger_scope:${args.ledgerScope}]`,
+      `[ledger_subcategory:${args.category || '-'}]`,
+    ];
+
+    if (args.vendor) parts.push(`[vendor:${args.vendor}]`);
+    if (args.evidenceNo) parts.push(`[evidence_no:${args.evidenceNo}]`);
+    if (args.memo) parts.push(String(args.memo).trim());
+
+    return parts.join(' ').trim();
+  }
+
+  async commitExpenseImport(body: ExpenseImportCommitDto) {
+    const companyId = await this.resolveCompanyId(body?.companyId);
+    const ledgerScope = this.normalizeExpenseLedgerScope(body?.ledgerScope);
+    this.assertExpenseLedgerScope(ledgerScope);
+
+    const filename = String(body?.filename || `${ledgerScope}-template.csv`).trim();
+    const rows = Array.isArray(body?.rows) ? body.rows : [];
+
+    if (!rows.length) {
+      throw new BadRequestException('No expense rows to commit');
+    }
+
+    const okRows = rows.filter((row) => String(row.status || 'ok') === 'ok');
+    const blockedRows = rows.length - okRows.length;
+
+    if (!okRows.length) {
+      throw new BadRequestException('No valid expense rows to commit');
+    }
+
+    const storeId = await this.resolveImportStoreId(companyId);
+    const fileHash = this.hashPayload([
+      companyId,
+      ledgerScope,
+      filename,
+      JSON.stringify(okRows),
+    ]);
+
+    const importJob = await this.prisma.importJob.create({
+      data: {
+        companyId,
+        domain: 'ledger',
+        module: ledgerScope,
+        sourceType: 'expense-csv',
+        filename,
+        fileHash,
+        status: 'PROCESSING',
+        totalRows: rows.length,
+        successRows: 0,
+        failedRows: blockedRows,
+      },
+      select: { id: true },
+    });
+
+    let importedRows = 0;
+    let duplicateRows = 0;
+    let errorRows = blockedRows;
+    let totalImportedAmount = 0;
+    const createdTransactionIds: string[] = [];
+
+    for (const row of rows) {
+      const rowNo = Number(row.rowNo || 0) || 0;
+      const amount = Math.abs(Number(row.amount || 0));
+      const category = String(row.category || '').trim();
+      const vendor = String(row.vendor || '').trim();
+      const evidenceNo = String(row.evidenceNo || '').trim();
+      const accountName = String(row.accountName || '').trim();
+      const currency = String(row.currency || 'JPY').trim() || 'JPY';
+
+      let occurredAt: Date;
+      let businessMonth: string | null = null;
+
+      try {
+        if (String(row.status || 'ok') !== 'ok') {
+          throw new Error(row.error || 'preview row is not OK');
+        }
+
+        if (!amount) throw new Error('amount is required');
+        if (!category) throw new Error('category is required');
+
+        occurredAt = this.parseExpenseImportDate(row.occurredAt);
+        businessMonth = this.normalizeBusinessMonth(occurredAt.toISOString());
+      } catch (err) {
+        errorRows += 1;
+        await this.prisma.importStagingRow.create({
+          data: {
+            importJobId: importJob.id,
+            companyId,
+            module: ledgerScope,
+            rowNo,
+            businessMonth: null,
+            rawPayloadJson: row as Prisma.InputJsonValue,
+            normalizedPayloadJson: {
+              ledgerScope,
+              category,
+              amount,
+              error: err instanceof Error ? err.message : 'row validation failed',
+            } as Prisma.InputJsonValue,
+            dedupeHash: null,
+            matchStatus: 'error',
+            matchReason: err instanceof Error ? err.message : 'row validation failed',
+            targetEntityType: 'transaction',
+          },
+        });
+        continue;
+      }
+
+      const memo = this.buildExpenseImportMemo({
+        ledgerScope,
+        category,
+        vendor,
+        evidenceNo,
+        memo: row.memo,
+      });
+
+      const dedupeHash = this.hashPayload([
+        companyId,
+        ledgerScope,
+        filename,
+        rowNo,
+        occurredAt.toISOString().slice(0, 10),
+        amount,
+        category,
+        vendor,
+        evidenceNo,
+        accountName,
+        memo,
+      ]);
+
+      const existing = await this.prisma.transaction.findFirst({
+        where: { companyId, dedupeHash },
+        select: { id: true },
+      });
+
+      if (existing?.id) {
+        duplicateRows += 1;
+        await this.prisma.importStagingRow.create({
+          data: {
+            importJobId: importJob.id,
+            companyId,
+            module: ledgerScope,
+            rowNo,
+            businessMonth,
+            rawPayloadJson: row as Prisma.InputJsonValue,
+            normalizedPayloadJson: {
+              ledgerScope,
+              category,
+              amount,
+              currency,
+              occurredAt: occurredAt.toISOString(),
+              vendor,
+              evidenceNo,
+              accountName,
+              memo,
+              dedupeHash,
+            } as Prisma.InputJsonValue,
+            dedupeHash,
+            matchStatus: 'duplicate',
+            matchReason: 'same dedupeHash already exists in Transaction',
+            targetEntityType: 'transaction',
+            targetEntityId: existing.id,
+          },
+        });
+        continue;
+      }
+
+      const accountId = await this.resolveExpenseAccountId({
+        companyId,
+        accountName,
+      });
+
+      const created = await this.prisma.transaction.create({
+        data: {
+          companyId,
+          storeId,
+          accountId,
+          categoryId: null,
+          importJobId: importJob.id,
+          type: 'OTHER',
+          direction: 'EXPENSE',
+          sourceType: 'IMPORT',
+          amount,
+          currency,
+          occurredAt,
+          externalRef: evidenceNo || undefined,
+          memo,
+          businessMonth,
+          dedupeHash,
+          sourceFileName: filename,
+          sourceRowNo: rowNo || undefined,
+        },
+        select: { id: true },
+      });
+
+      await this.prisma.importStagingRow.create({
+        data: {
+          importJobId: importJob.id,
+          companyId,
+          module: ledgerScope,
+          rowNo,
+          businessMonth,
+          rawPayloadJson: row as Prisma.InputJsonValue,
+          normalizedPayloadJson: {
+            ledgerScope,
+            category,
+            amount,
+            currency,
+            occurredAt: occurredAt.toISOString(),
+            vendor,
+            evidenceNo,
+            accountName,
+            accountId,
+            memo,
+            dedupeHash,
+          } as Prisma.InputJsonValue,
+          dedupeHash,
+          matchStatus: 'new',
+          matchReason: 'committed to Transaction',
+          targetEntityType: 'transaction',
+          targetEntityId: created.id,
+        },
+      });
+
+      importedRows += 1;
+      totalImportedAmount += amount;
+      createdTransactionIds.push(created.id);
+    }
+
+    const status = errorRows > 0 ? 'FAILED' : 'SUCCEEDED';
+
+    const job = await this.prisma.importJob.update({
+      where: { id: importJob.id },
+      data: {
+        status,
+        successRows: importedRows,
+        failedRows: errorRows,
+        importedAt: new Date(),
+      },
+      select: {
+        id: true,
+        filename: true,
+        status: true,
+        totalRows: true,
+        successRows: true,
+        failedRows: true,
+        importedAt: true,
+      },
+    });
+
+    return {
+      ok: errorRows === 0,
+      action: 'expense-import-commit',
+      module: ledgerScope,
+      companyId,
+      filename,
+      importJobId: importJob.id,
+      importedRows,
+      duplicateRows,
+      blockedRows,
+      errorRows,
+      totalImportedAmount,
+      createdTransactionIds,
+      job,
+      message:
+        errorRows === 0
+          ? `${ledgerScope} import committed`
+          : `${ledgerScope} import completed with errors`,
+    };
+  }
+
+
 }

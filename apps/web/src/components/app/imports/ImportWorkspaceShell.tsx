@@ -4,11 +4,13 @@ import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
+  commitExpenseImport,
   commitImportSkeleton,
   detectMonthConflicts,
   loadImportHistorySkeleton,
   previewImportSkeleton,
   type CommitImportResponse,
+  type ExpenseImportCommitResponse,
   type DetectMonthConflictsResponse,
   type ImportHistoryResponse,
   type MonthConflictPolicy,
@@ -352,6 +354,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [commitResult, setCommitResult] =
     useState<CommitImportResponse | null>(null);
+  const [expenseCommitResult, setExpenseCommitResult] =
+    useState<ExpenseImportCommitResponse | null>(null);
   const [commitLoading, setCommitLoading] = useState(false);
   const [expensePreviewRows, setExpensePreviewRows] = useState<
     ExpenseLocalPreviewRow[]
@@ -458,6 +462,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
+      setExpenseCommitResult(null);
       setExpensePreviewRows([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
@@ -645,6 +650,59 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     }
   }
 
+  // Step109-Z1-H5D-EXPENSE-COMMIT-FRONTEND:
+  // Commit expense preview rows into Transaction via /api/imports/expense/commit.
+  async function runExpenseCommit() {
+    if (!expenseImportRouteInfo.enabled) return;
+    if (!expensePreviewRows.length) return;
+    if (expensePreviewSummary.errorRows > 0) {
+      setError("エラー行があるため正式登録できません。CSV内容を修正してください。");
+      return;
+    }
+
+    const ledgerScope = String(expenseImportRouteInfo.expectedScope || "").trim();
+    if (!ledgerScope) {
+      setError("ledger_scope が判定できないため正式登録できません。");
+      return;
+    }
+
+    setCommitLoading(true);
+    setError("");
+    setMessage("");
+    setExpenseCommitResult(null);
+
+    try {
+      const res = await commitExpenseImport({
+        filename,
+        ledgerScope,
+        category: expenseImportRouteInfo.category,
+        rows: expensePreviewRows.map((row) => ({
+          rowNo: row.rowNo,
+          occurredAt: row.occurredAt,
+          amount: row.amount,
+          currency: row.currency,
+          category: row.category,
+          vendor: row.vendor,
+          accountName: row.accountName,
+          evidenceNo: row.evidenceNo,
+          memo: row.memo,
+          status: row.status,
+          error: row.error,
+        })),
+      });
+
+      setExpenseCommitResult(res);
+      setMessage(
+        `${expenseImportRouteInfo.label} の正式登録が完了しました。登録: ${res.importedRows} / 重複: ${res.duplicateRows} / エラー: ${res.errorRows} / 金額: ¥${formatNumber(res.totalImportedAmount)}`
+      );
+    } catch (err) {
+      setExpenseCommitResult(null);
+      setError(err instanceof Error ? err.message : "expense commit failed");
+    } finally {
+      setCommitLoading(false);
+    }
+  }
+
   React.useEffect(() => {
     if (!expenseImportRouteInfo.enabled && moduleMode !== "cash-income") {
       void loadHistory(moduleMode);
@@ -797,6 +855,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setDetectResult(null);
                     setPreviewResult(null);
                     setCommitResult(null);
+                    setExpenseCommitResult(null);
                     setExpensePreviewRows([]);
                     setError("");
                     setMessage("已清空当前导入草稿。");
@@ -1009,12 +1068,26 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   </div>
                   <button
                     type="button"
-                    disabled
-                    className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-60"
+                    onClick={() => void runExpenseCommit()}
+                    disabled={
+                      commitLoading ||
+                      !expensePreviewRows.length ||
+                      expensePreviewSummary.errorRows > 0
+                    }
+                    className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
                   >
-                    支出正式登録は H5D で接続
+                    {commitLoading ? "支出正式登録中..." : "支出を正式登録"}
                   </button>
                 </div>
+
+                {expenseCommitResult ? (
+                  <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
+                    登録完了：imported={expenseCommitResult.importedRows} /
+                    duplicate={expenseCommitResult.duplicateRows} /
+                    error={expenseCommitResult.errorRows} /
+                    importJobId={expenseCommitResult.importJobId}
+                  </div>
+                ) : null}
               </div>
             </>
           ) : (

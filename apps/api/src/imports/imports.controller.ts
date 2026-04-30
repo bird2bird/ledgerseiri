@@ -30,6 +30,13 @@ export class ImportsController {
     return this.service.commitCashIncomeContract(body);
   }
 
+  // Step109-Z1-H5D-EXPENSE-COMMIT-CONTROLLER:
+  // Commit ledger_scope validated expense CSV preview rows into Transaction.
+  @Post('expense/commit')
+  commitExpenseImport(@Body() body: any) {
+    return this.service.commitExpenseImport(body);
+  }
+
   @Post(':importJobId/commit')
   commit(
     @Param('importJobId') importJobId: string,
