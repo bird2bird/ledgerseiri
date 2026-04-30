@@ -1153,7 +1153,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     [importReturnInfo.active, importReturnInfo.importJobId, importReturnInfo.ledgerScope],
   );
 
-  // Step109-Z1-H5F-FIX3-SPAN-BASED-HIGHLIGHT: highlight detail row through scope badge span + CSS :has().\n  // Step109-Z1-H5F-FIX1-IMPORT-RETURN-BANNER-HIGHLIGHT:
+  // Step109-Z1-H5F-FIX4-ADD-IMPORT-JOB-FIELDS: ExpenseCategoryRecord carries importJobId/sourceFileName for post-import highlight.\n  // Step109-Z1-H5F-FIX3-SPAN-BASED-HIGHLIGHT: highlight detail row through scope badge span + CSS :has().\n  // Step109-Z1-H5F-FIX1-IMPORT-RETURN-BANNER-HIGHLIGHT:
   // Show import completion feedback after returning from expense CSV commit.
 
   const [rows, setRows] = React.useState<ExpenseCategoryRecord[]>([]);
