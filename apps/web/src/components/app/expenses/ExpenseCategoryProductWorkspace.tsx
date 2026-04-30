@@ -754,7 +754,14 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
   const statusFlags = [
     effectiveScope.mode === "legacy-unscoped-default" ? "分類未確定" : "",
     item.accountName ? "" : "銀行流水未確認",
-    rawMemo.includes("[evidence:") || rawMemo.includes("[invoice:") ? "" : "証憑未添付",
+    // Step109-Z1-H5E-FIX2-EVIDENCE-MARKER-COMPAT:
+    // H5D import writes evidence_no / invoice_no markers into memo.
+    rawMemo.includes("[evidence:") ||
+    rawMemo.includes("[invoice:") ||
+    rawMemo.includes("[evidence_no:") ||
+    rawMemo.includes("[invoice_no:")
+      ? ""
+      : "証憑未添付",
   ].filter(Boolean);
 
   return {

@@ -51,6 +51,15 @@ export type LedgerScopeConfig = {
 export const LEDGER_SCOPE_MARKER = "ledger-scope";
 export const LEDGER_SUBCATEGORY_MARKER = "ledger-subcategory";
 
+// Step109-Z1-H5E-FIX2-LEDGER-SCOPE-UNDERSCORE-COMPAT:
+// H5D backend import currently writes underscore markers.
+// Frontend must read both canonical hyphen markers and imported underscore markers.
+export const LEDGER_SCOPE_MARKER_ALIASES = ["ledger-scope", "ledger_scope"] as const;
+export const LEDGER_SUBCATEGORY_MARKER_ALIASES = [
+  "ledger-subcategory",
+  "ledger_subcategory",
+] as const;
+
 export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
   [LEDGER_SCOPES.CASH_INCOME]: {
     scope: LEDGER_SCOPES.CASH_INCOME,
@@ -349,12 +358,27 @@ export function readLedgerMarker(text: string | null | undefined, marker: string
   return match?.[1]?.trim() || "";
 }
 
+export function readLedgerMarkerAliases(
+  text: string | null | undefined,
+  markers: readonly string[]
+) {
+  for (const marker of markers) {
+    const value = readLedgerMarker(text, marker);
+    if (value) return value;
+  }
+  return "";
+}
+
 export function readLedgerScopeFromText(text: string | null | undefined) {
-  return normalizeLedgerScope(readLedgerMarker(text, LEDGER_SCOPE_MARKER));
+  return normalizeLedgerScope(
+    readLedgerMarkerAliases(text, LEDGER_SCOPE_MARKER_ALIASES)
+  );
 }
 
 export function readLedgerSubcategoryFromText(text: string | null | undefined) {
-  return readLedgerMarker(text, LEDGER_SUBCATEGORY_MARKER).trim().toLowerCase();
+  return readLedgerMarkerAliases(text, LEDGER_SUBCATEGORY_MARKER_ALIASES)
+    .trim()
+    .toLowerCase();
 }
 
 export function appendLedgerMarkersToMemo(args: {
@@ -375,7 +399,9 @@ export function appendLedgerMarkersToMemo(args: {
 export function stripLedgerMarkersFromMemo(memo?: string | null) {
   return String(memo || "")
     .replace(/\[ledger-scope:[^\]]+\]/gi, "")
+    .replace(/\[ledger_scope:[^\]]+\]/gi, "")
     .replace(/\[ledger-subcategory:[^\]]+\]/gi, "")
+    .replace(/\[ledger_subcategory:[^\]]+\]/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
