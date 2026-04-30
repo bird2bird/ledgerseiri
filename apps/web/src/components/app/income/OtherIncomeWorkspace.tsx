@@ -193,6 +193,7 @@ function buildOtherIncomeCategorySummary(rows: IncomeRow[]) {
 
 function getOtherIncomeActionLabel(label: string) {
   if (label === "新規収入") return "新規その他収入";
+  if (label === "テンプレート下载") return "その他収入テンプレート下载";
   if (label === "CSV取込") return "その他収入CSV/Excel取込";
   if (label === "編集") return "その他収入を編集";
   if (label === "店舗紐付け") return "収入元/補助設定";
@@ -295,6 +296,7 @@ function normalizeOtherIncomeHeader(value: string) {
     "入金口座": "account",
     "account": "account",
     "accountName": "account",
+    "account_name": "account",
 
     "カテゴリ": "category",
     "カテゴリー": "category",
@@ -302,6 +304,8 @@ function normalizeOtherIncomeHeader(value: string) {
     "種別": "category",
     "区分": "category",
     "category": "category",
+    "income_category": "category",
+    "income_source_category": "category",
 
     "金額": "amount",
     "収入額": "amount",
@@ -311,6 +315,8 @@ function normalizeOtherIncomeHeader(value: string) {
     "日付": "occurredAt",
     "取引日": "occurredAt",
     "occurredAt": "occurredAt",
+    "occurred_at": "occurredAt",
+    "date": "occurredAt",
 
     "メモ": "memo",
     "摘要": "memo",
@@ -321,6 +327,10 @@ function normalizeOtherIncomeHeader(value: string) {
     "入金元": "source",
     "店舗": "source",
     "source": "source",
+    "payer": "source",
+    "income_source": "source",
+    "ledger_scope": "ledger_scope",
+    "currency": "currency",
   };
   return map[raw] || raw;
 }
@@ -504,6 +514,7 @@ function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
     "口座名": "account",
     "入金口座": "account",
     "accountName": "account",
+    "account_name": "account",
     "account": "account",
 
     "カテゴリ": "category",
@@ -513,6 +524,8 @@ function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
     "種別": "category",
     "区分": "category",
     "category": "category",
+    "income_category": "category",
+    "income_source_category": "category",
 
     "金額": "amount",
     "収入額": "amount",
@@ -522,6 +535,8 @@ function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
     "日付": "occurredAt",
     "取引日": "occurredAt",
     "occurredAt": "occurredAt",
+    "occurred_at": "occurredAt",
+    "date": "occurredAt",
 
     "メモ": "memo",
     "摘要": "memo",
@@ -532,6 +547,10 @@ function normalizeOtherIncomeFileCsvHeaders(csvText: string) {
     "入金元": "source",
     "店舗": "source",
     "source": "source",
+    "payer": "source",
+    "income_source": "source",
+    "ledger_scope": "ledger_scope",
+    "currency": "currency",
   };
 
   const normalizedHeader = header.map((cell) => headerMap[cell] || normalizeOtherIncomeHeader(cell));
@@ -1297,6 +1316,24 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     handleDeleteSelected,
     reloadRows,
   } = props;
+
+  const otherIncomeSidebarActionsWithTemplate: OtherIncomeActionItem[] = sidebarActions.some(
+    (item) => getOtherIncomeActionLabel(item.label) === "その他収入テンプレート下载"
+  )
+    ? sidebarActions
+    : sidebarActions.flatMap((item) =>
+        getOtherIncomeActionLabel(item.label) === "新規その他収入"
+          ? [
+              item,
+              {
+                label: "テンプレート下载",
+                href: undefined,
+                disabled: false,
+              },
+            ]
+          : [item]
+      );
+
 
   const [sortMode, setSortMode] = React.useState<OtherIncomeSortMode>("date_desc");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
@@ -2584,15 +2621,33 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   その他収入テンプレート下载
 </LedgerTemplateDownloadButton>
 
-          {normalizedActions.map((item) => {
-                    // Step109-Z1-H5A-FIX2C-OTHER-INCOME-IMPORT-CLICK:
-                    // CSV/Excel import opens the hidden file picker instead of becoming a no-op action.
-                    if (getOtherIncomeActionLabel(item.label) === "その他収入CSV/Excel取込") {
+          {otherIncomeSidebarActionsWithTemplate.map((item) => {
+                    // Step109-Z1-H5A-FIX4-OTHER-INCOME-IMPORT-BUTTON-CLEAN:
+                    // Keep template download and CSV import fully separated.
+                    const actionLabel = getOtherIncomeActionLabel(item.label);
+
+                    if (actionLabel === "その他収入テンプレート下载") {
+                      return (
+                        <LedgerTemplateDownloadButton
+                          key="other-income-template-download-clean"
+                          scope={LEDGER_SCOPES.OTHER_INCOME}
+                          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+                        >
+                          その他収入テンプレート下载
+                        </LedgerTemplateDownloadButton>
+                      );
+                    }
+
+                    if (actionLabel === "その他収入CSV/Excel取込") {
                       return (
                         <button
-                          key="other-income-csv-import"
+                          key="other-income-csv-import-clean"
                           type="button"
-                          onClick={() => otherIncomeFileInputRef.current?.click()}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            otherIncomeFileInputRef.current?.click();
+                          }}
                           className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
                         >
                           その他収入CSV/Excel取込
@@ -2600,6 +2655,9 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                       );
                     }
 
+                    // Step109-Z1-H5A-FIX2C-OTHER-INCOME-IMPORT-CLICK:
+                    // CSV/Excel import opens the hidden file picker instead of becoming a no-op action.
+                    
             const primary = item.label === "新規その他収入";
             const disabled = item.disabled || (!item.href && item.label !== "その他収入を編集");
 
