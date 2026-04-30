@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
+import { LEDGER_SCOPES } from "@/core/ledger/ledger-scopes";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
 import type { TransactionCategoryItem } from "@/core/transactions/api";
@@ -2552,6 +2554,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           <div className="text-xs text-slate-500">その他収入の登録・編集・取込導線</div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {/* Step109-Z1-H4B-EXACT3-OTHER-INCOME-TEMPLATE-DOWNLOAD: fixed ledger_scope template for other-income. */}
+<LedgerTemplateDownloadButton
+  scope={LEDGER_SCOPES.OTHER_INCOME}
+  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+>
+  その他収入テンプレート下载
+</LedgerTemplateDownloadButton>
+
           {normalizedActions.map((item) => {
             const primary = item.label === "新規その他収入";
             const disabled = item.disabled || (!item.href && item.label !== "その他収入を編集");

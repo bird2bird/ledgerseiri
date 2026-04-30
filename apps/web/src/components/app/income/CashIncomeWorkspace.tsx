@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
+import { LEDGER_SCOPES, buildLedgerTemplateCsv, getLedgerScopeConfig } from "@/core/ledger/ledger-scopes";
 import { createTransaction, listTransactions } from "@/core/transactions/api";
 import { listAccounts } from "@/core/funds/api";
 import {
@@ -559,6 +560,23 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     return item;
   });
 
+  const cashSidebarActionsWithTemplate: CashActionItem[] = normalizedSidebarActions.some(
+    (item) => item.label === "現金収入テンプレート下载"
+  )
+    ? normalizedSidebarActions
+    : normalizedSidebarActions.flatMap((item) =>
+        item.label === "現金収入CSV/Excel取込"
+          ? [
+              {
+                label: "現金収入テンプレート下载",
+                href: undefined,
+                disabled: false,
+              },
+              item,
+            ]
+          : [item]
+      );
+
   const createDrawerOpen = action === "create";
   const editDrawerOpen = editingRow !== null;
   const cashDrawerOpen = createDrawerOpen || editDrawerOpen;
@@ -577,6 +595,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       clearActionMode();
     }
     setEditingRow(null);
+  }
+
+  // Step109-Z1-H4B-EXACT2-CASH-TEMPLATE-DOWNLOAD:
+  // Download a CSV template with fixed ledger_scope = cash-income.
+  function handleCashIncomeTemplateDownload() {
+    const config = getLedgerScopeConfig(LEDGER_SCOPES.CASH_INCOME);
+    downloadCashTextFile({
+      filename: config.templateFileName,
+      text: buildLedgerTemplateCsv(LEDGER_SCOPES.CASH_INCOME),
+    });
   }
 
   function handleCashTaxExport() {
@@ -830,6 +858,11 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
 
   function handlePageActionClick(item: CashActionItem) {
     if (item.disabled) return;
+
+    if (item.label === "現金収入テンプレート下载") {
+      handleCashIncomeTemplateDownload();
+      return;
+    }
 
     if (item.label === "現金収入CSV/Excel取込") {
       cashFileInputRef.current?.click();
@@ -1104,7 +1137,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">操作メニュー</div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {normalizedSidebarActions.map((item) =>
+          {cashSidebarActionsWithTemplate.map((item) =>
             item.href ? (
               <Link
                 key={item.label}

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
+import { LEDGER_SCOPES } from "@/core/ledger/ledger-scopes";
 import { loadAmazonStoreOrdersStage } from "@/core/jobs";
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import {
@@ -989,6 +991,15 @@ if (!isActiveRoute) {
           <div className="text-sm font-semibold text-emerald-800">
             {importBanner.title}
           </div>
+              {/* Step109-Z1-H4B-EXACT2-STORE-OPERATION-TEMPLATE-DOWNLOAD: fixed ledger_scope template for store-operation-expense. */}
+              <div className="mt-4">
+                <LedgerTemplateDownloadButton
+                  scope={LEDGER_SCOPES.STORE_OPERATION_EXPENSE}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+                >
+                  店舗運営費テンプレート下载
+                </LedgerTemplateDownloadButton>
+              </div>
           <div className="mt-1 text-sm text-emerald-700">
             {importBanner.subtitle}
           </div>
@@ -1110,6 +1121,24 @@ if (!isActiveRoute) {
           <div className="mt-2 text-xs text-slate-500">同CSV内の売上分類</div>
         </div>
       </div>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="text-lg font-bold text-slate-950">操作メニュー</div>
+            <div className="mt-1 text-sm text-slate-600">
+              店舗運営費の取込前に、ledger_scope 固定テンプレートをダウンロードできます。
+            </div>
+          </div>
+          {/* Step109-Z1-H4B-STORE-VISIBLE-TEMPLATE-DOWNLOAD: fixed ledger_scope template for store-operation-expense. */}
+          <LedgerTemplateDownloadButton
+            scope={LEDGER_SCOPES.STORE_OPERATION_EXPENSE}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+          >
+            店舗運営費テンプレート下载
+          </LedgerTemplateDownloadButton>
+        </div>
+      </section>
 
       <div className="rounded-[28px] border border-black/5 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
