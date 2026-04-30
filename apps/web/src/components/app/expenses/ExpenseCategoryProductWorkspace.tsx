@@ -1131,16 +1131,26 @@ export function ExpenseCategoryProductWorkspace(props: {
 
   const isImportReturnHighlightedRecord = React.useCallback(
     (row: ExpenseCategoryRecord) => {
+      // Step109-Z1-H5F-FIX5B-SAFE-HIGHLIGHT-ROW-FIELDS:
+      // Keep post-import highlight build-safe even when ExpenseCategoryRecord is inferred without import metadata.
+      const rowWithImportMeta = row as ExpenseCategoryRecord & {
+        importJobId?: string;
+        sourceFileName?: string;
+      };
+
+      const rowImportJobId = String(rowWithImportMeta.importJobId || "");
+      const rowSourceFileName = String(rowWithImportMeta.sourceFileName || "");
+
       if (!importReturnInfo.active) return false;
 
-      if (importReturnInfo.importJobId && row.importJobId === importReturnInfo.importJobId) {
+      if (importReturnInfo.importJobId && rowImportJobId === importReturnInfo.importJobId) {
         return true;
       }
 
       if (
         importReturnInfo.importJobId &&
         row.ledgerScope === importReturnInfo.ledgerScope &&
-        [row.source, row.sourceFileName, row.rawMemo]
+        [row.source, rowSourceFileName, row.rawMemo]
           .filter(Boolean)
           .join(" ")
           .includes(importReturnInfo.importJobId)
