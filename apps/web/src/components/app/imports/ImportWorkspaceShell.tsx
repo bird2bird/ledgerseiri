@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   commitExpenseImport,
   commitImportSkeleton,
@@ -109,6 +109,42 @@ function getExpenseImportDescription(routeInfo: ExpenseImportRouteInfo) {
 
   return "ページ専用テンプレートの ledger_scope を検証してから、支出 CSV/Excel の取込プレビューへ進みます。";
 }
+
+
+function buildExpensePostCommitReturnHref(args: {
+  lang: string;
+  ledgerScope: string;
+  importJobId?: string | null;
+}) {
+  const scope = String(args.ledgerScope || "").trim();
+  const params = new URLSearchParams();
+  params.set("from", "expense-import-commit");
+  params.set("ledger_scope", scope);
+  params.set("refresh", String(Date.now()));
+
+  if (args.importJobId) {
+    params.set("importJobId", args.importJobId);
+  }
+
+  if (scope === "payroll-expense") {
+    params.set("category", "payroll");
+    return `/${args.lang}/app/expenses?${params.toString()}`;
+  }
+
+  if (scope === "other-expense") {
+    return `/${args.lang}/app/other-expense?${params.toString()}`;
+  }
+
+  if (scope === "store-operation-expense") {
+    return `/${args.lang}/app/expenses/store-operation?${params.toString()}`;
+  }
+
+  params.set("category", "other");
+  return `/${args.lang}/app/expenses?${params.toString()}`;
+}
+
+// Step109-Z1-H5E-EXPENSE-POST-COMMIT-RETURN:
+// After expense CSV commit, return to the owning expense workspace with refresh hints.
 
 function assertExpenseImportLedgerScope(args: {
   routeInfo: ExpenseImportRouteInfo;
@@ -327,6 +363,7 @@ function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
   const params = useParams<{ lang: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const lang = params?.lang ?? "ja";
 
@@ -356,6 +393,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     useState<CommitImportResponse | null>(null);
   const [expenseCommitResult, setExpenseCommitResult] =
     useState<ExpenseImportCommitResponse | null>(null);
+  const [expensePostCommitHref, setExpensePostCommitHref] = useState("");
   const [commitLoading, setCommitLoading] = useState(false);
   const [expensePreviewRows, setExpensePreviewRows] = useState<
     ExpenseLocalPreviewRow[]
@@ -463,6 +501,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setPreviewResult(null);
       setCommitResult(null);
       setExpenseCommitResult(null);
+      setExpensePostCommitHref("");
       setExpensePreviewRows([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
@@ -670,6 +709,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     setError("");
     setMessage("");
     setExpenseCommitResult(null);
+      setExpensePostCommitHref("");
 
     try {
       const res = await commitExpenseImport({
@@ -691,12 +731,24 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         })),
       });
 
+      const returnHref = buildExpensePostCommitReturnHref({
+        lang,
+        ledgerScope,
+        importJobId: res.importJobId,
+      });
+
       setExpenseCommitResult(res);
+      setExpensePostCommitHref(returnHref);
       setMessage(
-        `${expenseImportRouteInfo.label} の正式登録が完了しました。登録: ${res.importedRows} / 重複: ${res.duplicateRows} / エラー: ${res.errorRows} / 金額: ¥${formatNumber(res.totalImportedAmount)}`
+        `${expenseImportRouteInfo.label} の正式登録が完了しました。登録: ${res.importedRows} / 重複: ${res.duplicateRows} / エラー: ${res.errorRows} / 金額: ¥${formatNumber(res.totalImportedAmount)}。対象ページへ戻って再読込します。`
       );
+
+      window.setTimeout(() => {
+        router.push(returnHref);
+      }, 1200);
     } catch (err) {
       setExpenseCommitResult(null);
+      setExpensePostCommitHref("");
       setError(err instanceof Error ? err.message : "expense commit failed");
     } finally {
       setCommitLoading(false);
@@ -856,6 +908,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     setPreviewResult(null);
                     setCommitResult(null);
                     setExpenseCommitResult(null);
+      setExpensePostCommitHref("");
                     setExpensePreviewRows([]);
                     setError("");
                     setMessage("已清空当前导入草稿。");
@@ -1086,7 +1139,15 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     duplicate={expenseCommitResult.duplicateRows} /
                     error={expenseCommitResult.errorRows} /
                     importJobId={expenseCommitResult.importJobId}
-                  </div>
+                  
+                    {expensePostCommitHref ? (
+                      <Link
+                        href={expensePostCommitHref}
+                        className="mt-2 inline-flex rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-50"
+                      >
+                        対象ページへ戻って確認
+                      </Link>
+                    ) : null}</div>
                 ) : null}
               </div>
             </>
