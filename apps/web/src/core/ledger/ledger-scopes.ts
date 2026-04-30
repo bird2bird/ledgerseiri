@@ -463,3 +463,74 @@ export function validateLedgerTemplateScope(args: {
     messageJa: "ledger_scope が一致しています。",
   } as const;
 }
+
+
+// Step109-Z1-H5A-LEDGER-CSV-SCOPE-VALIDATION:
+// Validate downloaded template CSV/Excel converted CSV before preview/import.
+// The file must contain a ledger_scope column and the first data row must match the current page scope.
+function splitLedgerCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quote = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+
+    if (ch === '"' && quote && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"') {
+      quote = !quote;
+      continue;
+    }
+
+    if ((ch === "," || ch === "\t") && !quote) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => String(cell || "").trim());
+}
+
+export function readLedgerScopeFromCsvText(csvText: string) {
+  const lines = String(csvText || "")
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return "";
+
+  const header = splitLedgerCsvLine(lines[0]).map((cell) =>
+    String(cell || "").trim().toLowerCase()
+  );
+
+  const scopeIndex = header.findIndex((cell) =>
+    ["ledger_scope", "ledgerscope", "ledger scope"].includes(cell)
+  );
+
+  if (scopeIndex < 0) return "";
+
+  const firstDataRow = splitLedgerCsvLine(lines[1]);
+  return String(firstDataRow[scopeIndex] || "").trim();
+}
+
+export function validateLedgerCsvTextScope(args: {
+  currentScope: LedgerScope;
+  csvText: string;
+}) {
+  const rowScope = readLedgerScopeFromCsvText(args.csvText);
+  return validateLedgerTemplateScope({
+    currentScope: args.currentScope,
+    rowScope,
+  });
+}

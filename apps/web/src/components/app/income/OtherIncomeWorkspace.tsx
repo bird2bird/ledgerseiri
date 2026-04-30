@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
-import { LEDGER_SCOPES } from "@/core/ledger/ledger-scopes";
+import { LEDGER_SCOPES, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
 import type { TransactionCategoryItem } from "@/core/transactions/api";
@@ -1788,6 +1788,17 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       }
 
       const rawCsv = await readOtherIncomeFileAsCsvText(file);
+      const scopeValidation = validateLedgerCsvTextScope({
+        currentScope: LEDGER_SCOPES.OTHER_INCOME,
+        csvText: rawCsv,
+      });
+
+      if (!scopeValidation.ok) {
+        throw new Error(scopeValidation.messageJa);
+      }
+
+      // Step109-Z1-H5A-OTHER-INCOME-IMPORT-SCOPE-VALIDATION:
+      // Preview/import is blocked unless ledger_scope = other-income.
       const normalizedCsv = normalizeOtherIncomeFileCsvHeaders(rawCsv);
       const draftRows = parseOtherIncomeCsvDraft(normalizedCsv);
       setOtherIncomeImportProgress(42);

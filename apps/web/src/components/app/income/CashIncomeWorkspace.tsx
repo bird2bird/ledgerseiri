@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
-import { LEDGER_SCOPES, buildLedgerTemplateCsv, getLedgerScopeConfig } from "@/core/ledger/ledger-scopes";
+import { LEDGER_SCOPES, buildLedgerTemplateCsv, getLedgerScopeConfig, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
 import { createTransaction, listTransactions } from "@/core/transactions/api";
 import { listAccounts } from "@/core/funds/api";
 import {
@@ -648,6 +648,17 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       }
 
       const rawCsv = await readCashIncomeFileAsCsvText(file);
+      const scopeValidation = validateLedgerCsvTextScope({
+        currentScope: LEDGER_SCOPES.CASH_INCOME,
+        csvText: rawCsv,
+      });
+
+      if (!scopeValidation.ok) {
+        throw new Error(scopeValidation.messageJa);
+      }
+
+      // Step109-Z1-H5A-CASH-IMPORT-SCOPE-VALIDATION:
+      // Preview/import is blocked unless ledger_scope = cash-income.
       const normalizedCsv = normalizeCashFileCsvHeaders(rawCsv);
       const draftRows = parseCashIncomeCsvDraft(normalizedCsv);
 
