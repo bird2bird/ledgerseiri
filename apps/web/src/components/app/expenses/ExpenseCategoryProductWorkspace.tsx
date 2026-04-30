@@ -4,6 +4,13 @@ import React from "react";
 import Link from "next/link";
 import { listTransactions, type TransactionItem } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
+import {
+  LEDGER_SCOPES,
+  readLedgerScopeWithLegacyFallback,
+  readLedgerSubcategoryFromText,
+  stripLedgerMarkersFromMemo,
+  type LedgerScope,
+} from "@/core/ledger/ledger-scopes";
 
 export type ExpenseCategoryProductKind =
   | "company-operation"
@@ -37,6 +44,9 @@ type ExpenseClassificationDebugRow = {
   memo: string;
   importJobId: string;
   sourceFileName: string;
+  ledgerScope: string;
+  ledgerSubcategory: string;
+  ownershipMode: "ledger-scope" | "legacy-expense-kind" | "legacy-unscoped-default";
   searchText: string;
 };
 
@@ -112,9 +122,11 @@ const KIND_OPTIONS: Record<
     { value: "all", label: "全会社運営費" },
     { value: "rent", label: "家賃・地代" },
     { value: "utilities", label: "水道光熱費" },
+    { value: "communication", label: "通信費" },
     { value: "software", label: "SaaS・システム" },
     { value: "office", label: "消耗品・備品" },
-    { value: "communication", label: "通信費" },
+    { value: "accounting-tax", label: "会計・税理士" },
+    { value: "other-company-operation", label: "その他会社運営費" },
   ],
   payroll: [
     { value: "all", label: "全給与" },
@@ -122,6 +134,8 @@ const KIND_OPTIONS: Record<
     { value: "executive", label: "役員報酬" },
     { value: "outsourcing", label: "外注人件費" },
     { value: "social", label: "社会保険・福利厚生" },
+    { value: "withholding-tax", label: "源泉所得税" },
+    { value: "other-payroll", label: "その他給与関連" },
   ],
   "other-expense": [
     { value: "all", label: "全その他支出" },
@@ -129,6 +143,7 @@ const KIND_OPTIONS: Record<
     { value: "bank", label: "手数料" },
     { value: "tax", label: "税金・公課" },
     { value: "adjustment", label: "調整・返金" },
+    { value: "other", label: "その他" },
   ],
 };
 
@@ -537,60 +552,153 @@ function isAdvertisingOrLogistics(text: string) {
 }
 
 
+
+// Step109-Z1-H2-EXPENSE-LEDGER-SCOPE-FIRST-READING:
+// Page ownership is decided by ledger_scope first.
+// No-scope legacy EXPENSE rows are kept in その他支出 to avoid false positives.
+function getWorkspaceLedgerScope(kind: ExpenseCategoryProductKind): LedgerScope {
+  if (kind === "company-operation") return LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE;
+  if (kind === "payroll") return LEDGER_SCOPES.PAYROLL_EXPENSE;
+  return LEDGER_SCOPES.OTHER_EXPENSE;
+}
+
+function getTransactionLedgerScope(item: TransactionItem): LedgerScope | "" {
+  return readLedgerScopeWithLegacyFallback(
+    [
+      item.memo,
+      item.categoryName,
+      item.type,
+      item.sourceType,
+      item.externalRef,
+      item.importJobId,
+      item.sourceFileName,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+function getTransactionLedgerSubcategory(item: TransactionItem) {
+  return readLedgerSubcategoryFromText(
+    [
+      item.memo,
+      item.categoryName,
+      item.type,
+      item.sourceType,
+      item.externalRef,
+      item.importJobId,
+      item.sourceFileName,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+function getLegacyUnscopedDefaultLedgerScope() {
+  return LEDGER_SCOPES.OTHER_EXPENSE;
+}
+
+function getEffectiveExpenseLedgerScope(item: TransactionItem): {
+  scope: LedgerScope;
+  mode: ExpenseClassificationDebugRow["ownershipMode"];
+} {
+  const explicitScope = getTransactionLedgerScope(item);
+  if (explicitScope) {
+    const raw = [
+      item.memo,
+      item.categoryName,
+      item.type,
+      item.sourceType,
+      item.externalRef,
+      item.importJobId,
+      item.sourceFileName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const mode = raw.toLowerCase().includes("[expense-kind:")
+      ? "legacy-expense-kind"
+      : "ledger-scope";
+
+    return {
+      scope: explicitScope,
+      mode,
+    };
+  }
+
+  return {
+    scope: getLegacyUnscopedDefaultLedgerScope(),
+    mode: "legacy-unscoped-default",
+  };
+}
+
+function mapLedgerScopeToDebugKind(scope: LedgerScope): ExpenseClassificationDebugRow["decidedKind"] {
+  if (scope === LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE) return "company-operation";
+  if (scope === LEDGER_SCOPES.PAYROLL_EXPENSE) return "payroll";
+  if (scope === LEDGER_SCOPES.STORE_OPERATION_EXPENSE) return "store-operation";
+  return "other-expense";
+}
+
+function normalizeSubcategoryForKind(kind: ExpenseCategoryProductKind, subcategory: string) {
+  const normalized = normalizeText(subcategory);
+  if (!normalized) return "";
+
+  const allowed = KIND_OPTIONS[kind].map((item) => item.value);
+  if (allowed.includes(normalized)) return normalized;
+
+  if (kind === "company-operation") {
+    if (["saas", "system", "cloud", "server", "software"].includes(normalized)) return "software";
+    if (["stationery", "supplies", "equipment"].includes(normalized)) return "office";
+    if (["phone", "mobile", "internet", "wifi"].includes(normalized)) return "communication";
+    if (["utility", "utilities", "electricity", "gas", "water"].includes(normalized)) return "utilities";
+    if (["accounting", "tax-accountant", "tax_accountant", "zeirishi"].includes(normalized)) return "accounting-tax";
+  }
+
+  if (kind === "payroll") {
+    if (["wage", "salary", "payroll"].includes(normalized)) return "salary";
+    if (["director", "officer", "executive"].includes(normalized)) return "executive";
+    if (["contractor", "freelance", "outsourcing"].includes(normalized)) return "outsourcing";
+    if (["insurance", "benefit", "pension"].includes(normalized)) return "social";
+    if (["withholding", "withholding-tax", "gensen"].includes(normalized)) return "withholding-tax";
+  }
+
+  if (kind === "other-expense") {
+    if (["fee", "commission", "bank-fee", "bank_fee"].includes(normalized)) return "bank";
+    if (["tax", "stamp"].includes(normalized)) return "tax";
+    if (["refund", "adjustment", "adjust"].includes(normalized)) return "adjustment";
+  }
+
+  return "";
+}
+
 // Step109-Z1-G4-EXPENSE-CLASSIFICATION-DEBUG-PANEL:
 // Diagnostic classifier used only for ?debug=expense. It shows why rows are
 // classified into company-operation / payroll / other-expense / store-operation.
 function diagnoseExpenseClassification(item: TransactionItem): ExpenseClassificationDebugRow {
   const text = getExpenseSearchText(item);
-  const categoryText = getExpenseCategoryText(item);
+  const effective = getEffectiveExpenseLedgerScope(item);
+  const decidedKind = mapLedgerScopeToDebugKind(effective.scope);
+  const ledgerSubcategory = getTransactionLedgerSubcategory(item);
 
-  const payroll = isPayrollExpense(text);
-  const companyOps = isCompanyOperationExpense(text);
-  const storeOps = isAdvertisingOrLogistics(text);
-
-  let decidedKind: ExpenseClassificationDebugRow["decidedKind"] = "other-expense";
-  let reason = "fallback-other-expense";
-
-  if (storeOps) {
-    decidedKind = "store-operation";
-    reason = "matched-store-operation-advertising-logistics-amazon";
-  } else if (payroll) {
-    decidedKind = "payroll";
-    reason = "matched-payroll-keyword";
-  } else if (companyOps) {
-    decidedKind = "company-operation";
-    reason = "matched-company-operation-keyword";
-  } else if (
-    includesAny(categoryText, [
-      "other",
-      "その他",
-      "その他支出",
-      "misc",
-      "雑費",
-      "manual",
-      "adjustment",
-      "調整",
-      "手数料",
-      "税金",
-      "公課",
-    ])
-  ) {
-    decidedKind = "other-expense";
-    reason = "matched-explicit-other-or-misc";
-  }
+  const inferredBucket =
+    decidedKind === "payroll"
+      ? normalizeSubcategoryForKind("payroll", ledgerSubcategory) || classifyPayrollBucket(text)
+      : decidedKind === "company-operation"
+        ? normalizeSubcategoryForKind("company-operation", ledgerSubcategory) || classifyCompanyOperationBucket(text)
+        : decidedKind === "store-operation"
+          ? "store-operation"
+          : normalizeSubcategoryForKind("other-expense", ledgerSubcategory) || classifyOtherExpenseBucket(text);
 
   return {
     id: String(item.id || ""),
     decidedKind,
-    bucket:
-      decidedKind === "payroll"
-        ? classifyPayrollBucket(text)
-        : decidedKind === "company-operation"
-          ? classifyCompanyOperationBucket(text)
-          : decidedKind === "store-operation"
-            ? "store-operation"
-            : classifyOtherExpenseBucket(text),
-    reason,
+    bucket: inferredBucket,
+    reason:
+      effective.mode === "ledger-scope"
+        ? "matched-ledger-scope"
+        : effective.mode === "legacy-expense-kind"
+          ? "matched-legacy-expense-kind"
+          : "legacy-unscoped-default-other-expense",
     amount: Math.abs(Number(item.amount || 0)),
     occurredAt: String(item.occurredAt || item.createdAt || ""),
     type: String(item.type || ""),
@@ -599,51 +707,25 @@ function diagnoseExpenseClassification(item: TransactionItem): ExpenseClassifica
     memo: String(item.memo || ""),
     importJobId: String(item.importJobId || ""),
     sourceFileName: String(item.sourceFileName || ""),
+    ledgerScope: effective.scope,
+    ledgerSubcategory,
+    ownershipMode: effective.mode,
     searchText: text,
   };
 }
 
 function matchesWorkspaceKind(kind: ExpenseCategoryProductKind, item: TransactionItem) {
-  const text = getExpenseSearchText(item);
-  const categoryText = getExpenseCategoryText(item);
+  const expectedScope = getWorkspaceLedgerScope(kind);
+  const effective = getEffectiveExpenseLedgerScope(item);
 
-  const payroll = isPayrollExpense(text);
-  const companyOps = isCompanyOperationExpense(text);
-  const storeOps = isAdvertisingOrLogistics(text);
-
-  if (kind === "payroll") return payroll;
-
-  if (kind === "company-operation") {
-    if (payroll || storeOps) return false;
-    return companyOps;
-  }
-
-  // その他支出 is a fallback bucket, but should not swallow payroll/company/store-operation.
-  if (payroll || companyOps || storeOps) return false;
-
-  // Explicit other/misc categories remain in その他支出.
-  if (
-    includesAny(categoryText, [
-      "other",
-      "その他",
-      "その他支出",
-      "misc",
-      "雑費",
-      "manual",
-      "adjustment",
-      "調整",
-      "手数料",
-      "税金",
-      "公課",
-    ])
-  ) {
-    return true;
-  }
-
-  return true;
+  return effective.scope === expectedScope;
 }
 
 function getBucket(kind: ExpenseCategoryProductKind, item: TransactionItem) {
+  const ledgerSubcategory = getTransactionLedgerSubcategory(item);
+  const markerBucket = normalizeSubcategoryForKind(kind, ledgerSubcategory);
+  if (markerBucket) return markerBucket;
+
   const text = getExpenseSearchText(item);
 
   if (kind === "payroll") return classifyPayrollBucket(text);
@@ -660,7 +742,7 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
   const date = ts > 0 ? formatFullDate(new Date(ts)) : "-";
   const bucket = getBucket(kind, item);
   const amount = Math.abs(Number(item.amount || 0));
-  const memo = String(item.memo || "").trim();
+  const memo = stripLedgerMarkersFromMemo(item.memo || "");
 
   const statusFlags = [
     item.accountName ? "" : "銀行流水未確認",
@@ -1221,9 +1303,12 @@ export function ExpenseCategoryProductWorkspace(props: {
                   <div>category: {row.categoryName || "-"}</div>
                   <div>type: {row.type || "-"}</div>
                   <div>sourceType: {row.sourceType || "-"}</div>
+                  <div>ledger_scope: {row.ledgerScope || "-"}</div>
+                  <div>ledger_subcategory: {row.ledgerSubcategory || "-"}</div>
+                  <div>mode: {row.ownershipMode}</div>
                 </div>
                 <div className="space-y-1 break-all text-slate-700">
-                  <div>memo: {row.memo || "-"}</div>
+                  <div>memo: {row.memo || "-"} </div>
                   <div>import: {row.importJobId || "-"}</div>
                   <div>file: {row.sourceFileName || "-"}</div>
                 </div>
