@@ -2652,7 +2652,9 @@ export class ImportsService {
     return `${normalizedMemo} [account_name:${normalizedAccountName}]`.trim();
   }
 
-  // Step109-Z1-H5H-FIX4-FORCE-MEMO-VARIABLE-ACCOUNT-MARKER: account_name marker is applied to memo variable before Transaction create.\n  async commitExpenseImport(body: ExpenseImportCommitDto) {
+  // Step109-Z1-H5H-FIX4-FORCE-MEMO-VARIABLE-ACCOUNT-MARKER: account_name marker is applied to memo variable before Transaction create.
+  async commitExpenseImport(body: ExpenseImportCommitDto) {
+    // Step109-Z1-H5H-FIX6-REPAIR-AND-APPLY-ACCOUNT-MARKER: restored method declaration and uses memoWithAccountName for Transaction.memo.
     const companyId = await this.resolveCompanyId(body?.companyId);
     const ledgerScope = this.normalizeExpenseLedgerScope(body?.ledgerScope);
     this.assertExpenseLedgerScope(ledgerScope);
@@ -2768,7 +2770,7 @@ export class ImportsService {
         vendor,
         evidenceNo,
         accountName,
-        memo: memoWithAccountName,
+        memoWithAccountName,
       ]);
 
       const existing = await this.prisma.transaction.findFirst({
@@ -2795,7 +2797,7 @@ export class ImportsService {
               vendor,
               evidenceNo,
               accountName,
-              memo: this.withExpenseAccountNameMarker(memo, accountName),
+              memo: memoWithAccountName,
               dedupeHash,
             } as Prisma.InputJsonValue,
             dedupeHash,
@@ -2827,7 +2829,7 @@ export class ImportsService {
           currency,
           occurredAt,
           externalRef: evidenceNo || undefined,
-          memo,
+          memo: memoWithAccountName,
           businessMonth,
           dedupeHash,
           sourceFileName: filename,
