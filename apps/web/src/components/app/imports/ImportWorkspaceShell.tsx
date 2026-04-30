@@ -357,6 +357,107 @@ function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
   };
 }
 
+// Step109-Z1-H5I-EXPENSE-IMPORT-ERROR-MESSAGES:
+// Productized error messages for scoped expense CSV/Excel imports.
+function normalizeExpenseImportErrorMessage(args: {
+  error: unknown;
+  routeInfo: ExpenseImportRouteInfo;
+  filename?: string;
+}) {
+  const raw =
+    args.error instanceof Error
+      ? args.error.message
+      : String(args.error || "unknown error");
+
+  if (!args.routeInfo.enabled) return raw;
+
+  const label = args.routeInfo.label || "支出";
+  const expectedScope = args.routeInfo.expectedScope || "-";
+  const filename = args.filename || "選択ファイル";
+
+  const message = String(raw || "").trim();
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes("ledger_scope") ||
+    lower.includes("現在ページ") ||
+    lower.includes("ファイル内") ||
+    lower.includes("current page")
+  ) {
+    return [
+      `${label} 用テンプレートではない可能性があります。`,
+      `現在ページの ledger_scope は「${expectedScope}」です。`,
+      "各ページの「テンプレートダウンロード」から取得したCSVを使用してください。",
+      `対象ファイル: ${filename}`,
+      message,
+    ].join("\n");
+  }
+
+  if (
+    message.includes("データ行がありません") ||
+    lower.includes("no data") ||
+    lower.includes("empty")
+  ) {
+    return [
+      "CSVに登録対象のデータ行がありません。",
+      "1行目はヘッダー、2行目以降に支出データを入力してください。",
+      `対象ファイル: ${filename}`,
+      message,
+    ].join("\n");
+  }
+
+  if (
+    message.includes("日付未入力") ||
+    message.includes("金額未入力") ||
+    message.includes("支出区分未入力") ||
+    message.includes("証憑番号未入力") ||
+    message.includes("エラー行があるため")
+  ) {
+    return [
+      `${label} のCSVに未入力または修正が必要な行があります。`,
+      "プレビュー表の「状態」列を確認し、該当行を修正してください。",
+      "必須項目: ledger_scope / 発生日 / 金額 / 支出区分 / 証憑番号",
+      "推奨項目: 支払先 / 支払口座 / メモ",
+      message,
+    ].join("\n");
+  }
+
+  if (
+    lower.includes("failed") ||
+    lower.includes("500") ||
+    lower.includes("network") ||
+    lower.includes("fetch")
+  ) {
+    return [
+      `${label} の正式登録中にエラーが発生しました。`,
+      "CSV内容を確認しても解決しない場合は、同じファイルで再実行せず、画面を更新してから再度お試しください。",
+      "重複登録を避けるため、正式登録結果が不明な場合は明細一覧を先に確認してください。",
+      message,
+    ].join("\n");
+  }
+
+  return [
+    `${label} の取込で確認が必要です。`,
+    "テンプレート、ledger_scope、必須項目、日付・金額の形式を確認してください。",
+    message,
+  ].join("\n");
+}
+
+function setExpenseImportProductError(args: {
+  setError: (message: string) => void;
+  error: unknown;
+  routeInfo: ExpenseImportRouteInfo;
+  filename?: string;
+}) {
+  args.setError(
+    normalizeExpenseImportErrorMessage({
+      error: args.error,
+      routeInfo: args.routeInfo,
+      filename: args.filename,
+    })
+  );
+}
+
 // Step109-Z1-H5C-FIX1-REWRITE-IMPORT-WORKSPACE-SHELL:
 // Clean split between expense preview UI and legacy Amazon import flow.
 
@@ -504,7 +605,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setExpensePostCommitHref("");
       setExpensePreviewRows([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "file read failed");
+      setExpenseImportProductError({
+        setError,
+        error: err instanceof Error ? err : new Error("file read failed"),
+        routeInfo: expenseImportRouteInfo,
+        filename: file.name,
+      });
     }
   }
 
@@ -517,7 +623,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         csvText,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ledger_scope validation failed");
+      setExpenseImportProductError({
+        setError,
+        error: err instanceof Error ? err : new Error("ledger_scope validation failed"),
+        routeInfo: expenseImportRouteInfo,
+        filename,
+      });
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
@@ -552,7 +663,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         setDetectResult(null);
         setPreviewResult(null);
         setCommitResult(null);
-        setError(err instanceof Error ? err.message : "expense preview failed");
+        setExpenseImportProductError({
+          setError,
+          error: err instanceof Error ? err : new Error("expense preview failed"),
+          routeInfo: expenseImportRouteInfo,
+          filename,
+        });
       }
       return;
     }
@@ -606,7 +722,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         csvText,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ledger_scope validation failed");
+      setExpenseImportProductError({
+        setError,
+        error: err instanceof Error ? err : new Error("ledger_scope validation failed"),
+        routeInfo: expenseImportRouteInfo,
+        filename,
+      });
       setPreviewResult(null);
       return;
     }
@@ -628,7 +749,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         );
       } catch (err) {
         setExpensePreviewRows([]);
-        setError(err instanceof Error ? err.message : "expense preview failed");
+        setExpenseImportProductError({
+          setError,
+          error: err instanceof Error ? err : new Error("expense preview failed"),
+          routeInfo: expenseImportRouteInfo,
+          filename,
+        });
       }
       return;
     }
@@ -695,13 +821,23 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     if (!expenseImportRouteInfo.enabled) return;
     if (!expensePreviewRows.length) return;
     if (expensePreviewSummary.errorRows > 0) {
-      setError("エラー行があるため正式登録できません。CSV内容を修正してください。");
+      setExpenseImportProductError({
+        setError,
+        error: new Error("エラー行があるため正式登録できません。CSV内容を修正してください。"),
+        routeInfo: expenseImportRouteInfo,
+        filename,
+      });
       return;
     }
 
     const ledgerScope = String(expenseImportRouteInfo.expectedScope || "").trim();
     if (!ledgerScope) {
-      setError("ledger_scope が判定できないため正式登録できません。");
+      setExpenseImportProductError({
+        setError,
+        error: new Error("ledger_scope が判定できないため正式登録できません。"),
+        routeInfo: expenseImportRouteInfo,
+        filename,
+      });
       return;
     }
 
@@ -749,7 +885,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     } catch (err) {
       setExpenseCommitResult(null);
       setExpensePostCommitHref("");
-      setError(err instanceof Error ? err.message : "expense commit failed");
+      setExpenseImportProductError({
+        setError,
+        error: err instanceof Error ? err : new Error("expense commit failed"),
+        routeInfo: expenseImportRouteInfo,
+        filename,
+      });
     } finally {
       setCommitLoading(false);
     }
