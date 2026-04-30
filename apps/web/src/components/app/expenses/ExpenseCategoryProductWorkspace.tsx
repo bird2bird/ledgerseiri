@@ -743,25 +743,93 @@ function getBucketLabel(kind: ExpenseCategoryProductKind, bucket: string) {
   return KIND_OPTIONS[kind].find((item) => item.value === bucket)?.label || PAGE_CONFIG[kind].badgeLabel;
 }
 
+
+// Step109-Z1-H5G-EXPENSE-STATUS-DISPLAY-STANDARDIZE:
+// Display layer normalization for imported expense rows.
+// It reads H5D memo markers without changing stored Transaction data.
+function readExpenseMemoMarker(
+  text: string | null | undefined,
+  markers: string[]
+) {
+  const raw = String(text || "");
+  for (const marker of markers) {
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\[${escaped}:([^\\]]+)\\]`, "i");
+    const found = raw.match(regex)?.[1]?.trim();
+    if (found) return found;
+  }
+  return "";
+}
+
+function stripExpenseDisplaySystemMarkers(memo: string | null | undefined) {
+  return stripLedgerMarkersFromMemo(memo)
+    .replace(/\[vendor:[^\]]+\]/gi, "")
+    .replace(/\[evidence:[^\]]+\]/gi, "")
+    .replace(/\[invoice:[^\]]+\]/gi, "")
+    .replace(/\[evidence_no:[^\]]+\]/gi, "")
+    .replace(/\[invoice_no:[^\]]+\]/gi, "")
+    .replace(/\[account:[^\]]+\]/gi, "")
+    .replace(/\[account_name:[^\]]+\]/gi, "")
+    .replace(/\[bank:[^\]]+\]/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getExpenseDisplayVendor(item: TransactionItem, rawMemo: string) {
+  return (
+    readExpenseMemoMarker(rawMemo, ["vendor", "payee", "supplier"]) ||
+    String(item.storeName || item.storeId || "").trim() ||
+    "-"
+  );
+}
+
+function getExpenseDisplayAccount(item: TransactionItem, rawMemo: string) {
+  return (
+    String(item.accountName || "").trim() ||
+    readExpenseMemoMarker(rawMemo, ["account_name", "account", "bank"]) ||
+    "-"
+  );
+}
+
+function getExpenseDisplayEvidenceNo(item: TransactionItem, rawMemo: string) {
+  return (
+    readExpenseMemoMarker(rawMemo, [
+      "evidence_no",
+      "invoice_no",
+      "evidence",
+      "invoice",
+    ]) ||
+    String(item.externalRef || "").trim()
+  );
+}
+
+function hasExpenseDisplayEvidence(item: TransactionItem, rawMemo: string) {
+  return Boolean(getExpenseDisplayEvidenceNo(item, rawMemo));
+}
+
+function hasExpenseDisplayAccount(item: TransactionItem, rawMemo: string) {
+  return getExpenseDisplayAccount(item, rawMemo) !== "-";
+}
+
 function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionItem): ExpenseCategoryRecord {
   const ts = parseExpenseDateMs(item);
   const date = ts > 0 ? formatFullDate(new Date(ts)) : "-";
   const bucket = getBucket(kind, item);
   const amount = Math.abs(Number(item.amount || 0));
   const rawMemo = String(item.memo || "");
-  const memo = stripLedgerMarkersFromMemo(rawMemo);
+  const memo = stripExpenseDisplaySystemMarkers(rawMemo);
+  const displayVendor = getExpenseDisplayVendor(item, rawMemo);
+  const displayAccount = getExpenseDisplayAccount(item, rawMemo);
+  const evidenceNo = getExpenseDisplayEvidenceNo(item, rawMemo);
   const effectiveScope = getEffectiveExpenseLedgerScope(item);
 
   const statusFlags = [
-    effectiveScope.mode === "legacy-unscoped-default" ? "分類未確定" : "",
-    item.accountName ? "" : "銀行流水未確認",
-    // Step109-Z1-H5E-FIX2-EVIDENCE-MARKER-COMPAT:
-    // H5D import writes evidence_no / invoice_no markers into memo.
-    rawMemo.includes("[evidence:") ||
-    rawMemo.includes("[invoice:") ||
-    rawMemo.includes("[evidence_no:") ||
-    rawMemo.includes("[invoice_no:")
-      ? ""
+    effectiveScope.mode === "legacy-unscoped-default" ? "分類未確定" : "scope確定済み",
+    hasExpenseDisplayAccount(item, rawMemo)
+      ? "銀行流水確認済み"
+      : "銀行流水未確認",
+    hasExpenseDisplayEvidence(item, rawMemo)
+      ? "証憑確認済み"
       : "証憑未添付",
   ].filter(Boolean);
 
@@ -771,9 +839,9 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
     sortAt: item.occurredAt || item.createdAt || "",
     categoryLabel: getBucketLabel(kind, bucket),
     amount,
-    account: item.accountName || "-",
-    vendor: item.storeName || item.storeId || "-",
-    memo: memo || item.categoryName || item.type || "-",
+    account: displayAccount,
+    vendor: displayVendor,
+    memo: memo || evidenceNo || item.categoryName || item.type || "-",
     source: item.sourceFileName || item.importJobId || "manual/api",
     statusFlags,
     rawMemo,
