@@ -1166,9 +1166,12 @@ export function ExpenseCategoryProductWorkspace(props: {
   const { lang, kind } = props;
   const config = PAGE_CONFIG[kind];
   // Step109-Z1-H6B-FIX3-COMPANY-OPERATION-INLINE-IMPORT-DIALOG:
-  // Only 会社運営費 uses inline import dialog in H6B. Payroll / other-expense keep current navigation.
+  // H6C enables inline import dialog for 会社運営費 and 給与. その他支出 keeps current navigation.
   const [expenseInlineImportOpen, setExpenseInlineImportOpen] = React.useState(false);
-  const isCompanyOperationInlineImportEnabled = kind === "company-operation";
+  // Step109-Z1-H6C-PAYROLL-INLINE-IMPORT-DIALOG:
+  // H6C extends the inline import dialog to 給与. その他支出 remains on the existing /app/data/import route.
+  const isCompanyOperationInlineImportEnabled =
+    kind === "company-operation" || kind === "payroll";
 
   function handleExpenseInlineImportCommitted(result: { importJobId?: string | null }) {
     setExpenseInlineImportOpen(false);
@@ -1179,7 +1182,10 @@ export function ExpenseCategoryProductWorkspace(props: {
     url.searchParams.set("from", "expense-import-commit");
     url.searchParams.set("ledger_scope", config.scope);
     url.searchParams.set("refresh", String(Date.now()));
-    url.searchParams.set("category", "other");
+    url.searchParams.set(
+      "category",
+      kind === "payroll" ? "payroll" : "other"
+    );
     if (result.importJobId) {
       url.searchParams.set("importJobId", result.importJobId);
     }
@@ -1882,7 +1888,7 @@ export function ExpenseCategoryProductWorkspace(props: {
           onClose={() => setExpenseInlineImportOpen(false)}
           ledgerScope={config.scope as LedgerScope}
           label={config.title}
-          category="company-operation"
+          category={kind}
           defaultFilename={`${config.scope}-template.csv`}
           onCommitted={handleExpenseInlineImportCommitted}
         />
