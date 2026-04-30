@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { LEDGER_SCOPES, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
@@ -2570,10 +2570,36 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   scope={LEDGER_SCOPES.OTHER_INCOME}
   className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
 >
+  <input
+    ref={otherIncomeFileInputRef}
+    type="file"
+    accept=".csv,.tsv,.txt,.xlsx,.xls"
+    className="hidden"
+    data-scope="other-income-import-file-input"
+    onChange={(event) => {
+      void handleOtherIncomeFileSelected(event);
+    }}
+  />
+
   その他収入テンプレート下载
 </LedgerTemplateDownloadButton>
 
           {normalizedActions.map((item) => {
+                    // Step109-Z1-H5A-FIX2C-OTHER-INCOME-IMPORT-CLICK:
+                    // CSV/Excel import opens the hidden file picker instead of becoming a no-op action.
+                    if (getOtherIncomeActionLabel(item.label) === "その他収入CSV/Excel取込") {
+                      return (
+                        <button
+                          key="other-income-csv-import"
+                          type="button"
+                          onClick={() => otherIncomeFileInputRef.current?.click()}
+                          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+                        >
+                          その他収入CSV/Excel取込
+                        </button>
+                      );
+                    }
+
             const primary = item.label === "新規その他収入";
             const disabled = item.disabled || (!item.href && item.label !== "その他収入を編集");
 
