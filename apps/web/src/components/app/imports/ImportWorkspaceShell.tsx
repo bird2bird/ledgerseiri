@@ -27,23 +27,10 @@ import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
 import { ImportPreviewSummary } from "./ImportPreviewSummary";
 import { ImportPreviewTable } from "./ImportPreviewTable";
 
-// -----------------------------------------------------------------------------
-// Shared import workspace helpers
-// These helpers are used by the legacy Amazon import flow and should stay neutral.
-// -----------------------------------------------------------------------------
-
 function formatPolicyLabel(value: MonthConflictPolicy) {
   return value === "replace_existing_months"
     ? "删除后重新导入"
     : "跳过已存在月份";
-}
-
-function formatDateTime(value?: string | null) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString("ja-JP");
 }
 
 function formatNumber(value?: number | null) {
@@ -52,9 +39,7 @@ function formatNumber(value?: number | null) {
 
 function renderTagList(values?: string[]) {
   const list = Array.isArray(values) ? values.filter(Boolean) : [];
-  if (!list.length) {
-    return <span className="text-sm text-slate-500">-</span>;
-  }
+  if (!list.length) return <span className="text-sm text-slate-500">-</span>;
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -70,12 +55,6 @@ function renderTagList(values?: string[]) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// Import module routing helpers
-// ModuleMode controls whether this workspace renders the existing Amazon import
-// flow or the cash-income dedicated import flow.
-// -----------------------------------------------------------------------------
-
 type ModuleMode = "store-orders" | "store-operation" | "cash-income";
 
 function normalizeImportModuleHint(value?: string | null): ModuleMode {
@@ -83,7 +62,6 @@ function normalizeImportModuleHint(value?: string | null): ModuleMode {
   if (value === "cash-income") return "cash-income";
   return "store-orders";
 }
-
 
 type ExpenseImportRouteInfo = {
   enabled: boolean;
@@ -96,7 +74,8 @@ function buildExpenseImportRouteInfo(args: {
   moduleParam?: string | null;
   categoryParam?: string | null;
 }): ExpenseImportRouteInfo {
-  const enabled = String(args.moduleParam || "").trim().toLowerCase() === "expenses";
+  const enabled =
+    String(args.moduleParam || "").trim().toLowerCase() === "expenses";
   const category = String(args.categoryParam || "").trim();
   const expectedScope = enabled
     ? getExpenseImportLedgerScopeFromCategory(category)
@@ -123,14 +102,12 @@ function getExpenseImportTitle(routeInfo: ExpenseImportRouteInfo) {
 
 function getExpenseImportDescription(routeInfo: ExpenseImportRouteInfo) {
   if (!routeInfo.enabled) {
-    return "Step105-EC：文件上传 -> detect -> 月份冲突弹窗 -> preview -> history 刷新。当前仍与既有 Amazon CSV foundation 卡片并行，不替换旧入口。";
+    return "Step105-EC：文件上传 -> detect -> 月份冲突弹窗 -> preview -> history 刷新。";
   }
 
   return "ページ専用テンプレートの ledger_scope を検証してから、支出 CSV/Excel の取込プレビューへ進みます。";
 }
 
-// Step109-Z1-H5B-FIX1-EXPENSE-IMPORT-UI-MODE:
-// Expense import route is UI-isolated from Amazon store-orders import mode.
 function assertExpenseImportLedgerScope(args: {
   routeInfo: ExpenseImportRouteInfo;
   csvText: string;
@@ -139,7 +116,9 @@ function assertExpenseImportLedgerScope(args: {
 
   if (!args.routeInfo.expectedScope) {
     throw new Error(
-      `支出インポート種別を判定できません。URL の category を確認してください。category=${args.routeInfo.category || "-"}`
+      `支出インポート種別を判定できません。URL の category を確認してください。category=${
+        args.routeInfo.category || "-"
+      }`
     );
   }
 
@@ -155,12 +134,13 @@ function assertExpenseImportLedgerScope(args: {
   }
 }
 
-
 type ExpenseLocalPreviewRow = {
   rowNo: number;
   occurredAt: string;
   amount: number;
+  currency: string;
   category: string;
+  vendor: string;
   accountName: string;
   evidenceNo: string;
   memo: string;
@@ -263,12 +243,20 @@ function buildExpenseLocalPreviewRows(args: {
       "支払日",
     ]);
     const amount = parseExpenseImportAmount(getExpenseCell(raw, ["amount", "金額"]));
+    const currency = getExpenseCell(raw, ["currency", "通貨"]) || "JPY";
     const category = getExpenseCell(raw, [
       "expense_category",
       "payroll_category",
       "category",
       "費目",
       "支出区分",
+    ]);
+    const vendor = getExpenseCell(raw, [
+      "vendor",
+      "payee",
+      "supplier",
+      "支払先",
+      "仕入先",
     ]);
     const accountName = getExpenseCell(raw, [
       "account_name",
@@ -289,12 +277,15 @@ function buildExpenseLocalPreviewRows(args: {
     if (!occurredAt) errors.push("日付未入力");
     if (!amount) errors.push("金額未入力");
     if (!category) errors.push("支出区分未入力");
+    if (!evidenceNo) errors.push("証憑番号未入力");
 
     rows.push({
       rowNo: i + 1,
       occurredAt,
       amount,
+      currency,
       category,
+      vendor,
       accountName,
       evidenceNo,
       memo,
@@ -306,13 +297,17 @@ function buildExpenseLocalPreviewRows(args: {
   return rows;
 }
 
-
 function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
   const okRows = rows.filter((row) => row.status === "ok");
   const errorRows = rows.filter((row) => row.status === "error");
-  const totalAmount = okRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const totalAmount = okRows.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  );
   const evidenceMissing = rows.filter((row) => !row.evidenceNo).length;
-  const accounts = Array.from(new Set(rows.map((row) => row.accountName).filter(Boolean)));
+  const accounts = Array.from(
+    new Set(rows.map((row) => row.accountName).filter(Boolean))
+  );
 
   return {
     totalRows: rows.length,
@@ -324,34 +319,25 @@ function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
   };
 }
 
-// Step109-Z1-H5C-EXPENSE-PREVIEW-UI-PRODUCTIZATION:
-// Expense mode owns a local, productized CSV preview and no longer uses Amazon preview panels.
-
-// Step109-Z1-H5B-FIX2B-EXPENSE-LOCAL-PREVIEW:
-// Expense import route uses local preview skeleton and must not call Amazon month conflict API.
-
-// -----------------------------------------------------------------------------
-// Cash income import workspace delegation
-// Runtime lives in CashIncomeImportWorkspace. This parent remains responsible for
-// module routing and the Amazon/store-orders/store-operation import flow.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// Main workspace component
-// -----------------------------------------------------------------------------
+// Step109-Z1-H5C-FIX1-REWRITE-IMPORT-WORKSPACE-SHELL:
+// Clean split between expense preview UI and legacy Amazon import flow.
 
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
   const params = useParams<{ lang: string }>();
   const searchParams = useSearchParams();
   const lang = params?.lang ?? "ja";
+
   const expenseImportRouteInfo = buildExpenseImportRouteInfo({
     moduleParam: searchParams?.get("module"),
     categoryParam: searchParams?.get("category"),
   });
+
   const initialModuleMode = normalizeImportModuleHint(moduleHint);
   const [moduleMode, setModuleMode] = useState<ModuleMode>(initialModuleMode);
-  const [filename, setFilename] = useState(getExpenseImportTemplateFileName(expenseImportRouteInfo));
+  const [filename, setFilename] = useState(
+    getExpenseImportTemplateFileName(expenseImportRouteInfo)
+  );
   const [csvText, setCsvText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -367,20 +353,29 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [commitResult, setCommitResult] =
     useState<CommitImportResponse | null>(null);
   const [commitLoading, setCommitLoading] = useState(false);
-  const [expensePreviewRows, setExpensePreviewRows] = useState<ExpenseLocalPreviewRow[]>([]);
+  const [expensePreviewRows, setExpensePreviewRows] = useState<
+    ExpenseLocalPreviewRow[]
+  >([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [policy, setPolicy] =
     useState<MonthConflictPolicy>("skip_existing_months");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const currentSourceType = expenseImportRouteInfo.enabled ? "expense-csv" : "amazon-csv";
+
+  const currentSourceType = expenseImportRouteInfo.enabled
+    ? "expense-csv"
+    : "amazon-csv";
 
   const moduleLabel = expenseImportRouteInfo.enabled
     ? expenseImportRouteInfo.label
-    : moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
+    : moduleMode === "store-operation"
+      ? "店舗運営費"
+      : "店舗注文";
 
-  const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
+  const rowCount = Array.isArray(previewResult?.rows)
+    ? previewResult!.rows.length
+    : 0;
 
   const expensePreviewSummary = useMemo(
     () => summarizeExpensePreviewRows(expensePreviewRows),
@@ -391,9 +386,6 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     if (!csvText.trim()) return 0;
     return csvText.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
   }, [csvText]);
-
-  const historyItems = Array.isArray(historyResult?.items) ? historyResult.items : [];
-  const latestHistoryItem = historyItems[0] ?? null;
 
   const bridgeImportJobId = String(previewResult?.importJobId || "").trim();
   const bridgeMonths = Array.isArray(detectResult?.fileMonths)
@@ -418,35 +410,14 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       })
     : `/${lang}/app/expenses/store-operation`;
 
-  const latestHistoryMonths = Array.isArray(latestHistoryItem?.fileMonthsJson)
-    ? latestHistoryItem.fileMonthsJson.filter(Boolean)
-    : [];
-
-  const latestHistoryOrdersHref = latestHistoryItem
-    ? buildImportCommitWorkspaceHref({
-        lang,
-        moduleMode: "store-orders",
-        importJobId: latestHistoryItem.id,
-        months: latestHistoryMonths,
-      })
-    : `/${lang}/app/income/store-orders`;
-
-  const latestHistoryOperationHref = latestHistoryItem
-    ? buildImportCommitWorkspaceHref({
-        lang,
-        moduleMode: "store-operation",
-        importJobId: latestHistoryItem.id,
-        months: latestHistoryMonths,
-      })
-    : `/${lang}/app/expenses/store-operation`;
-
   const canRun = useMemo(() => {
     return !!csvText.trim() && !!filename.trim();
   }, [csvText, filename]);
 
   async function loadHistory(moduleOverride?: ModuleMode) {
-    setHistoryLoading(true);
+    if (expenseImportRouteInfo.enabled) return;
 
+    setHistoryLoading(true);
     try {
       const res = await loadImportHistorySkeleton({
         module: moduleOverride || moduleMode,
@@ -466,17 +437,24 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     try {
       const text = await file.text();
 
-      // Step109-Z1-H5B-EXPENSE-IMPORT-SCOPE-VALIDATION:
-      // Shared expense import route must reject files whose ledger_scope belongs to another page.
       assertExpenseImportLedgerScope({
         routeInfo: expenseImportRouteInfo,
         csvText: text,
       });
 
-      setFilename(file.name || (expenseImportRouteInfo.enabled ? "expense-template.csv" : "amazon-store-orders.csv"));
+      setFilename(
+        file.name ||
+          (expenseImportRouteInfo.enabled
+            ? "expense-template.csv"
+            : "amazon-store-orders.csv")
+      );
       setCsvText(text);
       setError("");
-      setMessage(expenseImportRouteInfo.enabled ? `${expenseImportRouteInfo.label} テンプレートを読み取りました: ${file.name}` : `已读取文件: ${file.name}`);
+      setMessage(
+        expenseImportRouteInfo.enabled
+          ? `${expenseImportRouteInfo.label} テンプレートを読み取りました: ${file.name}`
+          : `已读取文件: ${file.name}`
+      );
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
@@ -499,6 +477,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
+      setExpensePreviewRows([]);
       return;
     }
 
@@ -508,7 +487,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
           routeInfo: expenseImportRouteInfo,
           csvText,
         });
-        const errorRows = rows.filter((row) => row.status === "error").length;
+        const summary = summarizeExpensePreviewRows(rows);
 
         setExpensePreviewRows(rows);
         setDetectResult({
@@ -517,14 +496,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
           conflictMonths: [],
           monthStats: [],
           hasConflict: false,
-          // Step109-Z1-H5B-FIX2C-DETECT-RESULT-MONTHSTATS:
-          // Local expense preview uses a minimal detect result only for UI readiness.
         } as DetectMonthConflictsResponse);
         setPreviewResult(null);
         setCommitResult(null);
         setError("");
         setMessage(
-          `${expenseImportRouteInfo.label} の取込プレビューを生成しました。対象行: ${rows.length} / エラー行: ${errorRows}`
+          `${expenseImportRouteInfo.label} の取込プレビューを生成しました。対象行: ${summary.totalRows} / OK: ${summary.okRows} / エラー: ${summary.errorRows}`
         );
       } catch (err) {
         setExpensePreviewRows([]);
@@ -596,13 +573,14 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
           routeInfo: expenseImportRouteInfo,
           csvText,
         });
-        const errorRows = rows.filter((row) => row.status === "error").length;
+        const summary = summarizeExpensePreviewRows(rows);
+
         setExpensePreviewRows(rows);
         setPreviewResult(null);
         setCommitResult(null);
         setError("");
         setMessage(
-          `${expenseImportRouteInfo.label} の取込プレビューを更新しました。対象行: ${rows.length} / エラー行: ${errorRows}`
+          `${expenseImportRouteInfo.label} の取込プレビューを更新しました。対象行: ${summary.totalRows} / OK: ${summary.okRows} / エラー: ${summary.errorRows}`
         );
       } catch (err) {
         setExpensePreviewRows([]);
@@ -613,9 +591,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
     setLoading(true);
     setError("");
-    if (!keepDialogOpen) {
-      setMessage("");
-    }
+    if (!keepDialogOpen) setMessage("");
 
     try {
       const res = await previewImportSkeleton({
@@ -645,7 +621,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   }
 
   async function runCommit() {
-    if (!previewResult?.importJobId) return;
+    if (!previewResult?.importJobId || expenseImportRouteInfo.enabled) return;
 
     setCommitLoading(true);
     setError("");
@@ -669,35 +645,13 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     }
   }
 
-  function buildPostCommitHref(args: {
-    moduleMode: ModuleMode;
-    importJobId: string;
-    months: string[];
-  }) {
-    const params = new URLSearchParams();
-    params.set("from", "import-commit");
-    params.set("importJobId", args.importJobId);
-    if (args.months.length > 0) {
-      params.set("months", args.months.join(","));
-    }
-    params.set("module", args.moduleMode);
-
-    const base =
-      args.moduleMode === "store-operation"
-        ? "/app/expenses/store-operation"
-        : "/app/income/store-orders";
-
-    return `${base}?${params.toString()}`;
-  }
-
   React.useEffect(() => {
-    if (moduleMode !== "cash-income") {
+    if (!expenseImportRouteInfo.enabled && moduleMode !== "cash-income") {
       void loadHistory(moduleMode);
     }
-  }, [moduleMode]);
+  }, [moduleMode, expenseImportRouteInfo.enabled]);
 
-  // H6-F parent cleanup: cash runtime is isolated in CashIncomeImportWorkspace.
-  if (moduleMode === "cash-income") {
+  if (!expenseImportRouteInfo.enabled && moduleMode === "cash-income") {
     return <CashIncomeImportWorkspace lang={lang} />;
   }
 
@@ -714,11 +668,201 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         </div>
 
         <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-          module = {expenseImportRouteInfo.enabled ? `expenses:${expenseImportRouteInfo.category || "-"}` : moduleMode}
+          module ={" "}
+          {expenseImportRouteInfo.enabled
+            ? `expenses:${expenseImportRouteInfo.category || "-"}`
+            : moduleMode}
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm font-medium text-slate-900">Import Source</div>
+              {expenseImportRouteInfo.enabled ? (
+                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                  ledger_scope = {expenseImportRouteInfo.expectedScope || "unknown"}
+                </div>
+              ) : null}
+            </div>
+
+            {expenseImportRouteInfo.enabled ? (
+              <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-sm font-bold text-emerald-800">
+                  {expenseImportRouteInfo.label} 専用インポート
+                </div>
+                <div className="mt-1 text-xs leading-5 text-emerald-700">
+                  このページでは{" "}
+                  <span className="font-bold">
+                    {expenseImportRouteInfo.expectedScope || "unknown"}
+                  </span>{" "}
+                  の ledger_scope を持つテンプレートだけを受け付けます。
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModuleMode("store-orders")}
+                  className={
+                    moduleMode === "store-orders"
+                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  }
+                >
+                  店舗注文
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModuleMode("store-operation")}
+                  className={
+                    moduleMode === "store-operation"
+                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  }
+                >
+                  店舗運営費
+                </button>
+              </div>
+            )}
+
+            <div className="mt-4 grid gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.txt,.tsv,text/csv,text/plain"
+                onChange={(e) => {
+                  void handleFileChange(e.target.files?.[0] ?? null);
+                }}
+                className="hidden"
+              />
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  选择文件
+                </button>
+
+                <div className="text-sm text-slate-500">
+                  {filename
+                    ? `当前文件: ${filename}`
+                    : expenseImportRouteInfo.enabled
+                      ? "支出テンプレートを選択してください"
+                      : "尚未选择文件"}
+                </div>
+              </div>
+
+              <input
+                value={filename}
+                onChange={(e) => setFilename(e.target.value)}
+                className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
+                placeholder={
+                  expenseImportRouteInfo.enabled
+                    ? getExpenseImportTemplateFileName(expenseImportRouteInfo)
+                    : "filename.csv"
+                }
+              />
+
+              <textarea
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                rows={10}
+                className="w-full rounded-[14px] border border-black/8 bg-white px-3 py-3 text-sm"
+                placeholder={
+                  expenseImportRouteInfo.enabled
+                    ? "支出テンプレート CSV テキストを貼り付けることもできます。ledger_scope は現在ページと一致している必要があります。"
+                    : "可直接粘贴 CSV 文本，或通过上方文件选择读取。"
+                }
+              />
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void runDetect()}
+                  disabled={loading || !canRun}
+                  className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                >
+                  {loading ? "处理中..." : "开始导入检测"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCsvText("");
+                    setDetectResult(null);
+                    setPreviewResult(null);
+                    setCommitResult(null);
+                    setExpensePreviewRows([]);
+                    setError("");
+                    setMessage("已清空当前导入草稿。");
+                  }}
+                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  清空
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error ? (
+            <div className="rounded-[22px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+              {error}
+            </div>
+          ) : null}
+
+          {message ? (
+            <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+              {message}
+            </div>
+          ) : null}
+
+          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-slate-900">
+                  Current Draft Summary
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  現在の取込草稿・ファイル・preview 状態を確認します。
+                </div>
+              </div>
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
+                ready = {canRun ? "YES" : "NO"}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Filename</div>
+                <div className="mt-1 break-all text-sm font-medium text-slate-900">
+                  {filename || "-"}
+                </div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Draft Lines</div>
+                <div className="mt-1 text-base font-semibold text-slate-900">
+                  {formatNumber(draftLineCount)}
+                </div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Detect Months</div>
+                <div className="mt-2">{renderTagList(detectResult?.fileMonths)}</div>
+              </div>
+              <div className="rounded-[16px] bg-white p-3">
+                <div className="text-[11px] text-slate-500">Conflict Months</div>
+                <div className="mt-2">
+                  {renderTagList(detectResult?.conflictMonths)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="space-y-4">
           {expenseImportRouteInfo.enabled ? (
             <>
@@ -747,7 +891,8 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                   <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
                     <div className="text-[11px] font-semibold text-slate-500">OK / エラー</div>
                     <div className="mt-1 text-xl font-bold text-slate-950">
-                      {formatNumber(expensePreviewSummary.okRows)} / {formatNumber(expensePreviewSummary.errorRows)}
+                      {formatNumber(expensePreviewSummary.okRows)} /{" "}
+                      {formatNumber(expensePreviewSummary.errorRows)}
                     </div>
                   </div>
                   <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
@@ -757,9 +902,12 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     </div>
                   </div>
                   <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
-                    <div className="text-[11px] font-semibold text-slate-500">証憑不足 / 口座数</div>
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      証憑不足 / 口座数
+                    </div>
                     <div className="mt-1 text-xl font-bold text-slate-950">
-                      {formatNumber(expensePreviewSummary.evidenceMissing)} / {formatNumber(expensePreviewSummary.accountCount)}
+                      {formatNumber(expensePreviewSummary.evidenceMissing)} /{" "}
+                      {formatNumber(expensePreviewSummary.accountCount)}
                     </div>
                   </div>
                 </div>
@@ -812,9 +960,14 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {expensePreviewRows.map((row) => (
-                          <tr key={`${row.rowNo}-${row.memo}-${row.amount}`} className="bg-white hover:bg-slate-50">
+                          <tr
+                            key={`${row.rowNo}-${row.memo}-${row.amount}`}
+                            className="bg-white hover:bg-slate-50"
+                          >
                             <td className="px-3 py-2 text-slate-500">{row.rowNo}</td>
-                            <td className="px-3 py-2 font-medium text-slate-900">{row.occurredAt || "-"}</td>
+                            <td className="px-3 py-2 font-medium text-slate-900">
+                              {row.occurredAt || "-"}
+                            </td>
                             <td className="px-3 py-2 text-right font-bold text-slate-900">
                               ¥{formatNumber(row.amount)}
                             </td>
@@ -903,70 +1056,6 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 )}
               </div>
 
-              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">Latest History Snapshot</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      最近一条 import history 的快速入口
-                    </div>
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {historyLoading ? "loading..." : `items: ${historyItems.length}`}
-                  </div>
-                </div>
-
-                {latestHistoryItem ? (
-                  <div className="mt-4 space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[16px] bg-white p-3">
-                        <div className="text-[11px] text-slate-500">Latest Filename</div>
-                        <div className="mt-1 break-all text-sm font-medium text-slate-900">
-                          {latestHistoryItem.filename || "-"}
-                        </div>
-                      </div>
-                      <div className="rounded-[16px] bg-white p-3">
-                        <div className="text-[11px] text-slate-500">Latest Status</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">
-                          {latestHistoryItem.status || "-"}
-                        </div>
-                      </div>
-                      <div className="rounded-[16px] bg-white p-3">
-                        <div className="text-[11px] text-slate-500">Imported At</div>
-                        <div className="mt-1 text-sm font-medium text-slate-900">
-                          {formatDateTime(latestHistoryItem.importedAt)}
-                        </div>
-                      </div>
-                      <div className="rounded-[16px] bg-white p-3">
-                        <div className="text-[11px] text-slate-500">File Months</div>
-                        <div className="mt-2">
-                          {renderTagList(latestHistoryMonths)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Link
-                        href={latestHistoryOrdersHref}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        打开最近一次 店舗注文 结果
-                      </Link>
-                      <Link
-                        href={latestHistoryOperationHref}
-                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                      >
-                        打开最近一次 店舗運営費 结果
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
-                    还没有可展示的 import history。
-                  </div>
-                )}
-              </div>
-
               <ImportPreviewSummary
                 preview={previewResult}
                 policyLabel={formatPolicyLabel(policy)}
@@ -998,23 +1087,60 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                     <span className="font-medium text-slate-900">策略：</span>
                     {formatPolicyLabel(policy)}
                   </div>
+                  {commitResult ? (
+                    <div>
+                      <span className="font-medium text-slate-900">Commit：</span>
+                      imported={commitResult.importedRows}, duplicate=
+                      {commitResult.duplicateRows}, error={commitResult.errorRows}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 rounded-[16px] border border-slate-200 bg-white p-4">
+                  <div className="text-[11px] text-slate-500">Workspace Bridge</div>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <Link
+                      href={previewOrdersHref}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      打开当前 preview 的 店舗注文 结果
+                    </Link>
+                    <Link
+                      href={previewOperationHref}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      打开当前 preview 的 店舗運営費 结果
+                    </Link>
+                  </div>
                 </div>
               </div>
             </>
           )}
         </div>
+      </div>
 
-      <ImportMonthConflictDialog
-        open={dialogOpen}
-        monthStats={detectResult?.monthStats ?? []}
-        selectedPolicy={policy}
-        onSelectPolicy={setPolicy}
-        onCancel={() => setDialogOpen(false)}
-        onContinue={() => {
-          void runPreview(policy);
-        }}
-        loading={loading}
-      />
+      {!expenseImportRouteInfo.enabled ? (
+        <div className="mt-6 space-y-4">
+          <ImportPreviewTable preview={previewResult} />
+          <ImportHistoryList
+            history={historyResult}
+            loading={historyLoading}
+            moduleLabel={moduleLabel}
+          />
+        </div>
+      ) : null}
+
+      {!expenseImportRouteInfo.enabled ? (
+        <ImportMonthConflictDialog
+          open={dialogOpen}
+          monthStats={detectResult?.monthStats || []}
+          selectedPolicy={policy}
+          onSelectPolicy={setPolicy}
+          onCancel={() => setDialogOpen(false)}
+          onContinue={() => void runPreview(policy, false)}
+          loading={loading}
+        />
+      ) : null}
     </section>
   );
 }
