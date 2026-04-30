@@ -155,6 +155,181 @@ function assertExpenseImportLedgerScope(args: {
   }
 }
 
+
+type ExpenseLocalPreviewRow = {
+  rowNo: number;
+  occurredAt: string;
+  amount: number;
+  category: string;
+  accountName: string;
+  evidenceNo: string;
+  memo: string;
+  status: "ok" | "error";
+  error: string;
+};
+
+function splitImportCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = line[i + 1];
+
+    if (ch === '"' && quoted && next === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if ((ch === "," || ch === "\t") && !quoted) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => String(cell || "").trim());
+}
+
+function normalizeExpenseImportHeader(value: string) {
+  return String(value || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function getExpenseCell(row: Record<string, string>, keys: string[]) {
+  for (const key of keys) {
+    const value = row[normalizeExpenseImportHeader(key)];
+    if (String(value || "").trim()) return String(value || "").trim();
+  }
+  return "";
+}
+
+function parseExpenseImportAmount(value: string) {
+  const normalized = String(value || "")
+    .replace(/[￥¥,\s]/g, "")
+    .replace(/^\((.*)\)$/, "-$1");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function buildExpenseLocalPreviewRows(args: {
+  routeInfo: ExpenseImportRouteInfo;
+  csvText: string;
+}) {
+  assertExpenseImportLedgerScope({
+    routeInfo: args.routeInfo,
+    csvText: args.csvText,
+  });
+
+  const lines = String(args.csvText || "")
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error("支出CSVにデータ行がありません。テンプレートに1行以上入力してください。");
+  }
+
+  const headers = splitImportCsvLine(lines[0]).map(normalizeExpenseImportHeader);
+  const rows: ExpenseLocalPreviewRow[] = [];
+
+  for (let i = 1; i < lines.length; i += 1) {
+    const cells = splitImportCsvLine(lines[i]);
+    const raw: Record<string, string> = {};
+
+    headers.forEach((header, index) => {
+      raw[header] = cells[index] ?? "";
+    });
+
+    const occurredAt = getExpenseCell(raw, [
+      "occurred_at",
+      "payment_date",
+      "date",
+      "発生日",
+      "支払日",
+    ]);
+    const amount = parseExpenseImportAmount(getExpenseCell(raw, ["amount", "金額"]));
+    const category = getExpenseCell(raw, [
+      "expense_category",
+      "payroll_category",
+      "category",
+      "費目",
+      "支出区分",
+    ]);
+    const accountName = getExpenseCell(raw, [
+      "account_name",
+      "account",
+      "口座",
+      "支払口座",
+    ]);
+    const evidenceNo = getExpenseCell(raw, [
+      "evidence_no",
+      "invoice_no",
+      "receipt_no",
+      "証憑番号",
+      "請求書番号",
+    ]);
+    const memo = getExpenseCell(raw, ["memo", "メモ", "摘要"]);
+    const errors: string[] = [];
+
+    if (!occurredAt) errors.push("日付未入力");
+    if (!amount) errors.push("金額未入力");
+    if (!category) errors.push("支出区分未入力");
+
+    rows.push({
+      rowNo: i + 1,
+      occurredAt,
+      amount,
+      category,
+      accountName,
+      evidenceNo,
+      memo,
+      status: errors.length ? "error" : "ok",
+      error: errors.join(" / "),
+    });
+  }
+
+  return rows;
+}
+
+
+function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
+  const okRows = rows.filter((row) => row.status === "ok");
+  const errorRows = rows.filter((row) => row.status === "error");
+  const totalAmount = okRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const evidenceMissing = rows.filter((row) => !row.evidenceNo).length;
+  const accounts = Array.from(new Set(rows.map((row) => row.accountName).filter(Boolean)));
+
+  return {
+    totalRows: rows.length,
+    okRows: okRows.length,
+    errorRows: errorRows.length,
+    totalAmount,
+    evidenceMissing,
+    accountCount: accounts.length,
+  };
+}
+
+// Step109-Z1-H5C-EXPENSE-PREVIEW-UI-PRODUCTIZATION:
+// Expense mode owns a local, productized CSV preview and no longer uses Amazon preview panels.
+
+// Step109-Z1-H5B-FIX2B-EXPENSE-LOCAL-PREVIEW:
+// Expense import route uses local preview skeleton and must not call Amazon month conflict API.
+
 // -----------------------------------------------------------------------------
 // Cash income import workspace delegation
 // Runtime lives in CashIncomeImportWorkspace. This parent remains responsible for
@@ -192,6 +367,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const [commitResult, setCommitResult] =
     useState<CommitImportResponse | null>(null);
   const [commitLoading, setCommitLoading] = useState(false);
+  const [expensePreviewRows, setExpensePreviewRows] = useState<ExpenseLocalPreviewRow[]>([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [policy, setPolicy] =
@@ -205,6 +381,11 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     : moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
 
   const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
+
+  const expensePreviewSummary = useMemo(
+    () => summarizeExpensePreviewRows(expensePreviewRows),
+    [expensePreviewRows]
+  );
 
   const draftLineCount = useMemo(() => {
     if (!csvText.trim()) return 0;
@@ -299,6 +480,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
+      setExpensePreviewRows([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "file read failed");
     }
@@ -317,6 +499,40 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
+      return;
+    }
+
+    if (expenseImportRouteInfo.enabled) {
+      try {
+        const rows = buildExpenseLocalPreviewRows({
+          routeInfo: expenseImportRouteInfo,
+          csvText,
+        });
+        const errorRows = rows.filter((row) => row.status === "error").length;
+
+        setExpensePreviewRows(rows);
+        setDetectResult({
+          fileMonths: [],
+          existingMonths: [],
+          conflictMonths: [],
+          monthStats: [],
+          hasConflict: false,
+          // Step109-Z1-H5B-FIX2C-DETECT-RESULT-MONTHSTATS:
+          // Local expense preview uses a minimal detect result only for UI readiness.
+        } as DetectMonthConflictsResponse);
+        setPreviewResult(null);
+        setCommitResult(null);
+        setError("");
+        setMessage(
+          `${expenseImportRouteInfo.label} の取込プレビューを生成しました。対象行: ${rows.length} / エラー行: ${errorRows}`
+        );
+      } catch (err) {
+        setExpensePreviewRows([]);
+        setDetectResult(null);
+        setPreviewResult(null);
+        setCommitResult(null);
+        setError(err instanceof Error ? err.message : "expense preview failed");
+      }
       return;
     }
 
@@ -371,6 +587,27 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "ledger_scope validation failed");
       setPreviewResult(null);
+      return;
+    }
+
+    if (expenseImportRouteInfo.enabled) {
+      try {
+        const rows = buildExpenseLocalPreviewRows({
+          routeInfo: expenseImportRouteInfo,
+          csvText,
+        });
+        const errorRows = rows.filter((row) => row.status === "error").length;
+        setExpensePreviewRows(rows);
+        setPreviewResult(null);
+        setCommitResult(null);
+        setError("");
+        setMessage(
+          `${expenseImportRouteInfo.label} の取込プレビューを更新しました。対象行: ${rows.length} / エラー行: ${errorRows}`
+        );
+      } catch (err) {
+        setExpensePreviewRows([]);
+        setError(err instanceof Error ? err.message : "expense preview failed");
+      }
       return;
     }
 
@@ -483,586 +720,289 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4">
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm font-medium text-slate-900">Import Source</div>
-              {expenseImportRouteInfo.enabled ? (
-                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
-                  ledger_scope = {expenseImportRouteInfo.expectedScope || "unknown"}
-                </div>
-              ) : null}
-            </div>
-
-            {expenseImportRouteInfo.enabled ? (
-              <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
-                <div className="text-sm font-bold text-emerald-800">
-                  {expenseImportRouteInfo.label} 専用インポート
-                </div>
-                <div className="mt-1 text-xs leading-5 text-emerald-700">
-                  このページでは <span className="font-bold">{expenseImportRouteInfo.expectedScope || "unknown"}</span> の ledger_scope を持つテンプレートだけを受け付けます。
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setModuleMode("store-orders")}
-                  className={
-                    moduleMode === "store-orders"
-                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  }
-                >
-                  店舗注文
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setModuleMode("store-operation")}
-                  className={
-                    moduleMode === "store-operation"
-                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  }
-                >
-                  店舗運営費
-                </button>
-              </div>
-            )}
-
-            <div className="mt-4 grid gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.txt,.tsv,text/csv,text/plain"
-                onChange={(e) => {
-                  void handleFileChange(e.target.files?.[0] ?? null);
-                }}
-                className="hidden"
-              />
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  选择文件
-                </button>
-
-                <div className="text-sm text-slate-500">
-                  {filename ? `当前文件: ${filename}` : expenseImportRouteInfo.enabled ? "支出テンプレートを選択してください" : "尚未选择文件"}
-                </div>
-              </div>
-
-              <input
-                value={filename}
-                onChange={(e) => setFilename(e.target.value)}
-                className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
-                placeholder={expenseImportRouteInfo.enabled ? getExpenseImportTemplateFileName(expenseImportRouteInfo) : "filename.csv"}
-              />
-
-              <textarea
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                rows={10}
-                className="w-full rounded-[14px] border border-black/8 bg-white px-3 py-3 text-sm"
-                placeholder={expenseImportRouteInfo.enabled ? "支出テンプレート CSV テキストを貼り付けることもできます。ledger_scope は現在ページと一致している必要があります。" : "可直接粘贴 CSV 文本，或通过上方文件选择读取。"}
-              />
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void runDetect()}
-                  disabled={loading || !canRun}
-                  className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {loading ? "处理中..." : "开始导入检测"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCsvText("");
-                    setDetectResult(null);
-                    setPreviewResult(null);
-                    setCommitResult(null);
-                    setError("");
-                    setMessage("已清空当前导入草稿。");
-                  }}
-                  className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  清空
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {error ? (
-            <div className="rounded-[22px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-              {error}
-            </div>
-          ) : null}
-
-          {message ? (
-            <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-              {message}
-            </div>
-          ) : null}
-
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium text-slate-900">Current Draft Summary</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  当前 import 草稿、detect 结果与 preview 状态总览
-                </div>
-              </div>
-              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
-                ready = {canRun ? "YES" : "NO"}
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[16px] bg-white p-3">
-                <div className="text-[11px] text-slate-500">Filename</div>
-                <div className="mt-1 break-all text-sm font-medium text-slate-900">
-                  {filename || "-"}
-                </div>
-              </div>
-              <div className="rounded-[16px] bg-white p-3">
-                <div className="text-[11px] text-slate-500">Draft Lines</div>
-                <div className="mt-1 text-base font-semibold text-slate-900">
-                  {formatNumber(draftLineCount)}
-                </div>
-              </div>
-              <div className="rounded-[16px] bg-white p-3">
-                <div className="text-[11px] text-slate-500">Detect Months</div>
-                <div className="mt-2">
-                  {renderTagList(detectResult?.fileMonths)}
-                </div>
-              </div>
-              <div className="rounded-[16px] bg-white p-3">
-                <div className="text-[11px] text-slate-500">Conflict Months</div>
-                <div className="mt-2">
-                  {renderTagList(detectResult?.conflictMonths)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">
-              Month Detection Result
-            </div>
-
-            {detectResult ? (
-              <div className="mt-4 space-y-3 text-sm text-slate-700">
-                <div>
-                  <span className="font-medium text-slate-900">文件月份：</span>
-                  {detectResult.fileMonths.length
-                    ? detectResult.fileMonths.join(", ")
-                    : "-"}
-                </div>
-                <div>
-                  <span className="font-medium text-slate-900">系统已有月份：</span>
-                  {detectResult.existingMonths.length
-                    ? detectResult.existingMonths.join(", ")
-                    : "-"}
-                </div>
-                <div>
-                  <span className="font-medium text-slate-900">冲突月份：</span>
-                  {detectResult.conflictMonths.length
-                    ? detectResult.conflictMonths.join(", ")
-                    : "-"}
-                </div>
-                <div>
-                  <span className="font-medium text-slate-900">hasConflict：</span>
-                  {String(detectResult.hasConflict)}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
-                还没有 detect 结果。
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium text-slate-900">Latest History Snapshot</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  最近一条 import history 的快速入口
-                </div>
-              </div>
-              <div className="text-xs text-slate-500">
-                {historyLoading ? "loading..." : `items: ${historyItems.length}`}
-              </div>
-            </div>
-
-            {latestHistoryItem ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[16px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Latest Filename</div>
-                    <div className="mt-1 break-all text-sm font-medium text-slate-900">
-                      {latestHistoryItem.filename || "-"}
+          {expenseImportRouteInfo.enabled ? (
+            <>
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Expense Validation Result
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      ledger_scope・必須項目・証憑番号を検証した結果です。
                     </div>
                   </div>
-                  <div className="rounded-[16px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Latest Status</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900">
-                      {latestHistoryItem.status || "-"}
+                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                    {expenseImportRouteInfo.expectedScope || "unknown"}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
+                    <div className="text-[11px] font-semibold text-slate-500">対象行数</div>
+                    <div className="mt-1 text-xl font-bold text-slate-950">
+                      {formatNumber(expensePreviewSummary.totalRows)}
                     </div>
                   </div>
-                  <div className="rounded-[16px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Imported At</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900">
-                      {formatDateTime(latestHistoryItem.importedAt)}
+                  <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
+                    <div className="text-[11px] font-semibold text-slate-500">OK / エラー</div>
+                    <div className="mt-1 text-xl font-bold text-slate-950">
+                      {formatNumber(expensePreviewSummary.okRows)} / {formatNumber(expensePreviewSummary.errorRows)}
                     </div>
                   </div>
-                  <div className="rounded-[16px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">File Months</div>
-                    <div className="mt-2">
-                      {renderTagList(latestHistoryMonths)}
+                  <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
+                    <div className="text-[11px] font-semibold text-slate-500">合計金額</div>
+                    <div className="mt-1 text-xl font-bold text-slate-950">
+                      ¥{formatNumber(expensePreviewSummary.totalAmount)}
+                    </div>
+                  </div>
+                  <div className="rounded-[16px] bg-white p-3 ring-1 ring-slate-100">
+                    <div className="text-[11px] font-semibold text-slate-500">証憑不足 / 口座数</div>
+                    <div className="mt-1 text-xl font-bold text-slate-950">
+                      {formatNumber(expensePreviewSummary.evidenceMissing)} / {formatNumber(expensePreviewSummary.accountCount)}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <Link
-                    href={latestHistoryOrdersHref}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    打开最近一次 店舗注文 结果
-                  </Link>
-                  <Link
-                    href={latestHistoryOperationHref}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  >
-                    打开最近一次 店舗運営費 结果
-                  </Link>
-                </div>
+                {expensePreviewSummary.errorRows > 0 ? (
+                  <div className="mt-4 rounded-[16px] border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">
+                    エラー行があります。正式登録前に日付・金額・支出区分・証憑番号を確認してください。
+                  </div>
+                ) : expensePreviewSummary.totalRows > 0 ? (
+                  <div className="mt-4 rounded-[16px] border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
+                    すべての preview 行が基本チェックを通過しています。正式登録は H5D で接続します。
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[16px] border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
+                    まだ支出 preview はありません。「開始導入検測」を押すと検証結果が表示されます。
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
-                还没有可展示的 import history。
-              </div>
-            )}
-          </div>
 
-          <ImportPreviewSummary
-            preview={previewResult}
-            policyLabel={formatPolicyLabel(policy)}
-          />
-
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="text-sm font-medium text-slate-900">Preview Status</div>
-              <button
-                type="button"
-                onClick={() => void runCommit()}
-                disabled={expenseImportRouteInfo.enabled || !previewResult?.importJobId || commitLoading}
-                className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-              >
-                {expenseImportRouteInfo.enabled ? "支出Preview接続待ち" : commitLoading ? "正式导入中..." : "正式导入"}
-              </button>
-            </div>
-
-            <div className="mt-2 space-y-2 text-sm text-slate-700">
-              <div>
-                <span className="font-medium text-slate-900">Rows：</span>
-                {rowCount}
-              </div>
-              <div>
-                <span className="font-medium text-slate-900">Import Job：</span>
-                {previewResult?.importJobId || "-"}
-              </div>
-              <div>
-                <span className="font-medium text-slate-900">策略：</span>
-                {formatPolicyLabel(policy)}
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[16px] border border-slate-200 bg-white p-4">
-              <div className="text-[11px] text-slate-500">Workspace Bridge</div>
-              <div className="mt-3 flex flex-col gap-2">
-                <Link
-                  href={previewOrdersHref}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  打开当前 preview 的 店舗注文 结果
-                </Link>
-                <Link
-                  href={previewOperationHref}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                >
-                  打开当前 preview 的 店舗運営費 结果
-                </Link>
-              </div>
-            </div>
-
-            {commitResult ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="rounded-[18px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Imported</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {commitResult.importedRows ?? 0}
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      支出 Preview Table
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      日付・金額・支出区分・支払先・口座・証憑番号・メモを確認します。
                     </div>
                   </div>
-                  <div className="rounded-[18px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Duplicate</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {commitResult.duplicateRows ?? 0}
-                    </div>
-                  </div>
-                  <div className="rounded-[18px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Conflict</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {commitResult.conflictRows ?? 0}
-                    </div>
-                  </div>
-                  <div className="rounded-[18px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Error</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {commitResult.errorRows ?? 0}
-                    </div>
-                  </div>
-                  <div className="rounded-[18px] bg-white p-3">
-                    <div className="text-[11px] text-slate-500">Deleted</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {commitResult.deletedRows ?? 0}
-                    </div>
+                  <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">
+                    rows: {expensePreviewRows.length}
                   </div>
                 </div>
 
-                {commitResult.summary ? (
-                  <div className="rounded-[20px] border border-slate-200 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">
-                          Import Result Summary
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          reconciliation-style summary / commit 后导入结果总览
-                        </div>
-                      </div>
-                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600">
-                        integrity ={" "}
-                        {commitResult.summary.integrity?.importedRowsMatchesCommittedCount
-                          ? "OK"
-                          : "CHECK"}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                      <div className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Filename</div>
-                            <div className="mt-1 break-all text-sm font-medium text-slate-900">
-                              {commitResult.summary.filename || "-"}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Module</div>
-                            <div className="mt-1 text-sm font-medium text-slate-900">
-                              {commitResult.summary.module || "-"}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Created At</div>
-                            <div className="mt-1 text-sm font-medium text-slate-900">
-                              {formatDateTime(commitResult.summary.createdAt)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Imported At</div>
-                            <div className="mt-1 text-sm font-medium text-slate-900">
-                              {formatDateTime(commitResult.summary.importedAt)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">File Months</div>
-                            <div className="mt-2">
-                              {renderTagList(commitResult.summary.months?.fileMonths)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Conflict Months</div>
-                            <div className="mt-2">
-                              {renderTagList(commitResult.summary.months?.conflictMonths)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Imported Months</div>
-                            <div className="mt-2">
-                              {renderTagList(commitResult.summary.months?.importedMonths)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Staging Total</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.staging?.totalRows)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Staging New</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.staging?.newRows)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Staging Duplicate</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.staging?.duplicateRows)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Staging Conflict/Error</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(
-                                Number(commitResult.summary.staging?.conflictRows || 0) +
-                                  Number(commitResult.summary.staging?.errorRows || 0)
+                {expensePreviewRows.length ? (
+                  <div className="mt-4 max-h-[460px] overflow-auto rounded-[18px] border border-slate-200 bg-white">
+                    <table className="min-w-[920px] divide-y divide-slate-100 text-sm">
+                      <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-semibold text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 text-left">行</th>
+                          <th className="px-3 py-2 text-left">日付</th>
+                          <th className="px-3 py-2 text-right">金額</th>
+                          <th className="px-3 py-2 text-left">区分</th>
+                          <th className="px-3 py-2 text-left">支払先</th>
+                          <th className="px-3 py-2 text-left">口座</th>
+                          <th className="px-3 py-2 text-left">証憑</th>
+                          <th className="px-3 py-2 text-left">メモ</th>
+                          <th className="px-3 py-2 text-left">状態</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {expensePreviewRows.map((row) => (
+                          <tr key={`${row.rowNo}-${row.memo}-${row.amount}`} className="bg-white hover:bg-slate-50">
+                            <td className="px-3 py-2 text-slate-500">{row.rowNo}</td>
+                            <td className="px-3 py-2 font-medium text-slate-900">{row.occurredAt || "-"}</td>
+                            <td className="px-3 py-2 text-right font-bold text-slate-900">
+                              ¥{formatNumber(row.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-slate-700">{row.category || "-"}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.vendor || "-"}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.accountName || "-"}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.evidenceNo || "-"}</td>
+                            <td className="px-3 py-2 text-slate-700">{row.memo || "-"}</td>
+                            <td className="px-3 py-2">
+                              {row.status === "ok" ? (
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                                  OK
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200">
+                                  {row.error}
+                                </span>
                               )}
-                            </div>
-                          </div>
-                        </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-10 text-sm text-slate-500">
+                    まだ preview 行はありません。
+                  </div>
+                )}
+              </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Committed Count</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.transactions?.committedCount)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">Committed Amount</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              ¥{formatNumber(commitResult.summary.transactions?.totalCommittedAmount)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">With Account</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.coverage?.withAccountCount)}
-                            </div>
-                          </div>
-                          <div className="rounded-[16px] bg-slate-50 p-3">
-                            <div className="text-[11px] text-slate-500">With Category</div>
-                            <div className="mt-1 text-base font-semibold text-slate-900">
-                              {formatNumber(commitResult.summary.coverage?.withCategoryCount)}
-                            </div>
-                          </div>
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">正式登録</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      H5C では preview UI までを製品化します。DB への正式登録は H5D で接続します。
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white opacity-60"
+                  >
+                    支出正式登録は H5D で接続
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-medium text-slate-900">
+                  Month Detection Result
+                </div>
+
+                {detectResult ? (
+                  <div className="mt-4 space-y-3 text-sm text-slate-700">
+                    <div>
+                      <span className="font-medium text-slate-900">文件月份：</span>
+                      {detectResult.fileMonths.length
+                        ? detectResult.fileMonths.join(", ")
+                        : "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium text-slate-900">系统已有月份：</span>
+                      {detectResult.existingMonths.length
+                        ? detectResult.existingMonths.join(", ")
+                        : "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium text-slate-900">冲突月份：</span>
+                      {detectResult.conflictMonths.length
+                        ? detectResult.conflictMonths.join(", ")
+                        : "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium text-slate-900">hasConflict：</span>
+                      {String(detectResult.hasConflict)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
+                    还没有 detect 结果。
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">Latest History Snapshot</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      最近一条 import history 的快速入口
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {historyLoading ? "loading..." : `items: ${historyItems.length}`}
+                  </div>
+                </div>
+
+                {latestHistoryItem ? (
+                  <div className="mt-4 space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[16px] bg-white p-3">
+                        <div className="text-[11px] text-slate-500">Latest Filename</div>
+                        <div className="mt-1 break-all text-sm font-medium text-slate-900">
+                          {latestHistoryItem.filename || "-"}
                         </div>
                       </div>
-
-                      <div className="space-y-4">
-                        <div className="rounded-[16px] bg-slate-50 p-3">
-                          <div className="text-[11px] text-slate-500">Direction Breakdown</div>
-                          <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                            <div>
-                              <div className="text-[11px] text-slate-500">Income</div>
-                              <div className="mt-1 text-sm font-semibold text-slate-900">
-                                {formatNumber(commitResult.summary.transactions?.incomeCount)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] text-slate-500">Expense</div>
-                              <div className="mt-1 text-sm font-semibold text-slate-900">
-                                {formatNumber(commitResult.summary.transactions?.expenseCount)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] text-slate-500">Transfer</div>
-                              <div className="mt-1 text-sm font-semibold text-slate-900">
-                                {formatNumber(commitResult.summary.transactions?.transferCount)}
-                              </div>
-                            </div>
-                          </div>
+                      <div className="rounded-[16px] bg-white p-3">
+                        <div className="text-[11px] text-slate-500">Latest Status</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900">
+                          {latestHistoryItem.status || "-"}
                         </div>
-
-                        <div className="rounded-[16px] bg-slate-50 p-3">
-                          <div className="text-[11px] text-slate-500">Type Breakdown</div>
-                          <div className="mt-3 space-y-2">
-                            {Array.isArray(commitResult.summary.transactions?.byType) &&
-                            commitResult.summary.transactions?.byType?.length ? (
-                              commitResult.summary.transactions.byType.map((item) => (
-                                <div
-                                  key={item.type}
-                                  className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm"
-                                >
-                                  <div className="font-medium text-slate-800">{item.type}</div>
-                                  <div className="text-slate-600">
-                                    {formatNumber(item.count)} / ¥{formatNumber(item.amount)}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-sm text-slate-500">-</div>
-                            )}
-                          </div>
+                      </div>
+                      <div className="rounded-[16px] bg-white p-3">
+                        <div className="text-[11px] text-slate-500">Imported At</div>
+                        <div className="mt-1 text-sm font-medium text-slate-900">
+                          {formatDateTime(latestHistoryItem.importedAt)}
                         </div>
-
-                        <div className="rounded-[16px] bg-slate-50 p-3">
-                          <div className="text-[11px] text-slate-500">Month Breakdown</div>
-                          <div className="mt-3 space-y-2">
-                            {Array.isArray(commitResult.summary.transactions?.byMonth) &&
-                            commitResult.summary.transactions?.byMonth?.length ? (
-                              commitResult.summary.transactions.byMonth.map((item) => (
-                                <div
-                                  key={item.month}
-                                  className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm"
-                                >
-                                  <div className="font-medium text-slate-800">{item.month}</div>
-                                  <div className="text-slate-600">
-                                    {formatNumber(item.count)} / ¥{formatNumber(item.amount)}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-sm text-slate-500">-</div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="rounded-[16px] bg-slate-50 p-3">
-                          <div className="text-[11px] text-slate-500">Integrity Check</div>
-                          <div className="mt-2 text-sm font-medium text-slate-900">
-                            importedRowsMatchesCommittedCount ={" "}
-                            {commitResult.summary.integrity?.importedRowsMatchesCommittedCount
-                              ? "true"
-                              : "false"}
-                          </div>
+                      </div>
+                      <div className="rounded-[16px] bg-white p-3">
+                        <div className="text-[11px] text-slate-500">File Months</div>
+                        <div className="mt-2">
+                          {renderTagList(latestHistoryMonths)}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
 
-      <div className="mt-6 space-y-4">
-        <ImportPreviewTable preview={previewResult} />
-        <ImportHistoryList
-          history={historyResult}
-          loading={historyLoading}
-          moduleLabel={moduleLabel}
-        />
-      </div>
+                    <div className="flex flex-col gap-2">
+                      <Link
+                        href={latestHistoryOrdersHref}
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        打开最近一次 店舗注文 结果
+                      </Link>
+                      <Link
+                        href={latestHistoryOperationHref}
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                      >
+                        打开最近一次 店舗運営費 结果
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-[18px] border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
+                    还没有可展示的 import history。
+                  </div>
+                )}
+              </div>
+
+              <ImportPreviewSummary
+                preview={previewResult}
+                policyLabel={formatPolicyLabel(policy)}
+              />
+
+              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="text-sm font-medium text-slate-900">Preview Status</div>
+                  <button
+                    type="button"
+                    onClick={() => void runCommit()}
+                    disabled={!previewResult?.importJobId || commitLoading}
+                    className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {commitLoading ? "正式导入中..." : "正式导入"}
+                  </button>
+                </div>
+
+                <div className="mt-2 space-y-2 text-sm text-slate-700">
+                  <div>
+                    <span className="font-medium text-slate-900">Rows：</span>
+                    {rowCount}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-900">Import Job：</span>
+                    {previewResult?.importJobId || "-"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-900">策略：</span>
+                    {formatPolicyLabel(policy)}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
       <ImportMonthConflictDialog
         open={dialogOpen}
