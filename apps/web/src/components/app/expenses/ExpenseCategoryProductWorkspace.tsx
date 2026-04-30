@@ -23,6 +23,23 @@ type ExpenseCategoryRecord = {
   statusFlags: string[];
 };
 
+
+type ExpenseClassificationDebugRow = {
+  id: string;
+  decidedKind: ExpenseCategoryProductKind | "store-operation";
+  bucket: string;
+  reason: string;
+  amount: number;
+  occurredAt: string;
+  type: string;
+  sourceType: string;
+  categoryName: string;
+  memo: string;
+  importJobId: string;
+  sourceFileName: string;
+  searchText: string;
+};
+
 type DashboardPoint = {
   key: string;
   label: string;
@@ -153,16 +170,45 @@ function includesAny(value: string, keywords: string[]) {
   return keywords.some((keyword) => value.includes(keyword.toLowerCase()));
 }
 
+
+// Step109-Z1-G3-EXPENSE-CLASSIFICATION-PRECISION:
+// Classification uses multiple transaction surfaces instead of memo-only matching.
+// This keeps the current routes stable while reducing false fall-through into その他支出.
 function getExpenseSearchText(item: TransactionItem) {
   return normalizeText(
     [
       item.type,
+      item.direction,
+      item.sourceType,
+      item.categoryId,
       item.categoryName,
       item.memo,
       item.accountName,
       item.storeName,
       item.storeId,
       item.externalRef,
+      item.importJobId,
+      item.businessMonth,
+      item.sourceFileName,
+      item.sku,
+      item.productName,
+      item.fulfillment,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+}
+
+function getExpenseCategoryText(item: TransactionItem) {
+  return normalizeText(
+    [
+      item.type,
+      item.sourceType,
+      item.categoryName,
+      item.memo,
+      item.externalRef,
+      item.importJobId,
+      item.sourceFileName,
     ]
       .filter(Boolean)
       .join(" ")
@@ -170,100 +216,436 @@ function getExpenseSearchText(item: TransactionItem) {
 }
 
 function classifyCompanyOperationBucket(text: string) {
-  if (includesAny(text, ["家賃", "地代", "rent", "office rent"])) return "rent";
-  if (includesAny(text, ["水道", "光熱", "電気", "gas", "utility"])) return "utilities";
-  if (includesAny(text, ["saas", "software", "システム", "サーバ", "server", "cloud", "aws", "google", "notion"])) return "software";
-  if (includesAny(text, ["消耗品", "備品", "office", "supplies", "文具"])) return "office";
-  if (includesAny(text, ["通信", "電話", "internet", "wifi", "回線"])) return "communication";
+  if (
+    includesAny(text, [
+      "家賃",
+      "地代",
+      "rent",
+      "office rent",
+      "賃料",
+      "lease",
+    ])
+  ) return "rent";
+
+  if (
+    includesAny(text, [
+      "水道",
+      "光熱",
+      "電気",
+      "ガス",
+      "gas",
+      "utility",
+      "utilities",
+      "water",
+      "electric",
+      "electricity",
+    ])
+  ) return "utilities";
+
+  if (
+    includesAny(text, [
+      "saas",
+      "software",
+      "ソフトウェア",
+      "システム",
+      "サーバ",
+      "server",
+      "cloud",
+      "クラウド",
+      "aws",
+      "google",
+      "notion",
+      "chatgpt",
+      "openai",
+      "github",
+      "vercel",
+      "domain",
+      "hosting",
+      "shopify",
+      "freee",
+      "弥生",
+      "会計ソフト",
+    ])
+  ) return "software";
+
+  if (
+    includesAny(text, [
+      "消耗品",
+      "備品",
+      "事務用品",
+      "office",
+      "supplies",
+      "文具",
+      "printer",
+      "インク",
+      "コピー",
+      "pc",
+      "パソコン",
+      "モニター",
+      "keyboard",
+      "mouse",
+    ])
+  ) return "office";
+
+  if (
+    includesAny(text, [
+      "通信",
+      "電話",
+      "internet",
+      "wifi",
+      "wi-fi",
+      "回線",
+      "携帯",
+      "mobile",
+      "sim",
+      "docomo",
+      "au",
+      "softbank",
+      "rakuten mobile",
+    ])
+  ) return "communication";
+
   return "all";
 }
 
 function classifyPayrollBucket(text: string) {
-  if (includesAny(text, ["役員", "executive", "director"])) return "executive";
-  if (includesAny(text, ["外注", "業務委託", "contractor", "freelance"])) return "outsourcing";
-  if (includesAny(text, ["社会保険", "福利厚生", "insurance", "benefit"])) return "social";
-  if (includesAny(text, ["給与", "給料", "salary", "payroll", "人件"])) return "salary";
+  if (
+    includesAny(text, [
+      "役員",
+      "役員報酬",
+      "executive",
+      "director",
+      "officer",
+    ])
+  ) return "executive";
+
+  if (
+    includesAny(text, [
+      "外注",
+      "業務委託",
+      "委託費",
+      "contractor",
+      "freelance",
+      "outsourcing",
+      "outsourced",
+      "外注費",
+      "業務委託費",
+    ])
+  ) return "outsourcing";
+
+  if (
+    includesAny(text, [
+      "社会保険",
+      "健康保険",
+      "厚生年金",
+      "雇用保険",
+      "労働保険",
+      "福利厚生",
+      "insurance",
+      "benefit",
+      "pension",
+    ])
+  ) return "social";
+
+  if (
+    includesAny(text, [
+      "給与",
+      "給料",
+      "賃金",
+      "賞与",
+      "bonus",
+      "salary",
+      "payroll",
+      "wage",
+      "人件",
+      "人件費",
+    ])
+  ) return "salary";
+
   return "all";
 }
 
 function classifyOtherExpenseBucket(text: string) {
-  if (includesAny(text, ["手数料", "fee", "bank fee", "振込手数料"])) return "bank";
-  if (includesAny(text, ["税金", "公課", "tax", "消費税", "法人税"])) return "tax";
-  if (includesAny(text, ["調整", "返金", "adjust", "refund"])) return "adjustment";
+  if (
+    includesAny(text, [
+      "手数料",
+      "fee",
+      "fees",
+      "bank fee",
+      "振込手数料",
+      "決済手数料",
+      "payment fee",
+      "commission",
+    ])
+  ) return "bank";
+
+  if (
+    includesAny(text, [
+      "税金",
+      "公課",
+      "tax",
+      "消費税",
+      "法人税",
+      "住民税",
+      "事業税",
+      "印紙",
+      "stamp",
+    ])
+  ) return "tax";
+
+  if (
+    includesAny(text, [
+      "調整",
+      "返金",
+      "adjust",
+      "adjustment",
+      "refund",
+      "reversal",
+      "修正",
+      "差額",
+    ])
+  ) return "adjustment";
+
   return "misc";
 }
 
 function isCompanyOperationExpense(text: string) {
-  return includesAny(text, [
-    "家賃",
-    "地代",
-    "水道",
-    "光熱",
-    "電気",
-    "通信",
-    "消耗品",
-    "備品",
-    "saas",
-    "software",
-    "システム",
-    "サーバ",
-    "server",
-    "cloud",
-    "office",
-    "supplies",
-    "会社",
-    "運営",
-  ]);
+  if (
+    includesAny(text, [
+      "company-operation",
+      "company_ops",
+      "company-ops",
+      "office-operation",
+      "backoffice",
+      "会社運営",
+      "会社運営費",
+      "一般管理",
+      "一般管理費",
+      "管理費",
+      "販管費",
+      "事務所",
+      "オフィス",
+      "家賃",
+      "地代",
+      "賃料",
+      "水道",
+      "光熱",
+      "電気",
+      "ガス",
+      "通信",
+      "電話",
+      "消耗品",
+      "備品",
+      "事務用品",
+      "saas",
+      "software",
+      "ソフトウェア",
+      "システム",
+      "サーバ",
+      "server",
+      "cloud",
+      "クラウド",
+      "aws",
+      "google",
+      "notion",
+      "chatgpt",
+      "openai",
+      "github",
+      "vercel",
+      "freee",
+      "弥生",
+      "会計ソフト",
+      "office",
+      "supplies",
+      "rent",
+      "utilities",
+      "utility",
+      "internet",
+      "wifi",
+      "wi-fi",
+      "mobile",
+    ])
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function isPayrollExpense(text: string) {
   return includesAny(text, [
+    "payroll",
+    "salary",
     "給与",
     "給料",
+    "賞与",
+    "賃金",
     "役員報酬",
     "人件",
+    "人件費",
     "外注",
+    "外注費",
     "業務委託",
-    "salary",
-    "payroll",
+    "業務委託費",
+    "委託費",
     "contractor",
     "freelance",
+    "outsourcing",
+    "社会保険",
+    "福利厚生",
+    "健康保険",
+    "厚生年金",
+    "雇用保険",
+    "労働保険",
   ]);
 }
 
 function isAdvertisingOrLogistics(text: string) {
   return includesAny(text, [
-    "広告",
-    "ads",
-    "advertising",
+    "store-operation",
+    "store operation",
+    "store_ops",
+    "store-ops",
+    "[imports:store-operation]",
+    "amazon charges",
+    "amazon transaction",
+    "settlement",
     "fba",
+    "広告",
+    "広告費",
+    "ads",
+    "ad fee",
+    "advertising",
+    "sponsored",
+    "campaign",
     "物流",
     "送料",
     "shipping",
     "配送",
     "倉庫",
-    "store-operation",
-    "[imports:store-operation]",
+    "warehouse",
+    "fulfillment",
+    "配送代行",
+    "fba fee",
+    "commission fee",
+    "referral fee",
+    "販売手数料",
+    "月額登録料",
+    "storage fee",
+    "保管料",
   ]);
+}
+
+
+// Step109-Z1-G4-EXPENSE-CLASSIFICATION-DEBUG-PANEL:
+// Diagnostic classifier used only for ?debug=expense. It shows why rows are
+// classified into company-operation / payroll / other-expense / store-operation.
+function diagnoseExpenseClassification(item: TransactionItem): ExpenseClassificationDebugRow {
+  const text = getExpenseSearchText(item);
+  const categoryText = getExpenseCategoryText(item);
+
+  const payroll = isPayrollExpense(text);
+  const companyOps = isCompanyOperationExpense(text);
+  const storeOps = isAdvertisingOrLogistics(text);
+
+  let decidedKind: ExpenseClassificationDebugRow["decidedKind"] = "other-expense";
+  let reason = "fallback-other-expense";
+
+  if (storeOps) {
+    decidedKind = "store-operation";
+    reason = "matched-store-operation-advertising-logistics-amazon";
+  } else if (payroll) {
+    decidedKind = "payroll";
+    reason = "matched-payroll-keyword";
+  } else if (companyOps) {
+    decidedKind = "company-operation";
+    reason = "matched-company-operation-keyword";
+  } else if (
+    includesAny(categoryText, [
+      "other",
+      "その他",
+      "その他支出",
+      "misc",
+      "雑費",
+      "manual",
+      "adjustment",
+      "調整",
+      "手数料",
+      "税金",
+      "公課",
+    ])
+  ) {
+    decidedKind = "other-expense";
+    reason = "matched-explicit-other-or-misc";
+  }
+
+  return {
+    id: String(item.id || ""),
+    decidedKind,
+    bucket:
+      decidedKind === "payroll"
+        ? classifyPayrollBucket(text)
+        : decidedKind === "company-operation"
+          ? classifyCompanyOperationBucket(text)
+          : decidedKind === "store-operation"
+            ? "store-operation"
+            : classifyOtherExpenseBucket(text),
+    reason,
+    amount: Math.abs(Number(item.amount || 0)),
+    occurredAt: String(item.occurredAt || item.createdAt || ""),
+    type: String(item.type || ""),
+    sourceType: String(item.sourceType || ""),
+    categoryName: String(item.categoryName || ""),
+    memo: String(item.memo || ""),
+    importJobId: String(item.importJobId || ""),
+    sourceFileName: String(item.sourceFileName || ""),
+    searchText: text,
+  };
 }
 
 function matchesWorkspaceKind(kind: ExpenseCategoryProductKind, item: TransactionItem) {
   const text = getExpenseSearchText(item);
+  const categoryText = getExpenseCategoryText(item);
 
-  if (kind === "payroll") return isPayrollExpense(text);
+  const payroll = isPayrollExpense(text);
+  const companyOps = isCompanyOperationExpense(text);
+  const storeOps = isAdvertisingOrLogistics(text);
+
+  if (kind === "payroll") return payroll;
+
   if (kind === "company-operation") {
-    return isCompanyOperationExpense(text) && !isPayrollExpense(text);
+    if (payroll || storeOps) return false;
+    return companyOps;
   }
 
-  return (
-    !isPayrollExpense(text) &&
-    !isCompanyOperationExpense(text) &&
-    !isAdvertisingOrLogistics(text)
-  );
+  // その他支出 is a fallback bucket, but should not swallow payroll/company/store-operation.
+  if (payroll || companyOps || storeOps) return false;
+
+  // Explicit other/misc categories remain in その他支出.
+  if (
+    includesAny(categoryText, [
+      "other",
+      "その他",
+      "その他支出",
+      "misc",
+      "雑費",
+      "manual",
+      "adjustment",
+      "調整",
+      "手数料",
+      "税金",
+      "公課",
+    ])
+  ) {
+    return true;
+  }
+
+  return true;
 }
 
 function getBucket(kind: ExpenseCategoryProductKind, item: TransactionItem) {
   const text = getExpenseSearchText(item);
+
   if (kind === "payroll") return classifyPayrollBucket(text);
   if (kind === "company-operation") return classifyCompanyOperationBucket(text);
   return classifyOtherExpenseBucket(text);
@@ -615,6 +997,9 @@ export function ExpenseCategoryProductWorkspace(props: {
   const config = PAGE_CONFIG[kind];
 
   const [rows, setRows] = React.useState<ExpenseCategoryRecord[]>([]);
+  const [debugRows, setDebugRows] = React.useState<ExpenseClassificationDebugRow[]>([]);
+  const [debugEnabled, setDebugEnabled] = React.useState(false);
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [range, setRange] = React.useState<RangePreset>("30d");
@@ -633,14 +1018,23 @@ export function ExpenseCategoryProductWorkspace(props: {
         const res = await listTransactions("EXPENSE");
         if (!mounted) return;
         const items = Array.isArray(res.items) ? res.items : [];
+        const debug = items.map((item) => diagnoseExpenseClassification(item));
         const next = items
           .filter((item) => matchesWorkspaceKind(kind, item))
           .map((item) => mapExpenseRecord(kind, item));
 
+        const params =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search)
+            : null;
+
+        setDebugEnabled(params?.get("debug") === "expense");
+        setDebugRows(debug);
         setRows(next);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : "支出データの取得に失敗しました。");
+        setDebugRows([]);
         setRows([]);
       } finally {
         if (mounted) setLoading(false);
@@ -770,6 +1164,74 @@ export function ExpenseCategoryProductWorkspace(props: {
           </div>
         </div>
       </section>
+
+      {debugEnabled ? (
+        <section className="rounded-[28px] border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-lg font-bold text-amber-950">分類診断パネル</div>
+              <div className="mt-1 text-sm leading-6 text-amber-800">
+                URL に debug=expense が付いている時だけ表示します。会社運営費・給与が 0 件の場合、下の raw fields を見て分類ルールを追加します。
+              </div>
+            </div>
+            <div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+              EXPENSE rows {debugRows.length} 件
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {(["company-operation", "payroll", "other-expense", "store-operation"] as const).map((debugKind) => {
+              const count = debugRows.filter((row) => row.decidedKind === debugKind).length;
+              const amount = debugRows
+                .filter((row) => row.decidedKind === debugKind)
+                .reduce((sum, row) => sum + row.amount, 0);
+              return (
+                <div key={debugKind} className="rounded-2xl border border-amber-100 bg-white p-4">
+                  <div className="text-xs font-bold uppercase tracking-wide text-amber-700">{debugKind}</div>
+                  <div className="mt-2 text-xl font-bold text-slate-950">{count} 件</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-700">{formatIncomeJPY(amount)}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-amber-100 bg-white">
+            <div className="grid grid-cols-[130px_150px_160px_1fr_1fr] gap-3 bg-amber-100/70 px-4 py-3 text-xs font-bold text-amber-900">
+              <div>日付 / 金額</div>
+              <div>判定</div>
+              <div>理由</div>
+              <div>category/type/source</div>
+              <div>memo/import/file</div>
+            </div>
+            {debugRows.slice(0, 80).map((row) => (
+              <div
+                key={row.id}
+                className="grid grid-cols-[130px_150px_160px_1fr_1fr] gap-3 border-t border-amber-100 px-4 py-3 text-xs"
+              >
+                <div>
+                  <div className="font-semibold text-slate-800">{row.occurredAt ? row.occurredAt.slice(0, 10) : "-"}</div>
+                  <div className="mt-1 font-bold text-slate-950">{formatIncomeJPY(row.amount)}</div>
+                </div>
+                <div>
+                  <div className="font-bold text-slate-950">{row.decidedKind}</div>
+                  <div className="mt-1 text-slate-500">{row.bucket}</div>
+                </div>
+                <div className="break-all text-slate-700">{row.reason}</div>
+                <div className="space-y-1 break-all text-slate-700">
+                  <div>category: {row.categoryName || "-"}</div>
+                  <div>type: {row.type || "-"}</div>
+                  <div>sourceType: {row.sourceType || "-"}</div>
+                </div>
+                <div className="space-y-1 break-all text-slate-700">
+                  <div>memo: {row.memo || "-"}</div>
+                  <div>import: {row.importJobId || "-"}</div>
+                  <div>file: {row.sourceFileName || "-"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <ExpenseChartPair points={points} />
 
