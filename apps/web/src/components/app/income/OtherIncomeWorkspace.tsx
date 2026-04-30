@@ -1317,23 +1317,6 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     reloadRows,
   } = props;
 
-  const otherIncomeSidebarActionsWithTemplate: OtherIncomeActionItem[] = sidebarActions.some(
-    (item) => getOtherIncomeActionLabel(item.label) === "その他収入テンプレート下载"
-  )
-    ? sidebarActions
-    : sidebarActions.flatMap((item) =>
-        getOtherIncomeActionLabel(item.label) === "新規その他収入"
-          ? [
-              item,
-              {
-                label: "テンプレート下载",
-                href: undefined,
-                disabled: false,
-              },
-            ]
-          : [item]
-      );
-
 
   const [sortMode, setSortMode] = React.useState<OtherIncomeSortMode>("date_desc");
   const [categoryFilter, setCategoryFilter] = React.useState("all");
@@ -2597,16 +2580,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       </section>
 
 <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-lg font-semibold text-slate-950">操作メニュー</div>
-          <div className="text-xs text-slate-500">その他収入の登録・編集・取込導線</div>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          {/* Step109-Z1-H4B-EXACT3-OTHER-INCOME-TEMPLATE-DOWNLOAD: fixed ledger_scope template for other-income. */}
-<LedgerTemplateDownloadButton
-  scope={LEDGER_SCOPES.OTHER_INCOME}
-  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
->
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 className="text-2xl font-bold text-slate-950">操作メニュー</h2>
+    </div>
+    <div className="text-sm font-semibold text-slate-500">その他収入への登録・編集・取込導線</div>
+  </div>
+
+  {/* Step109-Z1-H5A-FIX5B-OTHER-INCOME-ACTION-MENU-NORMALIZE: normalized action menu; template download and import are fully separated. */}
   <input
     ref={otherIncomeFileInputRef}
     type="file"
@@ -2618,110 +2599,57 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
     }}
   />
 
-  その他収入テンプレート下载
-</LedgerTemplateDownloadButton>
+  <div className="mt-5 grid gap-3 md:grid-cols-4">
+    <button
+      type="button"
+      onClick={() => {
+        clearActionMode();
+        window.location.href = `/${lang}/app/income/other?action=create`;
+      }}
+      className="rounded-2xl bg-slate-950 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-slate-800"
+    >
+      新規その他収入
+    </button>
 
-          {otherIncomeSidebarActionsWithTemplate.map((item) => {
-                    // Step109-Z1-H5A-FIX4-OTHER-INCOME-IMPORT-BUTTON-CLEAN:
-                    // Keep template download and CSV import fully separated.
-                    const actionLabel = getOtherIncomeActionLabel(item.label);
+    <LedgerTemplateDownloadButton
+      scope={LEDGER_SCOPES.OTHER_INCOME}
+      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+    >
+      その他収入テンプレート下载
+    </LedgerTemplateDownloadButton>
 
-                    if (actionLabel === "その他収入テンプレート下载") {
-                      return (
-                        <LedgerTemplateDownloadButton
-                          key="other-income-template-download-clean"
-                          scope={LEDGER_SCOPES.OTHER_INCOME}
-                          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
-                        >
-                          その他収入テンプレート下载
-                        </LedgerTemplateDownloadButton>
-                      );
-                    }
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        otherIncomeFileInputRef.current?.click();
+      }}
+      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+    >
+      その他収入CSV/Excel取込
+    </button>
 
-                    if (actionLabel === "その他収入CSV/Excel取込") {
-                      return (
-                        <button
-                          key="other-income-csv-import-clean"
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            otherIncomeFileInputRef.current?.click();
-                          }}
-                          className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
-                        >
-                          その他収入CSV/Excel取込
-                        </button>
-                      );
-                    }
+    <button
+      type="button"
+      disabled={!selectedRow}
+      onClick={() => {
+        if (!selectedRow) return;
+        window.location.href = `/${lang}/app/income/other?action=edit`;
+      }}
+      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50 disabled:bg-slate-50 disabled:text-slate-400"
+    >
+      その他収入を編集
+    </button>
 
-                    // Step109-Z1-H5A-FIX2C-OTHER-INCOME-IMPORT-CLICK:
-                    // CSV/Excel import opens the hidden file picker instead of becoming a no-op action.
-                    
-            const primary = item.label === "新規その他収入";
-            const disabled = item.disabled || (!item.href && item.label !== "その他収入を編集");
-
-            if (item.label === "その他収入を編集") {
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  disabled={!selectedRow}
-                  onClick={() => selectedRow && openEdit(selectedRow)}
-                  className={[
-                    "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition",
-                    selectedRow
-                      ? "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                      : "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </button>
-              );
-            }
-
-            if (item.label === "その他収入CSV/Excel取込") {
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => otherIncomeFileInputRef.current?.click()}
-                  disabled={importLoading}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {importLoading ? "取込中..." : item.label}
-                </button>
-              );
-            }
-
-            if (item.href && !disabled) {
-              return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={[
-                    "inline-flex h-12 items-center justify-center rounded-2xl border px-4 text-sm font-semibold transition",
-                    primary
-                      ? "border-slate-950 bg-slate-950 text-white hover:bg-slate-800"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </Link>
-              );
-            }
-
-            return (
-              <div
-                key={item.label}
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-400"
-              >
-                {item.label}
-              </div>
-            );
-          })}
-        </div>
-      </section>
+    <Link
+      href={`/${lang}/app/settings/accounts`}
+      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+    >
+      収入元/補助設定
+    </Link>
+  </div>
+</section>
 
       <div
         data-scope="other-income-layout-parity-z1d"
