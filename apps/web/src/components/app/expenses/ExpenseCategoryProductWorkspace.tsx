@@ -1166,12 +1166,14 @@ export function ExpenseCategoryProductWorkspace(props: {
   const { lang, kind } = props;
   const config = PAGE_CONFIG[kind];
   // Step109-Z1-H6B-FIX3-COMPANY-OPERATION-INLINE-IMPORT-DIALOG:
-  // H6C enables inline import dialog for 会社運営費 and 給与. その他支出 keeps current navigation.
+  // H6D enables inline import dialog for 会社運営費 / 給与 / その他支出.
   const [expenseInlineImportOpen, setExpenseInlineImportOpen] = React.useState(false);
-  // Step109-Z1-H6C-PAYROLL-INLINE-IMPORT-DIALOG:
-  // H6C extends the inline import dialog to 給与. その他支出 remains on the existing /app/data/import route.
+  // Step109-Z1-H6D-FIX1-OTHER-EXPENSE-INLINE-IMPORT-DIALOG:
+  // H6D enables inline import dialog for 会社運営費 / 給与 / その他支出.
   const isCompanyOperationInlineImportEnabled =
-    kind === "company-operation" || kind === "payroll";
+    kind === "company-operation" ||
+    kind === "payroll" ||
+    kind === "other-expense";
 
   function handleExpenseInlineImportCommitted(result: { importJobId?: string | null }) {
     setExpenseInlineImportOpen(false);
@@ -1184,7 +1186,11 @@ export function ExpenseCategoryProductWorkspace(props: {
     url.searchParams.set("refresh", String(Date.now()));
     url.searchParams.set(
       "category",
-      kind === "payroll" ? "payroll" : "other"
+      kind === "payroll"
+        ? "payroll"
+        : kind === "other-expense"
+          ? "other-expense"
+          : "other"
     );
     if (result.importJobId) {
       url.searchParams.set("importJobId", result.importJobId);
