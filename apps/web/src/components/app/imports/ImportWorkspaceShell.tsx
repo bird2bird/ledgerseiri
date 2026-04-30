@@ -357,6 +357,59 @@ function summarizeExpensePreviewRows(rows: ExpenseLocalPreviewRow[]) {
   };
 }
 
+// Step109-Z1-H5I-F1-EXPENSE-PREVIEW-WARNING-MESSAGE:
+// Keep expense preview rows visible, but show warning instead of green success
+// when preview contains error rows.
+function buildExpensePreviewSuccessMessage(args: {
+  label: string;
+  action: "generated" | "updated";
+  summary: ReturnType<typeof summarizeExpensePreviewRows>;
+}) {
+  const actionLabel =
+    args.action === "updated" ? "更新しました" : "生成しました";
+
+  return `${args.label} の取込プレビューを${actionLabel}。対象行: ${args.summary.totalRows} / OK: ${args.summary.okRows} / エラー: ${args.summary.errorRows}`;
+}
+
+function buildExpensePreviewWarningMessage(args: {
+  label: string;
+  summary: ReturnType<typeof summarizeExpensePreviewRows>;
+}) {
+  return [
+    `${args.label} のCSVにエラー行があります。`,
+    "正式登録前に日付・金額・支出区分・証憑番号を確認してください。",
+    `対象行: ${args.summary.totalRows} / OK: ${args.summary.okRows} / エラー: ${args.summary.errorRows}`,
+  ].join("\n");
+}
+
+function applyExpensePreviewMessage(args: {
+  summary: ReturnType<typeof summarizeExpensePreviewRows>;
+  label: string;
+  action: "generated" | "updated";
+  setError: (message: string) => void;
+  setMessage: (message: string) => void;
+}) {
+  if (args.summary.errorRows > 0) {
+    args.setMessage("");
+    args.setError(
+      buildExpensePreviewWarningMessage({
+        label: args.label,
+        summary: args.summary,
+      })
+    );
+    return;
+  }
+
+  args.setError("");
+  args.setMessage(
+    buildExpensePreviewSuccessMessage({
+      label: args.label,
+      action: args.action,
+      summary: args.summary,
+    })
+  );
+}
+
 // Step109-Z1-H5I-EXPENSE-IMPORT-ERROR-MESSAGES:
 // Productized error messages for scoped expense CSV/Excel imports.
 function normalizeExpenseImportErrorMessage(args: {
@@ -654,10 +707,13 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         } as DetectMonthConflictsResponse);
         setPreviewResult(null);
         setCommitResult(null);
-        setError("");
-        setMessage(
-          `${expenseImportRouteInfo.label} の取込プレビューを生成しました。対象行: ${summary.totalRows} / OK: ${summary.okRows} / エラー: ${summary.errorRows}`
-        );
+        applyExpensePreviewMessage({
+          summary,
+          label: expenseImportRouteInfo.label,
+          action: "generated",
+          setError,
+          setMessage,
+        });
       } catch (err) {
         setExpensePreviewRows([]);
         setDetectResult(null);
@@ -743,10 +799,13 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
         setExpensePreviewRows(rows);
         setPreviewResult(null);
         setCommitResult(null);
-        setError("");
-        setMessage(
-          `${expenseImportRouteInfo.label} の取込プレビューを更新しました。対象行: ${summary.totalRows} / OK: ${summary.okRows} / エラー: ${summary.errorRows}`
-        );
+        applyExpensePreviewMessage({
+          summary,
+          label: expenseImportRouteInfo.label,
+          action: "updated",
+          setError,
+          setMessage,
+        });
       } catch (err) {
         setExpensePreviewRows([]);
         setExpenseImportProductError({
