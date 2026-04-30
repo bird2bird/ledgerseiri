@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import {
@@ -1371,13 +1372,22 @@ export function ExpenseCategoryProductWorkspace(props: {
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-5">
           <Link
             href={`/${lang}/app/expenses?action=create`}
             className="rounded-2xl bg-slate-950 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-slate-800"
           >
             {config.primaryAction}
           </Link>
+          {/* Step109-Z1-H4A-LEDGER-TEMPLATE-DOWNLOAD-BUTTONS:
+              Download a page-specific CSV template with fixed ledger_scope. */}
+          <LedgerTemplateDownloadButton
+            scope={getWorkspaceLedgerScope(kind)}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+          >
+            {config.title}テンプレート下载
+          </LedgerTemplateDownloadButton>
+
           <Link
             href={`/${lang}/app/data/import?module=expenses&category=${kind}`}
             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
