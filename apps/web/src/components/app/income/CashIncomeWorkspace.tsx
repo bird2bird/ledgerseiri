@@ -247,12 +247,18 @@ function normalizeCashFileCsvHeaders(csvText: string) {
     "口座名": "account",
     "入金口座": "account",
     "accountName": "account",
+    // Step109-Z1-H5A-FIX1-CASH-TEMPLATE-HEADER-COMPAT:
+    // Keep downloaded template fields compatible with the existing cash import parser.
+    "cash_account": "account",
+    "ledger_account": "account",
     "金額": "amount",
     "入金額": "amount",
     "発生日": "occurredAt",
     "日付": "occurredAt",
     "取引日": "occurredAt",
     "occurredAt": "occurredAt",
+    "occurred_at": "occurredAt",
+    "date": "occurredAt",
     "メモ": "memo",
     "摘要": "memo",
     "備考": "memo",
@@ -262,9 +268,15 @@ function normalizeCashFileCsvHeaders(csvText: string) {
     "売上区分": "revenueCategory",
     "category": "revenueCategory",
     "revenueCategory": "revenueCategory",
+    "income_category": "revenueCategory",
+    "income_source_category": "revenueCategory",
     "入金元": "source",
     "店舗": "source",
     "source": "source",
+    "income_source": "source",
+    "payer": "source",
+    "ledger_scope": "ledger_scope",
+    "currency": "currency",
   };
 
   const normalizedHeader = header.map((cell) => headerMap[cell] || cell);
