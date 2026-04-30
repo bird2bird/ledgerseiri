@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
+import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialog";
 import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import {
@@ -1164,6 +1165,28 @@ export function ExpenseCategoryProductWorkspace(props: {
 }) {
   const { lang, kind } = props;
   const config = PAGE_CONFIG[kind];
+  // Step109-Z1-H6B-FIX3-COMPANY-OPERATION-INLINE-IMPORT-DIALOG:
+  // Only 会社運営費 uses inline import dialog in H6B. Payroll / other-expense keep current navigation.
+  const [expenseInlineImportOpen, setExpenseInlineImportOpen] = React.useState(false);
+  const isCompanyOperationInlineImportEnabled = kind === "company-operation";
+
+  function handleExpenseInlineImportCommitted(result: { importJobId?: string | null }) {
+    setExpenseInlineImportOpen(false);
+
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("from", "expense-import-commit");
+    url.searchParams.set("ledger_scope", config.scope);
+    url.searchParams.set("refresh", String(Date.now()));
+    url.searchParams.set("category", "other");
+    if (result.importJobId) {
+      url.searchParams.set("importJobId", result.importJobId);
+    }
+
+    window.location.assign(`${url.pathname}?${url.searchParams.toString()}`);
+  }
+
   const expenseReturnSearchParams = useSearchParams();
   const detailSectionRef = React.useRef<HTMLDivElement | null>(null);
   const [showImportReturnBanner, setShowImportReturnBanner] = React.useState(true);
@@ -1575,12 +1598,22 @@ export function ExpenseCategoryProductWorkspace(props: {
             {config.title}テンプレート下载
           </LedgerTemplateDownloadButton>
 
-          <Link
+          {isCompanyOperationInlineImportEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => setExpenseInlineImportOpen(true)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  {config.importLabel}
+                </button>
+              ) : (
+                <Link
             href={`/${lang}/app/data/import?module=expenses&category=${kind}`}
             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
           >
             {config.importLabel}
           </Link>
+              )}
           <button
             type="button"
             disabled
@@ -1843,6 +1876,18 @@ export function ExpenseCategoryProductWorkspace(props: {
           </div>
         </div>
       </section>
+      {isCompanyOperationInlineImportEnabled ? (
+        <ExpenseImportDialog
+          open={expenseInlineImportOpen}
+          onClose={() => setExpenseInlineImportOpen(false)}
+          ledgerScope={config.scope as LedgerScope}
+          label={config.title}
+          category="company-operation"
+          defaultFilename={`${config.scope}-template.csv`}
+          onCommitted={handleExpenseInlineImportCommitted}
+        />
+      ) : null}
+
     </div>
   );
 }
