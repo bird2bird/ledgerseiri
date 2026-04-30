@@ -2,10 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { listTransactions, type TransactionItem } from "@/core/transactions/api";
+import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import {
   LEDGER_SCOPES,
+  appendLedgerMarkersToMemo,
   readLedgerScopeWithLegacyFallback,
   readLedgerSubcategoryFromText,
   stripLedgerMarkersFromMemo,
@@ -28,6 +29,9 @@ type ExpenseCategoryRecord = {
   memo: string;
   source: string;
   statusFlags: string[];
+  rawMemo: string;
+  ledgerScope: string;
+  ownershipMode: "ledger-scope" | "legacy-expense-kind" | "legacy-unscoped-default";
 };
 
 
@@ -742,11 +746,14 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
   const date = ts > 0 ? formatFullDate(new Date(ts)) : "-";
   const bucket = getBucket(kind, item);
   const amount = Math.abs(Number(item.amount || 0));
-  const memo = stripLedgerMarkersFromMemo(item.memo || "");
+  const rawMemo = String(item.memo || "");
+  const memo = stripLedgerMarkersFromMemo(rawMemo);
+  const effectiveScope = getEffectiveExpenseLedgerScope(item);
 
   const statusFlags = [
+    effectiveScope.mode === "legacy-unscoped-default" ? "分類未確定" : "",
     item.accountName ? "" : "銀行流水未確認",
-    memo.includes("[evidence:") || memo.includes("[invoice:") ? "" : "証憑未添付",
+    rawMemo.includes("[evidence:") || rawMemo.includes("[invoice:") ? "" : "証憑未添付",
   ].filter(Boolean);
 
   return {
@@ -760,6 +767,9 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
     memo: memo || item.categoryName || item.type || "-",
     source: item.sourceFileName || item.importJobId || "manual/api",
     statusFlags,
+    rawMemo,
+    ledgerScope: effectiveScope.scope,
+    ownershipMode: effectiveScope.mode,
   };
 }
 
@@ -1081,6 +1091,11 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [rows, setRows] = React.useState<ExpenseCategoryRecord[]>([]);
   const [debugRows, setDebugRows] = React.useState<ExpenseClassificationDebugRow[]>([]);
   const [debugEnabled, setDebugEnabled] = React.useState(false);
+  // Step109-Z1-H3B-EXPENSE-SCOPE-MOVE-ACTIONS:
+  // Legacy/unscoped expense rows can be moved by writing a stable [ledger-scope:*] marker.
+  const [scopeMoveBusyId, setScopeMoveBusyId] = React.useState<string | null>(null);
+  const [scopeMoveMessage, setScopeMoveMessage] = React.useState("");
+  const [reloadSeq, setReloadSeq] = React.useState(0);
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -1128,7 +1143,30 @@ export function ExpenseCategoryProductWorkspace(props: {
     return () => {
       mounted = false;
     };
-  }, [kind]);
+  }, [kind, reloadSeq]);
+
+  async function handleMoveExpenseScope(row: ExpenseCategoryRecord, targetScope: LedgerScope) {
+    setScopeMoveBusyId(row.id);
+    setScopeMoveMessage("");
+
+    try {
+      const visibleMemo = stripLedgerMarkersFromMemo(row.rawMemo || row.memo || "");
+      const nextMemo = appendLedgerMarkersToMemo({
+        memo: visibleMemo,
+        scope: targetScope,
+      });
+
+      await updateTransaction(row.id, { memo: nextMemo });
+      setScopeMoveMessage("分類を更新しました。");
+      setReloadSeq((value) => value + 1);
+    } catch (err) {
+      setScopeMoveMessage(
+        err instanceof Error ? err.message : "分類更新に失敗しました。",
+      );
+    } finally {
+      setScopeMoveBusyId(null);
+    }
+  }
 
   const filteredRows = React.useMemo(() => {
     const next =
@@ -1327,6 +1365,12 @@ export function ExpenseCategoryProductWorkspace(props: {
             銀行流水・証憑との閉じ込みは後続 Phase で接続
           </div>
         </div>
+        {scopeMoveMessage ? (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+            {scopeMoveMessage}
+          </div>
+        ) : null}
+
         <div className="mt-5 grid gap-3 md:grid-cols-4">
           <Link
             href={`/${lang}/app/expenses?action=create`}
@@ -1441,11 +1485,12 @@ export function ExpenseCategoryProductWorkspace(props: {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200">
-          <div className="grid grid-cols-[140px_160px_1fr_180px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
+          <div className="grid grid-cols-[140px_150px_1fr_180px_150px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
             <div>発生日</div>
             <div>種別</div>
             <div>メモ・支払先</div>
             <div>口座 / 状態</div>
+            <div>帰属修正</div>
             <div className="text-right">金額</div>
           </div>
 
@@ -1459,7 +1504,7 @@ export function ExpenseCategoryProductWorkspace(props: {
             pageRows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-[140px_160px_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-4 text-sm"
+                className="grid grid-cols-[140px_150px_1fr_180px_150px_140px] gap-4 border-t border-slate-100 px-4 py-4 text-sm"
               >
                 <div className="text-slate-700">{row.date}</div>
                 <div>
@@ -1486,6 +1531,77 @@ export function ExpenseCategoryProductWorkspace(props: {
                       </span>
                     )}
                   </div>
+                </div>
+                <div>
+                  {row.ownershipMode === "legacy-unscoped-default" ? (
+                    <div className="flex flex-col gap-1">
+                      {kind !== "company-operation" ? (
+                        <button
+                          type="button"
+                          disabled={scopeMoveBusyId === row.id}
+                          onClick={() =>
+                            void handleMoveExpenseScope(
+                              row,
+                              LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE,
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          会社運営費へ
+                        </button>
+                      ) : null}
+
+                      {kind !== "payroll" ? (
+                        <button
+                          type="button"
+                          disabled={scopeMoveBusyId === row.id}
+                          onClick={() =>
+                            void handleMoveExpenseScope(
+                              row,
+                              LEDGER_SCOPES.PAYROLL_EXPENSE,
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          給与へ
+                        </button>
+                      ) : null}
+
+                      {kind !== "other-expense" ? (
+                        <button
+                          type="button"
+                          disabled={scopeMoveBusyId === row.id}
+                          onClick={() =>
+                            void handleMoveExpenseScope(
+                              row,
+                              LEDGER_SCOPES.OTHER_EXPENSE,
+                            )
+                          }
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          その他支出へ
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={scopeMoveBusyId === row.id}
+                          onClick={() =>
+                            void handleMoveExpenseScope(
+                              row,
+                              LEDGER_SCOPES.OTHER_EXPENSE,
+                            )
+                          }
+                          className="rounded-lg bg-slate-950 px-2 py-1 text-[11px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          その他支出で確定
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                      scope確定済み
+                    </span>
+                  )}
                 </div>
                 <div className="text-right font-bold text-slate-950">{formatIncomeJPY(row.amount)}</div>
               </div>
