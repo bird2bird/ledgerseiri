@@ -2640,7 +2640,7 @@ export class ImportsService {
   }
 
 
-  // Step109-Z1-H5H-FIX2B-WRAP-EXPENSE-MEMO-ACCOUNT-MARKER:
+  // Step109-Z1-H5H-FIX3-REPAIR-MEMO-WRAPPER-POSITION: repaired invalid hashPayload insertion and wrapped actual Transaction memo.\n  // Step109-Z1-H5H-FIX2B-WRAP-EXPENSE-MEMO-ACCOUNT-MARKER:
   // Persist template account_name into Transaction.memo marker for H5G display.
   private withExpenseAccountNameMarker(memo: string, accountName?: string | null): string {
     const normalizedMemo = String(memo || "").trim();
@@ -2652,7 +2652,7 @@ export class ImportsService {
     return `${normalizedMemo} [account_name:${normalizedAccountName}]`.trim();
   }
 
-  async commitExpenseImport(body: ExpenseImportCommitDto) {
+  // Step109-Z1-H5H-FIX4-FORCE-MEMO-VARIABLE-ACCOUNT-MARKER: account_name marker is applied to memo variable before Transaction create.\n  async commitExpenseImport(body: ExpenseImportCommitDto) {
     const companyId = await this.resolveCompanyId(body?.companyId);
     const ledgerScope = this.normalizeExpenseLedgerScope(body?.ledgerScope);
     this.assertExpenseLedgerScope(ledgerScope);
@@ -2755,6 +2755,7 @@ export class ImportsService {
         evidenceNo,
         memo: row.memo,
       });
+      const memoWithAccountName = this.withExpenseAccountNameMarker(memo, accountName);
 
       const dedupeHash = this.hashPayload([
         companyId,
@@ -2767,7 +2768,7 @@ export class ImportsService {
         vendor,
         evidenceNo,
         accountName,
-        memo: this.withExpenseAccountNameMarker(memo, row.accountName),
+        memo: memoWithAccountName,
       ]);
 
       const existing = await this.prisma.transaction.findFirst({
@@ -2794,7 +2795,7 @@ export class ImportsService {
               vendor,
               evidenceNo,
               accountName,
-              memo,
+              memo: this.withExpenseAccountNameMarker(memo, accountName),
               dedupeHash,
             } as Prisma.InputJsonValue,
             dedupeHash,
