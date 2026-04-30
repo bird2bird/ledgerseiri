@@ -534,3 +534,53 @@ export function validateLedgerCsvTextScope(args: {
     rowScope,
   });
 }
+
+
+// Step109-Z1-H5B-EXPENSE-IMPORT-SCOPE-ALIASES:
+// Resolve the expected ledger_scope for the shared expense import route.
+// URL examples:
+//   /app/data/import?module=expenses&category=company-operation
+//   /app/data/import?module=expenses&category=payroll
+//   /app/data/import?module=expenses&category=other-expense
+export function getExpenseImportLedgerScopeFromCategory(
+  category?: string | null
+): LedgerScope | "" {
+  const raw = String(category || "").trim().toLowerCase();
+
+  if (
+    raw === "company-operation" ||
+    raw === "company-operation-expense" ||
+    raw === "company" ||
+    raw === "company_ops" ||
+    raw === "company-ops"
+  ) {
+    return LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE;
+  }
+
+  if (
+    raw === "payroll" ||
+    raw === "payroll-expense" ||
+    raw === "salary" ||
+    raw === "salary-expense"
+  ) {
+    return LEDGER_SCOPES.PAYROLL_EXPENSE;
+  }
+
+  if (
+    raw === "other-expense" ||
+    raw === "other_expense" ||
+    raw === "misc-expense" ||
+    raw === "misc"
+  ) {
+    return LEDGER_SCOPES.OTHER_EXPENSE;
+  }
+
+  return "";
+}
+
+export function getExpenseImportScopeLabelJa(scope: LedgerScope | "") {
+  if (scope === LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE) return "会社運営費";
+  if (scope === LEDGER_SCOPES.PAYROLL_EXPENSE) return "給与";
+  if (scope === LEDGER_SCOPES.OTHER_EXPENSE) return "その他支出";
+  return "支出";
+}

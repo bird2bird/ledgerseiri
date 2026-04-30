@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   commitImportSkeleton,
   detectMonthConflicts,
@@ -15,6 +15,12 @@ import {
   type PreviewImportResponse,
 } from "@/core/imports";
 import { buildImportCommitWorkspaceHref } from "@/core/income-store-orders/cross-workspace-query";
+import {
+  getExpenseImportLedgerScopeFromCategory,
+  getExpenseImportScopeLabelJa,
+  validateLedgerCsvTextScope,
+  type LedgerScope,
+} from "@/core/ledger/ledger-scopes";
 import { CashIncomeImportWorkspace } from "./CashIncomeImportWorkspace";
 import { ImportHistoryList } from "./ImportHistoryList";
 import { ImportMonthConflictDialog } from "./ImportMonthConflictDialog";
@@ -78,6 +84,77 @@ function normalizeImportModuleHint(value?: string | null): ModuleMode {
   return "store-orders";
 }
 
+
+type ExpenseImportRouteInfo = {
+  enabled: boolean;
+  category: string;
+  expectedScope: LedgerScope | "";
+  label: string;
+};
+
+function buildExpenseImportRouteInfo(args: {
+  moduleParam?: string | null;
+  categoryParam?: string | null;
+}): ExpenseImportRouteInfo {
+  const enabled = String(args.moduleParam || "").trim().toLowerCase() === "expenses";
+  const category = String(args.categoryParam || "").trim();
+  const expectedScope = enabled
+    ? getExpenseImportLedgerScopeFromCategory(category)
+    : "";
+
+  return {
+    enabled,
+    category,
+    expectedScope,
+    label: getExpenseImportScopeLabelJa(expectedScope),
+  };
+}
+
+function getExpenseImportTemplateFileName(routeInfo: ExpenseImportRouteInfo) {
+  if (!routeInfo.enabled) return "amazon-store-orders.csv";
+  if (routeInfo.expectedScope) return `${routeInfo.expectedScope}-template.csv`;
+  return "expense-template.csv";
+}
+
+function getExpenseImportTitle(routeInfo: ExpenseImportRouteInfo) {
+  if (!routeInfo.enabled) return "幂等导入工作台";
+  return `${routeInfo.label}CSV/Excel取込`;
+}
+
+function getExpenseImportDescription(routeInfo: ExpenseImportRouteInfo) {
+  if (!routeInfo.enabled) {
+    return "Step105-EC：文件上传 -> detect -> 月份冲突弹窗 -> preview -> history 刷新。当前仍与既有 Amazon CSV foundation 卡片并行，不替换旧入口。";
+  }
+
+  return "ページ専用テンプレートの ledger_scope を検証してから、支出 CSV/Excel の取込プレビューへ進みます。";
+}
+
+// Step109-Z1-H5B-FIX1-EXPENSE-IMPORT-UI-MODE:
+// Expense import route is UI-isolated from Amazon store-orders import mode.
+function assertExpenseImportLedgerScope(args: {
+  routeInfo: ExpenseImportRouteInfo;
+  csvText: string;
+}) {
+  if (!args.routeInfo.enabled) return;
+
+  if (!args.routeInfo.expectedScope) {
+    throw new Error(
+      `支出インポート種別を判定できません。URL の category を確認してください。category=${args.routeInfo.category || "-"}`
+    );
+  }
+
+  const result = validateLedgerCsvTextScope({
+    currentScope: args.routeInfo.expectedScope,
+    csvText: args.csvText,
+  });
+
+  if (!result.ok) {
+    throw new Error(
+      `${result.messageJa} 現在ページ: ${args.routeInfo.expectedScope} / 種別: ${args.routeInfo.label}`
+    );
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Cash income import workspace delegation
 // Runtime lives in CashIncomeImportWorkspace. This parent remains responsible for
@@ -91,10 +168,15 @@ function normalizeImportModuleHint(value?: string | null): ModuleMode {
 export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
   const { moduleHint } = props;
   const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
   const lang = params?.lang ?? "ja";
+  const expenseImportRouteInfo = buildExpenseImportRouteInfo({
+    moduleParam: searchParams?.get("module"),
+    categoryParam: searchParams?.get("category"),
+  });
   const initialModuleMode = normalizeImportModuleHint(moduleHint);
   const [moduleMode, setModuleMode] = useState<ModuleMode>(initialModuleMode);
-  const [filename, setFilename] = useState("amazon-store-orders.csv");
+  const [filename, setFilename] = useState(getExpenseImportTemplateFileName(expenseImportRouteInfo));
   const [csvText, setCsvText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -116,10 +198,11 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     useState<MonthConflictPolicy>("skip_existing_months");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const currentSourceType = "amazon-csv";
+  const currentSourceType = expenseImportRouteInfo.enabled ? "expense-csv" : "amazon-csv";
 
-  const moduleLabel =
-    moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
+  const moduleLabel = expenseImportRouteInfo.enabled
+    ? expenseImportRouteInfo.label
+    : moduleMode === "store-operation" ? "店舗運営費" : "店舗注文";
 
   const rowCount = Array.isArray(previewResult?.rows) ? previewResult!.rows.length : 0;
 
@@ -201,10 +284,18 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
     try {
       const text = await file.text();
-      setFilename(file.name || "amazon-store-orders.csv");
+
+      // Step109-Z1-H5B-EXPENSE-IMPORT-SCOPE-VALIDATION:
+      // Shared expense import route must reject files whose ledger_scope belongs to another page.
+      assertExpenseImportLedgerScope({
+        routeInfo: expenseImportRouteInfo,
+        csvText: text,
+      });
+
+      setFilename(file.name || (expenseImportRouteInfo.enabled ? "expense-template.csv" : "amazon-store-orders.csv"));
       setCsvText(text);
       setError("");
-      setMessage(`已读取文件: ${file.name}`);
+      setMessage(expenseImportRouteInfo.enabled ? `${expenseImportRouteInfo.label} テンプレートを読み取りました: ${file.name}` : `已读取文件: ${file.name}`);
       setDetectResult(null);
       setPreviewResult(null);
       setCommitResult(null);
@@ -215,6 +306,19 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
 
   async function runDetect() {
     if (!canRun) return;
+
+    try {
+      assertExpenseImportLedgerScope({
+        routeInfo: expenseImportRouteInfo,
+        csvText,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ledger_scope validation failed");
+      setDetectResult(null);
+      setPreviewResult(null);
+      setCommitResult(null);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -258,6 +362,17 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
     keepDialogOpen = false
   ) {
     const nextPolicy = policyOverride || policy;
+
+    try {
+      assertExpenseImportLedgerScope({
+        routeInfo: expenseImportRouteInfo,
+        csvText,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ledger_scope validation failed");
+      setPreviewResult(null);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -354,48 +469,66 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-2xl font-semibold text-slate-900">
-            幂等导入工作台
+            {getExpenseImportTitle(expenseImportRouteInfo)}
           </div>
           <div className="mt-2 text-sm text-slate-500">
-            Step105-EC：文件上传 -&gt; detect -&gt; 月份冲突弹窗 -&gt; preview -&gt; history 刷新。当前仍与既有 Amazon CSV foundation 卡片并行，不替换旧入口。
+            {getExpenseImportDescription(expenseImportRouteInfo)}
           </div>
         </div>
 
         <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-          module = {moduleMode}
+          module = {expenseImportRouteInfo.enabled ? `expenses:${expenseImportRouteInfo.category || "-"}` : moduleMode}
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4">
           <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="text-sm font-medium text-slate-900">Import Source</div>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setModuleMode("store-orders")}
-                className={
-                  moduleMode === "store-orders"
-                    ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                    : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                }
-              >
-                店舗注文
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setModuleMode("store-operation")}
-                className={
-                  moduleMode === "store-operation"
-                    ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-                    : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                }
-              >
-                店舗運営費
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm font-medium text-slate-900">Import Source</div>
+              {expenseImportRouteInfo.enabled ? (
+                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+                  ledger_scope = {expenseImportRouteInfo.expectedScope || "unknown"}
+                </div>
+              ) : null}
             </div>
+
+            {expenseImportRouteInfo.enabled ? (
+              <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-sm font-bold text-emerald-800">
+                  {expenseImportRouteInfo.label} 専用インポート
+                </div>
+                <div className="mt-1 text-xs leading-5 text-emerald-700">
+                  このページでは <span className="font-bold">{expenseImportRouteInfo.expectedScope || "unknown"}</span> の ledger_scope を持つテンプレートだけを受け付けます。
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setModuleMode("store-orders")}
+                  className={
+                    moduleMode === "store-orders"
+                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  }
+                >
+                  店舗注文
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setModuleMode("store-operation")}
+                  className={
+                    moduleMode === "store-operation"
+                      ? "rounded-xl border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                      : "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  }
+                >
+                  店舗運営費
+                </button>
+              </div>
+            )}
 
             <div className="mt-4 grid gap-3">
               <input
@@ -418,7 +551,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 </button>
 
                 <div className="text-sm text-slate-500">
-                  {filename ? `当前文件: ${filename}` : "尚未选择文件"}
+                  {filename ? `当前文件: ${filename}` : expenseImportRouteInfo.enabled ? "支出テンプレートを選択してください" : "尚未选择文件"}
                 </div>
               </div>
 
@@ -426,7 +559,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 value={filename}
                 onChange={(e) => setFilename(e.target.value)}
                 className="h-11 w-full rounded-[14px] border border-black/8 bg-white px-3 text-sm"
-                placeholder="filename.csv"
+                placeholder={expenseImportRouteInfo.enabled ? getExpenseImportTemplateFileName(expenseImportRouteInfo) : "filename.csv"}
               />
 
               <textarea
@@ -434,7 +567,7 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
                 onChange={(e) => setCsvText(e.target.value)}
                 rows={10}
                 className="w-full rounded-[14px] border border-black/8 bg-white px-3 py-3 text-sm"
-                placeholder="可直接粘贴 CSV 文本，或通过上方文件选择读取。"
+                placeholder={expenseImportRouteInfo.enabled ? "支出テンプレート CSV テキストを貼り付けることもできます。ledger_scope は現在ページと一致している必要があります。" : "可直接粘贴 CSV 文本，或通过上方文件选择读取。"}
               />
 
               <div className="flex flex-wrap gap-3">
@@ -632,10 +765,10 @@ export function ImportWorkspaceShell(props: { moduleHint?: string | null }) {
               <button
                 type="button"
                 onClick={() => void runCommit()}
-                disabled={!previewResult?.importJobId || commitLoading}
+                disabled={expenseImportRouteInfo.enabled || !previewResult?.importJobId || commitLoading}
                 className="inline-flex rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
               >
-                {commitLoading ? "正式导入中..." : "正式导入"}
+                {expenseImportRouteInfo.enabled ? "支出Preview接続待ち" : commitLoading ? "正式导入中..." : "正式导入"}
               </button>
             </div>
 
