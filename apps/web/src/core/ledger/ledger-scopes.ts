@@ -235,7 +235,7 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "expense_category", label: "expense_category", required: true, description: "会社運営費の区分" },
       { key: "vendor", label: "vendor", required: false, description: "支払先" },
       { key: "account_name", label: "account_name", required: false, description: "支払口座。空欄の場合は未消込" },
-      { key: "invoice_no", label: "invoice_no", required: false, description: "請求書番号" },
+      { key: "evidence_no", label: "evidence_no", required: false, description: "証憑番号" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
     sampleRow: {
@@ -246,7 +246,7 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       expense_category: "SaaS・システム",
       vendor: "OpenAI",
       account_name: "楽天銀行",
-      invoice_no: "INV-20260430",
+      evidence_no: "INV-20260430",
       memo: "ChatGPT利用料",
     },
   },
@@ -312,7 +312,7 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "expense_category", label: "expense_category", required: true, description: "その他支出の区分" },
       { key: "vendor", label: "vendor", required: false, description: "支払先" },
       { key: "account_name", label: "account_name", required: false, description: "支払口座。空欄の場合は未消込" },
-      { key: "invoice_no", label: "invoice_no", required: false, description: "請求書番号" },
+      { key: "evidence_no", label: "evidence_no", required: false, description: "証憑番号" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
     sampleRow: {
@@ -323,7 +323,7 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       expense_category: "雑費",
       vendor: "不明",
       account_name: "現金口座",
-      invoice_no: "",
+      evidence_no: "OE-20260430-SAMPLE",
       memo: "その他支出",
     },
   },
@@ -450,6 +450,7 @@ function escapeCsvCell(value: string | number | null | undefined) {
   return raw;
 }
 
+// Step109-Z1-H6D-F2-UNIFY-EXPENSE-TEMPLATE-EVIDENCE-NO: expense CSV templates use evidence_no as the canonical proof/reference column.
 export function buildLedgerTemplateCsv(scope: LedgerScope) {
   const config = getLedgerScopeConfig(scope);
   const headers = config.templateColumns.map((column) => column.key);
