@@ -2639,6 +2639,19 @@ export class ImportsService {
     return parts.join(' ').trim();
   }
 
+
+  // Step109-Z1-H5H-FIX2B-WRAP-EXPENSE-MEMO-ACCOUNT-MARKER:
+  // Persist template account_name into Transaction.memo marker for H5G display.
+  private withExpenseAccountNameMarker(memo: string, accountName?: string | null): string {
+    const normalizedMemo = String(memo || "").trim();
+    const normalizedAccountName = String(accountName || "").trim();
+
+    if (!normalizedAccountName) return normalizedMemo;
+    if (/\[account_name:[^\]]+\]/i.test(normalizedMemo)) return normalizedMemo;
+
+    return `${normalizedMemo} [account_name:${normalizedAccountName}]`.trim();
+  }
+
   async commitExpenseImport(body: ExpenseImportCommitDto) {
     const companyId = await this.resolveCompanyId(body?.companyId);
     const ledgerScope = this.normalizeExpenseLedgerScope(body?.ledgerScope);
@@ -2754,7 +2767,7 @@ export class ImportsService {
         vendor,
         evidenceNo,
         accountName,
-        memo,
+        memo: this.withExpenseAccountNameMarker(memo, row.accountName),
       ]);
 
       const existing = await this.prisma.transaction.findFirst({
