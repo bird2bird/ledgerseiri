@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
@@ -1095,6 +1096,65 @@ export function ExpenseCategoryProductWorkspace(props: {
 }) {
   const { lang, kind } = props;
   const config = PAGE_CONFIG[kind];
+  const expenseReturnSearchParams = useSearchParams();
+  const detailSectionRef = React.useRef<HTMLDivElement | null>(null);
+  const [showImportReturnBanner, setShowImportReturnBanner] = React.useState(true);
+
+  const importReturnInfo = React.useMemo(() => {
+    const from = expenseReturnSearchParams.get("from") || "";
+    const ledgerScope = expenseReturnSearchParams.get("ledger_scope") || "";
+    const importJobId = expenseReturnSearchParams.get("importJobId") || "";
+    const refresh = expenseReturnSearchParams.get("refresh") || "";
+
+    return {
+      active: from === "expense-import-commit" && ledgerScope === config.scope,
+      ledgerScope,
+      importJobId,
+      refresh,
+    };
+  }, [expenseReturnSearchParams, config.scope]);
+
+  React.useEffect(() => {
+    if (!importReturnInfo.active) return;
+
+    setShowImportReturnBanner(true);
+
+    const timer = window.setTimeout(() => {
+      detailSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [importReturnInfo.active, importReturnInfo.importJobId, importReturnInfo.refresh]);
+
+  const isImportReturnHighlightedRecord = React.useCallback(
+    (row: ExpenseCategoryRecord) => {
+      if (!importReturnInfo.active) return false;
+
+      if (importReturnInfo.importJobId && row.importJobId === importReturnInfo.importJobId) {
+        return true;
+      }
+
+      if (
+        importReturnInfo.importJobId &&
+        row.ledgerScope === importReturnInfo.ledgerScope &&
+        [row.source, row.sourceFileName, row.rawMemo]
+          .filter(Boolean)
+          .join(" ")
+          .includes(importReturnInfo.importJobId)
+      ) {
+        return true;
+      }
+
+      return false;
+    },
+    [importReturnInfo.active, importReturnInfo.importJobId, importReturnInfo.ledgerScope],
+  );
+
+  // Step109-Z1-H5F-FIX3-SPAN-BASED-HIGHLIGHT: highlight detail row through scope badge span + CSS :has().\n  // Step109-Z1-H5F-FIX1-IMPORT-RETURN-BANNER-HIGHLIGHT:
+  // Show import completion feedback after returning from expense CSV commit.
 
   const [rows, setRows] = React.useState<ExpenseCategoryRecord[]>([]);
   const [debugRows, setDebugRows] = React.useState<ExpenseClassificationDebugRow[]>([]);
@@ -1368,7 +1428,49 @@ export function ExpenseCategoryProductWorkspace(props: {
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
-          <div className="text-xl font-semibold text-slate-950">操作メニュー</div>
+          
+      <style>{`
+        tr:has([data-import-return-highlight="true"]) {
+          background: rgb(236 253 245);
+          box-shadow: inset 0 0 0 2px rgb(110 231 183);
+          transition: background 700ms ease, box-shadow 700ms ease;
+        }
+        tr:has([data-import-return-highlight="true"]) td {
+          background: rgb(236 253 245);
+        }
+        [data-import-return-highlight="true"] {
+          box-shadow: 0 0 0 2px rgb(110 231 183);
+        }
+      `}</style>
+
+      {importReturnInfo.active && showImportReturnBanner ? (
+        <div className="mb-5 rounded-[24px] border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-bold text-emerald-900">
+                {config.title} の取込が完了しました
+              </div>
+              <div className="mt-1 text-xs leading-5 text-emerald-800">
+                CSV/Excel から登録した支出をこのページに反映しました。
+                {importReturnInfo.importJobId ? (
+                  <span className="ml-1 font-mono">
+                    importJobId={importReturnInfo.importJobId}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowImportReturnBanner(false)}
+              className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+<div className="text-xl font-semibold text-slate-950">操作メニュー</div>
           <div className="text-xs font-medium text-slate-500">
             銀行流水・証憑との閉じ込みは後続 Phase で接続
           </div>
@@ -1420,7 +1522,7 @@ export function ExpenseCategoryProductWorkspace(props: {
       <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xl font-semibold text-slate-950">{config.title} 明細</div>
+            <div className="text-xl font-semibold text-slate-950"><span ref={detailSectionRef} />{config.title} 明細</div>
             <div className="mt-2 text-sm text-slate-600">
               支出明細を一覧で確認できます。銀行流水・証憑が不足する場合は確認対象として扱います。
             </div>
@@ -1615,7 +1717,11 @@ export function ExpenseCategoryProductWorkspace(props: {
                       )}
                     </div>
                   ) : (
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200"
+                        data-import-return-highlight={
+                          isImportReturnHighlightedRecord(row) ? "true" : undefined
+                        }
+                      >
                       scope確定済み
                     </span>
                   )}
