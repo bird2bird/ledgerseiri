@@ -633,7 +633,8 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
           amount: Number(row.amount || 0),
           currency: row.currency || "JPY",
           occurredAt: occurredAt.toISOString(),
-          memo: memoForTransaction,
+          // Step109-Z1-H7D-FIX2A-F2-CREATE-TRANSACTION-MEMO-IMPORT-JOB: persist client import batch id for return banner/highlight.
+          memo: `${memoForTransaction} [income_import_job:${importJobId}]`,
         });
 
         existingKeys.add(dedupeKey);
