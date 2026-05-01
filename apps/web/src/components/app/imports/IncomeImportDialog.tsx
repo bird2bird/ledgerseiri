@@ -14,11 +14,15 @@ type IncomeImportScope =
 
 type IncomeImportStatus = "idle" | "reading" | "preview" | "committing" | "done" | "error";
 
-// Step109-Z1-H7B-FIX1-INCOME-DIALOG-ACCOUNT-TYPE:
-// The dialog only requires id/name so it can accept CashAccountOption and future income account options.
+// Step109-Z1-H7B-FIX2B-INCOME-DIALOG-ACCOUNT-RESOLVER:
+// The dialog accepts lightweight account options from income pages.
 type IncomeImportAccountOption = {
-  id: string;
-  name: string;
+  id?: string | null;
+  value?: string | null;
+  accountId?: string | null;
+  name?: string | null;
+  label?: string | null;
+  accountName?: string | null;
 };
 
 
@@ -289,24 +293,58 @@ function parseIncomeCsvPreviewRows(args: {
   });
 }
 
+function getIncomeAccountId(item: IncomeImportAccountOption) {
+  return String(item.id || item.value || item.accountId || "").trim();
+}
+
+function getIncomeAccountName(item: IncomeImportAccountOption) {
+  return String(item.name || item.label || item.accountName || "").trim();
+}
+
+function normalizeAccountAlias(value?: string | null) {
+  return normalizeText(value)
+    .replace(/\(sample\)$/g, "")
+    .replace(/sample$/g, "")
+    .replace(/サンプル$/g, "");
+}
+
 function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccountOption[]) {
   const raw = String(accountName || "").trim();
-  if (!raw) return "";
+  const normalizedRaw = normalizeAccountAlias(raw);
 
-  const normalizedRaw = normalizeText(raw);
+  const normalizedAccounts = accounts
+    .map((item) => ({
+      id: getIncomeAccountId(item),
+      name: getIncomeAccountName(item),
+      normalizedName: normalizeAccountAlias(getIncomeAccountName(item)),
+    }))
+    .filter((item) => item.id && item.name);
 
-  const exact = accounts.find((item) => normalizeText(item.name) === normalizedRaw);
+  if (!normalizedRaw) {
+    const firstCash = normalizedAccounts.find((item) => {
+      const name = item.normalizedName;
+      return name.includes("現金") || name.includes("cash");
+    });
+    return firstCash?.id || normalizedAccounts[0]?.id || "";
+  }
+
+  const exact = normalizedAccounts.find((item) => item.normalizedName === normalizedRaw);
   if (exact) return exact.id;
 
-  const loose = accounts.find((item) => {
-    const name = normalizeText(item.name);
+  const loose = normalizedAccounts.find((item) => {
+    const name = item.normalizedName;
     return name.includes(normalizedRaw) || normalizedRaw.includes(name);
   });
   if (loose) return loose.id;
 
-  const cashFallback = accounts.find((item) => {
-    const name = String(item.name || "");
-    return name.includes("現金") || name.toLowerCase().includes("cash");
+  const cashFallback = normalizedAccounts.find((item) => {
+    const name = item.normalizedName;
+    return (
+      name.includes("現金") ||
+      name.includes("cash") ||
+      normalizedRaw.includes("現金") ||
+      normalizedRaw.includes("cash")
+    );
   });
 
   return cashFallback?.id || "";
