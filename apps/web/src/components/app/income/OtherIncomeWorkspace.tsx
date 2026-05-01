@@ -1345,6 +1345,20 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
   // Step109-Z1-H7C-FIX1-COMMIT-HANDLER-DISABLE-LEGACY-MODAL:
   // Refresh current Other Income page after shared IncomeImportDialog commit.
+
+  // Step109-Z1-H7C-FIX3-STOP-LEGACY-FILE-PICKER-HANDLER:
+  function handleOtherIncomeActionClick(
+    event: React.MouseEvent<HTMLButtonElement | HTMLAnchorElement>,
+    item: OtherIncomeActionItem
+  ) {
+    const normalizedLabel = getOtherIncomeActionLabel(item.label);
+    if (item.label === "CSV取込" || normalizedLabel === "その他収入CSV/Excel取込") {
+      event.preventDefault();
+      event.stopPropagation();
+      setOtherIncomeImportDialogOpen(true);
+    }
+  }
+
   async function handleOtherIncomeDialogCommitted(result: {
     imported: number;
     duplicate: number;
@@ -1795,6 +1809,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
     const file = event.target.files?.[0] ?? null;
 
       if (file) {
+        // Step109-Z1-H7C-FIX3-STOP-LEGACY-FILE-PICKER: CSV action opens shared IncomeImportDialog instead of triggering legacy file input.
         setOtherIncomeImportDialogOpen(true);
         setOtherIncomeImportPhase("reading");
         setOtherIncomeImportProgress(6);
@@ -2640,7 +2655,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        otherIncomeFileInputRef.current?.click();
+        setOtherIncomeImportDialogOpen(true);
       }}
       className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
     >
