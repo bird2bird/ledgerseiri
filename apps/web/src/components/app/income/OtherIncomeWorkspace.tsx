@@ -1395,6 +1395,7 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     return () => window.clearTimeout(timer);
   }, [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId, incomeImportReturnInfo.refresh]);
 
+  // Step109-Z1-H7D-FIX2D-REPAIR-ONCLICK-HIGHLIGHT-ATTR: row container highlight attr is applied on the editable row button.
   const isIncomeImportReturnHighlightedRow = React.useCallback(
     (row: IncomeRow) => {
       if (!incomeImportReturnInfo.active || !incomeImportReturnInfo.importJobId) return false;
@@ -3057,7 +3058,8 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() = data-income-import-return-highlight={isIncomeImportReturnHighlightedRow(row) ? "true" : undefined}> openEdit(row)}
+                  data-income-import-return-highlight={isIncomeImportReturnHighlightedRow(row) ? "true" : undefined}
+                  onClick={() => openEdit(row)}
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
                     active
