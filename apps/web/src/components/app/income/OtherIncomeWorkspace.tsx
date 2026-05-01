@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
-import { LEDGER_SCOPES, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
+import { IncomeImportDialog } from "@/components/app/imports/IncomeImportDialog";
+import { LEDGER_SCOPES, getLedgerScopeConfig, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
 import type { TransactionCategoryItem } from "@/core/transactions/api";
@@ -207,7 +208,9 @@ function getOtherIncomeActionHref(args: {
   const { item, lang } = args;
 
   if (item.label === "CSV取込") {
-    return `/${lang}/app/data/import?module=income&category=other`;
+    // Step109-Z1-H7C-OTHER-INCOME-INLINE-IMPORT-DIALOG:
+    // Other income import opens IncomeImportDialog in-place instead of navigating to /app/data/import.
+    return undefined;
   }
   if (item.label === "店舗紐付け") {
     return `/${lang}/app/settings/accounts`;
@@ -3395,6 +3398,16 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
           </aside>
         </div>
       ) : null}
+      <IncomeImportDialog
+        open={otherIncomeImportDialogOpen}
+        onClose={() => setOtherIncomeImportDialogOpen(false)}
+        ledgerScope={LEDGER_SCOPES.OTHER_INCOME}
+        label="その他収入"
+        accounts={accounts}
+        defaultFilename={getLedgerScopeConfig(LEDGER_SCOPES.OTHER_INCOME).templateFileName}
+        onCommitted={handleOtherIncomeDialogCommitted}
+      />
+
     </div>
   );
 }
