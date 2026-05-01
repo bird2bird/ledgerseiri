@@ -352,6 +352,77 @@ function normalizeCashImportText(value?: string | null) {
     .toLowerCase();
 }
 
+
+// Step109-Z1-H7E-CASH-INCOME-STATUS-BADGES:
+// UI-only status normalization based on existing memo/account markers.
+// No backend/API/schema changes.
+type IncomeStatusBadgeTone = "emerald" | "amber" | "sky" | "slate";
+
+type IncomeStatusBadgeItem = {
+  label: string;
+  tone: IncomeStatusBadgeTone;
+};
+
+function getIncomeStatusBadgeClass(tone: IncomeStatusBadgeTone) {
+  if (tone === "emerald") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (tone === "amber") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  if (tone === "sky") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function renderIncomeStatusBadges(items: IncomeStatusBadgeItem[]) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <span
+          key={item.label}
+          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${getIncomeStatusBadgeClass(item.tone)}`}
+        >
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function buildCashIncomeStatusBadges(row: IncomeRow): IncomeStatusBadgeItem[] {
+  const memo = String(row.memo || "");
+  const account = String(row.account || "");
+  const hasScope =
+    memo.includes("[cash]") ||
+    memo.includes("[cash-revenue-category:");
+
+  const hasCategory = memo.includes("[cash-revenue-category:");
+  const hasAccount = Boolean(account.trim() && account.trim() !== "-");
+  const fromImport =
+    memo.includes("[file-import:") ||
+    memo.includes("[income_import_job:");
+
+  return [
+    hasScope
+      ? { label: "scope確定済み", tone: "emerald" }
+      : { label: "scope未確認", tone: "amber" },
+    hasCategory
+      ? { label: "分類確定済み", tone: "emerald" }
+      : { label: "分類未確定", tone: "amber" },
+    hasAccount
+      ? { label: "口座確認済み", tone: "emerald" }
+      : { label: "口座未確認", tone: "amber" },
+    hasAccount
+      ? { label: "入金確認済み", tone: "emerald" }
+      : { label: "入金未確認", tone: "amber" },
+    fromImport
+      ? { label: "import由来", tone: "sky" }
+      : { label: "手入力由来", tone: "slate" },
+  ];
+}
+
 function normalizeCashImportDateKey(value?: string | null) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -1669,7 +1740,10 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                     <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800">{row.label || getCashRevenueCategoryLabel(row.revenueCategory || row.memo)}</div>
                   </div>
                   <div>
-                    <div className="text-slate-600">{stripCashSourceMarker(row.memo) || "-"}</div>
+                    <div className="text-slate-600">
+                      <div>{stripCashSourceMarker(row.memo) || "-"}</div>
+                      {renderIncomeStatusBadges(buildCashIncomeStatusBadges(row))}
+                    </div>
                     <div className="mt-1 text-xs text-slate-500">{row.store || "-"}</div>
                   </div>
                   <div className="text-slate-600">{row.account}</div>
