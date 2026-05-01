@@ -969,18 +969,21 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
                 </span>
               </div>
 
+              {/* Step109-Z1-H7G-FIX4-INCOME-IMPORT-PREVIEW-TABLE-WIDTH:
+                  Keep preview columns readable with a fixed minimum width and horizontal scroll.
+                  UI-only change. No validation/commit/API changes. */}
               <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <table className="min-w-[1040px] table-fixed divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 text-left">行</th>
-                      <th className="px-4 py-3 text-left">日付</th>
-                      <th className="px-4 py-3 text-right">金額</th>
-                      <th className="px-4 py-3 text-left">区分</th>
-                      <th className="px-4 py-3 text-left">入金元</th>
-                      <th className="px-4 py-3 text-left">口座</th>
-                      <th className="px-4 py-3 text-left">メモ</th>
-                      <th className="px-4 py-3 text-left">状態</th>
+                      <th className="w-[56px] px-4 py-3 text-left">行</th>
+                      <th className="w-[116px] px-4 py-3 text-left">日付</th>
+                      <th className="w-[112px] px-4 py-3 text-right">金額</th>
+                      <th className="w-[124px] px-4 py-3 text-left">区分</th>
+                      <th className="w-[140px] px-4 py-3 text-left">入金元</th>
+                      <th className="w-[140px] px-4 py-3 text-left">口座</th>
+                      <th className="w-[190px] px-4 py-3 text-left">メモ</th>
+                      <th className="w-[210px] px-4 py-3 text-left">状態</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -993,22 +996,24 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
                     ) : (
                       previewRows.map((row) => (
                         <tr key={`${row.rowNo}-${row.memo}-${row.amount}`}>
-                          <td className="px-4 py-3 text-slate-500">{row.rowNo}</td>
-                          <td className="px-4 py-3 font-medium text-slate-900">{row.occurredAt}</td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-950">{formatJPY(row.amount)}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.incomeCategory || "-"}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.payer || "-"}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.accountName || "-"}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.memo || "-"}</td>
-                          <td className="px-4 py-3">
+                          <td className="w-[56px] px-4 py-3 text-slate-500">{row.rowNo}</td>
+                          <td className="w-[116px] whitespace-nowrap px-4 py-3 font-medium text-slate-900">{row.occurredAt || "-"}</td>
+                          <td className="w-[112px] whitespace-nowrap px-4 py-3 text-right font-bold text-slate-950">{formatJPY(row.amount)}</td>
+                          <td className="w-[124px] px-4 py-3 text-slate-700"><div className="max-w-[102px] whitespace-normal break-words leading-5">{row.incomeCategory || "-"}</div></td>
+                          <td className="w-[140px] px-4 py-3 text-slate-700"><div className="max-w-[118px] whitespace-normal break-words leading-5">{row.payer || "-"}</div></td>
+                          <td className="w-[140px] px-4 py-3 text-slate-700"><div className="max-w-[118px] whitespace-normal break-words leading-5">{row.accountName || "-"}</div></td>
+                          <td className="w-[190px] px-4 py-3 text-slate-700"><div className="max-w-[168px] whitespace-normal break-words leading-5">{row.memo || "-"}</div></td>
+                          <td className="w-[210px] px-4 py-3 align-top">
                             {row.status === "ok" ? (
-                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                                 OK
                               </span>
                             ) : (
-                              <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">
-                                {row.messages[0] || "エラー"}
-                              </span>
+                              <div className="max-w-[188px] rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold leading-5 text-rose-700">
+                                {row.messages.map((item) => (
+                                  <div key={item}>{item}</div>
+                                ))}
+                              </div>
                             )}
                           </td>
                         </tr>
