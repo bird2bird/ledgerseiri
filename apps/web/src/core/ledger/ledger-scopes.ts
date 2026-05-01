@@ -78,17 +78,20 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "occurred_at", label: "occurred_at", required: true, description: "発生日 YYYY/MM/DD" },
       { key: "amount", label: "amount", required: true, description: "金額。正数で入力" },
       { key: "currency", label: "currency", required: true, description: "通常 JPY" },
-      { key: "cash_account", label: "cash_account", required: true, description: "現金口座名" },
-      { key: "income_source", label: "income_source", required: false, description: "収入元" },
+      { key: "income_category", label: "income_category", required: true, description: "現金収入の区分" },
+      { key: "payer", label: "payer", required: false, description: "入金元" },
+      { key: "account_name", label: "account_name", required: true, description: "入金口座名。通常は現金口座" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
+,
     sampleRow: {
       ledger_scope: "cash-income",
       occurred_at: "2026/04/30",
       amount: 10000,
       currency: "JPY",
-      cash_account: "現金口座",
-      income_source: "店頭現金売上",
+      income_category: "商品売上",
+      payer: "店頭現金",
+      account_name: "現金口座",
       memo: "現金売上",
     },
   },
@@ -153,19 +156,20 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "amount", label: "amount", required: true, description: "金額。正数で入力" },
       { key: "currency", label: "currency", required: true, description: "通常 JPY" },
       { key: "income_category", label: "income_category", required: true, description: "その他収入の区分" },
-      { key: "account_name", label: "account_name", required: false, description: "入金口座。空欄の場合は未消込" },
       { key: "payer", label: "payer", required: false, description: "入金元" },
+      { key: "account_name", label: "account_name", required: false, description: "入金口座。空欄の場合は未消込" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
+,
     sampleRow: {
       ledger_scope: "other-income",
       occurred_at: "2026/04/30",
       amount: 5000,
       currency: "JPY",
-      income_category: "補助金・助成金",
+      income_category: "雑収入",
+      payer: "テスト入金元",
       account_name: "楽天銀行",
-      payer: "横浜市",
-      memo: "補助金入金",
+      memo: "その他収入",
     },
   },
 
@@ -451,6 +455,7 @@ function escapeCsvCell(value: string | number | null | undefined) {
 }
 
 // Step109-Z1-H6D-F2-UNIFY-EXPENSE-TEMPLATE-EVIDENCE-NO: expense CSV templates use evidence_no as the canonical proof/reference column.
+// Step109-Z1-H7A2-STANDARDIZE-INCOME-TEMPLATE-FIELDS: cash-income and other-income templates use income_category,payer,account_name.
 export function buildLedgerTemplateCsv(scope: LedgerScope) {
   const config = getLedgerScopeConfig(scope);
   const headers = config.templateColumns.map((column) => column.key);
