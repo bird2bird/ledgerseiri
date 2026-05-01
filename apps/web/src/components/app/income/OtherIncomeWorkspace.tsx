@@ -102,6 +102,7 @@ function stripOtherIncomeMarkers(value?: string | null) {
   return String(value || "")
     .replace(/\s*\[other-income-category:[^\]]+\]\s*/g, " ")
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/\s*\[income_import_job:[^\]]+\]\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -1270,6 +1271,58 @@ function buildOtherIncomeSegmentedLinePaths<
 
 
 
+// Step109-Z1-H7D-FIX2-OTHER-IMPORT-RETURN-BANNER-HIGHLIGHT: URL return helpers for inline income import completion.
+type IncomeImportReturnInfo = {
+  active: boolean;
+  importJobId: string;
+  refresh: string;
+};
+
+function getIncomeImportReturnInfoFromUrl(expectedScope: string): IncomeImportReturnInfo {
+  if (typeof window === "undefined") {
+    return { active: false, importJobId: "", refresh: "" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const active =
+    params.get("from") === "income-import-commit" &&
+    params.get("ledger_scope") === expectedScope;
+
+  return {
+    active,
+    importJobId: params.get("importJobId") || "",
+    refresh: params.get("refresh") || "",
+  };
+}
+
+function updateIncomeImportReturnUrl(args: { scope: string; importJobId?: string | null }) {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("from", "income-import-commit");
+  url.searchParams.set("ledger_scope", args.scope);
+  url.searchParams.set("refresh", String(Date.now()));
+
+  if (args.importJobId) {
+    url.searchParams.set("importJobId", args.importJobId);
+  }
+
+  window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+}
+
+function clearIncomeImportReturnUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("ledger_scope");
+  url.searchParams.delete("refresh");
+  url.searchParams.delete("importJobId");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
 export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const {
     lang,
@@ -1322,6 +1375,38 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
 
 
   const [sortMode, setSortMode] = React.useState<OtherIncomeSortMode>("date_desc");
+
+  // Step109-Z1-H7D-FIX2-OTHER-IMPORT-RETURN-BANNER-HIGHLIGHT: return banner, scroll target, and row highlight after inline income import.
+  const [incomeImportReturnInfo, setIncomeImportReturnInfo] = React.useState<IncomeImportReturnInfo>(() =>
+    getIncomeImportReturnInfoFromUrl(LEDGER_SCOPES.OTHER_INCOME)
+  );
+  const incomeImportDetailRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!incomeImportReturnInfo.active) return;
+
+    const timer = window.setTimeout(() => {
+      incomeImportDetailRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId, incomeImportReturnInfo.refresh]);
+
+  const isIncomeImportReturnHighlightedRow = React.useCallback(
+    (row: IncomeRow) => {
+      if (!incomeImportReturnInfo.active || !incomeImportReturnInfo.importJobId) return false;
+      return String(row.memo || "").includes(`[income_import_job:${incomeImportReturnInfo.importJobId}]`);
+    },
+    [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId]
+  );
+
+  function closeIncomeImportReturnBanner() {
+    setIncomeImportReturnInfo({ active: false, importJobId: "", refresh: "" });
+    clearIncomeImportReturnUrl();
+  }
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [drawerRow, setDrawerRow] = React.useState<IncomeRow | null>(null);
   const [editCategoryLabel, setEditCategoryLabel] = React.useState("その他収入");
@@ -1368,6 +1453,16 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   }) {
     setOtherIncomeImportDialogOpen(false);
     await reloadRows();
+    const importJobId = result.importJobId || "";
+    updateIncomeImportReturnUrl({
+      scope: LEDGER_SCOPES.OTHER_INCOME,
+      importJobId,
+    });
+    setIncomeImportReturnInfo({
+      active: true,
+      importJobId,
+      refresh: String(Date.now()),
+    });
     setCurrentPage(1);
   }
   const [otherIncomeImportPhase, setOtherIncomeImportPhase] =
@@ -1962,6 +2057,40 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
   return (
     <div className="space-y-6" data-scope="other-income-workspace-productized-z1a">
+      {incomeImportReturnInfo.active ? (
+        <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-900 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-base font-bold">その他収入 の取込が完了しました</div>
+              <div className="mt-2 text-sm font-semibold">
+                CSV/Excel から登録した収入をこのページに反映しました。
+                {incomeImportReturnInfo.importJobId ? (
+                  <span className="ml-2 font-mono text-xs text-emerald-700">
+                    importJobId={incomeImportReturnInfo.importJobId}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeIncomeImportReturnBanner}
+              className="rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-800 transition hover:bg-emerald-100"
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <style jsx global>{`
+        [data-income-import-return-highlight="true"] td {
+          background: rgba(16, 185, 129, 0.10) !important;
+        }
+        [data-income-import-return-highlight="true"] td:first-child {
+          box-shadow: inset 4px 0 0 rgba(16, 185, 129, 0.85);
+        }
+      `}</style>
+
       <section
         data-scope="other-income-top-dashboard-merged-fix1-v3 other-income-custom-range-fix5 other-income-zero-bucket-clean-commit-f1b3 other-income-zero-svg-render-f1d2 other-income-chart-visual-refine-f1e other-income-chart-spacing-micro-polish-f1e2b other-income-tooltip-full-date-f1e4 other-income-status-tooltip-overlay-f1e3 other-income-zero-render-fix-f1c"
         className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.06)]"

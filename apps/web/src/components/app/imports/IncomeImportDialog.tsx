@@ -356,6 +356,7 @@ function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccou
 function stripImportMarkers(value?: string | null) {
   return String(value || "")
     .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
+    .replace(/\s*\[income_import_job:[^\]]+\]\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -585,6 +586,11 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
       );
 
       const seenInFile = new Set<string>();
+      // Step109-Z1-H7D-INCOME-IMPORT-JOB-MARKER:
+      // Client-side import batch id for post-commit page return banner/highlight.
+      // Step109-Z1-H7D-FIX2-INCOME-IMPORT-JOB-MARKER:
+      // Client-side import batch id for post-commit banner/highlight on income pages.
+      const importJobId = `income-${ledgerScope}-${Date.now().toString(36)}`;
       let imported = 0;
       let duplicate = 0;
       let error = 0;
@@ -611,7 +617,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
           accountName: row.accountName,
           amount: row.amount,
           occurredAt: row.occurredAt,
-          memo: memoForTransaction,
+          memo: `${memoForTransaction} [income_import_job:${importJobId}]`,
         });
 
         if (existingKeys.has(dedupeKey) || seenInFile.has(dedupeKey)) {
@@ -642,7 +648,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
       );
 
       await onCommitted?.({
-        importJobId: null,
+        importJobId,
         imported,
         duplicate,
         error,
