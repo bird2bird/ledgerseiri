@@ -6,7 +6,6 @@ import {
   type LedgerScope,
   validateLedgerCsvTextScope,
 } from "@/core/ledger/ledger-scopes";
-import type { AccountItem } from "@/core/funds/api";
 import { createTransaction, listTransactions } from "@/core/transactions/api";
 
 type IncomeImportScope =
@@ -14,6 +13,14 @@ type IncomeImportScope =
   | typeof LEDGER_SCOPES.OTHER_INCOME;
 
 type IncomeImportStatus = "idle" | "reading" | "preview" | "committing" | "done" | "error";
+
+// Step109-Z1-H7B-FIX1-INCOME-DIALOG-ACCOUNT-TYPE:
+// The dialog only requires id/name so it can accept CashAccountOption and future income account options.
+type IncomeImportAccountOption = {
+  id: string;
+  name: string;
+};
+
 
 type IncomePreviewRow = {
   rowNo: number;
@@ -42,7 +49,7 @@ export type IncomeImportDialogProps = {
   onClose: () => void;
   ledgerScope: IncomeImportScope;
   label: string;
-  accounts: AccountItem[];
+  accounts: IncomeImportAccountOption[];
   defaultFilename?: string;
   onCommitted?: (result: IncomeImportCommitResult) => void | Promise<void>;
 };
@@ -282,7 +289,7 @@ function parseIncomeCsvPreviewRows(args: {
   });
 }
 
-function resolveIncomeAccountId(accountName: string, accounts: AccountItem[]) {
+function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccountOption[]) {
   const raw = String(accountName || "").trim();
   if (!raw) return "";
 

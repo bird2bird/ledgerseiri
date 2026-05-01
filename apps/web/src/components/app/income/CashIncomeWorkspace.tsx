@@ -24,6 +24,7 @@ import {
   CashIncomeDrawer,
   type CashAccountOption,
 } from "@/components/app/income/CashIncomeDrawer";
+import { IncomeImportDialog } from "@/components/app/imports/IncomeImportDialog";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 type CashRevenueCategoryFilter = "all" | CashRevenueCategoryCode;
@@ -476,6 +477,33 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   } = props;
 
   const [sortMode, setSortMode] = React.useState<CashSortMode>("date_desc");
+  // Step109-Z1-H7B-CASH-INCOME-INLINE-IMPORT-DIALOG:
+  // Use shared IncomeImportDialog for cash-income. Keep legacy file input logic as fallback.
+  const [cashIncomeImportDialogOpen, setCashIncomeImportDialogOpen] = React.useState(false);
+
+  async function handleCashIncomeDialogCommitted(result: {
+    imported: number;
+    duplicate: number;
+    error: number;
+    amount: number;
+    importJobId?: string | null;
+  }) {
+    setCashIncomeImportDialogOpen(false);
+    await reloadRows();
+    setCurrentPage(1);
+    setCashFileImportFeedback({
+      kind: result.error > 0 ? "error" : "success",
+      title: "現金収入の取込が完了しました",
+      message: `CSV/Excel から登録した現金収入をこのページに反映しました。登録: ${result.imported} / 重複: ${result.duplicate} / エラー: ${result.error}`,
+      totalRows: result.imported + result.duplicate + result.error,
+      importedRows: result.imported,
+      duplicateRows: result.duplicate,
+      blockedRows: result.error,
+      importedAmount: result.amount,
+      categorySummary: [],
+    });
+  }
+
   const [editingRow, setEditingRow] = React.useState<IncomeRow | null>(null);
   const cashFileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [cashFileImportLoading, setCashFileImportLoading] = React.useState(false);
@@ -888,7 +916,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     }
 
     if (item.label === "現金収入CSV/Excel取込") {
-      cashFileInputRef.current?.click();
+      setCashIncomeImportDialogOpen(true);
       return;
     }
 
@@ -1621,6 +1649,16 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         handleEditSave={handleEditSave}
         handleDelete={handleDeleteSelected}
       />
+      <IncomeImportDialog
+        open={cashIncomeImportDialogOpen}
+        onClose={() => setCashIncomeImportDialogOpen(false)}
+        ledgerScope={LEDGER_SCOPES.CASH_INCOME}
+        label="現金収入"
+        accounts={accounts}
+        defaultFilename={getLedgerScopeConfig(LEDGER_SCOPES.CASH_INCOME).templateFileName}
+        onCommitted={handleCashIncomeDialogCommitted}
+      />
+
     </div>
   );
 }
