@@ -7,6 +7,7 @@ import {
   validateLedgerCsvTextScope,
 } from "@/core/ledger/ledger-scopes";
 import { createTransaction, listTransactions } from "@/core/transactions/api";
+import { listAccounts } from "@/core/funds/api";
 
 type IncomeImportScope =
   | typeof LEDGER_SCOPES.CASH_INCOME
@@ -14,8 +15,8 @@ type IncomeImportScope =
 
 type IncomeImportStatus = "idle" | "reading" | "preview" | "committing" | "done" | "error";
 
-// Step109-Z1-H7B-FIX2B-INCOME-DIALOG-ACCOUNT-RESOLVER:
-// The dialog accepts lightweight account options from income pages.
+// Step109-Z1-H7B-FIX3-INCOME-DIALOG-FETCH-ACCOUNTS-FALLBACK:
+// The dialog accepts lightweight page options and can fetch account fallback when props.accounts is empty.
 type IncomeImportAccountOption = {
   id?: string | null;
   value?: string | null;
@@ -308,6 +309,8 @@ function normalizeAccountAlias(value?: string | null) {
     .replace(/サンプル$/g, "");
 }
 
+// Step109-Z1-H7B-FIX4-DEDUPE-INCOME-ACCOUNT-HELPERS
+// Step109-Z1-H7B-FIX4B-VERIFY-AND-BUILD-INCOME-DIALOG
 function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccountOption[]) {
   const raw = String(accountName || "").trim();
   const normalizedRaw = normalizeAccountAlias(raw);
@@ -410,6 +413,38 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
   const [message, setMessage] = React.useState("");
   const [commitMessage, setCommitMessage] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [fallbackAccounts, setFallbackAccounts] = React.useState<IncomeImportAccountOption[]>([]);
+
+  const effectiveAccounts = React.useMemo(
+    () => (accounts.length > 0 ? accounts : fallbackAccounts),
+    [accounts, fallbackAccounts]
+  );
+
+  React.useEffect(() => {
+    if (!open || accounts.length > 0) return;
+
+    let alive = true;
+
+    listAccounts()
+      .then((res) => {
+        if (!alive) return;
+
+        setFallbackAccounts(
+          (res.items ?? []).map((item) => ({
+            id: item.id,
+            name: item.name,
+          }))
+        );
+      })
+      .catch(() => {
+        if (!alive) return;
+        setFallbackAccounts([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accounts.length, open]);
 
   const expectedScopeOk = isIncomeImportScope(ledgerScope);
 
@@ -422,9 +457,9 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
       okRows: okRows.length,
       errorRows: errorRows.length,
       totalAmount: okRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-      accountMissing: okRows.filter((row) => !resolveIncomeAccountId(row.accountName, accounts)).length,
+      accountMissing: okRows.filter((row) => !resolveIncomeAccountId(row.accountName, effectiveAccounts)).length,
     };
-  }, [accounts, previewRows]);
+  }, [effectiveAccounts, previewRows]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -556,7 +591,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
       let amount = 0;
 
       for (const row of okRows) {
-        const accountId = resolveIncomeAccountId(row.accountName, accounts);
+        const accountId = resolveIncomeAccountId(row.accountName, effectiveAccounts);
         const occurredAt = new Date(normalizeDateInput(row.occurredAt));
 
         if (!accountId || Number.isNaN(occurredAt.getTime())) {
