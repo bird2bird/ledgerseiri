@@ -83,7 +83,6 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "account_name", label: "account_name", required: true, description: "入金口座名。通常は現金口座" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
-,
     sampleRow: {
       ledger_scope: "cash-income",
       occurred_at: "2026/04/30",
@@ -160,7 +159,6 @@ export const LEDGER_SCOPE_CONFIGS: Record<LedgerScope, LedgerScopeConfig> = {
       { key: "account_name", label: "account_name", required: false, description: "入金口座。空欄の場合は未消込" },
       { key: "memo", label: "memo", required: false, description: "メモ" },
     ],
-,
     sampleRow: {
       ledger_scope: "other-income",
       occurred_at: "2026/04/30",
@@ -456,6 +454,7 @@ function escapeCsvCell(value: string | number | null | undefined) {
 
 // Step109-Z1-H6D-F2-UNIFY-EXPENSE-TEMPLATE-EVIDENCE-NO: expense CSV templates use evidence_no as the canonical proof/reference column.
 // Step109-Z1-H7A2-STANDARDIZE-INCOME-TEMPLATE-FIELDS: cash-income and other-income templates use income_category,payer,account_name.
+// Step109-Z1-H7A2-FIX1-REMOVE-EXTRA-COMMA-AFTER-TEMPLATE-COLUMNS
 export function buildLedgerTemplateCsv(scope: LedgerScope) {
   const config = getLedgerScopeConfig(scope);
   const headers = config.templateColumns.map((column) => column.key);
