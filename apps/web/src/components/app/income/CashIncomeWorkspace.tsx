@@ -553,7 +553,21 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const isIncomeImportReturnHighlightedRow = React.useCallback(
     (row: IncomeRow) => {
       if (!incomeImportReturnInfo.active || !incomeImportReturnInfo.importJobId) return false;
-      return String(row.memo || "").includes(`[income_import_job:${incomeImportReturnInfo.importJobId}]`);
+
+      const rawMemo = String(row.memo || "");
+      const targetMarker = `[income_import_job:${incomeImportReturnInfo.importJobId}]`;
+
+      if (rawMemo.includes(targetMarker)) return true;
+
+      // Step109-Z1-H7D-FIX2C-CASH-ROW-CONTAINER-HIGHLIGHT:
+      // Fallback for rows whose display memo has already stripped internal markers.
+      const visibleMemo = String(stripCashSourceMarker(row.memo || "") || "");
+      const importJobTail = incomeImportReturnInfo.importJobId.split("-").slice(-1)[0] || "";
+
+      if (importJobTail && rawMemo.includes(importJobTail)) return true;
+      if (importJobTail && visibleMemo.includes(importJobTail)) return true;
+
+      return false;
     },
     [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId]
   );
@@ -1079,6 +1093,10 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       ) : null}
 
       <style jsx global>{`
+        [data-income-import-return-highlight="true"] {
+          background: rgba(16, 185, 129, 0.10) !important;
+          box-shadow: inset 4px 0 0 rgba(16, 185, 129, 0.85);
+        }
         [data-income-import-return-highlight="true"] td {
           background: rgba(16, 185, 129, 0.10) !important;
         }
@@ -1636,7 +1654,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() => openEdit(row)}
+                  onClick={() = data-income-import-return-highlight={isIncomeImportReturnHighlightedRow(row) ? "true" : undefined}> openEdit(row)}
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
                     active
