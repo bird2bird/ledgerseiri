@@ -71,6 +71,161 @@ function formatJPY(value: number) {
   return `¥${Math.round(Number(value || 0)).toLocaleString("ja-JP")}`;
 }
 
+
+// Step109-Z1-H7F-INCOME-IMPORT-ERROR-UI:
+// Productized validation error summary for income CSV/Excel import.
+// UI-only change. No backend/API/schema changes.
+type IncomeImportValidationIssueKind =
+  | "ledger_scope"
+  | "date"
+  | "amount"
+  | "account"
+  | "category"
+  | "other";
+
+type IncomeImportValidationIssueSummary = {
+  kind: IncomeImportValidationIssueKind;
+  label: string;
+  count: number;
+  tone: "rose" | "amber";
+};
+
+function getIncomeImportIssueKind(message: string): IncomeImportValidationIssueKind {
+  const raw = String(message || "");
+  if (raw.includes("ledger_scope")) return "ledger_scope";
+  if (raw.includes("発生日")) return "date";
+  if (raw.includes("金額")) return "amount";
+  if (raw.includes("口座")) return "account";
+  if (raw.includes("収入区分") || raw.includes("収入カテゴリ")) return "category";
+  return "other";
+}
+
+function getIncomeImportIssueLabel(kind: IncomeImportValidationIssueKind) {
+  if (kind === "ledger_scope") return "ledger_scope 不一致";
+  if (kind === "date") return "発生日エラー";
+  if (kind === "amount") return "金額エラー";
+  if (kind === "account") return "口座名未入力";
+  if (kind === "category") return "収入区分未入力";
+  return "その他エラー";
+}
+
+function buildIncomeImportValidationIssueSummary(rows: IncomePreviewRow[]): IncomeImportValidationIssueSummary[] {
+  const counts = new Map<IncomeImportValidationIssueKind, number>();
+
+  for (const row of rows) {
+    for (const message of row.messages) {
+      const kind = getIncomeImportIssueKind(message);
+      counts.set(kind, (counts.get(kind) || 0) + 1);
+    }
+  }
+
+  const order: IncomeImportValidationIssueKind[] = [
+    "ledger_scope",
+    "date",
+    "amount",
+    "account",
+    "category",
+    "other",
+  ];
+
+  return order
+    .map((kind) => ({
+      kind,
+      label: getIncomeImportIssueLabel(kind),
+      count: counts.get(kind) || 0,
+      tone: kind === "account" || kind === "category" ? "amber" as const : "rose" as const,
+    }))
+    .filter((item) => item.count > 0);
+}
+
+function getIncomeImportErrorGuide(label: string) {
+  return [
+    `${label} 専用テンプレートを使用しているか確認してください。`,
+    "ledger_scope が現在ページと一致しているか確認してください。",
+    "発生日は YYYY-MM-DD または YYYY/MM/DD 形式で入力してください。",
+    "金額は 0 より大きい数値で入力してください。",
+    "口座名と収入区分は空欄にしないでください。",
+  ];
+}
+
+function renderIncomeImportValidationMessage(args: {
+  label: string;
+  message: string;
+  status: IncomeImportStatus;
+  isErrorMessage: boolean;
+  previewRows: IncomePreviewRow[];
+}) {
+  if (!args.message) return null;
+
+  const issueSummary = buildIncomeImportValidationIssueSummary(args.previewRows);
+  const errorRows = args.previewRows.filter((row) => row.status === "error");
+  const sampleRows = errorRows.slice(0, 4);
+
+  if (!args.isErrorMessage) {
+    return (
+      <div className="mt-4 whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-700">
+        {args.message}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-3xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-800">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-base font-black text-rose-900">取込前チェックでエラーがあります</div>
+          <p className="mt-1 whitespace-pre-line font-semibold text-rose-700">{args.message}</p>
+        </div>
+        <span className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-black text-rose-700">
+          正式登録不可
+        </span>
+      </div>
+
+      {issueSummary.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {issueSummary.map((item) => (
+            <span
+              key={item.kind}
+              className={
+                item.tone === "amber"
+                  ? "rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"
+                  : "rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-black text-rose-700"
+              }
+            >
+              {item.label}: {item.count}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 rounded-2xl border border-rose-100 bg-white/80 p-3">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-rose-400">修正ガイド</div>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-rose-700">
+          {getIncomeImportErrorGuide(args.label).map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+
+      {sampleRows.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-rose-100 bg-white/80 p-3">
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-rose-400">エラー行サンプル</div>
+          <div className="mt-2 space-y-2">
+            {sampleRows.map((row) => (
+              <div key={row.rowNo} className="rounded-xl bg-rose-50 px-3 py-2">
+                <div className="font-black text-rose-900">行 {row.rowNo}</div>
+                <div className="mt-1 text-xs font-semibold text-rose-700">
+                  {row.messages.join(" / ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function normalizeText(value?: string | null) {
   return String(value || "")
     .normalize("NFKC")
@@ -265,17 +420,17 @@ function parseIncomeCsvPreviewRows(args: {
 
     const messages: string[] = [];
 
-    if (!ledgerScope) messages.push("ledger_scope が未入力です");
+    if (!ledgerScope) messages.push("ledger_scope が未入力です。現在ページのテンプレートを使用してください。");
     if (ledgerScope && ledgerScope !== args.ledgerScope) {
-      messages.push(`ledger_scope が現在ページと一致しません: ${ledgerScope}`);
+      messages.push(`ledger_scope が現在ページと一致しません: ${ledgerScope}。現在ページ用テンプレートを使用してください。`);
     }
     if (!occurredAt || Number.isNaN(new Date(normalizeDateInput(occurredAt)).getTime())) {
-      messages.push("発生日が不正です");
+      messages.push("発生日が不正です。YYYY-MM-DD または YYYY/MM/DD 形式で入力してください。");
     }
-    if (!Number.isFinite(amount) || amount <= 0) messages.push("金額が不正です");
-    if (!accountName) messages.push("口座名が未入力です");
+    if (!Number.isFinite(amount) || amount <= 0) messages.push("金額が不正です。0 より大きい数値で入力してください。");
+    if (!accountName) messages.push("口座名が未入力です。登録済み口座名と一致する名称を入力してください。");
     if (!incomeCategory) {
-      messages.push(args.ledgerScope === LEDGER_SCOPES.CASH_INCOME ? "収入区分が未入力です" : "収入カテゴリが未入力です");
+      messages.push(args.ledgerScope === LEDGER_SCOPES.CASH_INCOME ? "収入区分が未入力です。現金収入の区分を入力してください。" : "収入カテゴリが未入力です。その他収入のカテゴリを入力してください。");
     }
 
     return {
@@ -551,7 +706,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
 
       if (errorRows > 0) {
         setMessage(
-          `${label} のCSVにエラー行があります。正式登録前に発生日・金額・収入区分・口座名を確認してください。対象行: ${rows.length} / エラー: ${errorRows}`
+          `${label} のCSVにエラー行があります。エラーを修正するまで正式登録はできません。対象行: ${rows.length} / OK: ${rows.length - errorRows} / エラー: ${errorRows}`
         );
       } else {
         setMessage(`${label} の取込プレビューを生成しました。対象行: ${rows.length} / OK: ${rows.length} / エラー: 0`);
@@ -756,17 +911,13 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
               </button>
             </div>
 
-            {message ? (
-              <div
-                className={
-                  isErrorMessage
-                    ? "mt-4 whitespace-pre-line rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700"
-                    : "mt-4 whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-700"
-                }
-              >
-                {message}
-              </div>
-            ) : null}
+            {renderIncomeImportValidationMessage({
+              label,
+              message,
+              status,
+              isErrorMessage,
+              previewRows,
+            })}
           </section>
 
           <section className="space-y-5">
