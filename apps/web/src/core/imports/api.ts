@@ -9,6 +9,8 @@ import type {
   ExpenseImportCommitResponse,
   ExpenseImportPreviewRequest,
   ExpenseImportPreviewResponse,
+  ExpenseImportJobCommitRequest,
+  ExpenseImportJobCommitResponse,
   DetectMonthConflictsRequest,
   DetectMonthConflictsResponse,
   ImportHistoryResponse,
@@ -138,6 +140,19 @@ export async function previewExpenseImport(
 ): Promise<ExpenseImportPreviewResponse> {
   return postJson<ExpenseImportPreviewResponse>(
     "/api/imports/expense/preview",
+    payload
+  );
+}
+
+// Step109-Z1-H9-3-EXPENSE-JOB-COMMIT-API:
+// Commit an expense ImportJob created by previewExpenseImport.
+// Keep legacy commitExpenseImport() below for /app/data/import compatibility.
+export async function commitExpenseImportJob(
+  importJobId: string,
+  payload: ExpenseImportJobCommitRequest = {}
+): Promise<ExpenseImportJobCommitResponse> {
+  return postJson<ExpenseImportJobCommitResponse>(
+    `/api/imports/expense/${importJobId}/commit`,
     payload
   );
 }

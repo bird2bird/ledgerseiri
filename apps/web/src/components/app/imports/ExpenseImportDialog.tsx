@@ -3,8 +3,10 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   commitExpenseImport,
+  commitExpenseImportJob,
   previewExpenseImport,
   type ExpenseImportCommitResponse,
+  type ExpenseImportJobCommitResponse,
   type ExpenseImportPreviewResponse,
 } from "@/core/imports";
 import {
@@ -307,6 +309,47 @@ async function previewExpenseImportOnBackend(args: {
   return data;
 }
 
+// Step109-Z1-H9-3-EXPENSE-BACKEND-COMMIT:
+// Adapt the new ImportJob commit response to the legacy onCommitted shape used by pages.
+function adaptExpenseJobCommitToLegacyResponse(
+  result: ExpenseImportJobCommitResponse
+): ExpenseImportCommitResponse {
+  const importedRows = Number(result.imported || 0);
+  const duplicateRows = Number(result.duplicate || 0);
+  const errorRows = Number(result.error || 0);
+  const totalImportedAmount = Number(result.amount || 0);
+  const totalRows = Number(result.totalRows || importedRows + duplicateRows + errorRows);
+  const filename = result.filename ?? null;
+  const createdTransactionIds = Array.isArray(result.createdTransactionIds)
+    ? result.createdTransactionIds
+    : [];
+
+  return {
+    ok: result.ok,
+    action: "expense-import-commit",
+    module: result.ledgerScope,
+    companyId: result.companyId,
+    filename,
+    importJobId: result.importJobId,
+    importedRows,
+    duplicateRows,
+    blockedRows: 0,
+    errorRows,
+    totalImportedAmount,
+    createdTransactionIds,
+    job: {
+      id: result.importJobId,
+      filename,
+      status: result.ok ? "SUCCEEDED" : "FAILED",
+      totalRows,
+      successRows: importedRows,
+      failedRows: errorRows,
+      importedAt: null,
+    },
+    message: result.message || "",
+  };
+}
+
 export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
   const {
     open,
@@ -435,28 +478,18 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
     setCommitResult(null);
 
     try {
-      const result = await commitExpenseImport({
-        filename,
-        ledgerScope,
-        category,
-        rows: previewRows.map((row) => ({
-          rowNo: row.rowNo,
-          occurredAt: row.occurredAt,
-          amount: row.amount,
-          currency: row.currency,
-          category: row.category,
-          vendor: row.vendor,
-          accountName: row.accountName,
-          evidenceNo: row.evidenceNo,
-          memo: row.memo,
-          status: row.status,
-          error: row.error,
-        })),
-      });
+      const importJobId = String(backendImportJobId || "").trim();
+
+      if (!importJobId) {
+        throw new Error("Backend ImportJob がありません。先に検証を実行してください。");
+      }
+
+      const backendResult = await commitExpenseImportJob(importJobId, {});
+      const result = adaptExpenseJobCommitToLegacyResponse(backendResult);
 
       setCommitResult(result);
       setMessage(
-        `${label} の正式登録が完了しました。登録: ${result.importedRows} / 重複: ${result.duplicateRows} / エラー: ${result.errorRows} / 金額: ¥${formatNumber(result.totalImportedAmount)}`
+        `${label} の正式登録が完了しました。登録: ${result.importedRows} / 重複: ${result.duplicateRows} / エラー: ${result.errorRows} / 金額: ¥${formatNumber(result.totalImportedAmount)} / Backend ImportJob: ${result.importJobId}`
       );
 
       await onCommitted?.(result);

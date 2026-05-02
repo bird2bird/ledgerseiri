@@ -353,6 +353,29 @@ export type ExpenseImportPreviewResponse = {
   message?: string;
 };
 
+// Step109-Z1-H9-3-EXPENSE-JOB-COMMIT-TYPES:
+// Backend job commit contract for inline expense import.
+// H9-3 uses the ImportJob produced by H9-2 preview.
+export type ExpenseImportJobCommitRequest = {
+  companyId?: string;
+};
+
+export type ExpenseImportJobCommitResponse = {
+  ok: boolean;
+  action: "expense-commit" | string;
+  importJobId: string;
+  companyId: string | null;
+  ledgerScope: string;
+  filename?: string | null;
+  totalRows: number;
+  imported: number;
+  duplicate: number;
+  error: number;
+  amount: number;
+  createdTransactionIds?: string[];
+  message?: string;
+};
+
 export type ExpenseImportCommitRequest = {
   companyId?: string;
   filename?: string;
