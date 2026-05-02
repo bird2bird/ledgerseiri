@@ -42,6 +42,16 @@ function getExpenseImportHistoryModuleLabel(module?: string | null) {
   return module || "-";
 }
 
+// Step109-Z1-H9-7B-PENDING-PREVIEW-SEMANTICS:
+// PROCESSING with successful preview rows and no failed rows means "previewed but not committed".
+// It should be shown as 未正式登録, not generic 処理中.
+function isExpenseImportPendingPreview(item: ImportJobHistoryItem) {
+  const status = String(item.status || "").toUpperCase();
+  const success = Number(item.successRows || 0);
+  const failed = Number(item.failedRows || 0);
+  return status === "PROCESSING" && success > 0 && failed === 0;
+}
+
 function getExpenseImportHistoryStatusLabel(item: ImportJobHistoryItem) {
   const status = String(item.status || "").toUpperCase();
   const total = Number(item.totalRows || 0);
@@ -51,6 +61,7 @@ function getExpenseImportHistoryStatusLabel(item: ImportJobHistoryItem) {
   if (status === "FAILED" || failed > 0) return "失敗";
   if (status === "SUCCEEDED" && total > 0 && success === 0) return "登録0件";
   if (status === "SUCCEEDED") return "成功";
+  if (isExpenseImportPendingPreview(item)) return "未正式登録";
   if (status === "PROCESSING") return "処理中";
   if (status === "PENDING") return "待機中";
   if (status === "CANCELLED") return "取消";
@@ -75,8 +86,12 @@ function getExpenseImportHistoryStatusClass(item: ImportJobHistoryItem) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (status === "PROCESSING" || status === "PENDING") {
+  if (isExpenseImportPendingPreview(item)) {
     return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (status === "PROCESSING" || status === "PENDING") {
+    return "border-violet-200 bg-violet-50 text-violet-700";
   }
 
   return "border-slate-200 bg-slate-50 text-slate-600";
@@ -95,8 +110,12 @@ function getExpenseImportHistoryRowClass(item: ImportJobHistoryItem) {
     return "bg-amber-50/35";
   }
 
-  if (status === "PROCESSING" || status === "PENDING") {
+  if (isExpenseImportPendingPreview(item)) {
     return "bg-sky-50/25";
+  }
+
+  if (status === "PROCESSING" || status === "PENDING") {
+    return "bg-violet-50/25";
   }
 
   return "bg-white";
@@ -128,6 +147,7 @@ function getExpenseImportHistoryTone(item: ImportJobHistoryItem) {
 
   if (status === "FAILED" || failed > 0) return "danger";
   if (status === "SUCCEEDED" && total > 0 && success === 0) return "warning";
+  if (isExpenseImportPendingPreview(item)) return "pending-preview";
   if (status === "PROCESSING" || status === "PENDING") return "info";
   if (status === "SUCCEEDED") return "success";
   return "neutral";
@@ -144,8 +164,12 @@ function getExpenseImportHistoryHint(item: ImportJobHistoryItem) {
     return "登録対象がありません。重複済み、または全行がスキップされた可能性があります。";
   }
 
+  if (tone === "pending-preview") {
+    return "検証済みですが、まだ正式登録されていません。登録する場合は同じCSVで再度検証後、正式登録してください。";
+  }
+
   if (tone === "info") {
-    return "検証済みで正式登録待ち、または処理中の履歴です。必要に応じて履歴を更新してください。";
+    return "処理中の履歴です。時間をおいて履歴を更新してください。長時間残る場合は管理者確認が必要です。";
   }
 
   if (tone === "success") {
@@ -176,7 +200,7 @@ function getExpenseImportHistorySummaryText(items: ImportJobHistoryItem[]) {
     summary.success ? `成功 ${summary.success}` : "",
     summary.warning ? `登録0件 ${summary.warning}` : "",
     summary.danger ? `失敗 ${summary.danger}` : "",
-    summary.processing ? `処理中 ${summary.processing}` : "",
+    summary.processing ? `未正式登録/処理中 ${summary.processing}` : "",
   ].filter(Boolean);
 
   return parts.length ? parts.join(" / ") : `${items.length}件`;
@@ -456,8 +480,10 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                             ? "text-rose-600"
                             : getExpenseImportHistoryTone(item) === "warning"
                               ? "text-amber-700"
+                              : getExpenseImportHistoryTone(item) === "pending-preview"
+                              ? "text-sky-700"
                               : getExpenseImportHistoryTone(item) === "info"
-                                ? "text-sky-700"
+                                ? "text-violet-700"
                                 : "text-slate-400"
                         }`}
                       >
