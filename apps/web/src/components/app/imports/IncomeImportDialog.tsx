@@ -543,8 +543,9 @@ function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccou
 }
 
 // Step109-Z1-H8-2-INCOME-BACKEND-PREVIEW:
-// Send local validated preview rows to backend ImportJob/ImportStagingRow.
-// H8-2 intentionally keeps commit on the existing client-side createTransaction path.
+// Send locally validated preview rows to backend ImportJob/ImportStagingRow.
+// Step109-Z1-H8-4A-INCOME-BACKEND-STABILIZATION:
+// H8-3 already switched commit to backend, so preview must return a real backend ImportJob id.
 async function previewIncomeImportOnBackend(args: {
   ledgerScope: IncomeImportScope;
   filename: string;
@@ -577,7 +578,18 @@ async function previewIncomeImportOnBackend(args: {
     throw new Error(`Backend preview failed: ${res.status} ${text}`);
   }
 
-  return (await res.json()) as BackendIncomeImportPreviewResponse;
+  const data = (await res.json()) as BackendIncomeImportPreviewResponse;
+  const importJobId = String(data.importJobId || "").trim();
+
+  if (!importJobId) {
+    throw new Error("Backend preview did not return importJobId.");
+  }
+
+  if (data.ledgerScope && data.ledgerScope !== args.ledgerScope) {
+    throw new Error(`Backend preview ledgerScope mismatch: ${data.ledgerScope}`);
+  }
+
+  return data;
 }
 
 // Step109-Z1-H8-3-INCOME-BACKEND-COMMIT:
@@ -602,7 +614,14 @@ async function commitIncomeImportOnBackend(args: {
     throw new Error(`Backend commit failed: ${res.status} ${text}`);
   }
 
-  return (await res.json()) as BackendIncomeImportCommitResponse;
+  const data = (await res.json()) as BackendIncomeImportCommitResponse;
+  const returnedImportJobId = String(data.importJobId || "").trim();
+
+  if (returnedImportJobId && returnedImportJobId !== importJobId) {
+    throw new Error(`Backend commit importJobId mismatch: ${returnedImportJobId}`);
+  }
+
+  return data;
 }
 
 export function IncomeImportDialog(props: IncomeImportDialogProps) {
@@ -774,8 +793,12 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
           rows,
         });
 
-        const importJobId = backendPreview.importJobId || "";
-        setBackendImportJobId(importJobId || null);
+        const importJobId = String(backendPreview.importJobId || "").trim();
+        if (!importJobId) {
+          throw new Error("Backend ImportJob が作成されませんでした。もう一度プレビューを実行してください。");
+        }
+
+        setBackendImportJobId(importJobId);
         setStatus("preview");
 
         setMessage(
@@ -1050,7 +1073,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
                 <div>
                   <div className="text-lg font-bold text-slate-950">正式登録</div>
                   <p className="mt-1 text-sm text-slate-500">
-                    H8-3 以降は Backend ImportJob を正式登録し、登録後にページを自動更新します。
+                    Backend ImportJob を正式登録し、登録後にページを自動更新します。
                     {backendImportJobId ? ` Backend ImportJob: ${backendImportJobId}` : ""}
                   </p>
                 </div>
