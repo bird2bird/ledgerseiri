@@ -671,31 +671,50 @@ export class JobService {
     return company.id;
   }
 
+  // Step109-Z1-H11-C-IMPORT-JOB-LIST-FIELDS:
+  // Expose existing ImportJob columns for Import Center list/detail preparation.
+  // This does not change Prisma schema or create new endpoints.
   private mapImportJob(item: {
     id: string;
     companyId: string;
     domain: string;
+    module: string | null;
+    sourceType: string | null;
     filename: string;
+    fileHash: string | null;
     status: string;
+    monthConflictPolicy: string | null;
     totalRows: number | null;
     successRows: number | null;
     failedRows: number | null;
+    deletedRowCount: number | null;
+    fileMonthsJson: unknown;
+    conflictMonthsJson: unknown;
     errorMessage: string | null;
     createdAt: Date;
     updatedAt: Date;
+    importedAt: Date | null;
   }) {
     return {
       id: item.id,
       companyId: item.companyId,
       domain: item.domain,
+      module: item.module,
+      sourceType: item.sourceType,
       filename: item.filename,
+      fileHash: item.fileHash,
       status: item.status,
+      monthConflictPolicy: item.monthConflictPolicy,
       totalRows: item.totalRows,
       successRows: item.successRows,
       failedRows: item.failedRows,
+      deletedRowCount: item.deletedRowCount,
+      fileMonthsJson: item.fileMonthsJson,
+      conflictMonthsJson: item.conflictMonthsJson,
       errorMessage: item.errorMessage,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
+      importedAt: item.importedAt ? item.importedAt.toISOString() : null,
     };
   }
 

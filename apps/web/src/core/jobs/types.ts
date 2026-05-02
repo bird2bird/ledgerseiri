@@ -4,14 +4,24 @@ export type ImportJobItem = {
   id: string;
   companyId?: string;
   domain?: string | null;
+  // Step109-Z1-H11-C-IMPORT-JOB-LIST-FIELDS:
+  // Optional fields returned by /api/import-jobs for Import Center productization.
+  module?: string | null;
+  sourceType?: string | null;
   filename?: string | null;
+  fileHash?: string | null;
   status?: JobStatus | null;
+  monthConflictPolicy?: string | null;
   totalRows?: number | null;
   successRows?: number | null;
   failedRows?: number | null;
+  deletedRowCount?: number | null;
+  fileMonthsJson?: unknown;
+  conflictMonthsJson?: unknown;
   errorMessage?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  importedAt?: string | null;
 };
 
 export type ExportJobItem = {
