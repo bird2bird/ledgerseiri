@@ -39,6 +39,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-K-FIX1-DRAWER-PORTAL:
 // Render drawer through document.body to avoid grid/card hover layout flicker.
+//
+// Step109-Z1-H11-L-DRAWER-DATA-UI-POLISH:
+// Polish staging rows / transaction trace display and add trace navigation placeholders.
 
 type ImportCenterTone =
   | "success"
@@ -465,6 +468,61 @@ function shortId(value?: string | null) {
   return value.length > 10 ? `${value.slice(0, 10)}...` : value;
 }
 
+function buildTransactionTraceHref(tx: ImportJobTransactionTraceItem) {
+  const params = new URLSearchParams();
+
+  if (tx.id) params.set("transactionId", tx.id);
+  if (tx.importJobId) params.set("importJobId", tx.importJobId);
+  if (tx.sourceRowNo != null) params.set("sourceRowNo", String(tx.sourceRowNo));
+
+  return `/ja/app/transactions?${params.toString()}`;
+}
+
+function CopyFriendlyId(props: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-2.5 py-2">
+      <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
+        {props.label}
+      </div>
+      <div className="mt-1 font-mono text-[11px] font-bold text-slate-700 break-all">
+        {props.value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function JsonPayloadDetails(props: {
+  title: string;
+  value: unknown;
+  tone?: "dark" | "light";
+}) {
+  const dark = props.tone !== "light";
+
+  return (
+    <details className="group rounded-2xl border border-slate-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-black text-slate-700">
+        <span>{props.title}</span>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500 group-open:hidden">
+          展開
+        </span>
+        <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500 group-open:inline-flex">
+          閉じる
+        </span>
+      </summary>
+      <pre
+        className={`mx-3 mb-3 max-h-56 overflow-auto rounded-xl p-3 text-xs font-semibold leading-5 ${
+          dark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-700"
+        }`}
+      >
+        {formatJsonPreview(props.value)}
+      </pre>
+    </details>
+  );
+}
+
 function DetailDataStateCard(props: {
   title: string;
   loading: boolean;
@@ -759,11 +817,16 @@ function ImportJobDetailDrawer(props: {
                 {detailRowsState.stagingRows.slice(0, 20).map((row) => (
                   <div
                     key={row.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                    className="rounded-[22px] border border-slate-200 bg-slate-50 p-3 shadow-sm"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-black text-slate-900">
-                        Row #{row.rowNo ?? "-"}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-slate-900">
+                          Row #{row.rowNo ?? "-"}
+                        </div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-500">
+                          {row.module || "-"} / {row.businessMonth || "-"}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
@@ -775,25 +838,29 @@ function ImportJobDetailDrawer(props: {
                       </div>
                     </div>
 
-                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2">
-                      <div>Target: {row.targetEntityType || "-"} / {shortId(row.targetEntityId)}</div>
-                      <div>Dedupe: {shortId(row.dedupeHash)}</div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <CopyFriendlyId label="Target Entity" value={row.targetEntityId} />
+                      <CopyFriendlyId label="Dedupe Hash" value={row.dedupeHash} />
                     </div>
 
-                    {row.matchReason ? (
-                      <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                        {row.matchReason}
-                      </div>
-                    ) : null}
+                    <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
+                      Target: <span className="font-black">{row.targetEntityType || "-"}</span>
+                      {row.matchReason ? (
+                        <span className="ml-2 text-slate-500">{row.matchReason}</span>
+                      ) : null}
+                    </div>
 
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-xs font-black text-slate-600">
-                        normalizedPayloadJson
-                      </summary>
-                      <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 text-xs font-semibold leading-5 text-slate-100">
-                        {formatJsonPreview(row.normalizedPayloadJson)}
-                      </pre>
-                    </details>
+                    <div className="mt-3 space-y-2">
+                      <JsonPayloadDetails
+                        title="normalizedPayloadJson"
+                        value={row.normalizedPayloadJson}
+                      />
+                      <JsonPayloadDetails
+                        title="rawPayloadJson"
+                        value={row.rawPayloadJson}
+                        tone="light"
+                      />
+                    </div>
                   </div>
                 ))}
 
@@ -815,11 +882,16 @@ function ImportJobDetailDrawer(props: {
                 {detailRowsState.transactions.slice(0, 20).map((tx) => (
                   <div
                     key={tx.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                    className="rounded-[22px] border border-slate-200 bg-slate-50 p-3 shadow-sm"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-black text-slate-900">
-                        {Number(tx.amount || 0).toLocaleString("ja-JP")} JPY
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-black text-slate-950">
+                          {Number(tx.amount || 0).toLocaleString("ja-JP")} JPY
+                        </div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-500">
+                          {fmtDate(tx.occurredAt)} / {tx.businessMonth || "-"}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
@@ -831,18 +903,37 @@ function ImportJobDetailDrawer(props: {
                       </div>
                     </div>
 
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <CopyFriendlyId label="Transaction ID" value={tx.id} />
+                      <CopyFriendlyId label="ImportJob ID" value={tx.importJobId} />
+                    </div>
+
                     <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2">
-                      <div>Occurred: {fmtDate(tx.occurredAt)}</div>
-                      <div>Business Month: {tx.businessMonth || "-"}</div>
-                      <div>Source Row: {tx.sourceRowNo ?? "-"}</div>
-                      <div>Transaction: {shortId(tx.id)}</div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        Source Row: <span className="font-black">{tx.sourceRowNo ?? "-"}</span>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        Business Month: <span className="font-black">{tx.businessMonth || "-"}</span>
+                      </div>
                     </div>
 
                     {tx.memo ? (
-                      <div className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-500">
+                      <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-500">
                         {tx.memo}
                       </div>
                     ) : null}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a
+                        href={buildTransactionTraceHref(tx)}
+                        className="inline-flex h-8 items-center justify-center rounded-xl bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-800"
+                      >
+                        関連明細へ移動
+                      </a>
+                      <span className="inline-flex h-8 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-3 text-[11px] font-black text-slate-500">
+                        trace navigation prepared
+                      </span>
+                    </div>
                   </div>
                 ))}
 
@@ -857,8 +948,8 @@ function ImportJobDetailDrawer(props: {
             <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4">
               <div className="text-sm font-black text-slate-900">Detail API</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-K で staging rows / transaction trace を H11-J backend detail API から取得しています。
-                次の H11-L では表示密度・payload 展開・trace navigation を改善します。
+                H11-L で staging rows / transaction trace の表示密度、payload 展開、trace navigation placeholder を改善しました。
+                次の H11-M では関連明細ページ側の transactionId highlight に進みます。
               </div>
             </div>
           </div>
