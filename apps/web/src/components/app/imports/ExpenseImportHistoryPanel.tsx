@@ -114,6 +114,71 @@ function formatRows(item: ImportJobHistoryItem) {
   return `${success}/${total} 件`;
 }
 
+// Step109-Z1-H9-5-EXPENSE-HISTORY-POLISH:
+// Visual-only helpers for history health, empty state, and stale PROCESSING guidance.
+function getExpenseImportHistoryTone(item: ImportJobHistoryItem) {
+  const status = String(item.status || "").toUpperCase();
+  const total = Number(item.totalRows || 0);
+  const success = Number(item.successRows || 0);
+  const failed = Number(item.failedRows || 0);
+
+  if (status === "FAILED" || failed > 0) return "danger";
+  if (status === "SUCCEEDED" && total > 0 && success === 0) return "warning";
+  if (status === "PROCESSING" || status === "PENDING") return "info";
+  if (status === "SUCCEEDED") return "success";
+  return "neutral";
+}
+
+function getExpenseImportHistoryHint(item: ImportJobHistoryItem) {
+  const tone = getExpenseImportHistoryTone(item);
+
+  if (tone === "danger") {
+    return item.errorMessage || "一部の行で取込エラーがあります。CSV形式・金額・日付・証憑番号を確認してください。";
+  }
+
+  if (tone === "warning") {
+    return "登録対象がありません。重複済み、または全行がスキップされた可能性があります。";
+  }
+
+  if (tone === "info") {
+    return "検証済みで正式登録待ち、または処理中の履歴です。必要に応じて履歴を更新してください。";
+  }
+
+  if (tone === "success") {
+    return "Transaction への登録トレースが確認できます。";
+  }
+
+  return "ImportJob の状態を確認してください。";
+}
+
+function summarizeExpenseImportHistory(items: ImportJobHistoryItem[]) {
+  return items.reduce(
+    (summary, item) => {
+      const tone = getExpenseImportHistoryTone(item);
+      if (tone === "success") summary.success += 1;
+      if (tone === "warning") summary.warning += 1;
+      if (tone === "danger") summary.danger += 1;
+      if (tone === "info") summary.processing += 1;
+      return summary;
+    },
+    { success: 0, warning: 0, danger: 0, processing: 0 }
+  );
+}
+
+function getExpenseImportHistorySummaryText(items: ImportJobHistoryItem[]) {
+  if (!items.length) return "履歴なし";
+  const summary = summarizeExpenseImportHistory(items);
+  const parts = [
+    summary.success ? `成功 ${summary.success}` : "",
+    summary.warning ? `登録0件 ${summary.warning}` : "",
+    summary.danger ? `失敗 ${summary.danger}` : "",
+    summary.processing ? `処理中 ${summary.processing}` : "",
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(" / ") : `${items.length}件`;
+}
+
+
 export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps) {
   const {
     module,
@@ -129,6 +194,12 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
 
   const visibleItems = React.useMemo(() => items.slice(0, limit), [items, limit]);
   const latestItem = visibleItems[0] || null;
+  const historySummary = React.useMemo(
+    () => summarizeExpenseImportHistory(visibleItems),
+    [visibleItems]
+  );
+  const hasAttention =
+    historySummary.warning > 0 || historySummary.danger > 0 || historySummary.processing > 0;
 
   const loadHistory = React.useCallback(async () => {
     setLoading(true);
@@ -154,7 +225,7 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
   }
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-sm">
+    <section className="rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -169,6 +240,17 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                 )}`}
               >
                 最新: {getExpenseImportHistoryStatusLabel(latestItem)}
+              </span>
+            ) : null}
+            {open && visibleItems.length > 0 ? (
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold ${
+                  hasAttention
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                {getExpenseImportHistorySummaryText(visibleItems)}
               </span>
             ) : null}
           </div>
@@ -198,14 +280,14 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
       </div>
 
       {open ? (
-        <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+        <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs font-bold text-slate-500">
               最新 {Math.min(visibleItems.length, limit)} 件を表示
               {items.length > 0 ? ` / 全 ${items.length} 件` : ""}
             </div>
             <div className="text-xs font-semibold text-slate-400">
-              ImportJob 履歴は支出登録トレース確認用です
+              ImportJob 履歴は支出登録トレース確認用です。処理中が残る場合は履歴更新で再確認してください。
             </div>
           </div>
 
@@ -216,20 +298,32 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
           ) : null}
 
           {!error && loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm font-bold text-slate-500">
-              取込履歴を読み込んでいます...
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center">
+              <div className="text-sm font-bold text-slate-600">取込履歴を読み込んでいます...</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">
+                ImportJob と登録トレースを確認しています。
+              </div>
             </div>
           ) : null}
 
           {!error && !loading && visibleItems.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-center text-sm font-bold text-slate-500">
-              まだ支出の取込履歴はありません。
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-lg font-black text-slate-400">
+                0
+              </div>
+              <div className="mt-3 text-sm font-bold text-slate-700">
+                まだ支出の取込履歴はありません。
+              </div>
+              <div className="mx-auto mt-1 max-w-xl text-xs font-semibold leading-5 text-slate-500">
+                CSV / Excel 取込を実行すると、ImportJob・件数・成功/失敗状態がここに表示されます。
+                まずは上の「CSV/Excel取込」から検証と正式登録を実行してください。
+              </div>
             </div>
           ) : null}
 
           {!error && !loading && visibleItems.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="grid grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
+              <div className="hidden grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 md:grid">
                 <div>ファイル / ImportJob</div>
                 <div>取込日時</div>
                 <div>件数</div>
@@ -240,7 +334,7 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                 {visibleItems.map((item) => (
                   <div
                     key={item.id}
-                    className={`grid grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] gap-4 px-4 py-3 text-sm transition hover:bg-slate-50 ${getExpenseImportHistoryRowClass(
+                    className={`grid gap-3 px-4 py-4 text-sm transition hover:bg-slate-50 md:grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] md:gap-4 md:py-3 ${getExpenseImportHistoryRowClass(
                       item
                     )}`}
                   >
@@ -262,14 +356,23 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                     </div>
 
                     <div className="text-sm font-semibold text-slate-600">
+                      <div className="mb-1 text-[11px] font-bold text-slate-400 md:hidden">
+                        取込日時
+                      </div>
                       {formatImportHistoryDate(item.importedAt || item.createdAt)}
                     </div>
 
                     <div className="text-sm font-bold text-slate-700">
+                      <div className="mb-1 text-[11px] font-bold text-slate-400 md:hidden">
+                        件数
+                      </div>
                       {formatRows(item)}
                     </div>
 
                     <div>
+                      <div className="mb-1 text-[11px] font-bold text-slate-400 md:hidden">
+                        状態
+                      </div>
                       <span
                         className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getExpenseImportHistoryStatusClass(
                           item
@@ -278,11 +381,19 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                         {getExpenseImportHistoryStatusLabel(item)}
                       </span>
 
-                      {item.errorMessage ? (
-                        <div className="mt-1 line-clamp-2 text-xs font-semibold text-rose-600">
-                          {item.errorMessage}
-                        </div>
-                      ) : null}
+                      <div
+                        className={`mt-1 line-clamp-2 text-xs font-semibold ${
+                          getExpenseImportHistoryTone(item) === "danger"
+                            ? "text-rose-600"
+                            : getExpenseImportHistoryTone(item) === "warning"
+                              ? "text-amber-700"
+                              : getExpenseImportHistoryTone(item) === "info"
+                                ? "text-sky-700"
+                                : "text-slate-400"
+                        }`}
+                      >
+                        {getExpenseImportHistoryHint(item)}
+                      </div>
                     </div>
                   </div>
                 ))}
