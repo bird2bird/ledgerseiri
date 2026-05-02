@@ -208,6 +208,16 @@ function summarizeJobs(jobs: ImportJobItem[]) {
   );
 }
 
+function uniqueDomains(jobs: ImportJobItem[]) {
+  return Array.from(
+    new Set(
+      jobs
+        .map((job) => String(job.domain || "").trim())
+        .filter(Boolean)
+    )
+  ).sort();
+}
+
 function formatJsonPreview(value: unknown) {
   if (value == null) return "-";
 
