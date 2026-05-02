@@ -7,6 +7,8 @@ import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 import type { CashIncomeCommitDto } from './dto/cash-income-commit.dto';
 import type { IncomeImportPreviewDto } from './dto/income-import-preview.dto';
 import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
+import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
+import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
 
 @Controller('api/imports')
 export class ImportsController {
@@ -30,6 +32,21 @@ export class ImportsController {
   @Post('cash-income/commit')
   commitCashIncome(@Body() body: CashIncomeCommitDto) {
     return this.service.commitCashIncomeContract(body);
+  }
+
+  // Step109-Z1-H9-1-EXPENSE-PREVIEW-COMMIT-CONTROLLER:
+  // Two-step expense import API. Keep legacy expense/commit below for compatibility.
+  @Post('expense/preview')
+  previewExpenseImport(@Body() body: ExpenseImportPreviewDto) {
+    return this.service.previewExpenseImportContract(body);
+  }
+
+  @Post('expense/:importJobId/commit')
+  commitExpenseImportJob(
+    @Param('importJobId') importJobId: string,
+    @Body() body: ExpenseImportCommitFromJobDto,
+  ) {
+    return this.service.commitExpenseImportContract(importJobId, body);
   }
 
   // Step109-Z1-H5D-EXPENSE-COMMIT-CONTROLLER:

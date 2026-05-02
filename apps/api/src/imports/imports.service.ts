@@ -9,6 +9,8 @@ import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 import type { CashIncomeCommitDto } from './dto/cash-income-commit.dto';
 import type { IncomeImportPreviewDto, IncomeImportPreviewRowDto, IncomeImportLedgerScopeDto } from './dto/income-import-preview.dto';
 import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
+import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
+import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
 
 type MonthStat = {
   month: string;
@@ -2653,6 +2655,422 @@ export class ImportsService {
 
     return `${normalizedMemo} [account_name:${normalizedAccountName}]`.trim();
   }
+
+
+  // Step109-Z1-H9-1-EXPENSE-PREVIEW-COMMIT-SERVICE:
+  // Preview expense rows into ImportJob/ImportStagingRow without creating Transaction.
+  async previewExpenseImportContract(body: ExpenseImportPreviewDto) {
+    const companyId = await this.resolveCompanyId(body?.companyId);
+    const ledgerScope = this.normalizeExpenseLedgerScope(body?.ledgerScope);
+    this.assertExpenseLedgerScope(ledgerScope);
+
+    const filename = String(body?.filename || `${ledgerScope}-template.csv`).trim();
+    const rows = Array.isArray(body?.rows) ? body.rows : [];
+
+    if (!rows.length) {
+      throw new BadRequestException('No expense rows to preview');
+    }
+
+    const blockedRows = rows.filter((row) => String(row.status || 'ok') !== 'ok').length;
+
+    const fileHash = this.hashPayload([
+      companyId,
+      ledgerScope,
+      filename,
+      JSON.stringify(rows),
+    ]);
+
+    const importJob = await this.prisma.importJob.create({
+      data: {
+        companyId,
+        domain: 'ledger',
+        module: ledgerScope,
+        sourceType: 'expense-csv',
+        filename,
+        fileHash,
+        status: 'PROCESSING',
+        totalRows: rows.length,
+        successRows: 0,
+        failedRows: blockedRows,
+      },
+      select: { id: true },
+    });
+
+    let okCount = 0;
+    let duplicateCount = 0;
+    let errorCount = blockedRows;
+    let totalAmount = 0;
+
+    for (const row of rows) {
+      const rowNo = Number(row.rowNo || 0) || 0;
+      const amount = Math.abs(Number(row.amount || 0));
+      const category = String(row.category || '').trim();
+      const vendor = String(row.vendor || '').trim();
+      const evidenceNo = String(row.evidenceNo || '').trim();
+      const accountName = String(row.accountName || '').trim();
+      const currency = String(row.currency || 'JPY').trim() || 'JPY';
+
+      let occurredAt: Date;
+      let businessMonth: string | null = null;
+
+      try {
+        if (String(row.status || 'ok') !== 'ok') {
+          throw new Error(row.error || 'preview row is not OK');
+        }
+
+        if (!amount) throw new Error('amount is required');
+        if (!category) throw new Error('category is required');
+
+        occurredAt = this.parseExpenseImportDate(row.occurredAt);
+        businessMonth = this.normalizeBusinessMonth(occurredAt.toISOString());
+      } catch (err) {
+        // Avoid double-counting rows already marked non-ok by frontend preview.
+        if (String(row.status || 'ok') === 'ok') {
+          errorCount += 1;
+        }
+
+        await this.prisma.importStagingRow.create({
+          data: {
+            importJobId: importJob.id,
+            companyId,
+            module: ledgerScope,
+            rowNo,
+            businessMonth: null,
+            rawPayloadJson: row as Prisma.InputJsonValue,
+            normalizedPayloadJson: {
+              ledgerScope,
+              category,
+              amount,
+              error: err instanceof Error ? err.message : 'row validation failed',
+            } as Prisma.InputJsonValue,
+            dedupeHash: null,
+            matchStatus: 'error',
+            matchReason: err instanceof Error ? err.message : 'row validation failed',
+            targetEntityType: 'transaction',
+          },
+        });
+
+        continue;
+      }
+
+      const memo = this.buildExpenseImportMemo({
+        ledgerScope,
+        category,
+        vendor,
+        evidenceNo,
+        memo: row.memo,
+      });
+      const memoWithAccountName = this.withExpenseAccountNameMarker(memo, accountName);
+
+      const dedupeHash = this.hashPayload([
+        companyId,
+        ledgerScope,
+        filename,
+        rowNo,
+        occurredAt.toISOString().slice(0, 10),
+        amount,
+        category,
+        vendor,
+        evidenceNo,
+        accountName,
+        memoWithAccountName,
+      ]);
+
+      const existing = await this.prisma.transaction.findFirst({
+        where: { companyId, dedupeHash },
+        select: { id: true },
+      });
+
+      const accountId = await this.resolveExpenseAccountId({
+        companyId,
+        accountName,
+      });
+
+      const normalizedPayload = {
+        ledgerScope,
+        category,
+        amount,
+        currency,
+        occurredAt: occurredAt.toISOString(),
+        vendor,
+        evidenceNo,
+        accountName,
+        accountId,
+        memo: memoWithAccountName,
+        dedupeHash,
+      };
+
+      if (existing?.id) {
+        duplicateCount += 1;
+
+        await this.prisma.importStagingRow.create({
+          data: {
+            importJobId: importJob.id,
+            companyId,
+            module: ledgerScope,
+            rowNo,
+            businessMonth,
+            rawPayloadJson: row as Prisma.InputJsonValue,
+            normalizedPayloadJson: normalizedPayload as Prisma.InputJsonValue,
+            dedupeHash,
+            matchStatus: 'duplicate',
+            matchReason: 'same dedupeHash already exists in Transaction',
+            targetEntityType: 'transaction',
+            targetEntityId: existing.id,
+          },
+        });
+
+        continue;
+      }
+
+      okCount += 1;
+      totalAmount += amount;
+
+      await this.prisma.importStagingRow.create({
+        data: {
+          importJobId: importJob.id,
+          companyId,
+          module: ledgerScope,
+          rowNo,
+          businessMonth,
+          rawPayloadJson: row as Prisma.InputJsonValue,
+          normalizedPayloadJson: normalizedPayload as Prisma.InputJsonValue,
+          dedupeHash,
+          matchStatus: 'new',
+          matchReason: 'ready to commit',
+          targetEntityType: 'transaction',
+        },
+      });
+    }
+
+    await this.prisma.importJob.update({
+      where: { id: importJob.id },
+      data: {
+        successRows: okCount,
+        failedRows: errorCount,
+        status: 'PROCESSING',
+      },
+    });
+
+    return {
+      ok: true,
+      action: 'expense-preview',
+      importJobId: importJob.id,
+      companyId,
+      ledgerScope,
+      filename,
+      totalRows: rows.length,
+      okRows: okCount,
+      duplicateRows: duplicateCount,
+      errorRows: errorCount,
+      amount: totalAmount,
+      blockedRows,
+      message: `${ledgerScope} expense preview created`,
+    };
+  }
+
+  async commitExpenseImportContract(
+    importJobId: string,
+    body: ExpenseImportCommitFromJobDto,
+  ) {
+    const companyId = await this.resolveCompanyId(body?.companyId);
+    const job = await this.prisma.importJob.findFirst({
+      where: {
+        id: importJobId,
+        companyId,
+        domain: 'ledger',
+      },
+      select: {
+        id: true,
+        module: true,
+        filename: true,
+        totalRows: true,
+        failedRows: true,
+        status: true,
+      },
+    });
+
+    if (!job?.id) {
+      throw new BadRequestException(`Expense ImportJob not found: ${importJobId}`);
+    }
+
+    const ledgerScope = this.normalizeExpenseLedgerScope(job.module);
+    this.assertExpenseLedgerScope(ledgerScope);
+
+    const rows = await this.prisma.importStagingRow.findMany({
+      where: {
+        importJobId,
+        companyId,
+        module: ledgerScope,
+      },
+      orderBy: [{ rowNo: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        rowNo: true,
+        businessMonth: true,
+        matchStatus: true,
+        matchReason: true,
+        dedupeHash: true,
+        normalizedPayloadJson: true,
+        targetEntityId: true,
+      },
+    });
+
+    if (!rows.length) {
+      throw new BadRequestException(`Expense ImportJob has no staging rows: ${importJobId}`);
+    }
+
+    let importedRows = 0;
+    let duplicateRows = 0;
+    let errorRows = 0;
+    let totalImportedAmount = 0;
+    const createdTransactionIds: string[] = [];
+
+    for (const row of rows) {
+      if (row.matchStatus === 'error') {
+        errorRows += 1;
+        continue;
+      }
+
+      if (row.matchStatus === 'duplicate') {
+        duplicateRows += 1;
+        continue;
+      }
+
+      if (row.matchStatus === 'committed' && row.targetEntityId) {
+        duplicateRows += 1;
+        continue;
+      }
+
+      if (row.matchStatus !== 'new') {
+        errorRows += 1;
+        await this.prisma.importStagingRow.update({
+          where: { id: row.id },
+          data: {
+            matchStatus: 'error',
+            matchReason: `Unsupported staging status: ${row.matchStatus}`,
+          },
+        });
+        continue;
+      }
+
+      const payload = (row.normalizedPayloadJson || {}) as Record<string, unknown>;
+      const amount = Math.abs(Number(payload.amount || 0));
+      const category = String(payload.category || '').trim();
+      const currency = String(payload.currency || 'JPY').trim() || 'JPY';
+      const accountName = String(payload.accountName || '').trim();
+      const memo = String(payload.memo || '').trim();
+      const occurredAtRaw = String(payload.occurredAt || '').trim();
+      const dedupeHash = String(row.dedupeHash || payload.dedupeHash || '').trim();
+
+      if (!amount || !category || !occurredAtRaw || !dedupeHash) {
+        errorRows += 1;
+        await this.prisma.importStagingRow.update({
+          where: { id: row.id },
+          data: {
+            matchStatus: 'error',
+            matchReason: 'normalized payload is incomplete',
+          },
+        });
+        continue;
+      }
+
+      const existing = await this.prisma.transaction.findFirst({
+        where: { companyId, dedupeHash },
+        select: { id: true },
+      });
+
+      if (existing?.id) {
+        duplicateRows += 1;
+        await this.prisma.importStagingRow.update({
+          where: { id: row.id },
+          data: {
+            matchStatus: 'duplicate',
+            matchReason: 'same dedupeHash already exists in Transaction',
+            targetEntityId: existing.id,
+          },
+        });
+        continue;
+      }
+
+      const payloadAccountId = payload.accountId;
+      const accountId =
+        typeof payloadAccountId === 'string' && payloadAccountId
+          ? payloadAccountId
+          : await this.resolveExpenseAccountId({ companyId, accountName });
+
+      const created = await this.prisma.transaction.create({
+        data: {
+          companyId,
+          storeId: await this.resolveImportStoreId(companyId),
+          accountId: accountId || null,
+          type: 'OTHER',
+          direction: 'EXPENSE',
+          sourceType: 'IMPORT',
+          amount,
+          currency,
+          occurredAt: new Date(occurredAtRaw),
+          businessMonth: row.businessMonth || this.normalizeBusinessMonth(occurredAtRaw),
+          memo,
+          importJobId,
+          sourceFileName: job.filename || `${ledgerScope}-template.csv`,
+          sourceRowNo: Number(row.rowNo || 0) || null,
+          dedupeHash,
+        },
+        select: { id: true },
+      });
+
+      importedRows += 1;
+      totalImportedAmount += amount;
+      createdTransactionIds.push(created.id);
+
+      await this.prisma.importStagingRow.update({
+        where: { id: row.id },
+        data: {
+          matchStatus: 'committed',
+          matchReason: 'committed to Transaction',
+          targetEntityType: 'transaction',
+          targetEntityId: created.id,
+        },
+      });
+    }
+
+    const finalStatus = errorRows > 0 ? 'FAILED' : 'SUCCEEDED';
+
+    await this.prisma.importJob.update({
+      where: { id: importJobId },
+      data: {
+        status: finalStatus,
+        successRows: importedRows,
+        failedRows: errorRows,
+        importedAt: new Date(),
+        errorMessage:
+          errorRows > 0
+            ? `Expense import committed with ${errorRows} error rows`
+            : null,
+      },
+    });
+
+    return {
+      ok: errorRows === 0,
+      action: 'expense-commit',
+      importJobId,
+      companyId,
+      ledgerScope,
+      filename: job.filename,
+      totalRows: Number(job.totalRows || rows.length),
+      imported: importedRows,
+      duplicate: duplicateRows,
+      error: errorRows,
+      amount: totalImportedAmount,
+      createdTransactionIds,
+      message:
+        errorRows > 0
+          ? `${ledgerScope} expense import committed with errors`
+          : `${ledgerScope} expense import committed`,
+    };
+  }
+
 
   // Step109-Z1-H5H-FIX4-FORCE-MEMO-VARIABLE-ACCOUNT-MARKER: account_name marker is applied to memo variable before Transaction create.
   async commitExpenseImport(body: ExpenseImportCommitDto) {
