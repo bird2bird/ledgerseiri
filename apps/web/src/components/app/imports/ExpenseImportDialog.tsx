@@ -492,6 +492,19 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
         `${label} の正式登録が完了しました。登録: ${result.importedRows} / 重複: ${result.duplicateRows} / エラー: ${result.errorRows} / 金額: ¥${formatNumber(result.totalImportedAmount)} / Backend ImportJob: ${result.importJobId}`
       );
 
+      // Step109-Z1-H9-6-FIX1-EXPENSE-HISTORY-EVENT-DISPATCH:
+      // Notify nearby ExpenseImportHistoryPanel to refresh and highlight the committed ImportJob.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ledgerseiri:expense-import-committed", {
+            detail: {
+              importJobId: result.importJobId,
+              module: ledgerScope,
+            },
+          })
+        );
+      }
+
       await onCommitted?.(result);
     } catch (err) {
       setCommitResult(null);
