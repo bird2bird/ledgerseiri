@@ -14,6 +14,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-E-IMPORT-JOB-DETAIL-DRAWER-SKELETON:
 // Add frontend-only ImportJob detail drawer using existing list fields.
+//
+// Step109-Z1-H11-F-IMPORT-JOB-DRAWER-SOURCE-NAVIGATION:
+// Polish drawer actions and add source page navigation without backend changes.
 
 type ImportCenterTone =
   | "success"
@@ -228,6 +231,91 @@ function formatJsonPreview(value: unknown) {
   }
 }
 
+function buildImportJobSourceHref(job: ImportJobItem) {
+  const domain = String(job.domain || "").trim();
+  const module = String(job.module || "").trim();
+  const params = new URLSearchParams();
+
+  params.set("from", "import-center");
+  params.set("importJobId", job.id);
+
+  if (module) params.set("module", module);
+  if (domain) params.set("domain", domain);
+
+  const suffix = `?${params.toString()}`;
+
+  if (domain === "income" && module === "cash-income") {
+    return `/ja/app/income/cash${suffix}`;
+  }
+
+  if (domain === "income" && module === "other-income") {
+    return `/ja/app/income/other${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "store-operation-expense") {
+    return `/ja/app/expenses/store-operation${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "other-expense") {
+    return `/ja/app/other-expense${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "payroll-expense") {
+    const payrollParams = new URLSearchParams(params);
+    payrollParams.set("category", "payroll");
+    return `/ja/app/expenses?${payrollParams.toString()}`;
+  }
+
+  if (domain === "ledger" && module === "company-operation-expense") {
+    const companyParams = new URLSearchParams(params);
+    companyParams.set("category", "company-operation");
+    return `/ja/app/expenses?${companyParams.toString()}`;
+  }
+
+  if (domain === "amazon-store-orders" || domain === "store-orders" || module === "store-orders") {
+    return `/ja/app/income/store-orders${suffix}`;
+  }
+
+  return `/ja/app/data/import${suffix}`;
+}
+
+function getImportJobSourceActionLabel(job: ImportJobItem) {
+  const tone = getImportCenterJobTone(job);
+
+  if (tone === "pendingPreview") return "元ページで再検証";
+  if (tone === "danger") return "元ページでエラー確認";
+  return "関連ページへ移動";
+}
+
+function getImportJobSourceActionHint(job: ImportJobItem) {
+  const tone = getImportCenterJobTone(job);
+  const label = getDomainLabel(job.domain, job.module);
+
+  if (tone === "pendingPreview") {
+    return `${label} の元ページで同じCSVを再検証し、正式登録まで進めてください。`;
+  }
+
+  if (tone === "danger") {
+    return `${label} の元ページで取込条件・CSV内容・エラー行を確認してください。`;
+  }
+
+  if (tone === "warning") {
+    return `${label} の元ページで重複済み・スキップ条件・対象行を確認してください。`;
+  }
+
+  return `${label} の関連ページで登録済みデータを確認できます。`;
+}
+
+function getDrawerActionToneClass(job: ImportJobItem) {
+  const tone = getImportCenterJobTone(job);
+
+  if (tone === "danger") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (tone === "pendingPreview") return "border-sky-200 bg-sky-50 text-sky-700";
+  if (tone === "processing") return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
 function DetailField(props: {
   label: string;
   value?: React.ReactNode;
@@ -258,6 +346,11 @@ function ImportJobDetailDrawer(props: {
   const rows = formatRows(job);
   const statusLabel = getImportCenterStatusLabel(job);
   const statusClass = getImportCenterStatusClass(job);
+  const sourceHref = buildImportJobSourceHref(job);
+  const sourceActionLabel = getImportJobSourceActionLabel(job);
+  const sourceActionHint = getImportJobSourceActionHint(job);
+  const drawerActionToneClass = getDrawerActionToneClass(job);
+  const drawerTone = getImportCenterJobTone(job);
 
   return (
     <div className="fixed inset-y-0 right-0 left-[260px] z-50 pointer-events-none">
@@ -302,8 +395,28 @@ function ImportJobDetailDrawer(props: {
             </button>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
-            {getImportCenterJobHint(job)}
+          <div className={`mt-4 rounded-2xl border px-4 py-3 ${drawerActionToneClass}`}>
+            <div className="text-sm font-black">
+              {getImportCenterJobHint(job)}
+            </div>
+            <div className="mt-1 text-xs font-semibold leading-5 opacity-90">
+              {sourceActionHint}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={sourceHref}
+                className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+              >
+                {sourceActionLabel}
+              </a>
+              <a
+                href={`/ja/app/data/import?importJobId=${encodeURIComponent(job.id)}`}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Import Center で表示
+              </a>
+            </div>
           </div>
         </div>
 
@@ -326,10 +439,48 @@ function ImportJobDetailDrawer(props: {
           </div>
 
           <div className="mt-5 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-sm font-black text-slate-900">Error Message</div>
-              <div className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-600">
-                {job.errorMessage || "エラーは記録されていません。"}
+            <div
+              className={`rounded-2xl border p-4 ${
+                drawerTone === "danger"
+                  ? "border-rose-200 bg-rose-50"
+                  : drawerTone === "pendingPreview"
+                    ? "border-sky-200 bg-sky-50"
+                    : drawerTone === "warning"
+                      ? "border-amber-200 bg-amber-50"
+                      : "border-slate-200 bg-slate-50"
+              }`}
+            >
+              <div
+                className={`text-sm font-black ${
+                  drawerTone === "danger"
+                    ? "text-rose-900"
+                    : drawerTone === "pendingPreview"
+                      ? "text-sky-900"
+                      : drawerTone === "warning"
+                        ? "text-amber-900"
+                        : "text-slate-900"
+                }`}
+              >
+                Operation Guidance
+              </div>
+              <div
+                className={`mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 ${
+                  drawerTone === "danger"
+                    ? "text-rose-700"
+                    : drawerTone === "pendingPreview"
+                      ? "text-sky-700"
+                      : drawerTone === "warning"
+                        ? "text-amber-700"
+                        : "text-slate-600"
+                }`}
+              >
+                {drawerTone === "danger"
+                  ? job.errorMessage || "取込エラーがあります。元ページでCSV形式・日付・金額・必須項目を確認してください。"
+                  : drawerTone === "pendingPreview"
+                    ? "preview は検証済みですが、正式登録は完了していません。元ページで同じCSVを再検証し、正式登録まで進めてください。"
+                    : drawerTone === "warning"
+                      ? "登録対象がありません。重複済み、または全行がスキップされた可能性があります。"
+                      : job.errorMessage || "エラーは記録されていません。"}
               </div>
             </div>
 
@@ -350,8 +501,8 @@ function ImportJobDetailDrawer(props: {
             <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
               <div className="text-sm font-black text-slate-900">Next Step</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-E は list API で取得済みの項目だけを表示する skeleton です。
-                H11-F 以降で staging rows / transaction trace 用の detail API を追加します。
+                H11-F は list API で取得済みの項目だけを使い、関連ページへの移動と状態別ガイダンスを追加しています。
+                H11-G 以降で staging rows / transaction trace 用の detail API を追加します。
               </div>
             </div>
           </div>
