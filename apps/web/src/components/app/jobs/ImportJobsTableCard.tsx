@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
 import { fmtDate } from "./jobs-shared";
 
@@ -32,6 +33,12 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-H-STAGING-ROWS-API-PREPARATION:
 // Add frontend-only placeholders and API contract notes for staging rows / transaction trace.
+//
+// Step109-Z1-H11-K-FETCH-STAGING-TRANSACTIONS:
+// Fetch staging rows and transaction trace from H11-J backend detail APIs.
+//
+// Step109-Z1-H11-K-FIX1-DRAWER-PORTAL:
+// Render drawer through document.body to avoid grid/card hover layout flicker.
 
 type ImportCenterTone =
   | "success"
@@ -370,6 +377,142 @@ function getDrawerActionToneClass(job: ImportJobItem) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
+type ImportJobStagingRowItem = {
+  id: string;
+  importJobId?: string | null;
+  companyId?: string | null;
+  module?: string | null;
+  rowNo?: number | null;
+  businessMonth?: string | null;
+  rawPayloadJson?: unknown;
+  normalizedPayloadJson?: unknown;
+  dedupeHash?: string | null;
+  matchStatus?: string | null;
+  matchReason?: string | null;
+  targetEntityType?: string | null;
+  targetEntityId?: string | null;
+  createdAt?: string | null;
+};
+
+type ImportJobTransactionTraceItem = {
+  id: string;
+  companyId?: string | null;
+  importJobId?: string | null;
+  sourceRowNo?: number | null;
+  type?: string | null;
+  direction?: string | null;
+  amount?: number | null;
+  occurredAt?: string | null;
+  businessMonth?: string | null;
+  memo?: string | null;
+  createdAt?: string | null;
+};
+
+type ImportJobDetailFetchState = {
+  loading: boolean;
+  error: string | null;
+  stagingRows: ImportJobStagingRowItem[];
+  transactions: ImportJobTransactionTraceItem[];
+};
+
+const EMPTY_IMPORT_JOB_DETAIL_FETCH_STATE: ImportJobDetailFetchState = {
+  loading: false,
+  error: null,
+  stagingRows: [],
+  transactions: [],
+};
+
+async function fetchImportJobDetailRows(importJobId: string): Promise<{
+  stagingRows: ImportJobStagingRowItem[];
+  transactions: ImportJobTransactionTraceItem[];
+}> {
+  const [stagingRes, transactionsRes] = await Promise.all([
+    fetch(`/api/import-jobs/${encodeURIComponent(importJobId)}/staging-rows`, {
+      cache: "no-store",
+    }),
+    fetch(`/api/import-jobs/${encodeURIComponent(importJobId)}/transactions`, {
+      cache: "no-store",
+    }),
+  ]);
+
+  if (!stagingRes.ok) {
+    throw new Error(`staging rows request failed: ${stagingRes.status}`);
+  }
+
+  if (!transactionsRes.ok) {
+    throw new Error(`transactions request failed: ${transactionsRes.status}`);
+  }
+
+  const stagingJson = await stagingRes.json();
+  const transactionsJson = await transactionsRes.json();
+
+  if (stagingJson?.ok === false) {
+    throw new Error(stagingJson?.message || "staging rows request failed");
+  }
+
+  if (transactionsJson?.ok === false) {
+    throw new Error(transactionsJson?.message || "transactions request failed");
+  }
+
+  return {
+    stagingRows: Array.isArray(stagingJson?.items) ? stagingJson.items : [],
+    transactions: Array.isArray(transactionsJson?.items) ? transactionsJson.items : [],
+  };
+}
+
+function shortId(value?: string | null) {
+  if (!value) return "-";
+  return value.length > 10 ? `${value.slice(0, 10)}...` : value;
+}
+
+function DetailDataStateCard(props: {
+  title: string;
+  loading: boolean;
+  error: string | null;
+  empty: boolean;
+  children: React.ReactNode;
+}) {
+  if (props.loading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="text-sm font-black text-slate-900">{props.title}</div>
+        <div className="mt-3 animate-pulse rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-500">
+          読み込み中...
+        </div>
+      </div>
+    );
+  }
+
+  if (props.error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+        <div className="text-sm font-black text-rose-900">{props.title}</div>
+        <div className="mt-2 text-sm font-semibold leading-6 text-rose-700">
+          {props.error}
+        </div>
+      </div>
+    );
+  }
+
+  if (props.empty) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="text-sm font-black text-slate-900">{props.title}</div>
+        <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          表示できるデータはありません。
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="text-sm font-black text-slate-900">{props.title}</div>
+      <div className="mt-3">{props.children}</div>
+    </div>
+  );
+}
+
 function FutureApiContractCard(props: {
   title: string;
   endpoint: string;
@@ -443,10 +586,12 @@ function DetailField(props: {
 function ImportJobDetailDrawer(props: {
   job: ImportJobItem | null;
   onClose: () => void;
+  detailRowsState: ImportJobDetailFetchState;
 }) {
-  const { job, onClose } = props;
+  const { job, onClose, detailRowsState } = props;
 
   if (!job) return null;
+  if (typeof document === "undefined") return null;
 
   const rows = formatRows(job);
   const statusLabel = getImportCenterStatusLabel(job);
@@ -457,8 +602,8 @@ function ImportJobDetailDrawer(props: {
   const drawerActionToneClass = getDrawerActionToneClass(job);
   const drawerTone = getImportCenterJobTone(job);
 
-  return (
-    <div className="fixed inset-y-0 right-0 left-[260px] z-50 pointer-events-none">
+  return createPortal(
+    <div className="fixed inset-y-0 left-[260px] right-0 z-[1000] pointer-events-none">
       <div
         role="button"
         tabIndex={-1}
@@ -604,65 +749,116 @@ function ImportJobDetailDrawer(props: {
               </pre>
             </div>
 
-            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="text-sm font-black text-slate-900">Staging Rows</div>
-                  <div className="mt-1 text-xs font-bold text-sky-700">
-                    H11-H placeholder / backend API 接続待ち
+            <DetailDataStateCard
+              title={`Staging Rows (${detailRowsState.stagingRows.length})`}
+              loading={detailRowsState.loading}
+              error={detailRowsState.error}
+              empty={detailRowsState.stagingRows.length === 0}
+            >
+              <div className="space-y-3">
+                {detailRowsState.stagingRows.slice(0, 20).map((row) => (
+                  <div
+                    key={row.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-black text-slate-900">
+                        Row #{row.rowNo ?? "-"}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
+                          {row.businessMonth || "-"}
+                        </span>
+                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black text-sky-700">
+                          {row.matchStatus || "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2">
+                      <div>Target: {row.targetEntityType || "-"} / {shortId(row.targetEntityId)}</div>
+                      <div>Dedupe: {shortId(row.dedupeHash)}</div>
+                    </div>
+
+                    {row.matchReason ? (
+                      <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                        {row.matchReason}
+                      </div>
+                    ) : null}
+
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-xs font-black text-slate-600">
+                        normalizedPayloadJson
+                      </summary>
+                      <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 text-xs font-semibold leading-5 text-slate-100">
+                        {formatJsonPreview(row.normalizedPayloadJson)}
+                      </pre>
+                    </details>
                   </div>
-                </div>
-                <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-black text-sky-700">
-                  PREPARED
-                </span>
+                ))}
+
+                {detailRowsState.stagingRows.length > 20 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
+                    20件のみ表示しています。全 {detailRowsState.stagingRows.length} 件。
+                  </div>
+                ) : null}
               </div>
-              <div className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-                この領域は、次のステップで ImportStagingRow を表示するための準備枠です。
-                まだ API には接続していないため、ここでは契約予定だけを固定します。
+            </DetailDataStateCard>
+
+            <DetailDataStateCard
+              title={`Transaction Trace (${detailRowsState.transactions.length})`}
+              loading={detailRowsState.loading}
+              error={detailRowsState.error}
+              empty={detailRowsState.transactions.length === 0}
+            >
+              <div className="space-y-3">
+                {detailRowsState.transactions.slice(0, 20).map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-black text-slate-900">
+                        {Number(tx.amount || 0).toLocaleString("ja-JP")} JPY
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
+                          {tx.type || "-"}
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
+                          {tx.direction || "-"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2">
+                      <div>Occurred: {fmtDate(tx.occurredAt)}</div>
+                      <div>Business Month: {tx.businessMonth || "-"}</div>
+                      <div>Source Row: {tx.sourceRowNo ?? "-"}</div>
+                      <div>Transaction: {shortId(tx.id)}</div>
+                    </div>
+
+                    {tx.memo ? (
+                      <div className="mt-2 line-clamp-3 text-xs font-semibold leading-5 text-slate-500">
+                        {tx.memo}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+
+                {detailRowsState.transactions.length > 20 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
+                    20件のみ表示しています。全 {detailRowsState.transactions.length} 件。
+                  </div>
+                ) : null}
               </div>
-            </div>
+            </DetailDataStateCard>
 
-            <FutureApiContractCard
-              title="Planned API: Staging Rows"
-              endpoint="GET /api/import-jobs/:id/staging-rows"
-              description="ImportJob に紐づく staging rows を取得し、元CSV行・正規化payload・matchStatus・businessMonth を確認できるようにします。"
-              status="planned"
-              fields={[
-                "id",
-                "importJobId",
-                "rowNo",
-                "businessMonth",
-                "matchStatus",
-                "matchReason",
-                "normalizedPayloadJson",
-                "targetEntityType",
-                "targetEntityId",
-              ]}
-            />
-
-            <FutureApiContractCard
-              title="Planned API: Transaction Trace"
-              endpoint="GET /api/import-jobs/:id/transactions"
-              description="正式登録済み ImportJob から作成された Transaction を追跡し、登録済み明細への確認導線を提供します。"
-              status="planned"
-              fields={[
-                "id",
-                "importJobId",
-                "type",
-                "direction",
-                "amount",
-                "occurredAt",
-                "businessMonth",
-                "memo",
-                "sourceRowNo",
-              ]}
-            />
-
-            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
-              <div className="text-sm font-black text-slate-900">Next Step</div>
+            <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-sm font-black text-slate-900">Detail API</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-H は staging rows / transaction trace の表示枠と API contract を前端に固定する準備ステップです。
-                H11-I 以降で backend detail API を追加し、この placeholder を実データ表示へ置き換えます。
+                H11-K で staging rows / transaction trace を H11-J backend detail API から取得しています。
+                次の H11-L では表示密度・payload 展開・trace navigation を改善します。
               </div>
             </div>
           </div>
@@ -678,7 +874,8 @@ function ImportJobDetailDrawer(props: {
           </button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -690,6 +887,9 @@ export function ImportJobsTableCard(props: {
   const [statusFilter, setStatusFilter] = React.useState("ALL");
   const [selectedJob, setSelectedJob] = React.useState<ImportJobItem | null>(null);
   const [selectedJobId, setSelectedJobId] = React.useState<string | null>(null);
+  const [detailRowsState, setDetailRowsState] = React.useState<ImportJobDetailFetchState>(
+    EMPTY_IMPORT_JOB_DETAIL_FETCH_STATE
+  );
   const appliedUrlImportJobIdRef = React.useRef<string | null>(null);
 
   const domains = React.useMemo(() => uniqueDomains(props.jobs), [props.jobs]);
@@ -705,8 +905,49 @@ export function ImportJobsTableCard(props: {
     appliedUrlImportJobIdRef.current = null;
     setSelectedJob(null);
     setSelectedJobId(null);
+    setDetailRowsState(EMPTY_IMPORT_JOB_DETAIL_FETCH_STATE);
     syncImportJobIdToUrl(null);
   }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedJob?.id) {
+      setDetailRowsState(EMPTY_IMPORT_JOB_DETAIL_FETCH_STATE);
+      return;
+    }
+
+    setDetailRowsState({
+      loading: true,
+      error: null,
+      stagingRows: [],
+      transactions: [],
+    });
+
+    fetchImportJobDetailRows(selectedJob.id)
+      .then((data) => {
+        if (cancelled) return;
+        setDetailRowsState({
+          loading: false,
+          error: null,
+          stagingRows: data.stagingRows,
+          transactions: data.transactions,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDetailRowsState({
+          loading: false,
+          error: error instanceof Error ? error.message : "detail rows request failed",
+          stagingRows: [],
+          transactions: [],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedJob?.id]);
 
   React.useEffect(() => {
     const importJobId = getImportJobIdFromUrl();
@@ -973,6 +1214,7 @@ export function ImportJobsTableCard(props: {
       <ImportJobDetailDrawer
         job={selectedJob}
         onClose={closeImportJobDetail}
+        detailRowsState={detailRowsState}
       />
     </section>
   );
