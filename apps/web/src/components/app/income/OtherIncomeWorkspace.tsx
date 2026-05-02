@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { IncomeImportDialog } from "@/components/app/imports/IncomeImportDialog";
+import { IncomeImportHistoryPanel } from "@/components/app/imports/IncomeImportHistoryPanel";
 import { LEDGER_SCOPES, getLedgerScopeConfig, validateLedgerCsvTextScope } from "@/core/ledger/ledger-scopes";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import type { AccountItem } from "@/core/funds/api";
@@ -3246,6 +3247,13 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
       
             {/* Step109-Z1-H7C-FIX2-REMOVE-LEGACY-OTHER-INCOME-IMPORT-MODAL: legacy その他収入 import modal removed. Shared IncomeImportDialog is used below. */}
+      {/* Step109-Z1-H8-6C-INCOME-HISTORY-PANEL: lightweight ImportJob history entry for other-income. */}
+      <IncomeImportHistoryPanel
+        module="other-income"
+        title="その他収入 取込履歴"
+        description="最近のその他収入 CSV / Excel 取込結果を確認できます。"
+      />
+
       <IncomeImportDialog
         open={otherIncomeImportDialogOpen}
         onClose={() => setOtherIncomeImportDialogOpen(false)}

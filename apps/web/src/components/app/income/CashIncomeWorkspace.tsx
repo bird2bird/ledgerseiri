@@ -25,6 +25,7 @@ import {
   type CashAccountOption,
 } from "@/components/app/income/CashIncomeDrawer";
 import { IncomeImportDialog } from "@/components/app/imports/IncomeImportDialog";
+import { IncomeImportHistoryPanel } from "@/components/app/imports/IncomeImportHistoryPanel";
 
 type CashSortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 type CashRevenueCategoryFilter = "all" | CashRevenueCategoryCode;
@@ -1872,6 +1873,13 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
         handleEditSave={handleEditSave}
         handleDelete={handleDeleteSelected}
       />
+      {/* Step109-Z1-H8-6C-INCOME-HISTORY-PANEL: lightweight ImportJob history entry for cash-income. */}
+      <IncomeImportHistoryPanel
+        module="cash-income"
+        title="現金収入 取込履歴"
+        description="最近の現金収入 CSV / Excel 取込結果を確認できます。"
+      />
+
       <IncomeImportDialog
         open={cashIncomeImportDialogOpen}
         onClose={() => setCashIncomeImportDialogOpen(false)}

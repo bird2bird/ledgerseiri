@@ -136,3 +136,70 @@ export async function commitExpenseImport(
     payload
   );
 }
+
+// Step109-Z1-H8-6B-IMPORT-HISTORY-HELPER:
+// Additive helper for income import history panels.
+// Keep existing imports API exports intact because /app/data/import still depends on them.
+export type IncomeImportHistoryModule = "cash-income" | "other-income";
+
+export type ImportJobHistoryStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "SUCCEEDED"
+  | "FAILED"
+  | "CANCELLED"
+  | string;
+
+export type ImportJobHistoryItem = {
+  id: string;
+  companyId?: string;
+  domain?: string | null;
+  module?: IncomeImportHistoryModule | string | null;
+  sourceType?: string | null;
+  filename?: string | null;
+  fileHash?: string | null;
+  status?: ImportJobHistoryStatus | null;
+  monthConflictPolicy?: string | null;
+  totalRows?: number | null;
+  successRows?: number | null;
+  failedRows?: number | null;
+  deletedRowCount?: number | null;
+  fileMonthsJson?: unknown;
+  conflictMonthsJson?: unknown;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  importedAt?: string | null;
+};
+
+export type IncomeImportHistoryResponse = {
+  ok?: boolean;
+  action?: "history" | string;
+  companyId?: string;
+  module?: string | null;
+  total?: number;
+  items?: ImportJobHistoryItem[];
+  message?: string;
+};
+
+export async function listImportHistory(args: {
+  module?: IncomeImportHistoryModule;
+  companyId?: string;
+}): Promise<IncomeImportHistoryResponse> {
+  const data = await loadImportHistorySkeleton({
+    module: args.module,
+    companyId: args.companyId,
+  });
+
+  const raw = data as unknown as IncomeImportHistoryResponse;
+
+  if (raw.ok === false) {
+    throw new Error(raw.message || "Import history request failed.");
+  }
+
+  return {
+    ...raw,
+    items: Array.isArray(raw.items) ? raw.items : [],
+    total: Number(raw.total || 0),
+  };
+}
