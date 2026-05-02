@@ -20,6 +20,10 @@ type IncomeImportHistoryPanelProps = {
   title?: string;
   description?: string;
   limit?: number;
+  // Step109-Z1-H10-3-INCOME-HISTORY-AUTO-REFRESH:
+  // Parent/event may trigger history reload after IncomeImportDialog commit.
+  refreshToken?: number;
+  highlightedImportJobId?: string | null;
 };
 
 function getImportHistoryModuleLabel(module?: string | null) {
@@ -99,12 +103,16 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
     title = "取込履歴",
     description = "最近の ImportJob を確認できます。",
     limit = 5,
+    refreshToken = 0,
+    highlightedImportJobId = null,
   } = props;
 
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [items, setItems] = React.useState<ImportJobHistoryItem[]>([]);
   const [error, setError] = React.useState("");
+  const [eventHighlightedImportJobId, setEventHighlightedImportJobId] = React.useState<string | null>(null);
+  const autoRefreshMountedRef = React.useRef(false);
 
   const visibleItems = React.useMemo(() => items.slice(0, limit), [items, limit]);
   const latestItem = visibleItems[0] || null;
@@ -114,6 +122,8 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
   );
   const hasAttention =
     historySummary.warning > 0 || historySummary.danger > 0 || historySummary.processing > 0;
+  const effectiveHighlightedImportJobId =
+    highlightedImportJobId || eventHighlightedImportJobId;
 
   const loadHistory = React.useCallback(async () => {
     setLoading(true);
@@ -128,6 +138,48 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
       setLoading(false);
     }
   }, [module]);
+
+  React.useEffect(() => {
+    if (!autoRefreshMountedRef.current) {
+      autoRefreshMountedRef.current = true;
+      return;
+    }
+
+    if (refreshToken <= 0) return;
+
+    setOpen(true);
+    void loadHistory();
+  }, [loadHistory, refreshToken]);
+
+  // Step109-Z1-H10-3-INCOME-HISTORY-AUTO-REFRESH:
+  // Decoupled auto refresh after IncomeImportDialog commits the same module.
+  React.useEffect(() => {
+    function handleIncomeImportCommitted(event: Event) {
+      const detail = (event as CustomEvent<{
+        importJobId?: string | null;
+        module?: string | null;
+      }>).detail;
+
+      if (!detail || detail.module !== module) return;
+
+      setEventHighlightedImportJobId(detail.importJobId || null);
+      setOpen(true);
+      void loadHistory();
+    }
+
+    window.addEventListener(
+      "ledgerseiri:income-import-committed",
+      handleIncomeImportCommitted
+    );
+
+    return () => {
+      window.removeEventListener(
+        "ledgerseiri:income-import-committed",
+        handleIncomeImportCommitted
+      );
+    };
+  }, [loadHistory, module]);
+
 
   async function toggleOpen() {
     const nextOpen = !open;
@@ -165,6 +217,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                 }`}
               >
                 {getIncomeImportHistorySummaryText(visibleItems)}
+              </span>
+            ) : null}
+            {refreshToken > 0 ? (
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700">
+                登録後自動更新
               </span>
             ) : null}
           </div>
@@ -245,13 +302,20 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
               </div>
 
               <div className="divide-y divide-slate-100">
-                {visibleItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`grid gap-3 px-4 py-4 text-sm transition hover:bg-slate-50 md:grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] md:gap-4 md:py-3 ${getBaseImportHistoryRowClass(
-                      item
-                    )}`}
-                  >
+                {visibleItems.map((item) => {
+                  const isHighlighted = effectiveHighlightedImportJobId === item.id;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`grid gap-3 px-4 py-4 text-sm transition hover:bg-slate-50 md:grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] md:gap-4 md:py-3 ${getBaseImportHistoryRowClass(
+                        item
+                      )} ${
+                        isHighlighted
+                          ? "ring-2 ring-violet-200 bg-violet-50/50"
+                          : ""
+                      }`}
+                    >
                     <div className="min-w-0">
                       <div className="truncate font-bold text-slate-900">
                         {item.filename || "-"}
@@ -266,6 +330,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                         <span className="font-mono text-[11px] font-semibold text-slate-400">
                           {shortImportJobId(item.id)}
                         </span>
+                        {isHighlighted ? (
+                          <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[11px] font-bold text-violet-700">
+                            最新登録
+                          </span>
+                        ) : null}
                       </div>
                     </div>
 
@@ -309,8 +378,9 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                         {getIncomeImportHistoryHint(item)}
                       </div>
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}

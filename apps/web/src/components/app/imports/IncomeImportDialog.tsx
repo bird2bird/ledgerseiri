@@ -845,7 +845,20 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
 
       setBackendImportJobId(null);
 
-      await onCommitted?.({
+            // Step109-Z1-H10-3-INCOME-HISTORY-EVENT-DISPATCH:
+      // Notify nearby IncomeImportHistoryPanel to refresh and highlight the committed ImportJob.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ledgerseiri:income-import-committed", {
+            detail: {
+              importJobId: result.importJobId || backendImportJobId || null,
+              module: ledgerScope,
+            },
+          })
+        );
+      }
+
+await onCommitted?.({
         importJobId: committedImportJobId,
         imported,
         duplicate,
