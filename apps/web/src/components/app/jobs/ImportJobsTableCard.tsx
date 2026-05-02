@@ -29,6 +29,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-G-FIX3-DISABLE-URL-AUTO-DRAWER:
 // URL importJobId highlights the row only; users open drawer manually.
+//
+// Step109-Z1-H11-H-STAGING-ROWS-API-PREPARATION:
+// Add frontend-only placeholders and API contract notes for staging rows / transaction trace.
 
 type ImportCenterTone =
   | "success"
@@ -367,6 +370,57 @@ function getDrawerActionToneClass(job: ImportJobItem) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
+function FutureApiContractCard(props: {
+  title: string;
+  endpoint: string;
+  description: string;
+  fields: string[];
+  status?: "planned" | "blocked" | "ready";
+}) {
+  const status = props.status || "planned";
+
+  const statusClass =
+    status === "ready"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "blocked"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-sky-200 bg-sky-50 text-sky-700";
+
+  const statusLabel =
+    status === "ready" ? "READY" : status === "blocked" ? "WAITING API" : "PLANNED";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-black text-slate-900">{props.title}</div>
+          <div className="mt-1 font-mono text-[11px] font-bold text-slate-500">
+            {props.endpoint}
+          </div>
+        </div>
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass}`}>
+          {statusLabel}
+        </span>
+      </div>
+
+      <div className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+        {props.description}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {props.fields.map((field) => (
+          <span
+            key={field}
+            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-bold text-slate-500"
+          >
+            {field}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DetailField(props: {
   label: string;
   value?: React.ReactNode;
@@ -551,10 +605,64 @@ function ImportJobDetailDrawer(props: {
             </div>
 
             <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-black text-slate-900">Staging Rows</div>
+                  <div className="mt-1 text-xs font-bold text-sky-700">
+                    H11-H placeholder / backend API 接続待ち
+                  </div>
+                </div>
+                <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-black text-sky-700">
+                  PREPARED
+                </span>
+              </div>
+              <div className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+                この領域は、次のステップで ImportStagingRow を表示するための準備枠です。
+                まだ API には接続していないため、ここでは契約予定だけを固定します。
+              </div>
+            </div>
+
+            <FutureApiContractCard
+              title="Planned API: Staging Rows"
+              endpoint="GET /api/import-jobs/:id/staging-rows"
+              description="ImportJob に紐づく staging rows を取得し、元CSV行・正規化payload・matchStatus・businessMonth を確認できるようにします。"
+              status="planned"
+              fields={[
+                "id",
+                "importJobId",
+                "rowNo",
+                "businessMonth",
+                "matchStatus",
+                "matchReason",
+                "normalizedPayloadJson",
+                "targetEntityType",
+                "targetEntityId",
+              ]}
+            />
+
+            <FutureApiContractCard
+              title="Planned API: Transaction Trace"
+              endpoint="GET /api/import-jobs/:id/transactions"
+              description="正式登録済み ImportJob から作成された Transaction を追跡し、登録済み明細への確認導線を提供します。"
+              status="planned"
+              fields={[
+                "id",
+                "importJobId",
+                "type",
+                "direction",
+                "amount",
+                "occurredAt",
+                "businessMonth",
+                "memo",
+                "sourceRowNo",
+              ]}
+            />
+
+            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
               <div className="text-sm font-black text-slate-900">Next Step</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-F は list API で取得済みの項目だけを使い、関連ページへの移動と状態別ガイダンスを追加しています。
-                H11-G 以降で staging rows / transaction trace 用の detail API を追加します。
+                H11-H は staging rows / transaction trace の表示枠と API contract を前端に固定する準備ステップです。
+                H11-I 以降で backend detail API を追加し、この placeholder を実データ表示へ置き換えます。
               </div>
             </div>
           </div>
