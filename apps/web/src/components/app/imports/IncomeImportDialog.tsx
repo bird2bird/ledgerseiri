@@ -8,6 +8,7 @@ import {
 } from "@/core/ledger/ledger-scopes";
 import { createTransaction, listTransactions } from "@/core/transactions/api";
 import { listAccounts } from "@/core/funds/api";
+import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 
 type IncomeImportScope =
   | typeof LEDGER_SCOPES.CASH_INCOME
@@ -47,6 +48,32 @@ export type IncomeImportCommitResult = {
   duplicate: number;
   error: number;
   amount: number;
+};
+
+type BackendIncomeImportPreviewResponse = {
+  importJobId?: string | null;
+  companyId?: string;
+  ledgerScope?: IncomeImportScope;
+  filename?: string;
+  summary?: {
+    totalRows?: number;
+    okRows?: number;
+    errorRows?: number;
+    duplicateRows?: number;
+    totalAmount?: number;
+    accountMissing?: number;
+  };
+  rows?: Array<{
+    rowNo?: number;
+    businessMonth?: string | null;
+    matchStatus?: "new" | "duplicate" | "error" | string;
+    matchReason?: string | null;
+    normalizedPayload?: {
+      accountId?: string | null;
+      dedupeHash?: string | null;
+      [key: string]: unknown;
+    };
+  }>;
 };
 
 export type IncomeImportDialogProps = {
@@ -551,6 +578,45 @@ function buildIncomeDedupeKey(args: {
   ].join("__");
 }
 
+
+// Step109-Z1-H8-2-INCOME-BACKEND-PREVIEW:
+// Send local validated preview rows to backend ImportJob/ImportStagingRow.
+// H8-2 intentionally keeps commit on the existing client-side createTransaction path.
+async function previewIncomeImportOnBackend(args: {
+  ledgerScope: IncomeImportScope;
+  filename: string;
+  rows: IncomePreviewRow[];
+}): Promise<BackendIncomeImportPreviewResponse> {
+  const res = await fetchWithAutoRefresh("/api/imports/income/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: args.filename || `income-${args.ledgerScope}.csv`,
+      ledgerScope: args.ledgerScope,
+      rows: args.rows.map((row) => ({
+        rowNo: row.rowNo,
+        ledgerScope: row.ledgerScope,
+        occurredAt: row.occurredAt,
+        amount: row.amount,
+        currency: row.currency || "JPY",
+        incomeCategory: row.incomeCategory,
+        payer: row.payer,
+        accountName: row.accountName,
+        memo: row.memo,
+        status: row.status,
+        messages: row.messages,
+      })),
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Backend preview failed: ${res.status} ${text}`);
+  }
+
+  return (await res.json()) as BackendIncomeImportPreviewResponse;
+}
+
 export function IncomeImportDialog(props: IncomeImportDialogProps) {
   const {
     open,
@@ -570,6 +636,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
   const [commitMessage, setCommitMessage] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [fallbackAccounts, setFallbackAccounts] = React.useState<IncomeImportAccountOption[]>([]);
+  const [backendImportJobId, setBackendImportJobId] = React.useState<string | null>(null);
 
   const effectiveAccounts = React.useMemo(
     () => (accounts.length > 0 ? accounts : fallbackAccounts),
@@ -624,6 +691,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
     setFileName(defaultFilename || "");
     setCsvText("");
     setPreviewRows([]);
+    setBackendImportJobId(null);
     setMessage("");
     setCommitMessage("");
   }, [defaultFilename, open]);
@@ -656,7 +724,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
 
       const text = await readIncomeImportFileAsCsvText(file);
       setCsvText(text);
-      runPreview(text, file.name);
+      await runPreview(text, file.name);
     } catch (error) {
       setStatus("error");
       setPreviewRows([]);
@@ -664,7 +732,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
     }
   }
 
-  function runPreview(sourceText = csvText, sourceFileName = fileName) {
+  async function runPreview(sourceText = csvText, sourceFileName = fileName) {
     if (!expectedScopeOk) {
       setStatus("error");
       setMessage(`未対応の ledger_scope です: ${ledgerScope}`);
@@ -673,6 +741,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
 
     try {
       setCommitMessage("");
+      setBackendImportJobId(null);
 
       const scopeValidation = validateLedgerCsvTextScope({
         currentScope: ledgerScope,
@@ -709,7 +778,21 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
           `${label} のCSVにエラー行があります。エラーを修正するまで正式登録はできません。対象行: ${rows.length} / OK: ${rows.length - errorRows} / エラー: ${errorRows}`
         );
       } else {
-        setMessage(`${label} の取込プレビューを生成しました。対象行: ${rows.length} / OK: ${rows.length} / エラー: 0`);
+        setStatus("reading");
+
+        const backendPreview = await previewIncomeImportOnBackend({
+          ledgerScope,
+          filename: sourceFileName || defaultFilename || "income-import.csv",
+          rows,
+        });
+
+        const importJobId = backendPreview.importJobId || "";
+        setBackendImportJobId(importJobId || null);
+        setStatus("preview");
+
+        setMessage(
+          `${label} の取込プレビューを生成しました。対象行: ${rows.length} / OK: ${rows.length} / エラー: 0\nBackend ImportJob: ${importJobId || "未作成"}`
+        );
       }
     } catch (error) {
       setStatus("error");
@@ -1030,6 +1113,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
                   <div className="text-lg font-bold text-slate-950">正式登録</div>
                   <p className="mt-1 text-sm text-slate-500">
                     H7B/H7C 以降で各ページからこの dialog を直接開き、登録後にページを自動更新します。
+                    {backendImportJobId ? ` Backend ImportJob: ${backendImportJobId}` : ""}
                   </p>
                 </div>
                 <button
