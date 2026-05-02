@@ -5,6 +5,8 @@ import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
 import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 import type { CashIncomeCommitDto } from './dto/cash-income-commit.dto';
+import type { IncomeImportPreviewDto } from './dto/income-import-preview.dto';
+import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 
 @Controller('api/imports')
 export class ImportsController {
@@ -35,6 +37,22 @@ export class ImportsController {
   @Post('expense/commit')
   commitExpenseImport(@Body() body: any) {
     return this.service.commitExpenseImport(body);
+  }
+
+  // Step109-Z1-H8-1-INCOME-BACKEND-CONTROLLER:
+  // Unified backend import contract for cash-income and other-income.
+  // Frontend is not switched in H8-1; this endpoint is validated by curl/API tests first.
+  @Post('income/preview')
+  previewIncomeImport(@Body() body: IncomeImportPreviewDto) {
+    return this.service.previewIncomeImportContract(body);
+  }
+
+  @Post('income/:importJobId/commit')
+  commitIncomeImport(
+    @Param('importJobId') importJobId: string,
+    @Body() body: IncomeImportCommitDto
+  ) {
+    return this.service.commitIncomeImportContract(importJobId, body);
   }
 
   @Post(':importJobId/commit')

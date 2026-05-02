@@ -7,6 +7,8 @@ import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
 import type { CashIncomePreviewDto } from './dto/cash-income-preview.dto';
 import type { CashIncomeCommitDto } from './dto/cash-income-commit.dto';
+import type { IncomeImportPreviewDto, IncomeImportPreviewRowDto, IncomeImportLedgerScopeDto } from './dto/income-import-preview.dto';
+import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 
 type MonthStat = {
   month: string;
@@ -2911,6 +2913,506 @@ export class ImportsService {
         errorRows === 0
           ? `${ledgerScope} import committed`
           : `${ledgerScope} import completed with errors`,
+    };
+  }
+
+
+  // Step109-Z1-H8-1-INCOME-BACKEND-SERVICE:
+  // Backend import-job/staging/commit contract for cash-income and other-income.
+  // This is intentionally additive: H8-1 does not switch the frontend yet.
+  private normalizeIncomeImportText(value?: string | null): string {
+    return String(value || '')
+      .normalize('NFKC')
+      .replace(/[（]/g, '(')
+      .replace(/[）]/g, ')')
+      .replace(/\s+/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  private normalizeIncomeImportDateKey(value?: string | null): string {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    const normalized = raw.replace(/\//g, '-');
+    const parsed = new Date(normalized.includes('T') ? normalized : `${normalized}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  }
+
+  private parseIncomeImportDate(value?: string | null): Date | null {
+    const key = this.normalizeIncomeImportDateKey(value);
+    if (!key) return null;
+
+    const parsed = new Date(`${key}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  }
+
+  private stripIncomeImportMarkers(value?: string | null): string {
+    return String(value || '')
+      .replace(/\s*\[file-import:[^\]]+\]\s*/g, ' ')
+      .replace(/\s*\[income_import_job:[^\]]+\]\s*/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private assertIncomeImportLedgerScope(value?: string | null): IncomeImportLedgerScopeDto {
+    const scope = String(value || '').trim();
+    if (scope === 'cash-income' || scope === 'other-income') return scope;
+    throw new BadRequestException(`Unsupported income ledgerScope: ${scope || '(empty)'}`);
+  }
+
+  private buildIncomeImportDedupeHash(args: {
+    companyId: string;
+    ledgerScope: IncomeImportLedgerScopeDto;
+    accountName: string;
+    amount: number;
+    occurredAt: string;
+    incomeCategory: string;
+    payer: string;
+    memo: string;
+  }): string {
+    return this.hashPayload([
+      args.companyId,
+      args.ledgerScope,
+      this.normalizeIncomeImportText(args.accountName),
+      Math.round(Number(args.amount || 0)),
+      this.normalizeIncomeImportDateKey(args.occurredAt),
+      this.normalizeIncomeImportText(args.incomeCategory),
+      this.normalizeIncomeImportText(args.payer),
+      this.normalizeIncomeImportText(this.stripIncomeImportMarkers(args.memo)),
+    ]);
+  }
+
+  private async resolveIncomeImportAccountId(companyId: string, accountName?: string | null): Promise<string | null> {
+    const raw = String(accountName || '').trim();
+    const normalizedRaw = this.normalizeIncomeImportText(raw)
+      .replace(/\(sample\)$/g, '')
+      .replace(/sample$/g, '')
+      .replace(/サンプル$/g, '');
+
+    const accounts = await this.prisma.account.findMany({
+      where: {
+        companyId,
+        isActive: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const normalizedAccounts = accounts
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        normalizedName: this.normalizeIncomeImportText(item.name)
+          .replace(/\(sample\)$/g, '')
+          .replace(/sample$/g, '')
+          .replace(/サンプル$/g, ''),
+      }))
+      .filter((item) => item.id && item.name);
+
+    if (!normalizedRaw) {
+      const cash = normalizedAccounts.find((item) => item.normalizedName.includes('現金') || item.normalizedName.includes('cash'));
+      return cash?.id || normalizedAccounts[0]?.id || null;
+    }
+
+    const exact = normalizedAccounts.find((item) => item.normalizedName === normalizedRaw);
+    if (exact) return exact.id;
+
+    const loose = normalizedAccounts.find((item) => {
+      return item.normalizedName.includes(normalizedRaw) || normalizedRaw.includes(item.normalizedName);
+    });
+    if (loose) return loose.id;
+
+    const cashFallback = normalizedAccounts.find((item) => {
+      return (
+        item.normalizedName.includes('現金') ||
+        item.normalizedName.includes('cash') ||
+        normalizedRaw.includes('現金') ||
+        normalizedRaw.includes('cash')
+      );
+    });
+
+    return cashFallback?.id || null;
+  }
+
+  private async resolveIncomeImportStoreId(companyId: string): Promise<string> {
+    const existing = await this.prisma.store.findFirst({
+      where: { companyId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
+    if (existing?.id) return existing.id;
+
+    const created = await this.prisma.store.create({
+      data: {
+        companyId,
+        name: 'Default Store',
+        platform: 'MANUAL',
+        region: 'JP',
+      },
+      select: { id: true },
+    });
+
+    return created.id;
+  }
+
+  private buildIncomeImportTransactionMemo(args: {
+    ledgerScope: IncomeImportLedgerScopeDto;
+    incomeCategory: string;
+    memo: string;
+    payer: string;
+    filename: string;
+    importJobId: string;
+  }): string {
+    const category = String(args.incomeCategory || '').trim();
+    const visibleMemo = this.stripIncomeImportMarkers(args.memo || category || args.payer || '収入');
+    const payerPart = args.payer ? ` / ${args.payer}` : '';
+    const filePart = ` [file-import:${args.filename}]`;
+    const jobPart = ` [income_import_job:${args.importJobId}]`;
+
+    if (args.ledgerScope === 'other-income') {
+      const finalCategory = category || 'その他収入';
+      return `[other-income-category:${finalCategory}] ${visibleMemo}${payerPart}${filePart}${jobPart}`.trim();
+    }
+
+    const finalCategory = category || '現金収入';
+    return `[cash] [cash-revenue-category:${finalCategory}] ${visibleMemo}${payerPart}${filePart}${jobPart}`.trim();
+  }
+
+  private async normalizeIncomeImportPreviewRow(args: {
+    companyId: string;
+    ledgerScope: IncomeImportLedgerScopeDto;
+    row: IncomeImportPreviewRowDto;
+    seenHashes: Set<string>;
+  }) {
+    const row = args.row;
+    const rowNo = Number(row.rowNo || 0) || 0;
+    const rowLedgerScope = String(row.ledgerScope || args.ledgerScope).trim();
+    const occurredAt = String(row.occurredAt || '').trim();
+    const amount = Math.round(Number(row.amount || 0));
+    const currency = String(row.currency || 'JPY').trim() || 'JPY';
+    const incomeCategory = String(row.incomeCategory || '').trim();
+    const payer = String(row.payer || '').trim();
+    const accountName = String(row.accountName || '').trim();
+    const memo = String(row.memo || '').trim();
+    const messages = Array.isArray(row.messages) ? [...row.messages] : [];
+
+    if (!rowLedgerScope) messages.push('ledger_scope is required');
+    if (rowLedgerScope && rowLedgerScope !== args.ledgerScope) {
+      messages.push(`ledger_scope mismatch: ${rowLedgerScope}`);
+    }
+
+    const parsedDate = this.parseIncomeImportDate(occurredAt);
+    if (!parsedDate) messages.push('occurredAt is invalid');
+    if (!Number.isFinite(amount) || amount <= 0) messages.push('amount must be greater than 0');
+    if (!incomeCategory) messages.push(args.ledgerScope === 'cash-income' ? 'incomeCategory is required' : 'other income category is required');
+    if (!accountName) messages.push('accountName is required');
+
+    const accountId = await this.resolveIncomeImportAccountId(args.companyId, accountName);
+    if (!accountId) messages.push('accountName could not be resolved');
+
+    const dedupeHash = this.buildIncomeImportDedupeHash({
+      companyId: args.companyId,
+      ledgerScope: args.ledgerScope,
+      accountName,
+      amount,
+      occurredAt,
+      incomeCategory,
+      payer,
+      memo,
+    });
+
+    let matchStatus: 'new' | 'duplicate' | 'error' = messages.length > 0 ? 'error' : 'new';
+    let matchReason = messages.join(' / ') || undefined;
+
+    if (matchStatus === 'new') {
+      if (args.seenHashes.has(dedupeHash)) {
+        matchStatus = 'duplicate';
+        matchReason = 'duplicate row in uploaded file';
+      } else {
+        const existing = await this.prisma.transaction.findFirst({
+          where: {
+            companyId: args.companyId,
+            dedupeHash,
+          },
+          select: { id: true },
+        });
+
+        if (existing?.id) {
+          matchStatus = 'duplicate';
+          matchReason = 'same dedupeHash already exists in Transaction';
+        }
+      }
+    }
+
+    args.seenHashes.add(dedupeHash);
+
+    return {
+      rowNo,
+      businessMonth: this.normalizeBusinessMonth(occurredAt),
+      matchStatus,
+      matchReason,
+      dedupeHash,
+      normalizedPayload: {
+        entityType: 'transaction',
+        module: args.ledgerScope,
+        ledgerScope: args.ledgerScope,
+        type: 'OTHER',
+        direction: 'INCOME',
+        amount,
+        currency,
+        occurredAt: parsedDate ? parsedDate.toISOString() : occurredAt,
+        incomeCategory,
+        payer,
+        accountName,
+        accountId,
+        memo,
+        dedupeHash,
+      },
+      rawPayload: {
+        rowNo: row.rowNo,
+        ledgerScope: row.ledgerScope,
+        occurredAt: row.occurredAt,
+        amount: row.amount,
+        currency: row.currency,
+        incomeCategory: row.incomeCategory,
+        payer: row.payer,
+        accountName: row.accountName,
+        memo: row.memo,
+        status: row.status,
+        messages: row.messages,
+      },
+    };
+  }
+
+  async previewIncomeImportContract(body: IncomeImportPreviewDto) {
+    const companyId = await this.resolveCompanyId(body.companyId);
+    const ledgerScope = this.assertIncomeImportLedgerScope(body.ledgerScope);
+    const filename = String(body.filename || `income-${ledgerScope}.csv`).trim();
+    const rows = Array.isArray(body.rows) ? body.rows : [];
+
+    if (rows.length === 0) {
+      throw new BadRequestException('Income import preview rows are required');
+    }
+
+    const importJob = await this.prisma.importJob.create({
+      data: {
+        companyId,
+        domain: 'income',
+        module: ledgerScope,
+        sourceType: 'CSV',
+        filename,
+        status: 'PENDING',
+        totalRows: rows.length,
+        successRows: 0,
+        failedRows: 0,
+      },
+      select: { id: true },
+    });
+
+    const seenHashes = new Set<string>();
+    const normalizedRows = [];
+
+    for (const row of rows) {
+      normalizedRows.push(
+        await this.normalizeIncomeImportPreviewRow({
+          companyId,
+          ledgerScope,
+          row,
+          seenHashes,
+        }),
+      );
+    }
+
+    await this.prisma.importStagingRow.createMany({
+      data: normalizedRows.map((row) => ({
+        importJobId: importJob.id,
+        companyId,
+        module: ledgerScope,
+        rowNo: row.rowNo,
+        businessMonth: row.businessMonth,
+        rawPayloadJson: row.rawPayload as Prisma.InputJsonValue,
+        normalizedPayloadJson: row.normalizedPayload as Prisma.InputJsonValue,
+        dedupeHash: row.dedupeHash,
+        matchStatus: row.matchStatus,
+        matchReason: row.matchReason,
+        targetEntityType: 'Transaction',
+      })),
+    });
+
+    const summary = {
+      totalRows: normalizedRows.length,
+      okRows: normalizedRows.filter((row) => row.matchStatus === 'new').length,
+      errorRows: normalizedRows.filter((row) => row.matchStatus === 'error').length,
+      duplicateRows: normalizedRows.filter((row) => row.matchStatus === 'duplicate').length,
+      totalAmount: normalizedRows
+        .filter((row) => row.matchStatus === 'new')
+        .reduce((sum, row) => sum + Number((row.normalizedPayload as any).amount || 0), 0),
+      accountMissing: normalizedRows.filter((row) => !(row.normalizedPayload as any).accountId).length,
+    };
+
+    await this.prisma.importJob.update({
+      where: { id: importJob.id },
+      data: {
+        successRows: summary.okRows,
+        failedRows: summary.errorRows,
+        status: summary.errorRows > 0 ? 'FAILED' : 'PROCESSING',
+        errorMessage: summary.errorRows > 0 ? 'Income import preview contains error rows' : null,
+      },
+    });
+
+    return {
+      importJobId: importJob.id,
+      companyId,
+      ledgerScope,
+      filename,
+      summary,
+      rows: normalizedRows.map((row) => ({
+        rowNo: row.rowNo,
+        businessMonth: row.businessMonth,
+        matchStatus: row.matchStatus,
+        matchReason: row.matchReason,
+        normalizedPayload: row.normalizedPayload,
+      })),
+    };
+  }
+
+  async commitIncomeImportContract(importJobId: string, body: IncomeImportCommitDto) {
+    const job = await this.prisma.importJob.findUnique({
+      where: { id: importJobId },
+      include: {
+        stagingRows: {
+          orderBy: { rowNo: 'asc' },
+        },
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`ImportJob not found: ${importJobId}`);
+    }
+
+    const companyId = await this.resolveCompanyId(body.companyId || job.companyId);
+    if (companyId !== job.companyId) {
+      throw new BadRequestException('ImportJob companyId mismatch');
+    }
+
+    const ledgerScope = this.assertIncomeImportLedgerScope(job.module || '');
+    const storeId = await this.resolveIncomeImportStoreId(companyId);
+
+    let imported = 0;
+    let duplicate = 0;
+    let error = 0;
+    let amount = 0;
+
+    for (const stagingRow of job.stagingRows) {
+      if (stagingRow.matchStatus !== 'new') {
+        if (stagingRow.matchStatus === 'duplicate') duplicate += 1;
+        else error += 1;
+        continue;
+      }
+
+      const payload = stagingRow.normalizedPayloadJson as any;
+      const accountId = String(payload.accountId || '').trim();
+      const dedupeHash = String(payload.dedupeHash || stagingRow.dedupeHash || '').trim();
+      const occurredAt = this.parseIncomeImportDate(payload.occurredAt);
+
+      if (!accountId || !dedupeHash || !occurredAt || !Number.isFinite(Number(payload.amount || 0))) {
+        error += 1;
+        continue;
+      }
+
+      const existing = await this.prisma.transaction.findFirst({
+        where: {
+          companyId,
+          dedupeHash,
+        },
+        select: { id: true },
+      });
+
+      if (existing?.id) {
+        duplicate += 1;
+        await this.prisma.importStagingRow.update({
+          where: { id: stagingRow.id },
+          data: {
+            matchStatus: 'duplicate',
+            matchReason: 'same dedupeHash already exists in Transaction at commit time',
+            targetEntityType: 'Transaction',
+            targetEntityId: existing.id,
+          },
+        });
+        continue;
+      }
+
+      const memo = this.buildIncomeImportTransactionMemo({
+        ledgerScope,
+        incomeCategory: String(payload.incomeCategory || ''),
+        memo: String(payload.memo || ''),
+        payer: String(payload.payer || ''),
+        filename: job.filename,
+        importJobId: job.id,
+      });
+
+      const created = await this.prisma.transaction.create({
+        data: {
+          companyId,
+          storeId,
+          accountId,
+          categoryId: null,
+          importJobId: job.id,
+          type: 'OTHER',
+          direction: 'INCOME',
+          sourceType: 'IMPORT',
+          amount: Math.round(Number(payload.amount || 0)),
+          currency: String(payload.currency || 'JPY'),
+          occurredAt,
+          memo,
+          businessMonth: this.normalizeBusinessMonth(payload.occurredAt),
+          dedupeHash,
+          sourceFileName: job.filename,
+          sourceRowNo: stagingRow.rowNo,
+        },
+        select: { id: true, amount: true },
+      });
+
+      await this.prisma.importStagingRow.update({
+        where: { id: stagingRow.id },
+        data: {
+          matchStatus: 'committed',
+          targetEntityType: 'Transaction',
+          targetEntityId: created.id,
+        },
+      });
+
+      imported += 1;
+      amount += Number(created.amount || 0);
+    }
+
+    await this.prisma.importJob.update({
+      where: { id: job.id },
+      data: {
+        status: error > 0 ? 'FAILED' : 'SUCCEEDED',
+        successRows: imported,
+        failedRows: error,
+        importedAt: new Date(),
+        errorMessage: error > 0 ? `Income import committed with ${error} error rows` : null,
+      },
+    });
+
+    return {
+      importJobId: job.id,
+      imported,
+      duplicate,
+      error,
+      amount,
     };
   }
 
