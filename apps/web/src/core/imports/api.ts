@@ -171,6 +171,16 @@ export async function commitExpenseImport(
 // Keep existing imports API exports intact because /app/data/import still depends on them.
 export type IncomeImportHistoryModule = "cash-income" | "other-income";
 
+// Step109-Z1-H9-4B-EXPENSE-HISTORY-HELPER:
+// Additive helper for expense ImportJob history panels.
+// loadImportHistorySkeleton already accepts any module string, so this is frontend type/UI wiring only.
+export type ExpenseImportHistoryModule =
+  | "company-operation-expense"
+  | "store-operation-expense"
+  | "payroll-expense"
+  | "other-expense";
+
+
 export type ImportJobHistoryStatus =
   | "PENDING"
   | "PROCESSING"
@@ -211,6 +221,16 @@ export type IncomeImportHistoryResponse = {
   message?: string;
 };
 
+export type ExpenseImportHistoryResponse = {
+  ok?: boolean;
+  action?: "history" | string;
+  companyId?: string;
+  module?: string | null;
+  total?: number;
+  items?: ImportJobHistoryItem[];
+  message?: string;
+};
+
 export async function listImportHistory(args: {
   module?: IncomeImportHistoryModule;
   companyId?: string;
@@ -224,6 +244,28 @@ export async function listImportHistory(args: {
 
   if (raw.ok === false) {
     throw new Error(raw.message || "Import history request failed.");
+  }
+
+  return {
+    ...raw,
+    items: Array.isArray(raw.items) ? raw.items : [],
+    total: Number(raw.total || 0),
+  };
+}
+
+export async function listExpenseImportHistory(args: {
+  module?: ExpenseImportHistoryModule;
+  companyId?: string;
+}): Promise<ExpenseImportHistoryResponse> {
+  const data = await loadImportHistorySkeleton({
+    module: args.module,
+    companyId: args.companyId,
+  });
+
+  const raw = data as unknown as ExpenseImportHistoryResponse;
+
+  if (raw.ok === false) {
+    throw new Error(raw.message || "Expense import history request failed.");
   }
 
   return {

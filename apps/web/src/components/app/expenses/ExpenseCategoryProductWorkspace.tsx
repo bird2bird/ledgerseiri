@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialog";
+import { ExpenseImportHistoryPanel } from "@/components/app/imports/ExpenseImportHistoryPanel";
 import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
+import type { ExpenseImportHistoryModule } from "@/core/imports/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import {
   LEDGER_SCOPES,
@@ -1641,6 +1643,16 @@ export function ExpenseCategoryProductWorkspace(props: {
           </Link>
         </div>
       </section>
+
+      {/* Step109-Z1-H9-4C-EXPENSE-HISTORY-PANEL:
+          Show ImportJob history for the current expense module.
+          This is display-only and does not change preview/commit behavior. */}
+      <ExpenseImportHistoryPanel
+        module={config.scope as ExpenseImportHistoryModule}
+        title={`${config.title} 取込履歴`}
+        description={`最近の${config.title} CSV / Excel 取込結果を確認できます。`}
+      />
+
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
