@@ -3,7 +3,9 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   commitExpenseImport,
+  previewExpenseImport,
   type ExpenseImportCommitResponse,
+  type ExpenseImportPreviewResponse,
 } from "@/core/imports";
 import {
   validateLedgerCsvTextScope,
@@ -276,6 +278,35 @@ function normalizeExpenseDialogError(args: {
 // Step109-Z1-H6A-EXPENSE-IMPORT-DIALOG:
 // Reusable scoped expense CSV/Excel import dialog.
 // H6A only creates this component. Existing /app/data/import flow remains unchanged.
+// Step109-Z1-H9-2B-EXPENSE-BACKEND-PREVIEW:
+// Send locally validated expense preview rows to backend ImportJob/ImportStagingRow.
+// H9-2 only switches preview. Formal registration remains on legacy commitExpenseImport.
+async function previewExpenseImportOnBackend(args: {
+  ledgerScope: LedgerScope;
+  filename: string;
+  category: string;
+  rows: ExpenseImportDialogRow[];
+}): Promise<ExpenseImportPreviewResponse> {
+  const data = await previewExpenseImport({
+    filename: args.filename,
+    ledgerScope: args.ledgerScope,
+    category: args.category,
+    rows: args.rows,
+  });
+
+  const importJobId = String(data.importJobId || "").trim();
+
+  if (!importJobId) {
+    throw new Error("Backend ImportJob が作成されませんでした。もう一度プレビューを実行してください。");
+  }
+
+  if (data.ledgerScope && data.ledgerScope !== args.ledgerScope) {
+    throw new Error(`Backend preview ledgerScope mismatch: ${data.ledgerScope}`);
+  }
+
+  return data;
+}
+
 export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
   const {
     open,
@@ -293,6 +324,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
   );
   const [csvText, setCsvText] = useState("");
   const [previewRows, setPreviewRows] = useState<ExpenseImportDialogRow[]>([]);
+  const [backendImportJobId, setBackendImportJobId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -307,7 +339,10 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
 
   const canPreview = Boolean(csvText.trim() && filename.trim());
   const canCommit =
-    previewRows.length > 0 && summary.errorRows === 0 && !commitLoading;
+    previewRows.length > 0 &&
+    summary.errorRows === 0 &&
+    Boolean(backendImportJobId) &&
+    !commitLoading;
 
   if (!open) return null;
 
@@ -319,6 +354,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
       setFilename(file.name || `${ledgerScope}-template.csv`);
       setCsvText(text);
       setPreviewRows([]);
+      setBackendImportJobId(null);
       setCommitResult(null);
       setError("");
       setMessage(`${label} テンプレートを読み取りました: ${file.name}`);
@@ -335,7 +371,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
     }
   }
 
-  function runPreview() {
+  async function runPreview() {
     if (!canPreview) return;
 
     setLoading(true);
@@ -350,6 +386,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
       });
       const nextSummary = summarizeExpenseDialogRows(rows);
       setPreviewRows(rows);
+      setBackendImportJobId(null);
 
       if (nextSummary.errorRows > 0) {
         setError(
@@ -362,8 +399,17 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
         return;
       }
 
+      const backendPreview = await previewExpenseImportOnBackend({
+        ledgerScope,
+        filename,
+        category,
+        rows,
+      });
+      const importJobId = String(backendPreview.importJobId || "").trim();
+      setBackendImportJobId(importJobId);
+
       setMessage(
-        `${label} の取込プレビューを生成しました。対象行: ${nextSummary.totalRows} / OK: ${nextSummary.okRows} / エラー: ${nextSummary.errorRows}`
+        `${label} の取込プレビューを生成しました。対象行: ${nextSummary.totalRows} / OK: ${nextSummary.okRows} / エラー: ${nextSummary.errorRows} / Backend ImportJob: ${importJobId}`
       );
     } catch (err) {
       setPreviewRows([]);
@@ -505,6 +551,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
               onChange={(event) => {
                 setCsvText(event.target.value);
                 setPreviewRows([]);
+                setBackendImportJobId(null);
                 setCommitResult(null);
               }}
               rows={11}
@@ -515,7 +562,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={runPreview}
+                onClick={() => void runPreview()}
                 disabled={loading || !canPreview}
                 className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
@@ -527,6 +574,7 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
                 onClick={() => {
                   setCsvText("");
                   setPreviewRows([]);
+                  setBackendImportJobId(null);
                   setError("");
                   setMessage("");
                   setCommitResult(null);
@@ -686,6 +734,15 @@ export function ExpenseImportDialog(props: ExpenseImportDialogProps) {
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
                     H6B 以降で各ページからこの dialog を直接開き、登録後にページを自動更新します。
+                    {backendImportJobId ? (
+                      <span className="ml-1 font-semibold text-emerald-700">
+                        Backend ImportJob: {backendImportJobId}
+                      </span>
+                    ) : (
+                      <span className="ml-1 font-semibold text-amber-700">
+                        先に検証を実行してください。
+                      </span>
+                    )}
                   </div>
                 </div>
 

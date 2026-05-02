@@ -314,6 +314,45 @@ export type CashIncomeCommitResponse = {
 
 
 
+// Step109-Z1-H9-2B-EXPENSE-PREVIEW-TYPES:
+// Backend preview contract for inline expense import. H9-2 only switches preview;
+// formal registration remains on legacy commitExpenseImport until H9-3.
+export type ExpenseImportPreviewRequest = {
+  companyId?: string;
+  filename?: string;
+  ledgerScope: string;
+  category?: string;
+  rows: Array<{
+    rowNo: number;
+    occurredAt: string;
+    amount: number;
+    currency?: string;
+    category: string;
+    vendor?: string;
+    accountName?: string;
+    evidenceNo?: string;
+    memo?: string;
+    status?: "ok" | "error" | string;
+    error?: string;
+  }>;
+};
+
+export type ExpenseImportPreviewResponse = {
+  ok: boolean;
+  action: "expense-preview" | string;
+  importJobId: string;
+  companyId: string | null;
+  ledgerScope: string;
+  filename: string | null;
+  totalRows: number;
+  okRows: number;
+  duplicateRows: number;
+  errorRows: number;
+  amount: number;
+  blockedRows?: number;
+  message?: string;
+};
+
 export type ExpenseImportCommitRequest = {
   companyId?: string;
   filename?: string;

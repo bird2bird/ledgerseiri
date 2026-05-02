@@ -7,6 +7,8 @@ import type {
   CommitImportResponse,
   ExpenseImportCommitRequest,
   ExpenseImportCommitResponse,
+  ExpenseImportPreviewRequest,
+  ExpenseImportPreviewResponse,
   DetectMonthConflictsRequest,
   DetectMonthConflictsResponse,
   ImportHistoryResponse,
@@ -127,6 +129,18 @@ export async function commitCashIncomeImport(
 }
 
 
+
+// Step109-Z1-H9-2B-EXPENSE-PREVIEW-API:
+// Preview inline expense import rows through backend ImportJob/ImportStagingRow.
+// H9-2 intentionally keeps formal registration on the legacy expense/commit API.
+export async function previewExpenseImport(
+  payload: ExpenseImportPreviewRequest
+): Promise<ExpenseImportPreviewResponse> {
+  return postJson<ExpenseImportPreviewResponse>(
+    "/api/imports/expense/preview",
+    payload
+  );
+}
 
 export async function commitExpenseImport(
   payload: ExpenseImportCommitRequest
