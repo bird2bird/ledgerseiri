@@ -718,6 +718,70 @@ export class JobService {
     };
   }
 
+  // Step109-Z1-H11-J-IMPORT-JOB-DETAIL-API:
+  // Minimal backend detail API mappers for Import Center drawer.
+  private mapImportStagingRow(item: {
+    id: string;
+    importJobId: string;
+    companyId: string;
+    module: string;
+    rowNo: number;
+    businessMonth: string | null;
+    rawPayloadJson: unknown;
+    normalizedPayloadJson: unknown;
+    dedupeHash: string | null;
+    matchStatus: string;
+    matchReason: string | null;
+    targetEntityType: string | null;
+    targetEntityId: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: item.id,
+      importJobId: item.importJobId,
+      companyId: item.companyId,
+      module: item.module,
+      rowNo: item.rowNo,
+      businessMonth: item.businessMonth,
+      rawPayloadJson: item.rawPayloadJson,
+      normalizedPayloadJson: item.normalizedPayloadJson,
+      dedupeHash: item.dedupeHash,
+      matchStatus: item.matchStatus,
+      matchReason: item.matchReason,
+      targetEntityType: item.targetEntityType,
+      targetEntityId: item.targetEntityId,
+      createdAt: item.createdAt.toISOString(),
+    };
+  }
+
+  private mapImportTransactionTrace(item: {
+    id: string;
+    companyId: string | null;
+    importJobId: string | null;
+    sourceRowNo: number | null;
+    type: string;
+    direction: string | null;
+    amount: unknown;
+    occurredAt: Date;
+    businessMonth: string | null;
+    memo: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: item.id,
+      companyId: item.companyId,
+      importJobId: item.importJobId,
+      sourceRowNo: item.sourceRowNo,
+      type: item.type,
+      direction: item.direction || '',
+      amount: Number(item.amount || 0),
+      occurredAt: item.occurredAt.toISOString(),
+      businessMonth: item.businessMonth || '',
+      memo: item.memo,
+      createdAt: item.createdAt.toISOString(),
+    };
+  }
+
   private mapExportJob(item: {
     id: string;
     companyId: string;
@@ -759,6 +823,114 @@ export class JobService {
       items: rows.map((item) => this.mapImportJob(item)),
       total: rows.length,
       message: 'import-jobs loaded',
+    };
+  }
+
+  async getImportJobDetail(id: string) {
+    const companyId = await this.resolveCompanyId();
+
+    const row = await this.prisma.importJob.findFirst({
+      where: { id, companyId },
+    });
+
+    if (!row) {
+      return {
+        ok: false,
+        domain: 'import-jobs' as JobDomain,
+        action: 'detail',
+        item: null,
+        message: 'import job not found',
+      };
+    }
+
+    return {
+      ok: true,
+      domain: 'import-jobs' as JobDomain,
+      action: 'detail',
+      item: this.mapImportJob(row),
+      message: 'import job detail loaded',
+    };
+  }
+
+  async listImportJobStagingRows(id: string) {
+    const companyId = await this.resolveCompanyId();
+
+    const job = await this.prisma.importJob.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+
+    if (!job) {
+      return {
+        ok: false,
+        domain: 'import-jobs' as JobDomain,
+        action: 'staging-rows',
+        importJobId: id,
+        items: [],
+        total: 0,
+        message: 'import job not found',
+      };
+    }
+
+    const rows = await this.prisma.importStagingRow.findMany({
+      where: {
+        companyId,
+        importJobId: id,
+      },
+      orderBy: [{ rowNo: 'asc' }, { createdAt: 'asc' }],
+      take: 200,
+    });
+
+    return {
+      ok: true,
+      domain: 'import-jobs' as JobDomain,
+      action: 'staging-rows',
+      importJobId: id,
+      items: rows.map((item) => this.mapImportStagingRow(item)),
+      total: rows.length,
+      limit: 200,
+      message: 'import staging rows loaded',
+    };
+  }
+
+  async listImportJobTransactions(id: string) {
+    const companyId = await this.resolveCompanyId();
+
+    const job = await this.prisma.importJob.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+
+    if (!job) {
+      return {
+        ok: false,
+        domain: 'import-jobs' as JobDomain,
+        action: 'transactions',
+        importJobId: id,
+        items: [],
+        total: 0,
+        message: 'import job not found',
+      };
+    }
+
+    const rows = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        importJobId: id,
+      },
+      orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+
+    return {
+      ok: true,
+      domain: 'import-jobs' as JobDomain,
+      action: 'transactions',
+      importJobId: id,
+      items: rows.map((item) => this.mapImportTransactionTrace(item)),
+      total: rows.length,
+      limit: 200,
+      message: 'import transactions loaded',
     };
   }
 
