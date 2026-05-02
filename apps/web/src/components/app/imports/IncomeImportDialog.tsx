@@ -6,7 +6,6 @@ import {
   type LedgerScope,
   validateLedgerCsvTextScope,
 } from "@/core/ledger/ledger-scopes";
-import { createTransaction, listTransactions } from "@/core/transactions/api";
 import { listAccounts } from "@/core/funds/api";
 import { fetchWithAutoRefresh } from "@/core/auth/client-auth-fetch";
 
@@ -74,6 +73,14 @@ type BackendIncomeImportPreviewResponse = {
       [key: string]: unknown;
     };
   }>;
+};
+
+type BackendIncomeImportCommitResponse = {
+  importJobId?: string | null;
+  imported?: number;
+  duplicate?: number;
+  error?: number;
+  amount?: number;
 };
 
 export type IncomeImportDialogProps = {
@@ -535,50 +542,6 @@ function resolveIncomeAccountId(accountName: string, accounts: IncomeImportAccou
   return cashFallback?.id || "";
 }
 
-function stripImportMarkers(value?: string | null) {
-  return String(value || "")
-    .replace(/\s*\[file-import:[^\]]+\]\s*/g, " ")
-    .replace(/\s*\[income_import_job:[^\]]+\]\s*/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function buildIncomeImportedMemo(args: {
-  ledgerScope: IncomeImportScope;
-  category: string;
-  memo: string;
-  payer: string;
-  fileName: string;
-}) {
-  const category = String(args.category || "").trim();
-  const visibleMemo = stripImportMarkers(args.memo || category || args.payer || "収入");
-  const payerPart = args.payer ? ` / ${args.payer}` : "";
-  const filePart = ` [file-import:${args.fileName}]`;
-
-  if (args.ledgerScope === LEDGER_SCOPES.OTHER_INCOME) {
-    const finalCategory = category || "その他収入";
-    return `[other-income-category:${finalCategory}] ${visibleMemo}${payerPart}${filePart}`.trim();
-  }
-
-  const finalCategory = category || "現金収入";
-  return `[cash] [cash-revenue-category:${finalCategory}] ${visibleMemo}${payerPart}${filePart}`.trim();
-}
-
-function buildIncomeDedupeKey(args: {
-  accountName: string;
-  amount: number;
-  occurredAt: string;
-  memo: string;
-}) {
-  return [
-    normalizeText(args.accountName),
-    String(Math.round(Number(args.amount || 0))),
-    normalizeDateKey(args.occurredAt),
-    normalizeText(stripImportMarkers(args.memo)),
-  ].join("__");
-}
-
-
 // Step109-Z1-H8-2-INCOME-BACKEND-PREVIEW:
 // Send local validated preview rows to backend ImportJob/ImportStagingRow.
 // H8-2 intentionally keeps commit on the existing client-side createTransaction path.
@@ -615,6 +578,31 @@ async function previewIncomeImportOnBackend(args: {
   }
 
   return (await res.json()) as BackendIncomeImportPreviewResponse;
+}
+
+// Step109-Z1-H8-3-INCOME-BACKEND-COMMIT:
+// Commit the backend-created ImportJob and let the backend create IMPORT transactions.
+// This replaces the client-side listTransactions/createTransaction commit path.
+async function commitIncomeImportOnBackend(args: {
+  importJobId: string;
+}): Promise<BackendIncomeImportCommitResponse> {
+  const importJobId = String(args.importJobId || "").trim();
+  if (!importJobId) {
+    throw new Error("Backend ImportJob が未作成です。先に取込プレビューを実行してください。");
+  }
+
+  const res = await fetchWithAutoRefresh(`/api/imports/income/${encodeURIComponent(importJobId)}/commit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Backend commit failed: ${res.status} ${text}`);
+  }
+
+  return (await res.json()) as BackendIncomeImportCommitResponse;
 }
 
 export function IncomeImportDialog(props: IncomeImportDialogProps) {
@@ -807,87 +795,35 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
     const okRows = previewRows.filter((row) => row.status === "ok");
     if (okRows.length === 0 || summary.errorRows > 0) return;
 
+    const importJobId = backendImportJobId || "";
+    if (!importJobId) {
+      setStatus("error");
+      setCommitMessage("");
+      setMessage("Backend ImportJob が未作成です。先に取込プレビューを実行してください。");
+      return;
+    }
+
     setStatus("committing");
     setCommitMessage("");
 
     try {
-      const existing = await listTransactions("INCOME");
-      const existingKeys = new Set(
-        (existing.items ?? []).map((item) =>
-          buildIncomeDedupeKey({
-            accountName: item.accountName || "",
-            amount: Number(item.amount || 0),
-            occurredAt: item.occurredAt || "",
-            memo: item.memo || "",
-          })
-        )
-      );
+      const result = await commitIncomeImportOnBackend({ importJobId });
 
-      const seenInFile = new Set<string>();
-      // Step109-Z1-H7D-INCOME-IMPORT-JOB-MARKER:
-      // Client-side import batch id for post-commit page return banner/highlight.
-      // Step109-Z1-H7D-FIX2-INCOME-IMPORT-JOB-MARKER:
-      // Client-side import batch id for post-commit banner/highlight on income pages.
-      const importJobId = `income-${ledgerScope}-${Date.now().toString(36)}`;
-      let imported = 0;
-      let duplicate = 0;
-      let error = 0;
-      let amount = 0;
-
-      for (const row of okRows) {
-        const accountId = resolveIncomeAccountId(row.accountName, effectiveAccounts);
-        const occurredAt = new Date(normalizeDateInput(row.occurredAt));
-
-        if (!accountId || Number.isNaN(occurredAt.getTime())) {
-          error += 1;
-          continue;
-        }
-
-        const memoForTransaction = buildIncomeImportedMemo({
-          ledgerScope,
-          category: row.incomeCategory,
-          memo: row.memo,
-          payer: row.payer,
-          fileName: fileName || defaultFilename || "income-import.csv",
-        });
-
-        const dedupeKey = buildIncomeDedupeKey({
-          accountName: row.accountName,
-          amount: row.amount,
-          occurredAt: row.occurredAt,
-          memo: `${memoForTransaction} [income_import_job:${importJobId}]`,
-        });
-
-        if (existingKeys.has(dedupeKey) || seenInFile.has(dedupeKey)) {
-          duplicate += 1;
-          continue;
-        }
-
-        await createTransaction({
-          accountId,
-          categoryId: null,
-          type: "OTHER",
-          direction: "INCOME",
-          amount: Number(row.amount || 0),
-          currency: row.currency || "JPY",
-          occurredAt: occurredAt.toISOString(),
-          // Step109-Z1-H7D-FIX2A-F2-CREATE-TRANSACTION-MEMO-IMPORT-JOB: persist client import batch id for return banner/highlight.
-          memo: `${memoForTransaction} [income_import_job:${importJobId}]`,
-        });
-
-        existingKeys.add(dedupeKey);
-        seenInFile.add(dedupeKey);
-        imported += 1;
-        amount += Number(row.amount || 0);
-      }
+      const imported = Number(result.imported || 0);
+      const duplicate = Number(result.duplicate || 0);
+      const error = Number(result.error || 0);
+      const amount = Number(result.amount || 0);
+      const committedImportJobId = result.importJobId || importJobId;
 
       setStatus("done");
       setCommitMessage(
         `${label} の正式登録が完了しました。登録: ${imported} / 重複: ${duplicate} / エラー: ${error} / 金額: ${formatJPY(amount)}`
       );
 
+      setBackendImportJobId(null);
+
       await onCommitted?.({
-        importJobId,
+        importJobId: committedImportJobId,
         imported,
         duplicate,
         error,
@@ -895,15 +831,17 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
       });
     } catch (error) {
       setStatus("error");
-      setCommitMessage(error instanceof Error ? error.message : String(error));
+      setCommitMessage("");
+      setMessage(error instanceof Error ? error.message : String(error));
     }
   }
 
   const canCommit =
-    status !== "committing" &&
-    summary.totalRows > 0 &&
+    status === "preview" &&
+    previewRows.length > 0 &&
     summary.okRows > 0 &&
-    summary.errorRows === 0;
+    summary.errorRows === 0 &&
+    Boolean(backendImportJobId);
 
   const isErrorMessage = status === "error" || summary.errorRows > 0;
 
@@ -1112,7 +1050,7 @@ export function IncomeImportDialog(props: IncomeImportDialogProps) {
                 <div>
                   <div className="text-lg font-bold text-slate-950">正式登録</div>
                   <p className="mt-1 text-sm text-slate-500">
-                    H7B/H7C 以降で各ページからこの dialog を直接開き、登録後にページを自動更新します。
+                    H8-3 以降は Backend ImportJob を正式登録し、登録後にページを自動更新します。
                     {backendImportJobId ? ` Backend ImportJob: ${backendImportJobId}` : ""}
                   </p>
                 </div>
