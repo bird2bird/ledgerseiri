@@ -8,6 +8,9 @@ import { fmtDate } from "./jobs-shared";
 // Productize Import Center list/status without changing backend contracts.
 // Keep pending-preview semantics aligned with income/expense history:
 // PROCESSING + successRows > 0 + failedRows === 0 => 未正式登録.
+//
+// Step109-Z1-H11-D-IMPORT-CENTER-MODULE-SOURCE-IMPORTED-AT:
+// Display ImportJob module/sourceType/importedAt fields returned by H11-C.
 
 type ImportCenterTone =
   | "success"
@@ -88,7 +91,7 @@ function getImportCenterJobHint(job: ImportJobItem) {
   }
 
   if (tone === "pendingPreview") {
-    return "検証済みですが、まだ正式登録されていません。正式登録または再検証が必要です。";
+    return "検証済みですが、importedAt が未設定です。正式登録または再検証が必要です。";
   }
 
   if (tone === "processing") {
@@ -116,16 +119,60 @@ function formatRows(job: ImportJobItem) {
   };
 }
 
-function getDomainLabel(value?: string | null) {
-  const domain = String(value || "").trim();
-  if (!domain) return "-";
+function getImportCenterModuleLabel(module?: string | null) {
+  const value = String(module || "").trim();
 
+  if (value === "cash-income") return "現金収入";
+  if (value === "other-income") return "その他収入";
+  if (value === "company-operation-expense") return "会社運営費";
+  if (value === "store-operation-expense") return "店舗運営費";
+  if (value === "payroll-expense") return "給与";
+  if (value === "other-expense") return "その他支出";
+  if (value === "store-orders") return "店舗注文";
+  if (value === "store-operation") return "店舗運営費";
+  return value || "-";
+}
+
+function getImportCenterSourceTypeLabel(sourceType?: string | null) {
+  const value = String(sourceType || "").trim();
+
+  if (!value) return "-";
+  if (value.toLowerCase() === "csv") return "CSV";
+  if (value === "expense-csv") return "支出CSV";
+  if (value === "amazon-csv") return "Amazon CSV";
+  if (value === "manual") return "手動";
+  return value;
+}
+
+function getDomainLabel(value?: string | null, module?: string | null) {
+  const domain = String(value || "").trim();
+  const moduleValue = String(module || "").trim();
+
+  if (domain === "income" && moduleValue === "cash-income") return "現金収入";
+  if (domain === "income" && moduleValue === "other-income") return "その他収入";
+  if (domain === "ledger" && moduleValue === "company-operation-expense") return "会社運営費";
+  if (domain === "ledger" && moduleValue === "store-operation-expense") return "店舗運営費";
+  if (domain === "ledger" && moduleValue === "payroll-expense") return "給与";
+  if (domain === "ledger" && moduleValue === "other-expense") return "その他支出";
+
+  if (!domain) return getImportCenterModuleLabel(moduleValue);
   if (domain === "amazon-store-orders") return "Amazon 店舗注文";
+  if (domain === "store-orders") return "店舗注文";
   if (domain === "import-jobs") return "Import Jobs";
   if (domain === "cash-income") return "現金収入";
   if (domain === "other-income") return "その他収入";
   if (domain.includes("expense")) return "支出";
   return domain;
+}
+
+function getImportedAtLabel(job: ImportJobItem) {
+  return job.importedAt ? fmtDate(job.importedAt) : "未登録";
+}
+
+function getImportedAtToneClass(job: ImportJobItem) {
+  if (job.importedAt) return "text-emerald-700";
+  if (isImportCenterPendingPreview(job)) return "text-sky-700";
+  return "text-slate-400";
 }
 
 function getStatusFilterValue(job: ImportJobItem) {
@@ -193,7 +240,10 @@ export function ImportJobsTableCard(props: {
         job.id,
         job.filename,
         job.domain,
+        job.module,
+        job.sourceType,
         job.status,
+        job.importedAt,
         job.errorMessage,
       ]
         .map((x) => String(x || "").toLowerCase())
@@ -314,10 +364,10 @@ export function ImportJobsTableCard(props: {
       ) : (
         <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200 bg-white">
           <div className="hidden grid-cols-[minmax(0,1.35fr)_150px_170px_160px] gap-4 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 lg:grid">
-            <div>ファイル / ドメイン</div>
+            <div>ファイル / 種別</div>
             <div>状態</div>
             <div>件数</div>
-            <div>更新日時</div>
+            <div>登録 / 更新</div>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -334,9 +384,19 @@ export function ImportJobsTableCard(props: {
                       {job.filename || "-"}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-500">
-                        {getDomainLabel(job.domain)}
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                        {getDomainLabel(job.domain, job.module)}
                       </span>
+                      {job.module ? (
+                        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">
+                          {getImportCenterModuleLabel(job.module)}
+                        </span>
+                      ) : null}
+                      {job.sourceType ? (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                          {getImportCenterSourceTypeLabel(job.sourceType)}
+                        </span>
+                      ) : null}
                       <span className="font-mono text-[11px] font-semibold text-slate-400">
                         {job.id ? `${job.id.slice(0, 8)}...` : "-"}
                       </span>
@@ -370,12 +430,15 @@ export function ImportJobsTableCard(props: {
 
                   <div>
                     <div className="mb-1 text-[11px] font-bold text-slate-400 lg:hidden">
-                      更新日時
+                      登録 / 更新
                     </div>
-                    <div className="font-semibold text-slate-700">
-                      {fmtDate(job.updatedAt)}
+                    <div className={`font-bold ${getImportedAtToneClass(job)}`}>
+                      登録: {getImportedAtLabel(job)}
                     </div>
-                    <div className="mt-1 text-[11px] font-semibold text-slate-400">
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                      更新: {fmtDate(job.updatedAt)}
+                    </div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
                       作成: {fmtDate(job.createdAt)}
                     </div>
                   </div>
