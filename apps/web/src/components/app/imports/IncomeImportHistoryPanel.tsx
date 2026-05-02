@@ -6,6 +6,14 @@ import {
   type ImportJobHistoryItem,
   type IncomeImportHistoryModule,
 } from "@/core/imports/api";
+import {
+  formatImportHistoryDate,
+  formatImportHistoryRows,
+  getBaseImportHistoryRowClass,
+  getBaseImportHistoryStatusClass,
+  getBaseImportHistoryStatusLabel,
+  shortImportJobId,
+} from "@/components/app/imports/importHistoryUi";
 
 type IncomeImportHistoryPanelProps = {
   module: IncomeImportHistoryModule;
@@ -14,98 +22,10 @@ type IncomeImportHistoryPanelProps = {
   limit?: number;
 };
 
-function formatImportHistoryDate(value?: string | null) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return raw;
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function getImportHistoryModuleLabel(module?: string | null) {
   if (module === "cash-income") return "現金収入";
   if (module === "other-income") return "その他収入";
   return module || "-";
-}
-
-function getImportHistoryStatusLabel(item: ImportJobHistoryItem) {
-  const status = String(item.status || "").toUpperCase();
-  const total = Number(item.totalRows || 0);
-  const success = Number(item.successRows || 0);
-  const failed = Number(item.failedRows || 0);
-
-  if (status === "FAILED" || failed > 0) return "失敗";
-  if (status === "SUCCEEDED" && total > 0 && success === 0) return "登録0件";
-  if (status === "SUCCEEDED") return "成功";
-  if (status === "PROCESSING") return "処理中";
-  if (status === "PENDING") return "待機中";
-  if (status === "CANCELLED") return "取消";
-  return item.status || "-";
-}
-
-function getImportHistoryStatusClass(item: ImportJobHistoryItem) {
-  const status = String(item.status || "").toUpperCase();
-  const total = Number(item.totalRows || 0);
-  const success = Number(item.successRows || 0);
-  const failed = Number(item.failedRows || 0);
-
-  if (status === "FAILED" || failed > 0) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  if (status === "SUCCEEDED" && total > 0 && success === 0) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "SUCCEEDED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "PROCESSING" || status === "PENDING") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-600";
-}
-
-function getImportHistoryRowClass(item: ImportJobHistoryItem) {
-  const status = String(item.status || "").toUpperCase();
-  const success = Number(item.successRows || 0);
-  const failed = Number(item.failedRows || 0);
-
-  if (status === "FAILED" || failed > 0) {
-    return "bg-rose-50/35";
-  }
-
-  if (status === "SUCCEEDED" && success === 0) {
-    return "bg-amber-50/35";
-  }
-
-  return "bg-white";
-}
-
-function shortImportJobId(id?: string | null) {
-  const raw = String(id || "").trim();
-  if (raw.length <= 14) return raw || "-";
-  return `${raw.slice(0, 8)}…${raw.slice(-6)}`;
-}
-
-function formatRows(item: ImportJobHistoryItem) {
-  const total = Number(item.totalRows || 0);
-  const success = Number(item.successRows || 0);
-  const failed = Number(item.failedRows || 0);
-
-  if (failed > 0) return `${success}/${total} 件・エラー ${failed}`;
-  if (total > 0 && success === 0) return `0/${total} 件・登録なし`;
-  return `${success}/${total} 件`;
 }
 
 export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
@@ -158,11 +78,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
             </span>
             {latestItem ? (
               <span
-                className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getImportHistoryStatusClass(
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getBaseImportHistoryStatusClass(
                   latestItem
                 )}`}
               >
-                最新: {getImportHistoryStatusLabel(latestItem)}
+                最新: {getBaseImportHistoryStatusLabel(latestItem)}
               </span>
             ) : null}
           </div>
@@ -234,7 +154,7 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                 {visibleItems.map((item) => (
                   <div
                     key={item.id}
-                    className={`grid grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] gap-4 px-4 py-3 text-sm transition hover:bg-slate-50 ${getImportHistoryRowClass(
+                    className={`grid grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] gap-4 px-4 py-3 text-sm transition hover:bg-slate-50 ${getBaseImportHistoryRowClass(
                       item
                     )}`}
                   >
@@ -260,16 +180,16 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                     </div>
 
                     <div className="text-sm font-bold text-slate-700">
-                      {formatRows(item)}
+                      {formatImportHistoryRows(item)}
                     </div>
 
                     <div>
                       <span
-                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getImportHistoryStatusClass(
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getBaseImportHistoryStatusClass(
                           item
                         )}`}
                       >
-                        {getImportHistoryStatusLabel(item)}
+                        {getBaseImportHistoryStatusLabel(item)}
                       </span>
 
                       {item.errorMessage ? (

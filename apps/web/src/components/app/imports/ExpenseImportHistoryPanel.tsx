@@ -6,6 +6,14 @@ import {
   type ExpenseImportHistoryModule,
   type ImportJobHistoryItem,
 } from "@/core/imports/api";
+import {
+  formatImportHistoryDate,
+  formatImportHistoryRows,
+  getBaseImportHistoryRowClass,
+  getBaseImportHistoryStatusClass,
+  getBaseImportHistoryStatusLabel,
+  shortImportJobId,
+} from "@/components/app/imports/importHistoryUi";
 
 type ExpenseImportHistoryPanelProps = {
   module: ExpenseImportHistoryModule;
@@ -17,22 +25,6 @@ type ExpenseImportHistoryPanelProps = {
   refreshToken?: number;
   highlightedImportJobId?: string | null;
 };
-
-function formatImportHistoryDate(value?: string | null) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return raw;
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function getExpenseImportHistoryModuleLabel(module?: string | null) {
   if (module === "company-operation-expense") return "会社運営費";
@@ -58,14 +50,8 @@ function getExpenseImportHistoryStatusLabel(item: ImportJobHistoryItem) {
   const success = Number(item.successRows || 0);
   const failed = Number(item.failedRows || 0);
 
-  if (status === "FAILED" || failed > 0) return "失敗";
-  if (status === "SUCCEEDED" && total > 0 && success === 0) return "登録0件";
-  if (status === "SUCCEEDED") return "成功";
   if (isExpenseImportPendingPreview(item)) return "未正式登録";
-  if (status === "PROCESSING") return "処理中";
-  if (status === "PENDING") return "待機中";
-  if (status === "CANCELLED") return "取消";
-  return item.status || "-";
+  return getBaseImportHistoryStatusLabel(item);
 }
 
 function getExpenseImportHistoryStatusClass(item: ImportJobHistoryItem) {
@@ -73,18 +59,6 @@ function getExpenseImportHistoryStatusClass(item: ImportJobHistoryItem) {
   const total = Number(item.totalRows || 0);
   const success = Number(item.successRows || 0);
   const failed = Number(item.failedRows || 0);
-
-  if (status === "FAILED" || failed > 0) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  if (status === "SUCCEEDED" && total > 0 && success === 0) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "SUCCEEDED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
 
   if (isExpenseImportPendingPreview(item)) {
     return "border-sky-200 bg-sky-50 text-sky-700";
@@ -94,21 +68,13 @@ function getExpenseImportHistoryStatusClass(item: ImportJobHistoryItem) {
     return "border-violet-200 bg-violet-50 text-violet-700";
   }
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return getBaseImportHistoryStatusClass(item);
 }
 
 function getExpenseImportHistoryRowClass(item: ImportJobHistoryItem) {
   const status = String(item.status || "").toUpperCase();
   const success = Number(item.successRows || 0);
   const failed = Number(item.failedRows || 0);
-
-  if (status === "FAILED" || failed > 0) {
-    return "bg-rose-50/35";
-  }
-
-  if (status === "SUCCEEDED" && success === 0) {
-    return "bg-amber-50/35";
-  }
 
   if (isExpenseImportPendingPreview(item)) {
     return "bg-sky-50/25";
@@ -118,23 +84,7 @@ function getExpenseImportHistoryRowClass(item: ImportJobHistoryItem) {
     return "bg-violet-50/25";
   }
 
-  return "bg-white";
-}
-
-function shortImportJobId(id?: string | null) {
-  const raw = String(id || "").trim();
-  if (raw.length <= 14) return raw || "-";
-  return `${raw.slice(0, 8)}…${raw.slice(-6)}`;
-}
-
-function formatRows(item: ImportJobHistoryItem) {
-  const total = Number(item.totalRows || 0);
-  const success = Number(item.successRows || 0);
-  const failed = Number(item.failedRows || 0);
-
-  if (failed > 0) return `${success}/${total} 件・エラー ${failed}`;
-  if (total > 0 && success === 0) return `0/${total} 件・登録なし`;
-  return `${success}/${total} 件`;
+  return getBaseImportHistoryRowClass(item);
 }
 
 // Step109-Z1-H9-5-EXPENSE-HISTORY-POLISH:
@@ -459,7 +409,7 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                       <div className="mb-1 text-[11px] font-bold text-slate-400 md:hidden">
                         件数
                       </div>
-                      {formatRows(item)}
+                      {formatImportHistoryRows(item)}
                     </div>
 
                     <div>
