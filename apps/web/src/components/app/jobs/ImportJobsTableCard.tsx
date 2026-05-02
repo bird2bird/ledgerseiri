@@ -17,6 +17,18 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-F-IMPORT-JOB-DRAWER-SOURCE-NAVIGATION:
 // Polish drawer actions and add source page navigation without backend changes.
+//
+// Step109-Z1-H11-G-IMPORT-JOB-URL-HIGHLIGHT:
+// Read importJobId from URL, auto-open drawer, highlight selected row, and sync URL.
+//
+// Step109-Z1-H11-G-FIX1-STOP-URL-DRAWER-FLICKER:
+// Apply URL importJobId only once per id and avoid redundant replaceState calls.
+//
+// Step109-Z1-H11-G-FIX2-DRAWER-OVERLAY-NO-BLUR:
+// Remove backdrop blur and button overlay to avoid mouse-triggered compositor flicker.
+//
+// Step109-Z1-H11-G-FIX3-DISABLE-URL-AUTO-DRAWER:
+// URL importJobId highlights the row only; users open drawer manually.
 
 type ImportCenterTone =
   | "success"
@@ -306,6 +318,45 @@ function getImportJobSourceActionHint(job: ImportJobItem) {
   return `${label} の関連ページで登録済みデータを確認できます。`;
 }
 
+function getImportJobIdFromUrl() {
+  if (typeof window === "undefined") return "";
+
+  try {
+    return new URLSearchParams(window.location.search).get("importJobId") || "";
+  } catch {
+    return "";
+  }
+}
+
+function syncImportJobIdToUrl(importJobId: string | null) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const url = new URL(window.location.href);
+
+    if (importJobId) {
+      url.searchParams.set("importJobId", importJobId);
+    } else {
+      url.searchParams.delete("importJobId");
+    }
+
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState({}, "", nextUrl);
+    }
+  } catch {
+    // noop: URL sync is a UI enhancement only.
+  }
+}
+
+function getSelectedImportJobRowClass(job: ImportJobItem, selectedJobId: string | null) {
+  if (!selectedJobId || job.id !== selectedJobId) return "";
+
+  return "ring-2 ring-sky-300 ring-inset bg-sky-50/70";
+}
+
 function getDrawerActionToneClass(job: ImportJobItem) {
   const tone = getImportCenterJobTone(job);
 
@@ -354,11 +405,12 @@ function ImportJobDetailDrawer(props: {
 
   return (
     <div className="fixed inset-y-0 right-0 left-[260px] z-50 pointer-events-none">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={-1}
         aria-label="ImportJob detail drawer を閉じる"
         onClick={onClose}
-        className="absolute inset-0 bg-slate-950/20 backdrop-blur-[2px] pointer-events-auto"
+        className="absolute inset-0 bg-slate-950/25 pointer-events-auto"
       />
 
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-white shadow-2xl pointer-events-auto">
@@ -529,8 +581,37 @@ export function ImportJobsTableCard(props: {
   const [domainFilter, setDomainFilter] = React.useState("ALL");
   const [statusFilter, setStatusFilter] = React.useState("ALL");
   const [selectedJob, setSelectedJob] = React.useState<ImportJobItem | null>(null);
+  const [selectedJobId, setSelectedJobId] = React.useState<string | null>(null);
+  const appliedUrlImportJobIdRef = React.useRef<string | null>(null);
 
   const domains = React.useMemo(() => uniqueDomains(props.jobs), [props.jobs]);
+
+  const openImportJobDetail = React.useCallback((job: ImportJobItem) => {
+    appliedUrlImportJobIdRef.current = job.id;
+    setSelectedJob((current) => (current?.id === job.id ? current : job));
+    setSelectedJobId((current) => (current === job.id ? current : job.id));
+    syncImportJobIdToUrl(job.id);
+  }, []);
+
+  const closeImportJobDetail = React.useCallback(() => {
+    appliedUrlImportJobIdRef.current = null;
+    setSelectedJob(null);
+    setSelectedJobId(null);
+    syncImportJobIdToUrl(null);
+  }, []);
+
+  React.useEffect(() => {
+    const importJobId = getImportJobIdFromUrl();
+
+    if (!importJobId) {
+      return;
+    }
+
+    // FIX3: URL selection should only highlight the row.
+    // Auto-opening the drawer from URL caused overlay repaint/flicker on hover.
+    setSelectedJobId((current) => (current === importJobId ? current : importJobId));
+    setSelectedJob(null);
+  }, [props.jobs]);
 
   const filteredJobs = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -585,6 +666,11 @@ export function ImportJobsTableCard(props: {
           {summary.danger > 0 ? (
             <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
               失敗 {summary.danger.toLocaleString("ja-JP")}
+            </span>
+          ) : null}
+          {selectedJobId ? (
+            <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-700">
+              選択中 {selectedJobId.slice(0, 8)}... / 詳細ボタンで開く
             </span>
           ) : null}
         </div>
@@ -658,6 +744,13 @@ export function ImportJobsTableCard(props: {
         </div>
       </div>
 
+      {selectedJobId && !props.jobs.some((job) => job.id === selectedJobId) ? (
+        <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-700">
+          URL で指定された ImportJob ID は現在の一覧に見つかりません。
+          フィルター解除、履歴更新、または対象データの確認を行ってください。
+        </div>
+      ) : null}
+
       {props.jobs.length === 0 ? (
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
           <div className="text-sm font-bold text-slate-700">ImportJob はまだありません。</div>
@@ -685,7 +778,7 @@ export function ImportJobsTableCard(props: {
               return (
                 <div
                   key={job.id}
-                  className={`grid gap-3 px-4 py-4 text-sm transition lg:grid-cols-[minmax(0,1.35fr)_150px_170px_160px] lg:gap-4 ${getImportCenterRowClass(job)}`}
+                  className={`grid gap-3 px-4 py-4 text-sm transition lg:grid-cols-[minmax(0,1.35fr)_150px_170px_160px] lg:gap-4 ${getImportCenterRowClass(job)} ${getSelectedImportJobRowClass(job, selectedJobId)}`}
                 >
                   <div className="min-w-0">
                     <div className="truncate font-bold text-slate-900">
@@ -712,6 +805,11 @@ export function ImportJobsTableCard(props: {
                     <div className="mt-2 line-clamp-2 text-xs font-semibold text-slate-500">
                       {getImportCenterJobHint(job)}
                     </div>
+                    {selectedJobId === job.id && !selectedJob ? (
+                      <div className="mt-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-black text-sky-700">
+                        URLで選択中。詳細ボタンで開けます。
+                      </div>
+                    ) : null}
                   </div>
 
                   <div>
@@ -726,7 +824,7 @@ export function ImportJobsTableCard(props: {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedJob(job)}
+                      onClick={() => openImportJobDetail(job)}
                       className="mt-2 inline-flex h-8 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       詳細
@@ -766,7 +864,7 @@ export function ImportJobsTableCard(props: {
 
       <ImportJobDetailDrawer
         job={selectedJob}
-        onClose={() => setSelectedJob(null)}
+        onClose={closeImportJobDetail}
       />
     </section>
   );
