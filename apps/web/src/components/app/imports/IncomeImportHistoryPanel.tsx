@@ -34,6 +34,49 @@ function getImportHistoryModuleLabel(module?: string | null) {
 
 // Step109-Z1-H10-2-INCOME-HISTORY-VISUAL-PARITY:
 // Income history keeps its own panel but aligns visual states with ExpenseImportHistoryPanel.
+// Step109-Z1-H10-4-INCOME-PENDING-PREVIEW-SEMANTICS:
+// PROCESSING with successful preview rows and no failed rows means "previewed but not committed".
+// It should be shown as 未正式登録, not generic 処理中.
+function isIncomeImportPendingPreview(item: ImportJobHistoryItem) {
+  const status = String(item.status || "").toUpperCase();
+  const success = Number(item.successRows || 0);
+  const failed = Number(item.failedRows || 0);
+  return status === "PROCESSING" && success > 0 && failed === 0;
+}
+
+function getIncomeImportHistoryStatusLabel(item: ImportJobHistoryItem) {
+  if (isIncomeImportPendingPreview(item)) return "未正式登録";
+  return getBaseImportHistoryStatusLabel(item);
+}
+
+function getIncomeImportHistoryStatusClass(item: ImportJobHistoryItem) {
+  const status = String(item.status || "").toUpperCase();
+
+  if (isIncomeImportPendingPreview(item)) {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (status === "PROCESSING" || status === "PENDING") {
+    return "border-violet-200 bg-violet-50 text-violet-700";
+  }
+
+  return getBaseImportHistoryStatusClass(item);
+}
+
+function getIncomeImportHistoryRowClass(item: ImportJobHistoryItem) {
+  const status = String(item.status || "").toUpperCase();
+
+  if (isIncomeImportPendingPreview(item)) {
+    return "bg-sky-50/25";
+  }
+
+  if (status === "PROCESSING" || status === "PENDING") {
+    return "bg-violet-50/25";
+  }
+
+  return getBaseImportHistoryRowClass(item);
+}
+
 function getIncomeImportHistoryTone(item: ImportJobHistoryItem) {
   const status = String(item.status || "").toUpperCase();
   const total = Number(item.totalRows || 0);
@@ -42,6 +85,7 @@ function getIncomeImportHistoryTone(item: ImportJobHistoryItem) {
 
   if (status === "FAILED" || failed > 0) return "danger";
   if (status === "SUCCEEDED" && total > 0 && success === 0) return "warning";
+  if (isIncomeImportPendingPreview(item)) return "pending-preview";
   if (status === "PROCESSING" || status === "PENDING") return "info";
   if (status === "SUCCEEDED") return "success";
   return "neutral";
@@ -58,8 +102,12 @@ function getIncomeImportHistoryHint(item: ImportJobHistoryItem) {
     return "登録対象がありません。重複済み、または全行がスキップされた可能性があります。";
   }
 
+  if (tone === "pending-preview") {
+    return "検証済みですが、まだ正式登録されていません。登録する場合は同じCSVで再度検証後、正式登録してください。";
+  }
+
   if (tone === "info") {
-    return "検証済み、または処理中の履歴です。必要に応じて履歴を更新してください。";
+    return "処理中の履歴です。時間をおいて履歴を更新してください。長時間残る場合は管理者確認が必要です。";
   }
 
   if (tone === "success") {
@@ -76,10 +124,11 @@ function summarizeIncomeImportHistory(items: ImportJobHistoryItem[]) {
       if (tone === "success") summary.success += 1;
       if (tone === "warning") summary.warning += 1;
       if (tone === "danger") summary.danger += 1;
+      if (tone === "pending-preview") summary.pendingPreview += 1;
       if (tone === "info") summary.processing += 1;
       return summary;
     },
-    { success: 0, warning: 0, danger: 0, processing: 0 }
+    { success: 0, warning: 0, danger: 0, pendingPreview: 0, processing: 0 }
   );
 }
 
@@ -91,6 +140,7 @@ function getIncomeImportHistorySummaryText(items: ImportJobHistoryItem[]) {
     summary.success ? `成功 ${summary.success}` : "",
     summary.warning ? `登録0件 ${summary.warning}` : "",
     summary.danger ? `失敗 ${summary.danger}` : "",
+    summary.pendingPreview ? `未正式登録 ${summary.pendingPreview}` : "",
     summary.processing ? `処理中 ${summary.processing}` : "",
   ].filter(Boolean);
 
@@ -201,11 +251,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
             </span>
             {latestItem ? (
               <span
-                className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getBaseImportHistoryStatusClass(
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold ${getIncomeImportHistoryStatusClass(
                   latestItem
                 )}`}
               >
-                最新: {getBaseImportHistoryStatusLabel(latestItem)}
+                最新: {getIncomeImportHistoryStatusLabel(latestItem)}
               </span>
             ) : null}
             {open && visibleItems.length > 0 ? (
@@ -308,7 +358,7 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                   return (
                     <div
                       key={item.id}
-                      className={`grid gap-3 px-4 py-4 text-sm transition hover:bg-slate-50 md:grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] md:gap-4 md:py-3 ${getBaseImportHistoryRowClass(
+                      className={`grid gap-3 px-4 py-4 text-sm transition hover:bg-slate-50 md:grid-cols-[minmax(0,1.35fr)_0.85fr_0.7fr_0.9fr] md:gap-4 md:py-3 ${getIncomeImportHistoryRowClass(
                         item
                       )} ${
                         isHighlighted
@@ -357,11 +407,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                         状態
                       </div>
                       <span
-                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getBaseImportHistoryStatusClass(
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${getIncomeImportHistoryStatusClass(
                           item
                         )}`}
                       >
-                        {getBaseImportHistoryStatusLabel(item)}
+                        {getIncomeImportHistoryStatusLabel(item)}
                       </span>
 
                       <div
@@ -370,9 +420,11 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                             ? "text-rose-600"
                             : getIncomeImportHistoryTone(item) === "warning"
                               ? "text-amber-700"
-                              : getIncomeImportHistoryTone(item) === "info"
+                              : getIncomeImportHistoryTone(item) === "pending-preview"
                                 ? "text-sky-700"
-                                : "text-slate-400"
+                                : getIncomeImportHistoryTone(item) === "info"
+                                  ? "text-violet-700"
+                                  : "text-slate-400"
                         }`}
                       >
                         {getIncomeImportHistoryHint(item)}
