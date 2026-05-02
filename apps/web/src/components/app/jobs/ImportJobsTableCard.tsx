@@ -11,6 +11,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-D-IMPORT-CENTER-MODULE-SOURCE-IMPORTED-AT:
 // Display ImportJob module/sourceType/importedAt fields returned by H11-C.
+//
+// Step109-Z1-H11-E-IMPORT-JOB-DETAIL-DRAWER-SKELETON:
+// Add frontend-only ImportJob detail drawer using existing list fields.
 
 type ImportCenterTone =
   | "success"
@@ -205,14 +208,157 @@ function summarizeJobs(jobs: ImportJobItem[]) {
   );
 }
 
-function uniqueDomains(jobs: ImportJobItem[]) {
-  return Array.from(
-    new Set(
-      jobs
-        .map((job) => String(job.domain || "").trim())
-        .filter(Boolean)
-    )
-  ).sort();
+function formatJsonPreview(value: unknown) {
+  if (value == null) return "-";
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function DetailField(props: {
+  label: string;
+  value?: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <div className="text-[11px] font-bold text-slate-500">{props.label}</div>
+      <div
+        className={`mt-1 break-words text-sm font-bold text-slate-900 ${
+          props.mono ? "font-mono text-xs" : ""
+        }`}
+      >
+        {props.value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function ImportJobDetailDrawer(props: {
+  job: ImportJobItem | null;
+  onClose: () => void;
+}) {
+  const { job, onClose } = props;
+
+  if (!job) return null;
+
+  const rows = formatRows(job);
+  const statusLabel = getImportCenterStatusLabel(job);
+  const statusClass = getImportCenterStatusClass(job);
+
+  return (
+    <div className="fixed inset-y-0 right-0 left-[260px] z-50 pointer-events-none">
+      <button
+        type="button"
+        aria-label="ImportJob detail drawer を閉じる"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/20 backdrop-blur-[2px] pointer-events-auto"
+      />
+
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-[560px] flex-col border-l border-slate-200 bg-white shadow-2xl pointer-events-auto">
+        <div className="border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                ImportJob Detail
+              </div>
+              <h3 className="mt-2 truncate text-xl font-black text-slate-950">
+                {job.filename || "-"}
+              </h3>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass}`}>
+                  {statusLabel}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600">
+                  {getDomainLabel(job.domain, job.module)}
+                </span>
+                {job.sourceType ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-500">
+                    {getImportCenterSourceTypeLabel(job.sourceType)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-lg font-black text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-600">
+            {getImportCenterJobHint(job)}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <DetailField label="ImportJob ID" value={job.id} mono />
+            <DetailField label="Company ID" value={job.companyId} mono />
+            <DetailField label="Domain" value={job.domain} />
+            <DetailField label="Module" value={getImportCenterModuleLabel(job.module)} />
+            <DetailField label="Source Type" value={getImportCenterSourceTypeLabel(job.sourceType)} />
+            <DetailField label="Status" value={job.status} />
+            <DetailField label="Total Rows" value={rows.label} />
+            <DetailField label="Rows Breakdown" value={rows.detail} />
+            <DetailField label="Deleted Rows" value={Number(job.deletedRowCount || 0).toLocaleString("ja-JP")} />
+            <DetailField label="Month Conflict Policy" value={job.monthConflictPolicy || "-"} />
+            <DetailField label="Imported At" value={getImportedAtLabel(job)} />
+            <DetailField label="Updated At" value={fmtDate(job.updatedAt)} />
+            <DetailField label="Created At" value={fmtDate(job.createdAt)} />
+            <DetailField label="File Hash" value={job.fileHash || "-"} mono />
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-black text-slate-900">Error Message</div>
+              <div className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-600">
+                {job.errorMessage || "エラーは記録されていません。"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-black text-slate-900">File Months</div>
+              <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 text-xs font-semibold leading-5 text-slate-100">
+                {formatJsonPreview(job.fileMonthsJson)}
+              </pre>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-black text-slate-900">Conflict Months</div>
+              <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-slate-950 p-3 text-xs font-semibold leading-5 text-slate-100">
+                {formatJsonPreview(job.conflictMonthsJson)}
+              </pre>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50 p-4">
+              <div className="text-sm font-black text-slate-900">Next Step</div>
+              <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                H11-E は list API で取得済みの項目だけを表示する skeleton です。
+                H11-F 以降で staging rows / transaction trace 用の detail API を追加します。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-800"
+          >
+            閉じる
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
 }
 
 export function ImportJobsTableCard(props: {
@@ -221,6 +367,7 @@ export function ImportJobsTableCard(props: {
   const [query, setQuery] = React.useState("");
   const [domainFilter, setDomainFilter] = React.useState("ALL");
   const [statusFilter, setStatusFilter] = React.useState("ALL");
+  const [selectedJob, setSelectedJob] = React.useState<ImportJobItem | null>(null);
 
   const domains = React.useMemo(() => uniqueDomains(props.jobs), [props.jobs]);
 
@@ -416,6 +563,13 @@ export function ImportJobsTableCard(props: {
                     <div className="mt-1 text-[11px] font-semibold text-slate-400">
                       raw: {job.status || "-"}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedJob(job)}
+                      className="mt-2 inline-flex h-8 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      詳細
+                    </button>
                   </div>
 
                   <div>
@@ -448,6 +602,11 @@ export function ImportJobsTableCard(props: {
           </div>
         </div>
       )}
+
+      <ImportJobDetailDrawer
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+      />
     </section>
   );
 }
