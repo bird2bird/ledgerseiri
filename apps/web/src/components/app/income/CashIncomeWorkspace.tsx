@@ -504,10 +504,19 @@ function waitForCashImportPaint() {
 
 
 // Step109-Z1-H7D-FIX2-CASH-IMPORT-RETURN-BANNER-HIGHLIGHT: URL return helpers for inline income import completion.
+// Step109-Z1-H11-M-C-CASH-TRANSACTION-ID-HIGHLIGHT:
+// Highlight Cash Income rows when navigated from Import Center transaction trace.
 type IncomeImportReturnInfo = {
   active: boolean;
   importJobId: string;
   refresh: string;
+};
+
+type CashTraceSelectionInfo = {
+  active: boolean;
+  transactionId: string;
+  importJobId: string;
+  sourceRowNo: string;
 };
 
 function getIncomeImportReturnInfoFromUrl(expectedScope: string): IncomeImportReturnInfo {
@@ -524,6 +533,26 @@ function getIncomeImportReturnInfoFromUrl(expectedScope: string): IncomeImportRe
     active,
     importJobId: params.get("importJobId") || "",
     refresh: params.get("refresh") || "",
+  };
+}
+
+function getCashTraceSelectionInfoFromUrl(): CashTraceSelectionInfo {
+  if (typeof window === "undefined") {
+    return { active: false, transactionId: "", importJobId: "", sourceRowNo: "" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const active =
+    params.get("from") === "import-center-trace" &&
+    params.get("domain") === "income" &&
+    params.get("module") === "cash-income" &&
+    Boolean(params.get("transactionId"));
+
+  return {
+    active,
+    transactionId: params.get("transactionId") || "",
+    importJobId: params.get("importJobId") || "",
+    sourceRowNo: params.get("sourceRowNo") || "",
   };
 }
 
@@ -550,6 +579,21 @@ function clearIncomeImportReturnUrl() {
   url.searchParams.delete("ledger_scope");
   url.searchParams.delete("refresh");
   url.searchParams.delete("importJobId");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
+function clearCashTraceSelectionUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("transactionId");
+  url.searchParams.delete("importJobId");
+  url.searchParams.delete("sourceRowNo");
+  url.searchParams.delete("module");
+  url.searchParams.delete("domain");
 
   const query = url.searchParams.toString();
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
@@ -607,6 +651,9 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const [incomeImportReturnInfo, setIncomeImportReturnInfo] = React.useState<IncomeImportReturnInfo>(() =>
     getIncomeImportReturnInfoFromUrl(LEDGER_SCOPES.CASH_INCOME)
   );
+  const [cashTraceSelectionInfo, setCashTraceSelectionInfo] = React.useState<CashTraceSelectionInfo>(() =>
+    getCashTraceSelectionInfoFromUrl()
+  );
   const incomeImportDetailRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -644,6 +691,46 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
     },
     [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId]
   );
+
+  const isCashTraceHighlightedRow = React.useCallback(
+    (row: IncomeRow) => {
+      if (!cashTraceSelectionInfo.active) return false;
+
+      const rawMemo = String(row.memo || "");
+      const visibleMemo = String(stripCashSourceMarker(row.memo || "") || "");
+
+      if (cashTraceSelectionInfo.transactionId && row.id === cashTraceSelectionInfo.transactionId) {
+        return true;
+      }
+
+      if (
+        cashTraceSelectionInfo.transactionId &&
+        (rawMemo.includes(cashTraceSelectionInfo.transactionId) ||
+          visibleMemo.includes(cashTraceSelectionInfo.transactionId))
+      ) {
+        return true;
+      }
+
+      if (
+        cashTraceSelectionInfo.importJobId &&
+        rawMemo.includes(`[income_import_job:${cashTraceSelectionInfo.importJobId}]`)
+      ) {
+        return true;
+      }
+
+      return false;
+    },
+    [
+      cashTraceSelectionInfo.active,
+      cashTraceSelectionInfo.transactionId,
+      cashTraceSelectionInfo.importJobId,
+    ]
+  );
+
+  function closeCashTraceSelectionBanner() {
+    setCashTraceSelectionInfo({ active: false, transactionId: "", importJobId: "", sourceRowNo: "" });
+    clearCashTraceSelectionUrl();
+  }
 
   function closeIncomeImportReturnBanner() {
     setIncomeImportReturnInfo({ active: false, importJobId: "", refresh: "" });
@@ -725,6 +812,45 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
   const pageStartRow = totalRows === 0 ? 0 : pageStart + 1;
   const pageEndRow = totalRows === 0 ? 0 : Math.min(pageStart + pageSize, totalRows);
   const pageWindow = buildPageWindow(safeCurrentPage, totalPages);
+
+  React.useEffect(() => {
+    if (!cashTraceSelectionInfo.active || !cashTraceSelectionInfo.transactionId) return;
+
+    const targetIndex = sortedRows.findIndex((row) => isCashTraceHighlightedRow(row));
+    if (targetIndex < 0) return;
+
+    const targetPage = Math.floor(targetIndex / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+    }
+
+    const timer = window.setTimeout(() => {
+      incomeImportDetailRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 140);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    cashTraceSelectionInfo.active,
+    cashTraceSelectionInfo.transactionId,
+    sortedRows,
+    pageSize,
+    currentPage,
+    setCurrentPage,
+    isCashTraceHighlightedRow,
+  ]);
+
+  const cashTraceTargetExists = React.useMemo(() => {
+    if (!cashTraceSelectionInfo.active || !cashTraceSelectionInfo.transactionId) return true;
+    return rows.some((row) => isCashTraceHighlightedRow(row));
+  }, [
+    cashTraceSelectionInfo.active,
+    cashTraceSelectionInfo.transactionId,
+    rows,
+    isCashTraceHighlightedRow,
+  ]);
 
   const cashRevenueCategorySummary = React.useMemo(
     () => buildCashRevenueCategorySummary(rows).slice(0, 6),
@@ -1518,6 +1644,49 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
+            {cashTraceSelectionInfo.active ? (
+              <div
+                ref={incomeImportDetailRef}
+                className={`mb-4 rounded-[22px] border p-4 ${
+                  cashTraceTargetExists
+                    ? "border-sky-200 bg-sky-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div
+                      className={`text-sm font-black ${
+                        cashTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                      }`}
+                    >
+                      Import Center から選択中
+                    </div>
+                    <div
+                      className={`mt-1 text-sm font-semibold leading-6 ${
+                        cashTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                      }`}
+                    >
+                      transactionId: {cashTraceSelectionInfo.transactionId || "-"}
+                      {cashTraceSelectionInfo.sourceRowNo ? ` / sourceRowNo: ${cashTraceSelectionInfo.sourceRowNo}` : ""}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-slate-500">
+                      {cashTraceTargetExists
+                        ? "該当する現金収入明細をハイライトしています。"
+                        : "現在の現金収入一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeCashTraceSelectionBanner}
+                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    選択解除
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="text-lg font-semibold text-slate-900">現金収入明細</div>
             <div className="mt-1 text-sm text-slate-500">
               現金入金明細を一覧で確認できます。行をクリックすると編集 drawer が開きます。
@@ -1727,7 +1896,7 @@ export function CashIncomeWorkspace(props: CashIncomeWorkspaceProps) {
                 <button
                   key={row.id}
                   type="button"
-                  data-income-import-return-highlight={isIncomeImportReturnHighlightedRow(row) ? "true" : undefined}
+                  data-income-import-return-highlight={(isIncomeImportReturnHighlightedRow(row) || isCashTraceHighlightedRow(row)) ? "true" : undefined}
                   onClick={() => openEdit(row)}
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
