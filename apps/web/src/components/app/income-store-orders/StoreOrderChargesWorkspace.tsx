@@ -38,6 +38,45 @@ type ChargeSummary = {
   other: number;
 };
 
+// Step109-Z1-H11-M-F-STORE-OPERATION-TRANSACTION-ID-HIGHLIGHT:
+// Import Center trace URL highlights Store Operation charge rows without auto-opening drawer.
+type StoreOperationTraceSelectionInfo = {
+  active: boolean;
+  transactionId: string;
+  importJobId: string;
+  sourceRowNo: string;
+};
+
+function readStoreOperationTraceSelectionInfo(searchParams: URLSearchParams): StoreOperationTraceSelectionInfo {
+  const active =
+    searchParams.get("from") === "import-center-trace" &&
+    searchParams.get("domain") === "ledger" &&
+    searchParams.get("module") === "store-operation-expense" &&
+    Boolean(searchParams.get("transactionId"));
+
+  return {
+    active,
+    transactionId: searchParams.get("transactionId") || "",
+    importJobId: searchParams.get("importJobId") || "",
+    sourceRowNo: searchParams.get("sourceRowNo") || "",
+  };
+}
+
+function clearStoreOperationTraceSelectionUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("transactionId");
+  url.searchParams.delete("importJobId");
+  url.searchParams.delete("sourceRowNo");
+  url.searchParams.delete("module");
+  url.searchParams.delete("domain");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
 function normalizeImportMonths(values: string[]) {
   return values.map((x) => String(x || "").trim()).filter(Boolean);
 }
@@ -580,6 +619,13 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
   );
   const importMonthsKey = importMonths.join("|");
 
+  const storeOperationTraceSelection = useMemo(
+    () => readStoreOperationTraceSelectionInfo(searchParams),
+    [searchParamsKey]
+  );
+  const activeTraceImportJobId =
+    storeOperationTraceSelection.importJobId || importContext.importJobId;
+
   const importBanner = buildImportAwareBannerText({
     targetLabel: "店舗運営費",
     importJobId: importContext.importJobId,
@@ -627,7 +673,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     let mounted = true;
 
     async function loadInitialData() {
-      if (importContext.active) {
+      if (importContext.active || storeOperationTraceSelection.active) {
         try {
           const res = await listTransactions();
           if (!mounted) return;
@@ -636,7 +682,7 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
           const mapped = sortCharges(
             mapTransactionsToChargeItems({
               items,
-              importJobId: importContext.importJobId,
+              importJobId: activeTraceImportJobId,
               importMonths,
             })
           );
@@ -644,14 +690,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
           setHasStage(false);
           setCharges(mapped);
           setSummary(buildChargeSummaryFromItems(mapped));
-          setStageFilename(importContext.importJobId ? `importJob:${importContext.importJobId}` : "db-backed import result");
+          setStageFilename(activeTraceImportJobId ? `importJob:${activeTraceImportJobId}` : "db-backed import result");
           setStageSavedAt("");
         } catch (_err) {
           if (!mounted) return;
           setHasStage(false);
           setCharges([]);
           setSummary(EMPTY_SUMMARY);
-          setStageFilename(importContext.importJobId ? `importJob:${importContext.importJobId}` : "db-backed import result");
+          setStageFilename(activeTraceImportJobId ? `importJob:${activeTraceImportJobId}` : "db-backed import result");
           setStageSavedAt("");
         }
         return;
@@ -671,7 +717,14 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     return () => {
       mounted = false;
     };
-  }, [importContext.active, importContext.importJobId, importMonthsKey]);
+  }, [
+    importContext.active,
+    importContext.importJobId,
+    storeOperationTraceSelection.active,
+    storeOperationTraceSelection.importJobId,
+    activeTraceImportJobId,
+    importMonthsKey,
+  ]);
 
   const expenseOnlyCharges = useMemo(() => {
     const base = charges.filter((item) => item.kind !== "ORDER_SALE");
@@ -712,6 +765,70 @@ export function StoreOrderChargesWorkspace(props: { lang: string }) {
     customDateEnd,
     chargeSortMode,
   ]);
+
+  function isStoreOperationTraceHighlightedCharge(item: ChargeItem) {
+    if (!storeOperationTraceSelection.active) return false;
+
+    if (
+      storeOperationTraceSelection.transactionId &&
+      String(item.id || "") === storeOperationTraceSelection.transactionId
+    ) {
+      return true;
+    }
+
+    if (
+      storeOperationTraceSelection.sourceRowNo &&
+      String(item.rowNo || "") === storeOperationTraceSelection.sourceRowNo
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function closeStoreOperationTraceSelectionBanner() {
+    clearStoreOperationTraceSelectionUrl();
+  }
+
+  const storeOperationTraceTargetExists = useMemo(() => {
+    if (!storeOperationTraceSelection.active || !storeOperationTraceSelection.transactionId) return true;
+    return filteredCharges.some((item) => isStoreOperationTraceHighlightedCharge(item));
+  }, [
+    storeOperationTraceSelection.active,
+    storeOperationTraceSelection.transactionId,
+    storeOperationTraceSelection.sourceRowNo,
+    filteredCharges,
+  ]);
+
+  useEffect(() => {
+    if (!storeOperationTraceSelection.active || !storeOperationTraceSelection.transactionId) return;
+
+    const targetIndex = filteredCharges.findIndex((item) =>
+      isStoreOperationTraceHighlightedCharge(item)
+    );
+
+    if (targetIndex < 0) return;
+
+    const targetPage = Math.floor(targetIndex / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+    }
+
+    const timer = window.setTimeout(() => {
+      const el = document.querySelector("[data-store-operation-trace-banner='true']");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 160);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    storeOperationTraceSelection.active,
+    storeOperationTraceSelection.transactionId,
+    storeOperationTraceSelection.sourceRowNo,
+    filteredCharges,
+    pageSize,
+    currentPage,
+  ]);
+
 
   useEffect(() => {
     const nextFilter = searchParams.get(STORE_OPERATION_QUERY_KEYS.filter) || "";
@@ -1420,7 +1537,50 @@ if (!isActiveRoute) {
           </div>
         ) : (
           <>
-            <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
+            {storeOperationTraceSelection.active ? (
+            <div
+              data-store-operation-trace-banner="true"
+              className={`mt-6 rounded-[22px] border p-4 ${
+                storeOperationTraceTargetExists
+                  ? "border-sky-200 bg-sky-50"
+                  : "border-amber-200 bg-amber-50"
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div
+                    className={`text-sm font-black ${
+                      storeOperationTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                    }`}
+                  >
+                    Import Center から選択中
+                  </div>
+                  <div
+                    className={`mt-1 text-sm font-semibold leading-6 ${
+                      storeOperationTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                    }`}
+                  >
+                    transactionId: {storeOperationTraceSelection.transactionId || "-"}
+                    {storeOperationTraceSelection.sourceRowNo ? ` / sourceRowNo: ${storeOperationTraceSelection.sourceRowNo}` : ""}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">
+                    {storeOperationTraceTargetExists
+                      ? "該当する店舗運営費明細をハイライトしています。"
+                      : "現在の店舗運営費一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeStoreOperationTraceSelectionBanner}
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  選択解除
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
               <div className="grid grid-cols-[120px_140px_1.35fr_150px_140px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
                 <div>Date</div>
                 <div>Kind</div>
@@ -1439,6 +1599,16 @@ if (!isActiveRoute) {
                   <button
                     key={charge.id}
                     type="button"
+                    data-store-operation-trace-highlight={isStoreOperationTraceHighlightedCharge(charge) ? "true" : undefined}
+                    style={
+                      isStoreOperationTraceHighlightedCharge(charge)
+                        ? {
+                            outline: "3px solid rgba(14, 165, 233, 0.35)",
+                            boxShadow: "0 0 0 6px rgba(14, 165, 233, 0.12)",
+                            background: "rgba(240, 249, 255, 0.96)",
+                          }
+                        : undefined
+                    }
                     onClick={() => {
                       drawerOpenedAtRef.current = Date.now();
                       setSelectedChargeId(charge.id);
