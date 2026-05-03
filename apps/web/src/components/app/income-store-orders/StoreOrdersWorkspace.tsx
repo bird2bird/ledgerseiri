@@ -861,6 +861,67 @@ function buildSampleBars(rows: IncomeRow[]) {
   return rows.slice(0, 6);
 }
 
+// Step109-Z1-H11-M-F-REV1-C-STORE-ORDERS-TRACE-HIGHLIGHT:
+// Import Center trace URL highlights Store Orders rows without auto-opening drawer.
+type StoreOrdersTraceSelectionInfo = {
+  active: boolean;
+  transactionId: string;
+  importJobId: string;
+  sourceRowNo: string;
+};
+
+function readStoreOrdersTraceSelectionInfo(searchParams: URLSearchParams): StoreOrdersTraceSelectionInfo {
+  const fromImportTrace = searchParams.get("from") === "import-center-trace";
+  const domain = String(searchParams.get("domain") || "").trim();
+  const module = String(searchParams.get("module") || "").trim();
+  const traceTarget = String(searchParams.get("traceTarget") || "").trim();
+
+  const storeOrdersTrace =
+    traceTarget === "store-orders" ||
+    domain === "store-orders" ||
+    domain === "amazon-store-orders" ||
+    domain === "amazon" ||
+    module === "store-orders";
+
+  const active =
+    fromImportTrace &&
+    Boolean(searchParams.get("transactionId")) &&
+    storeOrdersTrace;
+
+  return {
+    active,
+    transactionId: searchParams.get("transactionId") || "",
+    importJobId: searchParams.get("importJobId") || "",
+    sourceRowNo: searchParams.get("sourceRowNo") || "",
+  };
+}
+
+function clearStoreOrdersTraceSelectionUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("transactionId");
+  url.searchParams.delete("importJobId");
+  url.searchParams.delete("sourceRowNo");
+  url.searchParams.delete("module");
+  url.searchParams.delete("domain");
+  url.searchParams.delete("traceTarget");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
+function getStoreOrderRowSourceRowNo(row: IncomeRow) {
+  const value = (row as any).sourceRowNo ?? (row as any).sourceRowNumber ?? "";
+  return value == null ? "" : String(value);
+}
+
+function getStoreOrderRowImportJobId(row: IncomeRow) {
+  const value = (row as any).importJobId ?? "";
+  return value == null ? "" : String(value);
+}
+
 export function StoreOrdersWorkspace(props: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -906,8 +967,166 @@ export function StoreOrdersWorkspace(props: Props) {
     sidebarActions,
   } = props;
 
+
+  const storeOrdersTraceSelection = React.useMemo(
+    () => readStoreOrdersTraceSelectionInfo(searchParams),
+    [searchParams]
+  );
+
+  const storeOrdersTraceRawTarget = React.useMemo(() => {
+    if (!storeOrdersTraceSelection.active) return null;
+
+    return rawStoreOrderRows.find((row) => {
+      const sourceRowNo = getStoreOrderRowSourceRowNo(row);
+      const importJobId = getStoreOrderRowImportJobId(row);
+      const rawMemo = String((row as any).memo || "");
+      const rowId = String(row.id || "");
+
+      if (storeOrdersTraceSelection.transactionId && rowId === storeOrdersTraceSelection.transactionId) {
+        return true;
+      }
+
+      if (
+        storeOrdersTraceSelection.transactionId &&
+        rawMemo.includes(storeOrdersTraceSelection.transactionId)
+      ) {
+        return true;
+      }
+
+      if (
+        storeOrdersTraceSelection.sourceRowNo &&
+        sourceRowNo === storeOrdersTraceSelection.sourceRowNo
+      ) {
+        return true;
+      }
+
+      if (
+        storeOrdersTraceSelection.importJobId &&
+        importJobId &&
+        importJobId === storeOrdersTraceSelection.importJobId &&
+        storeOrdersTraceSelection.sourceRowNo
+      ) {
+        return sourceRowNo === storeOrdersTraceSelection.sourceRowNo;
+      }
+
+      return false;
+    }) || null;
+  }, [
+    rawStoreOrderRows,
+    storeOrdersTraceSelection.active,
+    storeOrdersTraceSelection.transactionId,
+    storeOrdersTraceSelection.importJobId,
+    storeOrdersTraceSelection.sourceRowNo,
+  ]);
+
   const expectedPath = `/${lang}/app/income/store-orders`;
   const isActiveRoute = pathname === expectedPath;
+  function isStoreOrdersTraceHighlightedRow(row: IncomeRow) {
+    if (!storeOrdersTraceSelection.active) return false;
+
+    const rowId = String(row.id || "");
+    const sourceRowNo = getStoreOrderRowSourceRowNo(row);
+    const importJobId = getStoreOrderRowImportJobId(row);
+    const rawMemo = String((row as any).memo || "");
+
+    if (
+      storeOrdersTraceSelection.transactionId &&
+      rowId === storeOrdersTraceSelection.transactionId
+    ) {
+      return true;
+    }
+
+    if (
+      storeOrdersTraceSelection.sourceRowNo &&
+      sourceRowNo &&
+      sourceRowNo === storeOrdersTraceSelection.sourceRowNo
+    ) {
+      return true;
+    }
+
+    if (
+      storeOrdersTraceSelection.transactionId &&
+      rawMemo.includes(storeOrdersTraceSelection.transactionId)
+    ) {
+      return true;
+    }
+
+    if (storeOrdersTraceRawTarget) {
+      const targetDate = String(storeOrdersTraceRawTarget.date || "-");
+      const targetOrderId = String(storeOrdersTraceRawTarget.externalRef || "");
+      const targetSku = String(storeOrdersTraceRawTarget.sku || "");
+      const targetKey = buildStoreOrderCompositeKey({
+        date: targetDate,
+        orderId: targetOrderId,
+        sku: targetSku,
+      });
+      const rowKey = buildStoreOrderCompositeKey({
+        date: row.date,
+        orderId: row.externalRef,
+        sku: row.sku,
+      });
+
+      if (rowKey === targetKey || rowId === targetKey) {
+        return true;
+      }
+    }
+
+    if (
+      storeOrdersTraceSelection.importJobId &&
+      importJobId &&
+      importJobId === storeOrdersTraceSelection.importJobId &&
+      storeOrdersTraceSelection.sourceRowNo &&
+      sourceRowNo === storeOrdersTraceSelection.sourceRowNo
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function closeStoreOrdersTraceSelectionBanner() {
+    clearStoreOrdersTraceSelectionUrl();
+  }
+
+  const storeOrdersTraceTargetExists = React.useMemo(() => {
+    if (!storeOrdersTraceSelection.active || !storeOrdersTraceSelection.transactionId) return true;
+    return rows.some((row) => isStoreOrdersTraceHighlightedRow(row));
+  }, [
+    storeOrdersTraceSelection.active,
+    storeOrdersTraceSelection.transactionId,
+    storeOrdersTraceSelection.sourceRowNo,
+    storeOrdersTraceRawTarget,
+    rows,
+  ]);
+
+  React.useEffect(() => {
+    if (!storeOrdersTraceSelection.active || !storeOrdersTraceSelection.transactionId) return;
+
+    const targetIndex = rows.findIndex((row) => isStoreOrdersTraceHighlightedRow(row));
+    if (targetIndex < 0) return;
+
+    const targetPage = Math.floor(targetIndex / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+    }
+
+    const timer = window.setTimeout(() => {
+      const el = document.querySelector("[data-store-orders-trace-banner='true']");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 160);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    storeOrdersTraceSelection.active,
+    storeOrdersTraceSelection.transactionId,
+    storeOrdersTraceSelection.sourceRowNo,
+    storeOrdersTraceRawTarget,
+    rows,
+    pageSize,
+    currentPage,
+    setCurrentPage,
+  ]);
+
   const viewModeLabel =
     storeOrderViewMode === "aggregated" ? "聚合视图" : "原始transaction视图";
 
@@ -1850,6 +2069,49 @@ React.useEffect(() => {
           </div>
         </div>
 
+        {storeOrdersTraceSelection.active ? (
+          <div
+            data-store-orders-trace-banner="true"
+            className={`mb-4 rounded-[22px] border p-4 ${
+              storeOrdersTraceTargetExists
+                ? "border-sky-200 bg-sky-50"
+                : "border-amber-200 bg-amber-50"
+            }`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div
+                  className={`text-sm font-black ${
+                    storeOrdersTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                  }`}
+                >
+                  Import Center から選択中
+                </div>
+                <div
+                  className={`mt-1 text-sm font-semibold leading-6 ${
+                    storeOrdersTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                  }`}
+                >
+                  transactionId: {storeOrdersTraceSelection.transactionId || "-"}
+                  {storeOrdersTraceSelection.sourceRowNo ? ` / sourceRowNo: ${storeOrdersTraceSelection.sourceRowNo}` : ""}
+                </div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  {storeOrdersTraceTargetExists
+                    ? "該当する店舗注文明細をハイライトしています。"
+                    : "現在の店舗注文一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeStoreOrdersTraceSelectionBanner}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                選択解除
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {renderTransactionsSelectedSummary({
           title: "Selected Order",
           selected: !!selectedRow,
@@ -1953,6 +2215,16 @@ React.useEffect(() => {
           ) : (
             localVisibleRows.map((row) => (
               <button
+                  data-store-orders-trace-highlight={isStoreOrdersTraceHighlightedRow(row) ? "true" : undefined}
+                  style={
+                    isStoreOrdersTraceHighlightedRow(row)
+                      ? {
+                          outline: "3px solid rgba(14, 165, 233, 0.35)",
+                          boxShadow: "0 0 0 6px rgba(14, 165, 233, 0.12)",
+                          background: "rgba(240, 249, 255, 0.96)",
+                        }
+                      : undefined
+                  }
                 key={row.id}
                 type="button"
                 onClick={() => {
