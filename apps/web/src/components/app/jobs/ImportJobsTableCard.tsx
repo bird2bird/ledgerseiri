@@ -42,6 +42,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-L-DRAWER-DATA-UI-POLISH:
 // Polish staging rows / transaction trace display and add trace navigation placeholders.
+//
+// Step109-Z1-H11-M-B-TRACE-NAVIGATION-ROUTE-ALIGNMENT:
+// Route transaction trace links to real business pages instead of missing /transactions.
 
 type ImportCenterTone =
   | "success"
@@ -468,14 +471,54 @@ function shortId(value?: string | null) {
   return value.length > 10 ? `${value.slice(0, 10)}...` : value;
 }
 
-function buildTransactionTraceHref(tx: ImportJobTransactionTraceItem) {
+function buildTransactionTraceHref(job: ImportJobItem, tx: ImportJobTransactionTraceItem) {
+  const domain = String(job.domain || "").trim();
+  const module = String(job.module || "").trim();
   const params = new URLSearchParams();
+
+  params.set("from", "import-center-trace");
 
   if (tx.id) params.set("transactionId", tx.id);
   if (tx.importJobId) params.set("importJobId", tx.importJobId);
   if (tx.sourceRowNo != null) params.set("sourceRowNo", String(tx.sourceRowNo));
+  if (module) params.set("module", module);
+  if (domain) params.set("domain", domain);
 
-  return `/ja/app/transactions?${params.toString()}`;
+  const suffix = `?${params.toString()}`;
+
+  if (domain === "income" && module === "cash-income") {
+    return `/ja/app/income/cash${suffix}`;
+  }
+
+  if (domain === "income" && module === "other-income") {
+    return `/ja/app/income/other${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "store-operation-expense") {
+    return `/ja/app/expenses/store-operation${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "other-expense") {
+    return `/ja/app/other-expense${suffix}`;
+  }
+
+  if (domain === "ledger" && module === "company-operation-expense") {
+    const companyParams = new URLSearchParams(params);
+    companyParams.set("category", "company-operation");
+    return `/ja/app/expenses?${companyParams.toString()}`;
+  }
+
+  if (domain === "ledger" && module === "payroll-expense") {
+    const payrollParams = new URLSearchParams(params);
+    payrollParams.set("category", "payroll");
+    return `/ja/app/expenses?${payrollParams.toString()}`;
+  }
+
+  if (domain === "amazon-store-orders" || domain === "store-orders" || module === "store-orders") {
+    return `/ja/app/income/store-orders${suffix}`;
+  }
+
+  return `/ja/app/data/import?${params.toString()}`;
 }
 
 function CopyFriendlyId(props: {
@@ -925,13 +968,13 @@ function ImportJobDetailDrawer(props: {
 
                     <div className="mt-3 flex flex-wrap gap-2">
                       <a
-                        href={buildTransactionTraceHref(tx)}
+                        href={buildTransactionTraceHref(job, tx)}
                         className="inline-flex h-8 items-center justify-center rounded-xl bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-800"
                       >
                         関連明細へ移動
                       </a>
                       <span className="inline-flex h-8 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-3 text-[11px] font-black text-slate-500">
-                        trace navigation prepared
+                        routed to business page
                       </span>
                     </div>
                   </div>
@@ -948,8 +991,8 @@ function ImportJobDetailDrawer(props: {
             <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4">
               <div className="text-sm font-black text-slate-900">Detail API</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-L で staging rows / transaction trace の表示密度、payload 展開、trace navigation placeholder を改善しました。
-                次の H11-M では関連明細ページ側の transactionId highlight に進みます。
+                H11-M-B で transaction trace の遷移先を実在する業務ページへ合わせました。
+                次の H11-M-C では収入・支出ページ側の transactionId highlight を個別に接続します。
               </div>
             </div>
           </div>
