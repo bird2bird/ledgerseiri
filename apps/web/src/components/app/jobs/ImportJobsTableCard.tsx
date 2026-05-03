@@ -57,6 +57,12 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H12-C-IMPORT-CENTER-LIST-STATUS-UX-POLISH:
 // Polish Import Center list selected-row visibility and status hints without changing routing/drawer behavior.
+//
+// Step109-Z1-H13-B-IMPORT-CENTER-EDGE-HARDENING:
+// Add selected-hidden notice, drawer bottom padding, and stronger hidden-row count messaging.
+//
+// Step109-Z1-H13-B-FIX1-EMPTY-FILTER-CLEAR-ACTION:
+// Add clear filters action to empty filtered list state after selection is cleared.
 
 type ImportCenterTone =
   | "success"
@@ -941,7 +947,7 @@ function ImportJobDetailDrawer(props: {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-6 py-5 pb-24">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <DetailField label="ImportJob ID" value={job.id} mono />
             <DetailField label="Company ID" value={job.companyId} mono />
@@ -1076,7 +1082,7 @@ function ImportJobDetailDrawer(props: {
 
                 {detailRowsState.stagingRows.length > 12 ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
-                    12件のみ表示しています。全 {detailRowsState.stagingRows.length} 件。
+                    先頭12件のみ表示しています。全 {detailRowsState.stagingRows.length} 件。詳細確認が必要な場合は対象CSVまたは後続のページング対応で確認します。
                   </div>
                 ) : null}
               </div>
@@ -1149,7 +1155,7 @@ function ImportJobDetailDrawer(props: {
 
                 {detailRowsState.transactions.length > 12 ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-700">
-                    12件のみ表示しています。全 {detailRowsState.transactions.length} 件。
+                    先頭12件のみ表示しています。全 {detailRowsState.transactions.length} 件。関連明細への遷移は表示中の trace から実行できます。
                   </div>
                 ) : null}
               </div>
@@ -1294,6 +1300,37 @@ export function ImportJobsTableCard(props: {
 
   const summary = React.useMemo(() => summarizeJobs(filteredJobs), [filteredJobs]);
 
+  const selectedJobExists = React.useMemo(
+    () => Boolean(selectedJobId && props.jobs.some((job) => job.id === selectedJobId)),
+    [props.jobs, selectedJobId]
+  );
+
+  const selectedJobVisibleInFilteredJobs = React.useMemo(
+    () => Boolean(selectedJobId && filteredJobs.some((job) => job.id === selectedJobId)),
+    [filteredJobs, selectedJobId]
+  );
+
+  const selectedJobHiddenByFilter = Boolean(
+    selectedJobId && selectedJobExists && !selectedJobVisibleInFilteredJobs
+  );
+
+  const hasActiveImportJobListFilters = Boolean(
+    query.trim() || domainFilter !== "ALL" || statusFilter !== "ALL"
+  );
+
+  function clearImportJobListFilters() {
+    setQuery("");
+    setDomainFilter("ALL");
+    setStatusFilter("ALL");
+  }
+
+  function clearImportJobSelectionOnly() {
+    setSelectedJob(null);
+    setSelectedJobId(null);
+    syncImportJobIdToUrl(null);
+  }
+
+
   return (
     <section className="ls-card-solid rounded-[28px] p-5 xl:col-span-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -1394,10 +1431,46 @@ export function ImportJobsTableCard(props: {
         </div>
       </div>
 
-      {selectedJobId && !props.jobs.some((job) => job.id === selectedJobId) ? (
-        <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-700">
-          URL で指定された ImportJob ID は現在の一覧に見つかりません。
-          フィルター解除、履歴更新、または対象データの確認を行ってください。
+      {selectedJobId && !selectedJobExists ? (
+        <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-800">
+          <div>URL で指定された ImportJob ID は現在の一覧に見つかりません。</div>
+          <div className="mt-1 text-xs font-semibold text-amber-700">
+            履歴更新、対象データ、または別環境の ImportJob ID ではないか確認してください。
+          </div>
+          <button
+            type="button"
+            onClick={clearImportJobSelectionOnly}
+            className="mt-3 inline-flex h-8 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-[11px] font-black text-amber-800 shadow-sm transition hover:bg-amber-50"
+          >
+            選択解除
+          </button>
+        </div>
+      ) : null}
+
+      {selectedJobHiddenByFilter ? (
+        <div className="mt-5 rounded-[22px] border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-6 text-sky-800">
+          <div>
+            選択中の ImportJob は現在の検索条件・フィルターでは非表示です。
+          </div>
+          <div className="mt-1 text-xs font-semibold text-sky-700">
+            選択中 {selectedJobId?.slice(0, 8)}... を表示するには、検索条件またはフィルターを解除してください。
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={clearImportJobListFilters}
+              className="inline-flex h-8 items-center justify-center rounded-xl bg-sky-700 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-sky-800"
+            >
+              フィルター解除
+            </button>
+            <button
+              type="button"
+              onClick={clearImportJobSelectionOnly}
+              className="inline-flex h-8 items-center justify-center rounded-xl border border-sky-200 bg-white px-3 text-[11px] font-black text-sky-800 shadow-sm transition hover:bg-sky-50"
+            >
+              選択解除
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -1410,7 +1483,21 @@ export function ImportJobsTableCard(props: {
         </div>
       ) : filteredJobs.length === 0 ? (
         <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-700">
-          条件に一致する ImportJob はありません。検索条件またはフィルターを変更してください。
+          <div>条件に一致する ImportJob はありません。検索条件またはフィルターを変更してください。</div>
+          {selectedJobId ? (
+            <div className="mt-2 text-xs font-semibold text-amber-700">
+              選択中の ImportJob がある場合は、上の「フィルター解除」または「選択解除」を使用してください。
+            </div>
+          ) : null}
+          {hasActiveImportJobListFilters ? (
+            <button
+              type="button"
+              onClick={clearImportJobListFilters}
+              className="mt-3 inline-flex h-8 items-center justify-center rounded-xl bg-amber-700 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-amber-800"
+            >
+              検索条件をクリア
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="mt-5 overflow-hidden rounded-[22px] border border-slate-200 bg-white">
