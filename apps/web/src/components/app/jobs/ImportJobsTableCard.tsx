@@ -54,6 +54,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H12-B-IMPORT-JOB-DETAIL-UX-POLISH:
 // Final polish for ImportJob detail drawer density/header without changing routing/API behavior.
+//
+// Step109-Z1-H12-C-IMPORT-CENTER-LIST-STATUS-UX-POLISH:
+// Polish Import Center list selected-row visibility and status hints without changing routing/drawer behavior.
 
 type ImportCenterTone =
   | "success"
@@ -115,10 +118,10 @@ function getImportCenterStatusClass(job: ImportJobItem) {
 function getImportCenterRowClass(job: ImportJobItem) {
   const tone = getImportCenterJobTone(job);
 
-  if (tone === "danger") return "bg-rose-50/35 hover:bg-rose-50/60";
-  if (tone === "warning") return "bg-amber-50/35 hover:bg-amber-50/60";
-  if (tone === "pendingPreview") return "bg-sky-50/35 hover:bg-sky-50/60";
-  if (tone === "processing") return "bg-violet-50/25 hover:bg-violet-50/50";
+  if (tone === "danger") return "bg-rose-50/45 hover:bg-rose-50/70";
+  if (tone === "warning") return "bg-amber-50/45 hover:bg-amber-50/70";
+  if (tone === "pendingPreview") return "bg-sky-50/45 hover:bg-sky-50/70";
+  if (tone === "processing") return "bg-violet-50/40 hover:bg-violet-50/65";
   return "hover:bg-slate-50";
 }
 
@@ -126,23 +129,23 @@ function getImportCenterJobHint(job: ImportJobItem) {
   const tone = getImportCenterJobTone(job);
 
   if (tone === "danger") {
-    return job.errorMessage || "取込に失敗、または一部の行でエラーがあります。";
+    return job.errorMessage || "失敗または一部エラーがあります。詳細で error / trace を確認してください。";
   }
 
   if (tone === "warning") {
-    return "登録対象がありません。重複済み、または全行がスキップされた可能性があります。";
+    return "登録0件です。重複・対象月・スキップ条件を確認してください。";
   }
 
   if (tone === "pendingPreview") {
-    return "検証済みですが、importedAt が未設定です。正式登録または再検証が必要です。";
+    return "preview 済みですが未正式登録です。元ページで再検証・正式登録してください。";
   }
 
   if (tone === "processing") {
-    return "処理中の ImportJob です。長時間残る場合は履歴更新または管理者確認が必要です。";
+    return "処理中です。長時間残る場合は履歴更新または管理者確認が必要です。";
   }
 
   if (tone === "success") {
-    return "登録済みの ImportJob です。";
+    return "登録済みです。詳細から staging rows / transaction trace を確認できます。";
   }
 
   return "ImportJob の状態を確認してください。";
@@ -379,7 +382,27 @@ function syncImportJobIdToUrl(importJobId: string | null) {
 function getSelectedImportJobRowClass(job: ImportJobItem, selectedJobId: string | null) {
   if (!selectedJobId || job.id !== selectedJobId) return "";
 
-  return "ring-2 ring-sky-300 ring-inset bg-sky-50/70";
+  return [
+    "relative",
+    "bg-sky-50/90",
+    "ring-2",
+    "ring-sky-300",
+    "ring-inset",
+    "shadow-[inset_5px_0_0_rgba(14,165,233,0.85)]",
+    "after:absolute",
+    "after:right-4",
+    "after:top-4",
+    "after:rounded-full",
+    "after:border",
+    "after:border-sky-200",
+    "after:bg-white",
+    "after:px-2",
+    "after:py-0.5",
+    "after:text-[10px]",
+    "after:font-black",
+    "after:text-sky-700",
+    "after:content-['選択中']",
+  ].join(" ");
 }
 
 function getDrawerActionToneClass(job: ImportJobItem) {
