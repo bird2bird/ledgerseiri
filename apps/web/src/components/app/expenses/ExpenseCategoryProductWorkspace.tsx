@@ -37,6 +37,9 @@ type ExpenseCategoryRecord = {
   rawMemo: string;
   ledgerScope: string;
   ownershipMode: "ledger-scope" | "legacy-expense-kind" | "legacy-unscoped-default";
+  importJobId: string;
+  sourceRowNo: string;
+  sourceFileName: string;
 };
 
 
@@ -70,6 +73,79 @@ type DashboardPoint = {
 
 type RangePreset = "30d" | "90d" | "12m";
 type SortMode = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+
+// Step109-Z1-H11-M-G-EXPENSE-CATEGORY-TRACE-HIGHLIGHT:
+// Import Center transaction trace highlights shared expense-category rows.
+type ExpenseCategoryTraceSelectionInfo = {
+  active: boolean;
+  transactionId: string;
+  importJobId: string;
+  sourceRowNo: string;
+  module: string;
+  traceTarget: string;
+};
+
+function readExpenseCategoryTraceSelectionInfo(
+  searchParams: URLSearchParams,
+  expectedModule: string,
+  kind: ExpenseCategoryProductKind
+): ExpenseCategoryTraceSelectionInfo {
+  const fromImportTrace = searchParams.get("from") === "import-center-trace";
+  const domain = String(searchParams.get("domain") || "").trim();
+  const module = String(searchParams.get("module") || "").trim();
+  const traceTarget = String(searchParams.get("traceTarget") || "").trim();
+  const category = String(searchParams.get("category") || "").trim();
+
+  const expected = String(expectedModule || "").trim();
+  const moduleMatches = module === expected;
+
+  const targetMatches =
+    traceTarget === "expense-category" ||
+    traceTarget === "other-expense" ||
+    traceTarget === expected ||
+    (!traceTarget && domain === "ledger");
+
+  const categoryMatches =
+    !category ||
+    category === kind ||
+    (kind === "company-operation" && category === "company-operation") ||
+    (kind === "payroll" && category === "payroll") ||
+    (kind === "other-expense" && category === "other-expense");
+
+  const active =
+    fromImportTrace &&
+    domain === "ledger" &&
+    Boolean(searchParams.get("transactionId")) &&
+    moduleMatches &&
+    targetMatches &&
+    categoryMatches;
+
+  return {
+    active,
+    transactionId: searchParams.get("transactionId") || "",
+    importJobId: searchParams.get("importJobId") || "",
+    sourceRowNo: searchParams.get("sourceRowNo") || "",
+    module,
+    traceTarget,
+  };
+}
+
+function clearExpenseCategoryTraceSelectionUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("transactionId");
+  url.searchParams.delete("importJobId");
+  url.searchParams.delete("sourceRowNo");
+  url.searchParams.delete("module");
+  url.searchParams.delete("domain");
+  url.searchParams.delete("traceTarget");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
 
 const PAGE_CONFIG: Record<
   ExpenseCategoryProductKind,
@@ -846,6 +922,9 @@ function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionIte
     vendor: displayVendor,
     memo: memo || evidenceNo || item.categoryName || item.type || "-",
     source: item.sourceFileName || item.importJobId || "manual/api",
+    importJobId: String(item.importJobId || ""),
+    sourceRowNo: (item as any).sourceRowNo == null ? "" : String((item as any).sourceRowNo),
+    sourceFileName: String(item.sourceFileName || ""),
     statusFlags,
     rawMemo,
     ledgerScope: effectiveScope.scope,
@@ -1219,6 +1298,12 @@ export function ExpenseCategoryProductWorkspace(props: {
     };
   }, [expenseReturnSearchParams, config.scope]);
 
+  const expenseCategoryTraceSelection = React.useMemo(
+    () => readExpenseCategoryTraceSelectionInfo(expenseReturnSearchParams, config.scope, kind),
+    [expenseReturnSearchParams, config.scope, kind]
+  );
+
+
   React.useEffect(() => {
     if (!importReturnInfo.active) return;
 
@@ -1267,6 +1352,73 @@ export function ExpenseCategoryProductWorkspace(props: {
     },
     [importReturnInfo.active, importReturnInfo.importJobId, importReturnInfo.ledgerScope],
   );
+
+  const isExpenseCategoryTraceHighlightedRecord = React.useCallback(
+    (row: ExpenseCategoryRecord) => {
+      if (!expenseCategoryTraceSelection.active) return false;
+
+      const rowId = String(row.id || "");
+      const rowImportJobId = String(row.importJobId || "");
+      const rowSourceRowNo = String(row.sourceRowNo || "");
+      const rawMemo = String(row.rawMemo || row.memo || "");
+      const source = String(row.source || "");
+      const sourceFileName = String(row.sourceFileName || "");
+
+      if (
+        expenseCategoryTraceSelection.transactionId &&
+        rowId === expenseCategoryTraceSelection.transactionId
+      ) {
+        return true;
+      }
+
+      if (
+        expenseCategoryTraceSelection.sourceRowNo &&
+        rowSourceRowNo &&
+        rowSourceRowNo === expenseCategoryTraceSelection.sourceRowNo
+      ) {
+        if (!expenseCategoryTraceSelection.importJobId) return true;
+        return rowImportJobId === expenseCategoryTraceSelection.importJobId;
+      }
+
+      if (
+        expenseCategoryTraceSelection.transactionId &&
+        rawMemo.includes(expenseCategoryTraceSelection.transactionId)
+      ) {
+        return true;
+      }
+
+      if (
+        expenseCategoryTraceSelection.importJobId &&
+        rowImportJobId &&
+        rowImportJobId === expenseCategoryTraceSelection.importJobId
+      ) {
+        if (!expenseCategoryTraceSelection.sourceRowNo) return true;
+        return rowSourceRowNo === expenseCategoryTraceSelection.sourceRowNo;
+      }
+
+      if (
+        expenseCategoryTraceSelection.importJobId &&
+        [source, sourceFileName, rawMemo].filter(Boolean).join(" ").includes(expenseCategoryTraceSelection.importJobId)
+      ) {
+        return true;
+      }
+
+      return false;
+    },
+    [
+      expenseCategoryTraceSelection.active,
+      expenseCategoryTraceSelection.transactionId,
+      expenseCategoryTraceSelection.importJobId,
+      expenseCategoryTraceSelection.sourceRowNo,
+    ]
+  );
+
+  const isExpenseCategoryUnifiedHighlightedRecord = React.useCallback(
+    (row: ExpenseCategoryRecord) =>
+      isImportReturnHighlightedRecord(row) || isExpenseCategoryTraceHighlightedRecord(row),
+    [isImportReturnHighlightedRecord, isExpenseCategoryTraceHighlightedRecord]
+  );
+
 
   // Step109-Z1-H5F-FIX4-ADD-IMPORT-JOB-FIELDS: ExpenseCategoryRecord carries importJobId/sourceFileName for post-import highlight.\n  // Step109-Z1-H5F-FIX3-SPAN-BASED-HIGHLIGHT: highlight detail row through scope badge span + CSS :has().\n  // Step109-Z1-H5F-FIX1-IMPORT-RETURN-BANNER-HIGHLIGHT:
   // Show import completion feedback after returning from expense CSV commit.
@@ -1396,6 +1548,56 @@ export function ExpenseCategoryProductWorkspace(props: {
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const pageRows = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize);
   const pageWindow = buildPageWindow(safePage, totalPages);
+
+  const expenseCategoryTraceTargetExists = React.useMemo(() => {
+    if (!expenseCategoryTraceSelection.active || !expenseCategoryTraceSelection.transactionId) return true;
+    return filteredRows.some((row) => isExpenseCategoryTraceHighlightedRecord(row));
+  }, [
+    expenseCategoryTraceSelection.active,
+    expenseCategoryTraceSelection.transactionId,
+    expenseCategoryTraceSelection.importJobId,
+    expenseCategoryTraceSelection.sourceRowNo,
+    filteredRows,
+    isExpenseCategoryTraceHighlightedRecord,
+  ]);
+
+  React.useEffect(() => {
+    if (!expenseCategoryTraceSelection.active || !expenseCategoryTraceSelection.transactionId) return;
+
+    const targetIndex = filteredRows.findIndex((row) =>
+      isExpenseCategoryTraceHighlightedRecord(row)
+    );
+
+    if (targetIndex < 0) return;
+
+    const targetPage = Math.floor(targetIndex / pageSize) + 1;
+    if (targetPage !== safePage) {
+      setCurrentPage(targetPage);
+    }
+
+    const timer = window.setTimeout(() => {
+      detailSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    expenseCategoryTraceSelection.active,
+    expenseCategoryTraceSelection.transactionId,
+    expenseCategoryTraceSelection.importJobId,
+    expenseCategoryTraceSelection.sourceRowNo,
+    filteredRows,
+    pageSize,
+    safePage,
+    isExpenseCategoryTraceHighlightedRecord,
+  ]);
+
+  function closeExpenseCategoryTraceSelectionBanner() {
+    clearExpenseCategoryTraceSelectionUrl();
+  }
+
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -1557,6 +1759,49 @@ export function ExpenseCategoryProductWorkspace(props: {
           box-shadow: 0 0 0 2px rgb(110 231 183);
         }
       `}</style>
+
+      {expenseCategoryTraceSelection.active ? (
+        <div
+          data-expense-category-trace-banner="true"
+          className={`rounded-[24px] border p-4 shadow-sm ${
+            expenseCategoryTraceTargetExists
+              ? "border-sky-200 bg-sky-50"
+              : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div
+                className={`text-sm font-bold ${
+                  expenseCategoryTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                }`}
+              >
+                Import Center から選択中
+              </div>
+              <div
+                className={`mt-1 text-xs leading-5 ${
+                  expenseCategoryTraceTargetExists ? "text-sky-800" : "text-amber-800"
+                }`}
+              >
+                transactionId: {expenseCategoryTraceSelection.transactionId || "-"}
+                {expenseCategoryTraceSelection.sourceRowNo ? ` / sourceRowNo: ${expenseCategoryTraceSelection.sourceRowNo}` : ""}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-500">
+                {expenseCategoryTraceTargetExists
+                  ? "該当する支出明細をハイライトしています。"
+                  : "現在の支出一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeExpenseCategoryTraceSelectionBanner}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+            >
+              選択解除
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {importReturnInfo.active && showImportReturnBanner ? (
         <div className="mb-5 rounded-[24px] border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
@@ -1758,6 +2003,16 @@ export function ExpenseCategoryProductWorkspace(props: {
             pageRows.map((row) => (
               <div
                 key={row.id}
+                data-expense-category-trace-highlight={isExpenseCategoryUnifiedHighlightedRecord(row) ? "true" : undefined}
+                style={
+                  isExpenseCategoryUnifiedHighlightedRecord(row)
+                    ? {
+                        outline: "3px solid rgba(14, 165, 233, 0.35)",
+                        boxShadow: "0 0 0 6px rgba(14, 165, 233, 0.12)",
+                        background: "rgba(240, 249, 255, 0.96)",
+                      }
+                    : undefined
+                }
                 className="grid grid-cols-[140px_150px_1fr_180px_150px_140px] gap-4 border-t border-slate-100 px-4 py-4 text-sm"
               >
                 <div className="text-slate-700">{row.date}</div>
@@ -1854,7 +2109,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                   ) : (
                     <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200"
                         data-import-return-highlight={
-                          isImportReturnHighlightedRecord(row) ? "true" : undefined
+                          isExpenseCategoryUnifiedHighlightedRecord(row) ? "true" : undefined
                         }
                       >
                       scope確定済み
