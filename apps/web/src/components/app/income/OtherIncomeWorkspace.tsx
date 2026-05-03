@@ -1341,10 +1341,18 @@ function buildOtherIncomeSegmentedLinePaths<
 
 
 // Step109-Z1-H7D-FIX2-OTHER-IMPORT-RETURN-BANNER-HIGHLIGHT: URL return helpers for inline income import completion.
+// Step109-Z1-H11-M-D-OTHER-INCOME-TRANSACTION-ID-HIGHLIGHT:
 type IncomeImportReturnInfo = {
   active: boolean;
   importJobId: string;
   refresh: string;
+};
+
+type OtherIncomeTraceSelectionInfo = {
+  active: boolean;
+  transactionId: string;
+  importJobId: string;
+  sourceRowNo: string;
 };
 
 function getIncomeImportReturnInfoFromUrl(expectedScope: string): IncomeImportReturnInfo {
@@ -1387,6 +1395,41 @@ function clearIncomeImportReturnUrl() {
   url.searchParams.delete("ledger_scope");
   url.searchParams.delete("refresh");
   url.searchParams.delete("importJobId");
+
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
+function getOtherIncomeTraceSelectionInfoFromUrl(): OtherIncomeTraceSelectionInfo {
+  if (typeof window === "undefined") {
+    return { active: false, transactionId: "", importJobId: "", sourceRowNo: "" };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const active =
+    params.get("from") === "import-center-trace" &&
+    params.get("domain") === "income" &&
+    params.get("module") === "other-income" &&
+    Boolean(params.get("transactionId"));
+
+  return {
+    active,
+    transactionId: params.get("transactionId") || "",
+    importJobId: params.get("importJobId") || "",
+    sourceRowNo: params.get("sourceRowNo") || "",
+  };
+}
+
+function clearOtherIncomeTraceSelectionUrl() {
+  if (typeof window === "undefined") return;
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("from");
+  url.searchParams.delete("transactionId");
+  url.searchParams.delete("importJobId");
+  url.searchParams.delete("sourceRowNo");
+  url.searchParams.delete("module");
+  url.searchParams.delete("domain");
 
   const query = url.searchParams.toString();
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
@@ -1449,6 +1492,9 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
   const [incomeImportReturnInfo, setIncomeImportReturnInfo] = React.useState<IncomeImportReturnInfo>(() =>
     getIncomeImportReturnInfoFromUrl(LEDGER_SCOPES.OTHER_INCOME)
   );
+  const [otherIncomeTraceSelectionInfo, setOtherIncomeTraceSelectionInfo] = React.useState<OtherIncomeTraceSelectionInfo>(() =>
+    getOtherIncomeTraceSelectionInfoFromUrl()
+  );
   const incomeImportDetailRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -1486,6 +1532,54 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     },
     [incomeImportReturnInfo.active, incomeImportReturnInfo.importJobId]
   );
+
+  const isOtherIncomeTraceHighlightedRow = React.useCallback(
+    (row: IncomeRow) => {
+      if (!otherIncomeTraceSelectionInfo.active) return false;
+
+      const rawMemo = String(row.memo || "");
+      const visibleMemo = String(stripOtherIncomeMarkers(row.memo || "") || "");
+
+      if (
+        otherIncomeTraceSelectionInfo.transactionId &&
+        row.id === otherIncomeTraceSelectionInfo.transactionId
+      ) {
+        return true;
+      }
+
+      if (
+        otherIncomeTraceSelectionInfo.transactionId &&
+        (rawMemo.includes(otherIncomeTraceSelectionInfo.transactionId) ||
+          visibleMemo.includes(otherIncomeTraceSelectionInfo.transactionId))
+      ) {
+        return true;
+      }
+
+      if (
+        otherIncomeTraceSelectionInfo.importJobId &&
+        rawMemo.includes(`[income_import_job:${otherIncomeTraceSelectionInfo.importJobId}]`)
+      ) {
+        return true;
+      }
+
+      return false;
+    },
+    [
+      otherIncomeTraceSelectionInfo.active,
+      otherIncomeTraceSelectionInfo.transactionId,
+      otherIncomeTraceSelectionInfo.importJobId,
+    ]
+  );
+
+  function closeOtherIncomeTraceSelectionBanner() {
+    setOtherIncomeTraceSelectionInfo({
+      active: false,
+      transactionId: "",
+      importJobId: "",
+      sourceRowNo: "",
+    });
+    clearOtherIncomeTraceSelectionUrl();
+  }
 
   function closeIncomeImportReturnBanner() {
     setIncomeImportReturnInfo({ active: false, importJobId: "", refresh: "" });
@@ -1849,6 +1943,45 @@ const otherIncomeStatusPoints = React.useMemo(
   }, [otherIncomeLastPresetRange]);
 
 const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
+
+  React.useEffect(() => {
+    if (!otherIncomeTraceSelectionInfo.active || !otherIncomeTraceSelectionInfo.transactionId) return;
+
+    const targetIndex = sortedRows.findIndex((row) => isOtherIncomeTraceHighlightedRow(row));
+    if (targetIndex < 0) return;
+
+    const targetPage = Math.floor(targetIndex / pageSize) + 1;
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+    }
+
+    const timer = window.setTimeout(() => {
+      incomeImportDetailRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 140);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    otherIncomeTraceSelectionInfo.active,
+    otherIncomeTraceSelectionInfo.transactionId,
+    sortedRows,
+    pageSize,
+    currentPage,
+    setCurrentPage,
+    isOtherIncomeTraceHighlightedRow,
+  ]);
+
+  const otherIncomeTraceTargetExists = React.useMemo(() => {
+    if (!otherIncomeTraceSelectionInfo.active || !otherIncomeTraceSelectionInfo.transactionId) return true;
+    return rows.some((row) => isOtherIncomeTraceHighlightedRow(row));
+  }, [
+    otherIncomeTraceSelectionInfo.active,
+    otherIncomeTraceSelectionInfo.transactionId,
+    rows,
+    isOtherIncomeTraceHighlightedRow,
+  ]);
   const filteredAmount = filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const activeOtherIncomeCategoryLabel = categoryFilter === "all" ? "全区分" : categoryFilter;
   const filteredCategorySummary = React.useMemo(
@@ -2906,6 +3039,49 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       >
         <div className="flex items-start justify-between gap-4">
           <div>
+            {otherIncomeTraceSelectionInfo.active ? (
+              <div
+                ref={incomeImportDetailRef}
+                className={`mb-4 rounded-[22px] border p-4 ${
+                  otherIncomeTraceTargetExists
+                    ? "border-sky-200 bg-sky-50"
+                    : "border-amber-200 bg-amber-50"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div
+                      className={`text-sm font-black ${
+                        otherIncomeTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                      }`}
+                    >
+                      Import Center から選択中
+                    </div>
+                    <div
+                      className={`mt-1 text-sm font-semibold leading-6 ${
+                        otherIncomeTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                      }`}
+                    >
+                      transactionId: {otherIncomeTraceSelectionInfo.transactionId || "-"}
+                      {otherIncomeTraceSelectionInfo.sourceRowNo ? ` / sourceRowNo: ${otherIncomeTraceSelectionInfo.sourceRowNo}` : ""}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-slate-500">
+                      {otherIncomeTraceTargetExists
+                        ? "該当するその他収入明細をハイライトしています。"
+                        : "現在のその他収入一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeOtherIncomeTraceSelectionBanner}
+                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    選択解除
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="text-lg font-semibold text-slate-900">その他収入明細</div>
             <div className="mt-1 text-sm text-slate-500">
               その他収入明細を一覧で確認できます。行をクリックすると編集 drawer が開きます。
@@ -3127,7 +3303,7 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
                 <button
                   key={row.id}
                   type="button"
-                  data-income-import-return-highlight={isIncomeImportReturnHighlightedRow(row) ? "true" : undefined}
+                  data-income-import-return-highlight={(isIncomeImportReturnHighlightedRow(row) || isOtherIncomeTraceHighlightedRow(row)) ? "true" : undefined}
                   onClick={() => openEdit(row)}
                   className={[
                     "grid w-full grid-cols-[140px_1.1fr_1fr_180px_140px] gap-4 border-t border-slate-100 px-4 py-3 text-left text-sm transition",
