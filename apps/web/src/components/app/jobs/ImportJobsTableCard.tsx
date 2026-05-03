@@ -30,6 +30,14 @@ import {
   fetchImportJobDetailRows,
   type ImportJobDetailFetchState,
 } from "./import-center-detail-data";
+import {
+  formatJsonPreview,
+  getImportedAtLabel,
+  getImportCenterSourceTypeLabel,
+  shortId,
+  uniqueDomains,
+} from "./import-center-display";
+
 
 
 
@@ -91,41 +99,6 @@ import {
 //
 // Step109-Z1-H13-B-FIX1-EMPTY-FILTER-CLEAR-ACTION:
 // Add clear filters action to empty filtered list state after selection is cleared.
-
-function getImportCenterSourceTypeLabel(sourceType?: string | null) {
-  const value = String(sourceType || "").trim();
-
-  if (!value) return "-";
-  if (value.toLowerCase() === "csv") return "CSV";
-  if (value === "expense-csv") return "支出CSV";
-  if (value === "amazon-csv") return "Amazon CSV";
-  if (value === "manual") return "手動";
-  return value;
-}
-
-function getImportedAtLabel(job: ImportJobItem) {
-  return job.importedAt ? fmtDate(job.importedAt) : "未登録";
-}
-
-function uniqueDomains(jobs: ImportJobItem[]) {
-  return Array.from(
-    new Set(
-      jobs
-        .map((job) => String(job.domain || "").trim())
-        .filter(Boolean)
-    )
-  ).sort();
-}
-
-function formatJsonPreview(value: unknown) {
-  if (value == null) return "-";
-
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
 
 function getImportJobIdFromUrl() {
   if (typeof window === "undefined") return "";
@@ -196,11 +169,6 @@ function getDrawerActionToneClass(job: ImportJobItem) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
-
-function shortId(value?: string | null) {
-  if (!value) return "-";
-  return value.length > 10 ? `${value.slice(0, 10)}...` : value;
-}
 
 function CopyFriendlyId(props: {
   label: string;
