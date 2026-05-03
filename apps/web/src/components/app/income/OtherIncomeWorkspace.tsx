@@ -2007,14 +2007,6 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
   const editingRow = drawerRow ?? selectedRow;
   const drawerOpen = createOpen || (editOpen && !!editingRow);
-  const drawerDebugState = [
-    `action:${action || "-"}`,
-    `create:${createOpen ? "1" : "0"}`,
-    `edit:${editOpen ? "1" : "0"}`,
-    `drawerRow:${drawerRow?.id || "-"}`,
-    `selected:${selectedRow?.id || "-"}`,
-    `open:${drawerOpen ? "1" : "0"}`,
-  ].join("|");
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -3460,7 +3452,6 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
       {drawerOpen ? (
         <div
           data-scope="other-income-fallback-drawer-h16b1-fix3"
-          data-drawer-state={drawerDebugState}
           className="fixed inset-0 z-[120] flex justify-end bg-slate-950/30"
         >
           <button
