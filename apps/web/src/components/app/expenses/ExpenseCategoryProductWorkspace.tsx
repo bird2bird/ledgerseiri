@@ -108,7 +108,7 @@ function readExpenseCategoryTraceSelectionInfo(
   const categoryMatches =
     !category ||
     category === kind ||
-    (kind === "company-operation" && category === "company-operation") ||
+    ((kind === "company-operation" && category === "company-operation") || (kind === "company-operation" && category === "other")) ||
     (kind === "payroll" && category === "payroll") ||
     (kind === "other-expense" && category === "other-expense");
 

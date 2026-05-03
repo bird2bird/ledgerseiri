@@ -48,6 +48,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-M-F-REV1-A-AMAZON-TRACE-ROUTING:
 // Split Amazon import transaction trace links into Store Orders vs Store Operation views.
+//
+// Step109-Z1-H11-M-G-FIX3-COMPANY-OPERATION-CATEGORY-OTHER:
+// Route company-operation-expense to /expenses?category=other because expenses/page.tsx maps category=other to company-operation workspace.
 
 type ImportCenterTone =
   | "success"
@@ -299,7 +302,7 @@ function buildImportJobSourceHref(job: ImportJobItem) {
 
   if (domain === "ledger" && module === "company-operation-expense") {
     const companyParams = new URLSearchParams(params);
-    companyParams.set("category", "company-operation");
+    companyParams.set("category", "other");
     return `/ja/app/expenses?${companyParams.toString()}`;
   }
 
@@ -602,7 +605,7 @@ function buildTransactionTraceHref(job: ImportJobItem, tx: ImportJobTransactionT
 
   if (domain === "ledger" && module === "company-operation-expense") {
     params.set("traceTarget", "expense-category");
-    params.set("category", "company-operation");
+    params.set("category", "other");
     return `/ja/app/expenses?${params.toString()}`;
   }
 
