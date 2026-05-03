@@ -40,6 +40,12 @@ type ChargeSummary = {
 
 // Step109-Z1-H11-M-F-STORE-OPERATION-TRANSACTION-ID-HIGHLIGHT:
 // Import Center trace URL highlights Store Operation charge rows without auto-opening drawer.
+//
+// Step109-Z1-H11-M-F-REV1-B-ACCEPT-AMAZON-TRACE:
+// Accept Amazon import trace URLs routed with traceTarget=store-operation.
+//
+// Step109-Z1-H11-M-F-REV1-B-FIX2-BANNER-BEFORE-SELECTED-CHARGE:
+// Render trace banner before selectedCharge branch so empty state also shows trace context.
 type StoreOperationTraceSelectionInfo = {
   active: boolean;
   transactionId: string;
@@ -48,11 +54,22 @@ type StoreOperationTraceSelectionInfo = {
 };
 
 function readStoreOperationTraceSelectionInfo(searchParams: URLSearchParams): StoreOperationTraceSelectionInfo {
+  const fromImportTrace = searchParams.get("from") === "import-center-trace";
+  const domain = String(searchParams.get("domain") || "").trim();
+  const module = String(searchParams.get("module") || "").trim();
+  const traceTarget = String(searchParams.get("traceTarget") || "").trim();
+
+  const legacyStoreOperationTrace =
+    domain === "ledger" && module === "store-operation-expense";
+
+  const amazonStoreOperationTrace =
+    traceTarget === "store-operation" &&
+    (domain === "store-orders" || domain === "amazon-store-orders" || domain === "amazon");
+
   const active =
-    searchParams.get("from") === "import-center-trace" &&
-    searchParams.get("domain") === "ledger" &&
-    searchParams.get("module") === "store-operation-expense" &&
-    Boolean(searchParams.get("transactionId"));
+    fromImportTrace &&
+    Boolean(searchParams.get("transactionId")) &&
+    (legacyStoreOperationTrace || amazonStoreOperationTrace);
 
   return {
     active,
@@ -72,6 +89,7 @@ function clearStoreOperationTraceSelectionUrl() {
   url.searchParams.delete("sourceRowNo");
   url.searchParams.delete("module");
   url.searchParams.delete("domain");
+  url.searchParams.delete("traceTarget");
 
   const query = url.searchParams.toString();
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
@@ -1399,6 +1417,49 @@ if (!isActiveRoute) {
           ) : null}
         </div>
 
+            {storeOperationTraceSelection.active ? (
+            <div
+              data-store-operation-trace-banner="true"
+              className={`mt-6 rounded-[22px] border p-4 ${
+                storeOperationTraceTargetExists
+                  ? "border-sky-200 bg-sky-50"
+                  : "border-amber-200 bg-amber-50"
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div
+                    className={`text-sm font-black ${
+                      storeOperationTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                    }`}
+                  >
+                    Import Center から選択中
+                  </div>
+                  <div
+                    className={`mt-1 text-sm font-semibold leading-6 ${
+                      storeOperationTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                    }`}
+                  >
+                    transactionId: {storeOperationTraceSelection.transactionId || "-"}
+                    {storeOperationTraceSelection.sourceRowNo ? ` / sourceRowNo: ${storeOperationTraceSelection.sourceRowNo}` : ""}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">
+                    {storeOperationTraceTargetExists
+                      ? "該当する店舗運営費明細をハイライトしています。"
+                      : "現在の店舗運営費一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeStoreOperationTraceSelectionBanner}
+                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  選択解除
+                </button>
+              </div>
+            </div>
+          ) : null}
+
         {selectedCharge ? (
           <div className="mt-6 rounded-[24px] border border-slate-100 bg-slate-50 p-5">
             <div className="text-lg font-semibold text-slate-900">Selected Charge</div>
@@ -1537,48 +1598,6 @@ if (!isActiveRoute) {
           </div>
         ) : (
           <>
-            {storeOperationTraceSelection.active ? (
-            <div
-              data-store-operation-trace-banner="true"
-              className={`mt-6 rounded-[22px] border p-4 ${
-                storeOperationTraceTargetExists
-                  ? "border-sky-200 bg-sky-50"
-                  : "border-amber-200 bg-amber-50"
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div
-                    className={`text-sm font-black ${
-                      storeOperationTraceTargetExists ? "text-sky-900" : "text-amber-900"
-                    }`}
-                  >
-                    Import Center から選択中
-                  </div>
-                  <div
-                    className={`mt-1 text-sm font-semibold leading-6 ${
-                      storeOperationTraceTargetExists ? "text-sky-700" : "text-amber-700"
-                    }`}
-                  >
-                    transactionId: {storeOperationTraceSelection.transactionId || "-"}
-                    {storeOperationTraceSelection.sourceRowNo ? ` / sourceRowNo: ${storeOperationTraceSelection.sourceRowNo}` : ""}
-                  </div>
-                  <div className="mt-1 text-xs font-semibold text-slate-500">
-                    {storeOperationTraceTargetExists
-                      ? "該当する店舗運営費明細をハイライトしています。"
-                      : "現在の店舗運営費一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeStoreOperationTraceSelectionBanner}
-                  className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
-                >
-                  選択解除
-                </button>
-              </div>
-            </div>
-          ) : null}
 
           <div className="mt-6 overflow-hidden rounded-[24px] border border-slate-100">
               <div className="grid grid-cols-[120px_140px_1.35fr_150px_140px_140px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">

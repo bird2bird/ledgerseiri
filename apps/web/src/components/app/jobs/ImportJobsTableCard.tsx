@@ -45,6 +45,9 @@ import { fmtDate } from "./jobs-shared";
 //
 // Step109-Z1-H11-M-B-TRACE-NAVIGATION-ROUTE-ALIGNMENT:
 // Route transaction trace links to real business pages instead of missing /transactions.
+//
+// Step109-Z1-H11-M-F-REV1-A-AMAZON-TRACE-ROUTING:
+// Split Amazon import transaction trace links into Store Orders vs Store Operation views.
 
 type ImportCenterTone =
   | "success"
@@ -471,6 +474,99 @@ function shortId(value?: string | null) {
   return value.length > 10 ? `${value.slice(0, 10)}...` : value;
 }
 
+function isAmazonImportJob(job: ImportJobItem) {
+  const domain = String(job.domain || "").trim();
+  const module = String(job.module || "").trim();
+  const sourceType = String(job.sourceType || "").trim().toLowerCase();
+  const filename = String(job.filename || "").trim().toLowerCase();
+
+  return (
+    domain === "store-orders" ||
+    domain === "amazon-store-orders" ||
+    domain === "amazon" ||
+    module === "store-orders" ||
+    sourceType.includes("amazon") ||
+    filename.includes("amazon") ||
+    filename.includes("monthlytransaction")
+  );
+}
+
+function inferAmazonTraceTarget(tx: ImportJobTransactionTraceItem): "store-orders" | "store-operation" {
+  const type = String(tx.type || "").toLowerCase();
+  const direction = String(tx.direction || "").toLowerCase();
+  const memo = String(tx.memo || "").toLowerCase();
+  const amount = Number(tx.amount || 0);
+
+  const haystack = `${type} ${direction} ${memo}`;
+
+  const operationKeywords = [
+    "fee",
+    "charge",
+    "commission",
+    "advertising",
+    "advertisement",
+    "ads",
+    "fba",
+    "storage",
+    "subscription",
+    "refund",
+    "adjustment",
+    "transfer",
+    "settlement",
+    "tax",
+    "手数料",
+    "広告",
+    "広告費",
+    "fba",
+    "倉庫",
+    "保管",
+    "月額",
+    "登録料",
+    "返金",
+    "調整",
+    "振込",
+    "税",
+  ];
+
+  const orderKeywords = [
+    "order",
+    "sale",
+    "sales",
+    "product",
+    "principal",
+    "revenue",
+    "income",
+    "注文",
+    "売上",
+    "商品売上",
+    "注文売上",
+  ];
+
+  if (operationKeywords.some((keyword) => haystack.includes(keyword))) {
+    return "store-operation";
+  }
+
+  if (orderKeywords.some((keyword) => haystack.includes(keyword))) {
+    return "store-orders";
+  }
+
+  if (direction.includes("expense") || direction.includes("out")) {
+    return "store-operation";
+  }
+
+  if (direction.includes("income") || direction.includes("in")) {
+    return "store-orders";
+  }
+
+  // Amazon transaction CSV usually represents fees/adjustments as negative signed amounts.
+  // Use amount as a final fallback only after text heuristics.
+  if (amount < 0) {
+    return "store-operation";
+  }
+
+  return "store-orders";
+}
+
 function buildTransactionTraceHref(job: ImportJobItem, tx: ImportJobTransactionTraceItem) {
   const domain = String(job.domain || "").trim();
   const module = String(job.module || "").trim();
@@ -484,38 +580,47 @@ function buildTransactionTraceHref(job: ImportJobItem, tx: ImportJobTransactionT
   if (module) params.set("module", module);
   if (domain) params.set("domain", domain);
 
-  const suffix = `?${params.toString()}`;
-
   if (domain === "income" && module === "cash-income") {
-    return `/ja/app/income/cash${suffix}`;
+    params.set("traceTarget", "cash-income");
+    return `/ja/app/income/cash?${params.toString()}`;
   }
 
   if (domain === "income" && module === "other-income") {
-    return `/ja/app/income/other${suffix}`;
+    params.set("traceTarget", "other-income");
+    return `/ja/app/income/other?${params.toString()}`;
   }
 
   if (domain === "ledger" && module === "store-operation-expense") {
-    return `/ja/app/expenses/store-operation${suffix}`;
+    params.set("traceTarget", "store-operation");
+    return `/ja/app/expenses/store-operation?${params.toString()}`;
   }
 
   if (domain === "ledger" && module === "other-expense") {
-    return `/ja/app/other-expense${suffix}`;
+    params.set("traceTarget", "other-expense");
+    return `/ja/app/other-expense?${params.toString()}`;
   }
 
   if (domain === "ledger" && module === "company-operation-expense") {
-    const companyParams = new URLSearchParams(params);
-    companyParams.set("category", "company-operation");
-    return `/ja/app/expenses?${companyParams.toString()}`;
+    params.set("traceTarget", "expense-category");
+    params.set("category", "company-operation");
+    return `/ja/app/expenses?${params.toString()}`;
   }
 
   if (domain === "ledger" && module === "payroll-expense") {
-    const payrollParams = new URLSearchParams(params);
-    payrollParams.set("category", "payroll");
-    return `/ja/app/expenses?${payrollParams.toString()}`;
+    params.set("traceTarget", "expense-category");
+    params.set("category", "payroll");
+    return `/ja/app/expenses?${params.toString()}`;
   }
 
-  if (domain === "amazon-store-orders" || domain === "store-orders" || module === "store-orders") {
-    return `/ja/app/income/store-orders${suffix}`;
+  if (isAmazonImportJob(job)) {
+    const traceTarget = inferAmazonTraceTarget(tx);
+    params.set("traceTarget", traceTarget);
+
+    if (traceTarget === "store-operation") {
+      return `/ja/app/expenses/store-operation?${params.toString()}`;
+    }
+
+    return `/ja/app/income/store-orders?${params.toString()}`;
   }
 
   return `/ja/app/data/import?${params.toString()}`;
@@ -974,7 +1079,7 @@ function ImportJobDetailDrawer(props: {
                         関連明細へ移動
                       </a>
                       <span className="inline-flex h-8 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-3 text-[11px] font-black text-slate-500">
-                        routed to business page
+                        routed by trace target
                       </span>
                     </div>
                   </div>
@@ -991,8 +1096,8 @@ function ImportJobDetailDrawer(props: {
             <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4">
               <div className="text-sm font-black text-slate-900">Detail API</div>
               <div className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-                H11-M-B で transaction trace の遷移先を実在する業務ページへ合わせました。
-                次の H11-M-C では収入・支出ページ側の transactionId highlight を個別に接続します。
+                H11-M-F-REV1-A で Amazon import trace の遷移先を売上系と費用系に分岐しました。
+                次の REV1-B/C では Store Operation / Store Orders 側の trace highlight を整えます。
               </div>
             </div>
           </div>
