@@ -1586,6 +1586,8 @@ export function OtherIncomeWorkspace(props: OtherIncomeWorkspaceProps) {
     clearIncomeImportReturnUrl();
   }
   const [categoryFilter, setCategoryFilter] = React.useState("all");
+  // Step109-Z1-H16-B1-OTHER-INCOME-DRAWER-VISIBILITY:
+  // Row click opens the edit drawer through drawerRow, independently from URL action=edit.
   const [drawerRow, setDrawerRow] = React.useState<IncomeRow | null>(null);
   const [editCategoryLabel, setEditCategoryLabel] = React.useState("その他収入");
   const [otherIncomeSourceFilter, setOtherIncomeSourceFilter] = React.useState("all");
@@ -2005,6 +2007,14 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
 
   const editingRow = drawerRow ?? selectedRow;
   const drawerOpen = createOpen || (editOpen && !!editingRow);
+  const drawerDebugState = [
+    `action:${action || "-"}`,
+    `create:${createOpen ? "1" : "0"}`,
+    `edit:${editOpen ? "1" : "0"}`,
+    `drawerRow:${drawerRow?.id || "-"}`,
+    `selected:${selectedRow?.id || "-"}`,
+    `open:${drawerOpen ? "1" : "0"}`,
+  ].join("|");
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -2075,16 +2085,20 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
   }, [action, selectedRow, setEditAmount, setEditMemo]);
 
   function openEdit(row: IncomeRow) {
+    // Step109-Z1-H16-B1:
+    // Keep row-click behavior deterministic: select the row and open edit drawer immediately.
     onSelectRow(row.id);
+    setDrawerRow(row);
     setEditAmount(String(row.amount || ""));
     setEditMemo(getOtherIncomeMemo(row));
     setEditCategoryLabel(getOtherIncomeCategoryLabel(row));
-    setDrawerRow(row);
   }
 
   function closeDrawer() {
+    // Step109-Z1-H16-B1:
+    // Close both URL-driven and row-click-driven drawer states.
     setDrawerRow(null);
-    if (action) clearActionMode();
+    clearActionMode();
   }
 
   async function saveCreate() {
@@ -3439,6 +3453,153 @@ const pageWindow = buildOtherIncomePageWindow(safeCurrentPage, totalPages);
         defaultFilename={getLedgerScopeConfig(LEDGER_SCOPES.OTHER_INCOME).templateFileName}
         onCommitted={handleOtherIncomeDialogCommitted}
       />
+
+      {/* Step109-Z1-H16-B1-FIX3-OTHER-INCOME-FALLBACK-DRAWER:
+          Fallback drawer render path for row-click edit visibility.
+          Keep existing save/delete handlers and API contracts unchanged. */}
+      {drawerOpen ? (
+        <div
+          data-scope="other-income-fallback-drawer-h16b1-fix3"
+          data-drawer-state={drawerDebugState}
+          className="fixed inset-0 z-[120] flex justify-end bg-slate-950/30"
+        >
+          <button
+            type="button"
+            aria-label="drawer backdrop"
+            className="absolute inset-0 cursor-default"
+            onClick={closeDrawer}
+          />
+          <aside className="relative z-[121] h-full w-full max-w-[520px] overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  OTHER INCOME
+                </div>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">
+                  {drawerMode === "create" ? "新規その他収入" : "その他収入を編集"}
+                </h2>
+                <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  行クリックから開く編集 drawer です。金額・メモ・収入区分を確認して保存できます。
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeDrawer}
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+
+            {editingRow ? (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-xs font-bold text-slate-500">発生日</div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">{editingRow.date}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-500">現在金額</div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">
+                      {formatIncomeJPY(editingRow.amount)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-500">口座</div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">{editingRow.account || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-500">収入元</div>
+                    <div className="mt-1 text-sm font-bold text-slate-900">{editingRow.store || "-"}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">収入区分</span>
+                <select
+                  value={editCategoryLabel}
+                  onChange={(event) => setEditCategoryLabel(event.target.value)}
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                >
+                  {OTHER_INCOME_STANDARD_CATEGORY_LABELS.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">金額</span>
+                <input
+                  value={editAmount}
+                  onChange={(event) => setEditAmount(event.target.value)}
+                  inputMode="numeric"
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">メモ</span>
+                <textarea
+                  value={editMemo}
+                  onChange={(event) => setEditMemo(event.target.value)}
+                  rows={5}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-900"
+                />
+              </label>
+
+              {editUiError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                  {editUiError}
+                </div>
+              ) : null}
+
+              {editUiMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+                  {editUiMessage}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleDeleteSelected();
+                  }}
+                  disabled={!editingRow || deleteLoading}
+                  className="rounded-2xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deleteLoading ? "削除中..." : "削除"}
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={closeDrawer}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleOtherIncomeDrawerSave();
+                    }}
+                    disabled={editSaveLoading || !editCanSave}
+                    className="rounded-2xl bg-slate-950 px-5 py-2 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {editSaveLoading ? "保存中..." : "保存"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
     </div>
   );
