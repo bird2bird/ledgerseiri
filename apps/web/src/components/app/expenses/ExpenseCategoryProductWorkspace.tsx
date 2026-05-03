@@ -1249,12 +1249,73 @@ export function ExpenseCategoryProductWorkspace(props: {
   // Step109-Z1-H6B-FIX3-COMPANY-OPERATION-INLINE-IMPORT-DIALOG:
   // H6D enables inline import dialog for 会社運営費 / 給与 / その他支出.
   const [expenseInlineImportOpen, setExpenseInlineImportOpen] = React.useState(false);
+
+  // Step109-Z1-H16-B2-EXPENSE-CATEGORY-EDIT-DRAWER:
+  // Minimal edit drawer shared by 会社運営費 / 給与 / その他支出.
+  const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
+  const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
+  const [expenseEditBucket, setExpenseEditBucket] = React.useState("all");
+  const [expenseEditSaving, setExpenseEditSaving] = React.useState(false);
+  const [expenseEditError, setExpenseEditError] = React.useState("");
+  const [expenseEditMessage, setExpenseEditMessage] = React.useState("");
   // Step109-Z1-H6D-FIX1-OTHER-EXPENSE-INLINE-IMPORT-DIALOG:
   // H6D enables inline import dialog for 会社運営費 / 給与 / その他支出.
   const isCompanyOperationInlineImportEnabled =
     kind === "company-operation" ||
     kind === "payroll" ||
     kind === "other-expense";
+
+  function openExpenseCategoryEditDrawer(row: ExpenseCategoryRecord) {
+    setEditingExpenseRow(row);
+    setExpenseEditMemo(stripLedgerMarkersFromMemo(row.rawMemo || row.memo || ""));
+    setExpenseEditBucket(row.source && row.source !== "all" ? row.source : "all");
+    setExpenseEditError("");
+    setExpenseEditMessage("");
+  }
+
+  function closeExpenseCategoryEditDrawer() {
+    if (expenseEditSaving) return;
+    setEditingExpenseRow(null);
+    setExpenseEditError("");
+    setExpenseEditMessage("");
+  }
+
+  async function handleExpenseCategoryEditSave() {
+    if (!editingExpenseRow || expenseEditSaving) return;
+
+    const nextMemoVisible = expenseEditMemo.trim() || editingExpenseRow.memo || config.title;
+    const nextBucket = expenseEditBucket && expenseEditBucket !== "all"
+      ? expenseEditBucket
+      : editingExpenseRow.source && editingExpenseRow.source !== "all"
+        ? editingExpenseRow.source
+        : "";
+
+    const nextMemo = appendLedgerMarkersToMemo({
+      memo: nextMemoVisible,
+      scope: getWorkspaceLedgerScope(kind),
+      subcategory: nextBucket,
+    });
+
+    setExpenseEditSaving(true);
+    setExpenseEditError("");
+    setExpenseEditMessage("");
+
+    try {
+      await updateTransaction(editingExpenseRow.id, { memo: nextMemo });
+      setExpenseEditMessage("保存しました。画面を更新します。");
+
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("refresh", String(Date.now()));
+        window.location.href = `${url.pathname}${url.search}${url.hash}`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存に失敗しました。";
+      setExpenseEditError(message);
+    } finally {
+      setExpenseEditSaving(false);
+    }
+  }
 
   function handleExpenseInlineImportCommitted(result: { importJobId?: string | null }) {
     setExpenseInlineImportOpen(false);
@@ -1875,8 +1936,12 @@ export function ExpenseCategoryProductWorkspace(props: {
               )}
           <button
             type="button"
-            disabled
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm font-bold text-slate-400"
+            disabled={!editingExpenseRow}
+            onClick={() => {
+              if (!editingExpenseRow) return;
+              openExpenseCategoryEditDrawer(editingExpenseRow);
+            }}
+            className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
           >
             {config.title}を編集
           </button>
@@ -2001,8 +2066,10 @@ export function ExpenseCategoryProductWorkspace(props: {
             <div className="px-4 py-8 text-sm text-slate-500">表示できる明細はありません。</div>
           ) : (
             pageRows.map((row) => (
-              <div
+              <button
                 key={row.id}
+                type="button"
+                onClick={() => openExpenseCategoryEditDrawer(row)}
                 data-expense-category-trace-highlight={isExpenseCategoryUnifiedHighlightedRecord(row) ? "true" : undefined}
                 style={
                   isExpenseCategoryUnifiedHighlightedRecord(row)
@@ -2013,7 +2080,12 @@ export function ExpenseCategoryProductWorkspace(props: {
                       }
                     : undefined
                 }
-                className="grid grid-cols-[140px_150px_1fr_180px_150px_140px] gap-4 border-t border-slate-100 px-4 py-4 text-sm"
+                className={[
+                  "grid w-full grid-cols-[140px_150px_1fr_180px_150px_140px] gap-4 border-t border-slate-100 px-4 py-4 text-left text-sm transition",
+                  editingExpenseRow?.id === row.id
+                    ? "bg-sky-50 ring-1 ring-inset ring-sky-300"
+                    : "bg-white hover:bg-slate-50/80",
+                ].join(" ")}
               >
                 <div className="text-slate-700">{row.date}</div>
                 <div>
@@ -2048,12 +2120,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <button
                           type="button"
                           disabled={scopeMoveBusyId === row.id}
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation();
                             void handleMoveExpenseScope(
                               row,
                               LEDGER_SCOPES.COMPANY_OPERATION_EXPENSE,
-                            )
-                          }
+                            );
+                          }}
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                         >
                           会社運営費へ
@@ -2064,12 +2137,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <button
                           type="button"
                           disabled={scopeMoveBusyId === row.id}
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation();
                             void handleMoveExpenseScope(
                               row,
                               LEDGER_SCOPES.PAYROLL_EXPENSE,
-                            )
-                          }
+                            );
+                          }}
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                         >
                           給与へ
@@ -2080,12 +2154,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <button
                           type="button"
                           disabled={scopeMoveBusyId === row.id}
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation();
                             void handleMoveExpenseScope(
                               row,
                               LEDGER_SCOPES.OTHER_EXPENSE,
-                            )
-                          }
+                            );
+                          }}
                           className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                         >
                           その他支出へ
@@ -2094,12 +2169,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <button
                           type="button"
                           disabled={scopeMoveBusyId === row.id}
-                          onClick={() =>
+                          onClick={(event) => {
+                            event.stopPropagation();
                             void handleMoveExpenseScope(
                               row,
                               LEDGER_SCOPES.OTHER_EXPENSE,
-                            )
-                          }
+                            );
+                          }}
                           className="rounded-lg bg-slate-950 px-2 py-1 text-[11px] font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
                         >
                           その他支出で確定
@@ -2117,7 +2193,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                   )}
                 </div>
                 <div className="text-right font-bold text-slate-950">{formatIncomeJPY(row.amount)}</div>
-              </div>
+              </button>
             ))
           )}
         </div>
@@ -2155,6 +2231,128 @@ export function ExpenseCategoryProductWorkspace(props: {
           </div>
         </div>
       </section>
+      {/* Step109-Z1-H16-B2-EXPENSE-CATEGORY-EDIT-DRAWER:
+          Minimal right-side edit drawer for 会社運営費 / 給与 / その他支出.
+          It saves memo + ledger markers through updateTransaction. */}
+      {editingExpenseRow ? (
+        <div
+          data-scope="expense-category-edit-drawer-h16b2"
+          className="fixed inset-0 z-[120] flex justify-end bg-slate-950/30"
+        >
+          <button
+            type="button"
+            aria-label="drawer backdrop"
+            className="absolute inset-0 cursor-default"
+            onClick={closeExpenseCategoryEditDrawer}
+          />
+          <aside className="relative z-[121] h-full w-full max-w-[520px] overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  EXPENSE
+                </div>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">
+                  {config.title}を編集
+                </h2>
+                <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  メモと区分を編集できます。金額・口座・証憑の編集は後続ステップで接続します。
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeExpenseCategoryEditDrawer}
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="text-xs font-bold text-slate-500">発生日</div>
+                  <div className="mt-1 text-sm font-bold text-slate-900">{editingExpenseRow.date}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-500">金額</div>
+                  <div className="mt-1 text-sm font-bold text-slate-900">
+                    {formatIncomeJPY(editingExpenseRow.amount)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-500">口座</div>
+                  <div className="mt-1 text-sm font-bold text-slate-900">{editingExpenseRow.account || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-500">支払先</div>
+                  <div className="mt-1 text-sm font-bold text-slate-900">{editingExpenseRow.vendor || "-"}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">{config.sourceLabel}</span>
+                <select
+                  value={expenseEditBucket}
+                  onChange={(event) => setExpenseEditBucket(event.target.value)}
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                >
+                  {KIND_OPTIONS[kind].map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">メモ</span>
+                <textarea
+                  value={expenseEditMemo}
+                  onChange={(event) => setExpenseEditMemo(event.target.value)}
+                  rows={6}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold leading-6 text-slate-900"
+                />
+              </label>
+
+              {expenseEditError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                  {expenseEditError}
+                </div>
+              ) : null}
+
+              {expenseEditMessage ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+                  {expenseEditMessage}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-5">
+                <button
+                  type="button"
+                  onClick={closeExpenseCategoryEditDrawer}
+                  disabled={expenseEditSaving}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleExpenseCategoryEditSave();
+                  }}
+                  disabled={expenseEditSaving || !expenseEditMemo.trim()}
+                  className="rounded-2xl bg-slate-950 px-5 py-2 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {expenseEditSaving ? "保存中..." : "保存"}
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
       {isCompanyOperationInlineImportEnabled ? (
         <ExpenseImportDialog
           open={expenseInlineImportOpen}
