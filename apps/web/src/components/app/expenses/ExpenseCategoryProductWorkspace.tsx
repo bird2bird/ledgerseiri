@@ -1291,6 +1291,9 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
   const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
   const [expenseEditVendor, setExpenseEditVendor] = React.useState("");
+  // Step109-Z1-H17-C-EXPENSE-EVIDENCE-NO-MARKER-EDIT:
+  // Temporary evidence/reference number edit stored as Transaction.memo [evidence_no:*].
+  const [expenseEditEvidenceNo, setExpenseEditEvidenceNo] = React.useState("");
   // Step109-Z1-H17-B2-EXPENSE-DOCUMENT-UPLOAD-CONTROLS:
   // Temporary document controls store selected filenames as memo markers.
   // Real file persistence will be connected after attachment API/storage is implemented.
@@ -1312,6 +1315,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     const rawMemo = row.rawMemo || row.memo || "";
     setExpenseEditMemo(stripExpenseDisplaySystemMarkers(rawMemo));
     setExpenseEditVendor(row.vendor && row.vendor !== "-" ? row.vendor : "");
+    setExpenseEditEvidenceNo(readExpenseMemoMarker(rawMemo, ["evidence_no", "invoice_no", "evidence", "invoice"]));
     setExpenseEditBankStatementFileName(readExpenseMemoMarker(rawMemo, ["bank_statement_file"]));
     setExpenseEditInvoiceFileName(readExpenseMemoMarker(rawMemo, ["invoice_file", "receipt_file", "document_file"]));
     setExpenseEditBucket(row.source && row.source !== "all" ? row.source : "all");
@@ -1323,6 +1327,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
     setExpenseEditVendor("");
+    setExpenseEditEvidenceNo("");
     setExpenseEditBankStatementFileName("");
     setExpenseEditInvoiceFileName("");
     setExpenseEditError("");
@@ -1356,9 +1361,14 @@ export function ExpenseCategoryProductWorkspace(props: {
           "invoice_file",
           expenseEditInvoiceFileName
         );
+    const nextMemoWithEvidenceNo = replaceExpenseMemoMarkerValue(
+      nextMemoWithDocuments,
+      "evidence_no",
+      expenseEditEvidenceNo
+    );
 
     const nextMemo = appendLedgerMarkersToMemo({
-      memo: nextMemoWithDocuments,
+      memo: nextMemoWithEvidenceNo,
       scope: getWorkspaceLedgerScope(kind),
       subcategory: nextBucket,
     });
@@ -2383,6 +2393,19 @@ export function ExpenseCategoryProductWorkspace(props: {
                 />
                 <span className="mt-1 block text-xs font-semibold text-slate-400">
                   現段階では Transaction.memo の [vendor:*] marker として保存します。
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">証憑番号</span>
+                <input
+                  value={expenseEditEvidenceNo}
+                  onChange={(event) => setExpenseEditEvidenceNo(event.target.value)}
+                  placeholder={kind === "payroll" ? "銀行振込受付番号 / 明細番号" : "請求書番号 / 領収書番号 / 明細番号"}
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                />
+                <span className="mt-1 block text-xs font-semibold text-slate-400">
+                  現段階では Transaction.memo の [evidence_no:*] marker として保存します。
                 </span>
               </label>
 
