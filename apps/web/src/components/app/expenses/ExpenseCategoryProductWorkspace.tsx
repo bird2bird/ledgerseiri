@@ -840,6 +840,32 @@ function readExpenseMemoMarker(
   return "";
 }
 
+// Step109-Z1-H17-B-EXPENSE-VENDOR-MARKER-EDIT:
+// Short-term production strategy: vendor/payee is stored in Transaction.memo marker
+// because PATCH /api/transactions/:id currently supports only amount and memo.
+function replaceExpenseMemoMarkerValue(
+  memo: string,
+  marker: string,
+  value: string
+) {
+  const normalizedMemo = String(memo || "").trim();
+  const normalizedMarker = String(marker || "").trim();
+  const normalizedValue = String(value || "").trim();
+
+  if (!normalizedMarker) return normalizedMemo;
+
+  const escaped = normalizedMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`\\[${escaped}:[^\\]]*\\]`, "gi");
+  const withoutMarker = normalizedMemo.replace(regex, "").replace(/\s+/g, " ").trim();
+
+  if (!normalizedValue) return withoutMarker;
+
+  return [withoutMarker, `[${normalizedMarker}:${normalizedValue}]`]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 function stripExpenseDisplaySystemMarkers(memo: string | null | undefined) {
   return stripLedgerMarkersFromMemo(memo)
     .replace(/\[vendor:[^\]]+\]/gi, "")
@@ -1254,6 +1280,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   // Minimal edit drawer shared by 会社運営費 / 給与 / その他支出.
   const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
   const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
+  const [expenseEditVendor, setExpenseEditVendor] = React.useState("");
   const [expenseEditBucket, setExpenseEditBucket] = React.useState("all");
   const [expenseEditSaving, setExpenseEditSaving] = React.useState(false);
   const [expenseEditError, setExpenseEditError] = React.useState("");
@@ -1267,7 +1294,8 @@ export function ExpenseCategoryProductWorkspace(props: {
 
   function openExpenseCategoryEditDrawer(row: ExpenseCategoryRecord) {
     setEditingExpenseRow(row);
-    setExpenseEditMemo(stripLedgerMarkersFromMemo(row.rawMemo || row.memo || ""));
+    setExpenseEditMemo(stripExpenseDisplaySystemMarkers(row.rawMemo || row.memo || ""));
+    setExpenseEditVendor(row.vendor && row.vendor !== "-" ? row.vendor : "");
     setExpenseEditBucket(row.source && row.source !== "all" ? row.source : "all");
     setExpenseEditError("");
     setExpenseEditMessage("");
@@ -1276,6 +1304,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   function closeExpenseCategoryEditDrawer() {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
+    setExpenseEditVendor("");
     setExpenseEditError("");
     setExpenseEditMessage("");
   }
@@ -1290,8 +1319,14 @@ export function ExpenseCategoryProductWorkspace(props: {
         ? editingExpenseRow.source
         : "";
 
+    const nextMemoWithVendor = replaceExpenseMemoMarkerValue(
+      nextMemoVisible,
+      "vendor",
+      expenseEditVendor
+    );
+
     const nextMemo = appendLedgerMarkersToMemo({
-      memo: nextMemoVisible,
+      memo: nextMemoWithVendor,
       scope: getWorkspaceLedgerScope(kind),
       subcategory: nextBucket,
     });
@@ -2304,6 +2339,19 @@ export function ExpenseCategoryProductWorkspace(props: {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">支払先</span>
+                <input
+                  value={expenseEditVendor}
+                  onChange={(event) => setExpenseEditVendor(event.target.value)}
+                  placeholder={kind === "payroll" ? "支払対象者 / 外注先" : "支払先 / 取引先"}
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                />
+                <span className="mt-1 block text-xs font-semibold text-slate-400">
+                  現段階では Transaction.memo の [vendor:*] marker として保存します。
+                </span>
               </label>
 
               <label className="block">
