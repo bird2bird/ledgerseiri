@@ -1434,13 +1434,30 @@ export function ExpenseCategoryProductWorkspace(props: {
 
     try {
       await updateTransaction(editingExpenseRow.id, { amount: nextAmount, memo: nextMemo });
-      setExpenseEditMessage("保存しました。画面を更新します。");
 
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        url.searchParams.set("refresh", String(Date.now()));
-        window.location.href = `${url.pathname}${url.search}${url.hash}`;
-      }
+      // Step109-Z1-H17-F-EXPENSE-DRAWER-LOCAL-REFRESH:
+      // Keep the drawer and scroll position stable after save.
+      // The list is updated optimistically, then reloadSeq asks the existing loader
+      // to reconcile with server state without a full window.location refresh.
+      const nextDisplayMemo = stripExpenseDisplaySystemMarkers(nextMemo);
+      const nextDisplaySource = nextBucket || editingExpenseRow.source || "all";
+      const nextDisplayRow: ExpenseCategoryRecord = {
+        ...editingExpenseRow,
+        amount: nextAmount,
+        memo: nextDisplayMemo || editingExpenseRow.memo,
+        rawMemo: nextMemo,
+        account: expenseEditAccountName.trim() || editingExpenseRow.account,
+        vendor: expenseEditVendor.trim() || editingExpenseRow.vendor,
+        source: nextDisplaySource,
+        categoryLabel: getBucketLabel(kind, nextDisplaySource),
+      };
+
+      setRows((currentRows) =>
+        currentRows.map((row) => (row.id === editingExpenseRow.id ? nextDisplayRow : row))
+      );
+      setEditingExpenseRow(nextDisplayRow);
+      setExpenseEditMessage("保存しました。一覧を更新しました。");
+      setReloadSeq((value) => value + 1);
     } catch (error) {
       const message = error instanceof Error ? error.message : "保存に失敗しました。";
       setExpenseEditError(message);
@@ -2387,7 +2404,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                   {config.title}を編集
                 </h2>
                 <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-                  メモと区分を編集できます。金額・口座・証憑の編集は後続ステップで接続します。
+                  金額・口座・支払先・証憑情報を確認して保存できます。
                 </div>
               </div>
               <button
