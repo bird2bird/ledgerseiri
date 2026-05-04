@@ -5,6 +5,7 @@ import { SecurityModule } from './security/security.module';
 import { AuthModule } from './auth/auth.module';
 import { CompanyModule } from './company/company.module';
 import { TransactionModule } from './transaction/transaction.module';
+import { TransactionAttachmentModule } from './transaction-attachment/transaction-attachment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 import { StoreModule } from './store/store.module';
@@ -38,6 +39,7 @@ import { DashboardCockpitModule } from './dashboard-cockpit/dashboard-cockpit.mo
       CompanyModule,
       StoreModule,
       TransactionModule,
+      TransactionAttachmentModule,
       DashboardModule,
       AccountModule,
       FundTransferModule,
