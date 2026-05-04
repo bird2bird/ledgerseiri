@@ -1,9 +1,26 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { TransactionAttachmentDocumentType } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import {
+  TRANSACTION_ATTACHMENT_MAX_FILE_SIZE_BYTES,
+  isAllowedTransactionAttachmentDocumentType,
+  isAllowedTransactionAttachmentMimeType,
+} from './transaction-attachment.constants';
+import { TransactionAttachmentStorage } from './transaction-attachment.storage';
+
+type TransactionAttachmentUploadFile = {
+  originalname?: string;
+  mimetype?: string;
+  size?: number;
+  buffer?: Buffer;
+};
 
 @Injectable()
 export class TransactionAttachmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: TransactionAttachmentStorage,
+  ) {}
 
   private resolveCompanyId(inputCompanyId?: string | null) {
     const companyId = String(inputCompanyId ?? '').trim();
@@ -45,8 +62,7 @@ export class TransactionAttachmentService {
     };
   }
 
-  async listForTransaction(transactionId: string, companyIdInput?: string | null) {
-    const companyId = this.resolveCompanyId(companyIdInput);
+  private async assertTransactionBelongsToCompany(transactionId: string, companyId: string) {
     const normalizedTransactionId = String(transactionId || '').trim();
 
     if (!normalizedTransactionId) {
@@ -68,6 +84,16 @@ export class TransactionAttachmentService {
       throw new NotFoundException('TRANSACTION_NOT_FOUND');
     }
 
+    return normalizedTransactionId;
+  }
+
+  async listForTransaction(transactionId: string, companyIdInput?: string | null) {
+    const companyId = this.resolveCompanyId(companyIdInput);
+    const normalizedTransactionId = await this.assertTransactionBelongsToCompany(
+      transactionId,
+      companyId,
+    );
+
     const items = await this.prisma.transactionAttachment.findMany({
       where: {
         companyId,
@@ -83,5 +109,77 @@ export class TransactionAttachmentService {
       transactionId: normalizedTransactionId,
       items: items.map((item) => this.normalizeAttachment(item)),
     };
+  }
+
+  async createForTransaction(
+    transactionId: string,
+    companyIdInput: string | null | undefined,
+    documentTypeInput: string,
+    file: TransactionAttachmentUploadFile | undefined,
+    uploadedById?: string | null,
+  ) {
+    const companyId = this.resolveCompanyId(companyIdInput);
+    const normalizedTransactionId = await this.assertTransactionBelongsToCompany(
+      transactionId,
+      companyId,
+    );
+
+    const documentType = String(documentTypeInput || '').trim();
+    if (!isAllowedTransactionAttachmentDocumentType(documentType)) {
+      throw new BadRequestException('INVALID_DOCUMENT_TYPE');
+    }
+
+    if (!file?.buffer || !file.originalname) {
+      throw new BadRequestException('ATTACHMENT_FILE_REQUIRED');
+    }
+
+    const mimeType = String(file.mimetype || '').trim();
+    if (!isAllowedTransactionAttachmentMimeType(mimeType)) {
+      throw new BadRequestException('UNSUPPORTED_ATTACHMENT_MIME_TYPE');
+    }
+
+    const sizeBytes = Number(file.size || file.buffer.length || 0);
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      throw new BadRequestException('INVALID_ATTACHMENT_SIZE');
+    }
+
+    if (sizeBytes > TRANSACTION_ATTACHMENT_MAX_FILE_SIZE_BYTES) {
+      throw new BadRequestException('ATTACHMENT_FILE_TOO_LARGE');
+    }
+
+    const stored = await this.storage.put({
+      companyId,
+      transactionId: normalizedTransactionId,
+      originalName: file.originalname,
+      buffer: file.buffer,
+    });
+
+    try {
+      const item = await this.prisma.transactionAttachment.create({
+        data: {
+          companyId,
+          transactionId: normalizedTransactionId,
+          documentType: documentType as TransactionAttachmentDocumentType,
+          fileName: stored.fileName,
+          originalName: file.originalname,
+          mimeType,
+          sizeBytes: stored.sizeBytes,
+          storageKey: stored.storageKey,
+          checksum: stored.checksum,
+          uploadedById: uploadedById || null,
+        },
+      });
+
+      return {
+        ok: true,
+        domain: 'transactionAttachments',
+        action: 'create',
+        transactionId: normalizedTransactionId,
+        item: this.normalizeAttachment(item),
+      };
+    } catch (error) {
+      await this.storage.delete(stored.storageKey);
+      throw error;
+    }
   }
 }

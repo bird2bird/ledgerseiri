@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, unlink, writeFile } from 'fs/promises';
 import { join } from 'path';
 import {
   TRANSACTION_ATTACHMENT_STORAGE_KEY_PREFIX,
@@ -77,6 +77,17 @@ export class TransactionAttachmentStorage {
       checksum,
       sizeBytes: input.buffer.length,
     };
+  }
+
+  async delete(storageKey: string) {
+    const absolutePath = this.resolveAbsolutePath(storageKey);
+    try {
+      await unlink(absolutePath);
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
   }
 
   private sanitizePathSegment(input: string) {
