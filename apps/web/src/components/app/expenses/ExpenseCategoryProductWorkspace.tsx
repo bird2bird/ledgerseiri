@@ -892,10 +892,12 @@ function getExpenseDisplayVendor(item: TransactionItem, rawMemo: string) {
   );
 }
 
+// Step109-Z1-H17-D-FIX2-ACCOUNT-MARKER-PRECEDENCE:
+ // Account marker is a user override until real accountId PATCH is implemented.
 function getExpenseDisplayAccount(item: TransactionItem, rawMemo: string) {
   return (
-    String(item.accountName || "").trim() ||
     readExpenseMemoMarker(rawMemo, ["account_name", "account", "bank"]) ||
+    String(item.accountName || "").trim() ||
     "-"
   );
 }
@@ -1291,6 +1293,10 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
   const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
   const [expenseEditVendor, setExpenseEditVendor] = React.useState("");
+  // Step109-Z1-H17-D-EXPENSE-ACCOUNT-MARKER-EDIT:
+  // Temporary account edit stored as Transaction.memo [account_name:*].
+  // Real accountId linkage requires backend PATCH contract expansion.
+  const [expenseEditAccountName, setExpenseEditAccountName] = React.useState("");
   // Step109-Z1-H17-C-EXPENSE-EVIDENCE-NO-MARKER-EDIT:
   // Temporary evidence/reference number edit stored as Transaction.memo [evidence_no:*].
   const [expenseEditEvidenceNo, setExpenseEditEvidenceNo] = React.useState("");
@@ -1315,6 +1321,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     const rawMemo = row.rawMemo || row.memo || "";
     setExpenseEditMemo(stripExpenseDisplaySystemMarkers(rawMemo));
     setExpenseEditVendor(row.vendor && row.vendor !== "-" ? row.vendor : "");
+    setExpenseEditAccountName(row.account && row.account !== "-" ? row.account : "");
     setExpenseEditEvidenceNo(readExpenseMemoMarker(rawMemo, ["evidence_no", "invoice_no", "evidence", "invoice"]));
     setExpenseEditBankStatementFileName(readExpenseMemoMarker(rawMemo, ["bank_statement_file"]));
     setExpenseEditInvoiceFileName(readExpenseMemoMarker(rawMemo, ["invoice_file", "receipt_file", "document_file"]));
@@ -1327,12 +1334,29 @@ export function ExpenseCategoryProductWorkspace(props: {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
     setExpenseEditVendor("");
+    setExpenseEditAccountName("");
     setExpenseEditEvidenceNo("");
     setExpenseEditBankStatementFileName("");
     setExpenseEditInvoiceFileName("");
     setExpenseEditError("");
     setExpenseEditMessage("");
   }
+
+  // Step109-Z1-H17-D-FIX1-EXPENSE-MARKER-SAVE-ENABLEMENT:
+  // Marker-only edits such as account_name/vendor/evidence_no/files must be saveable
+  // even when the visible memo textarea is empty.
+  const expenseEditCanSave = Boolean(
+    editingExpenseRow &&
+      !expenseEditSaving &&
+      (
+        expenseEditMemo.trim() ||
+        expenseEditAccountName.trim() ||
+        expenseEditVendor.trim() ||
+        expenseEditEvidenceNo.trim() ||
+        expenseEditBankStatementFileName.trim() ||
+        (kind !== "payroll" && expenseEditInvoiceFileName.trim())
+      )
+  );
 
   async function handleExpenseCategoryEditSave() {
     if (!editingExpenseRow || expenseEditSaving) return;
@@ -1366,9 +1390,14 @@ export function ExpenseCategoryProductWorkspace(props: {
       "evidence_no",
       expenseEditEvidenceNo
     );
+    const nextMemoWithAccountName = replaceExpenseMemoMarkerValue(
+      nextMemoWithEvidenceNo,
+      "account_name",
+      expenseEditAccountName
+    );
 
     const nextMemo = appendLedgerMarkersToMemo({
-      memo: nextMemoWithEvidenceNo,
+      memo: nextMemoWithAccountName,
       scope: getWorkspaceLedgerScope(kind),
       subcategory: nextBucket,
     });
@@ -2384,6 +2413,19 @@ export function ExpenseCategoryProductWorkspace(props: {
               </label>
 
               <label className="block">
+                <span className="text-sm font-bold text-slate-700">口座</span>
+                <input
+                  value={expenseEditAccountName}
+                  onChange={(event) => setExpenseEditAccountName(event.target.value)}
+                  placeholder="現金口座 / 楽天銀行 / 三井住友銀行 など"
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                />
+                <span className="mt-1 block text-xs font-semibold text-slate-400">
+                  現段階では Transaction.memo の [account_name:*] marker として保存します。
+                </span>
+              </label>
+
+              <label className="block">
                 <span className="text-sm font-bold text-slate-700">支払先</span>
                 <input
                   value={expenseEditVendor}
@@ -2540,7 +2582,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                   onClick={() => {
                     void handleExpenseCategoryEditSave();
                   }}
-                  disabled={expenseEditSaving || !expenseEditMemo.trim()}
+                  disabled={!expenseEditCanSave}
                   className="rounded-2xl bg-slate-950 px-5 py-2 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {expenseEditSaving ? "保存中..." : "保存"}
