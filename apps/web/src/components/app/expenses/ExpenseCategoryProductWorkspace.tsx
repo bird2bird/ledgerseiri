@@ -866,6 +866,22 @@ function replaceExpenseMemoMarkerValue(
     .trim();
 }
 
+// Step109-Z1-H17-E-EXPENSE-AMOUNT-EDIT:
+// Amount is a real Transaction field. PATCH /api/transactions/:id supports amount.
+function normalizeExpenseAmountInput(value: string) {
+  const normalized = String(value || "")
+    .replace(/[￥¥円,\s]/g, "")
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .trim();
+
+  if (!normalized) return Number.NaN;
+
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) return Number.NaN;
+
+  return Math.round(amount);
+}
+
 function stripExpenseDisplaySystemMarkers(memo: string | null | undefined) {
   return stripLedgerMarkersFromMemo(memo)
     .replace(/\[vendor:[^\]]+\]/gi, "")
@@ -1292,6 +1308,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   // Minimal edit drawer shared by 会社運営費 / 給与 / その他支出.
   const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
   const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
+  const [expenseEditAmount, setExpenseEditAmount] = React.useState("");
   const [expenseEditVendor, setExpenseEditVendor] = React.useState("");
   // Step109-Z1-H17-D-EXPENSE-ACCOUNT-MARKER-EDIT:
   // Temporary account edit stored as Transaction.memo [account_name:*].
@@ -1320,6 +1337,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     setEditingExpenseRow(row);
     const rawMemo = row.rawMemo || row.memo || "";
     setExpenseEditMemo(stripExpenseDisplaySystemMarkers(rawMemo));
+    setExpenseEditAmount(String(Math.abs(Number(row.amount || 0)) || ""));
     setExpenseEditVendor(row.vendor && row.vendor !== "-" ? row.vendor : "");
     setExpenseEditAccountName(row.account && row.account !== "-" ? row.account : "");
     setExpenseEditEvidenceNo(readExpenseMemoMarker(rawMemo, ["evidence_no", "invoice_no", "evidence", "invoice"]));
@@ -1333,6 +1351,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   function closeExpenseCategoryEditDrawer() {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
+    setExpenseEditAmount("");
     setExpenseEditVendor("");
     setExpenseEditAccountName("");
     setExpenseEditEvidenceNo("");
@@ -1350,6 +1369,7 @@ export function ExpenseCategoryProductWorkspace(props: {
       !expenseEditSaving &&
       (
         expenseEditMemo.trim() ||
+        expenseEditAmount.trim() ||
         expenseEditAccountName.trim() ||
         expenseEditVendor.trim() ||
         expenseEditEvidenceNo.trim() ||
@@ -1402,12 +1422,18 @@ export function ExpenseCategoryProductWorkspace(props: {
       subcategory: nextBucket,
     });
 
+    const nextAmount = normalizeExpenseAmountInput(expenseEditAmount);
+    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+      setExpenseEditError("金額は1円以上の数値で入力してください。");
+      return;
+    }
+
     setExpenseEditSaving(true);
     setExpenseEditError("");
     setExpenseEditMessage("");
 
     try {
-      await updateTransaction(editingExpenseRow.id, { memo: nextMemo });
+      await updateTransaction(editingExpenseRow.id, { amount: nextAmount, memo: nextMemo });
       setExpenseEditMessage("保存しました。画面を更新します。");
 
       if (typeof window !== "undefined") {
@@ -2410,6 +2436,20 @@ export function ExpenseCategoryProductWorkspace(props: {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-bold text-slate-700">金額</span>
+                <input
+                  value={expenseEditAmount}
+                  onChange={(event) => setExpenseEditAmount(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="例: 12345"
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900"
+                />
+                <span className="mt-1 block text-xs font-semibold text-slate-400">
+                  金額は Transaction.amount として保存します。カンマ付き入力も利用できます。
+                </span>
               </label>
 
               <label className="block">
