@@ -876,6 +876,10 @@ function stripExpenseDisplaySystemMarkers(memo: string | null | undefined) {
     .replace(/\[account:[^\]]+\]/gi, "")
     .replace(/\[account_name:[^\]]+\]/gi, "")
     .replace(/\[bank:[^\]]+\]/gi, "")
+    .replace(/\[bank_statement_file:[^\]]+\]/gi, "")
+    .replace(/\[invoice_file:[^\]]+\]/gi, "")
+    .replace(/\[receipt_file:[^\]]+\]/gi, "")
+    .replace(/\[document_file:[^\]]+\]/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -901,6 +905,9 @@ function getExpenseDisplayEvidenceNo(item: TransactionItem, rawMemo: string) {
     readExpenseMemoMarker(rawMemo, [
       "evidence_no",
       "invoice_no",
+      "invoice_file",
+      "receipt_file",
+      "document_file",
       "evidence",
       "invoice",
     ]) ||
@@ -913,7 +920,10 @@ function hasExpenseDisplayEvidence(item: TransactionItem, rawMemo: string) {
 }
 
 function hasExpenseDisplayAccount(item: TransactionItem, rawMemo: string) {
-  return getExpenseDisplayAccount(item, rawMemo) !== "-";
+  return (
+    getExpenseDisplayAccount(item, rawMemo) !== "-" ||
+    Boolean(readExpenseMemoMarker(rawMemo, ["bank_statement_file"]))
+  );
 }
 
 function mapExpenseRecord(kind: ExpenseCategoryProductKind, item: TransactionItem): ExpenseCategoryRecord {
@@ -1281,6 +1291,11 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [editingExpenseRow, setEditingExpenseRow] = React.useState<ExpenseCategoryRecord | null>(null);
   const [expenseEditMemo, setExpenseEditMemo] = React.useState("");
   const [expenseEditVendor, setExpenseEditVendor] = React.useState("");
+  // Step109-Z1-H17-B2-EXPENSE-DOCUMENT-UPLOAD-CONTROLS:
+  // Temporary document controls store selected filenames as memo markers.
+  // Real file persistence will be connected after attachment API/storage is implemented.
+  const [expenseEditBankStatementFileName, setExpenseEditBankStatementFileName] = React.useState("");
+  const [expenseEditInvoiceFileName, setExpenseEditInvoiceFileName] = React.useState("");
   const [expenseEditBucket, setExpenseEditBucket] = React.useState("all");
   const [expenseEditSaving, setExpenseEditSaving] = React.useState(false);
   const [expenseEditError, setExpenseEditError] = React.useState("");
@@ -1294,8 +1309,11 @@ export function ExpenseCategoryProductWorkspace(props: {
 
   function openExpenseCategoryEditDrawer(row: ExpenseCategoryRecord) {
     setEditingExpenseRow(row);
-    setExpenseEditMemo(stripExpenseDisplaySystemMarkers(row.rawMemo || row.memo || ""));
+    const rawMemo = row.rawMemo || row.memo || "";
+    setExpenseEditMemo(stripExpenseDisplaySystemMarkers(rawMemo));
     setExpenseEditVendor(row.vendor && row.vendor !== "-" ? row.vendor : "");
+    setExpenseEditBankStatementFileName(readExpenseMemoMarker(rawMemo, ["bank_statement_file"]));
+    setExpenseEditInvoiceFileName(readExpenseMemoMarker(rawMemo, ["invoice_file", "receipt_file", "document_file"]));
     setExpenseEditBucket(row.source && row.source !== "all" ? row.source : "all");
     setExpenseEditError("");
     setExpenseEditMessage("");
@@ -1305,6 +1323,8 @@ export function ExpenseCategoryProductWorkspace(props: {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
     setExpenseEditVendor("");
+    setExpenseEditBankStatementFileName("");
+    setExpenseEditInvoiceFileName("");
     setExpenseEditError("");
     setExpenseEditMessage("");
   }
@@ -1324,9 +1344,21 @@ export function ExpenseCategoryProductWorkspace(props: {
       "vendor",
       expenseEditVendor
     );
+    const nextMemoWithBankStatement = replaceExpenseMemoMarkerValue(
+      nextMemoWithVendor,
+      "bank_statement_file",
+      expenseEditBankStatementFileName
+    );
+    const nextMemoWithDocuments = kind === "payroll"
+      ? replaceExpenseMemoMarkerValue(nextMemoWithBankStatement, "invoice_file", "")
+      : replaceExpenseMemoMarkerValue(
+          nextMemoWithBankStatement,
+          "invoice_file",
+          expenseEditInvoiceFileName
+        );
 
     const nextMemo = appendLedgerMarkersToMemo({
-      memo: nextMemoWithVendor,
+      memo: nextMemoWithDocuments,
       scope: getWorkspaceLedgerScope(kind),
       subcategory: nextBucket,
     });
@@ -2353,6 +2385,101 @@ export function ExpenseCategoryProductWorkspace(props: {
                   現段階では Transaction.memo の [vendor:*] marker として保存します。
                 </span>
               </label>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black text-slate-800">証憑アップロード</div>
+                    <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                      {kind === "payroll"
+                        ? "給与は銀行流水ファイルのみ必須です。"
+                        : "会社運営費・その他支出は銀行流水ファイルと請求書/領収書ファイルが必要です。"}
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700">
+                    API接続待ち
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <label className="block rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-slate-800">
+                          銀行流水ファイル
+                          <span className="ml-2 text-xs font-black text-rose-600">必須</span>
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-slate-400">
+                          PDF / CSV / Excel / 画像ファイルを選択できます。
+                        </div>
+                        {expenseEditBankStatementFileName ? (
+                          <div className="mt-2 text-xs font-bold text-emerald-700">
+                            選択済み: {expenseEditBankStatementFileName}
+                          </div>
+                        ) : (
+                          <div className="mt-2 text-xs font-bold text-amber-700">
+                            未選択: 銀行流水未確認として扱います。
+                          </div>
+                        )}
+                      </div>
+                      <span className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white">
+                        ファイル選択
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        setExpenseEditBankStatementFileName(file?.name || "");
+                      }}
+                    />
+                  </label>
+
+                  {kind !== "payroll" ? (
+                    <label className="block rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-black text-slate-800">
+                            請求書・領収書ファイル
+                            <span className="ml-2 text-xs font-black text-rose-600">必須</span>
+                          </div>
+                          <div className="mt-1 text-xs font-semibold text-slate-400">
+                            仕入先・支払先から受領した請求書、領収書、レシートを選択します。
+                          </div>
+                          {expenseEditInvoiceFileName ? (
+                            <div className="mt-2 text-xs font-bold text-emerald-700">
+                              選択済み: {expenseEditInvoiceFileName}
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-xs font-bold text-amber-700">
+                              未選択: 証憑未添付として扱います。
+                            </div>
+                          )}
+                        </div>
+                        <span className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white">
+                          ファイル選択
+                        </span>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.csv"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          setExpenseEditInvoiceFileName(file?.name || "");
+                        }}
+                      />
+                    </label>
+                  ) : null}
+
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold leading-5 text-slate-500">
+                    現段階では実ファイルの保存は未接続です。保存時に選択ファイル名を
+                    Transaction.memo の marker として記録し、監査状態の判定に利用します。
+                  </div>
+                </div>
+              </div>
 
               <label className="block">
                 <span className="text-sm font-bold text-slate-700">メモ</span>
