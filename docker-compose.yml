@@ -23,6 +23,8 @@ services:
       - db
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      - /opt/ledgerseiri-data/attachments:/app-data/attachments
 
   web:
     build:
