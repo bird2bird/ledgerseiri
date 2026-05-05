@@ -891,6 +891,18 @@ function summarizeTransactionAttachments(
   };
 }
 
+function normalizeTransactionAttachmentItems(
+  value:
+    | TransactionAttachmentItem[]
+    | { items?: TransactionAttachmentItem[] | null }
+    | null
+    | undefined
+) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  return [];
+}
+
 function buildExpenseEvidenceStatusFlags(
   kind: ExpenseCategoryProductKind,
   summary: ExpenseEvidenceSummary | undefined
@@ -1565,7 +1577,7 @@ export function ExpenseCategoryProductWorkspace(props: {
       const attachments = await listTransactionAttachments(normalizedTransactionId);
       setExpenseEvidenceSummaryByTransactionId((current) => ({
         ...current,
-        [normalizedTransactionId]: summarizeTransactionAttachments(attachments),
+        [normalizedTransactionId]: summarizeTransactionAttachments(normalizeTransactionAttachmentItems(attachments)),
       }));
     } catch {
       setExpenseEvidenceSummaryByTransactionId((current) => ({
@@ -1692,7 +1704,7 @@ export function ExpenseCategoryProductWorkspace(props: {
 
     try {
       const res = await listTransactionAttachments(normalizedId);
-      setExpenseEditAttachments(res.items || []);
+      setExpenseEditAttachments(normalizeTransactionAttachmentItems(res.items || []));
       setExpenseEditAttachmentStatus("");
     } catch (error) {
       console.error("[ExpenseCategoryProductWorkspace] failed to load attachments", error);
@@ -1747,7 +1759,7 @@ export function ExpenseCategoryProductWorkspace(props: {
 
     if (uploaded.length) {
       const refreshed = await listTransactionAttachments(transactionId);
-      setExpenseEditAttachments(refreshed.items || uploaded);
+      setExpenseEditAttachments(normalizeTransactionAttachmentItems(refreshed.items || uploaded));
       setExpenseEditBankStatementFile(null);
       setExpenseEditInvoiceFile(null);
       setExpenseEditAttachmentStatus(`${uploaded.length}件の証憑ファイルを保存しました。`);
@@ -2197,7 +2209,7 @@ export function ExpenseCategoryProductWorkspace(props: {
         candidateIds.map(async (transactionId) => {
           try {
             const attachments = await listTransactionAttachments(transactionId);
-            return [transactionId, summarizeTransactionAttachments(attachments)] as const;
+            return [transactionId, summarizeTransactionAttachments(normalizeTransactionAttachmentItems(attachments))] as const;
           } catch {
             return [
               transactionId,
