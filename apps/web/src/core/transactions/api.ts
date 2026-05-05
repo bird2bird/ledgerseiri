@@ -12,6 +12,45 @@ export type TransactionCategoryItem = {
   updatedAt: string;
 };
 
+export type TransactionAttachmentDocumentType =
+  | "BANK_STATEMENT"
+  | "INVOICE"
+  | "RECEIPT"
+  | "PAYROLL_BANK_STATEMENT"
+  | "OTHER_DOCUMENT";
+
+export type TransactionAttachmentItem = {
+  id: string;
+  companyId: string;
+  transactionId: string;
+  documentType: TransactionAttachmentDocumentType;
+  fileName: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageKey: string;
+  checksum: string | null;
+  uploadedById: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListTransactionAttachmentsResponse = {
+  ok: boolean;
+  domain: "transactionAttachments";
+  action: "list";
+  transactionId: string;
+  items: TransactionAttachmentItem[];
+};
+
+export type UploadTransactionAttachmentResponse = {
+  ok: boolean;
+  domain: "transactionAttachments";
+  action: "create";
+  transactionId: string;
+  item: TransactionAttachmentItem;
+};
+
 export type TransactionItem = {
   id: string;
   companyId: string | null;
@@ -127,6 +166,33 @@ export async function deleteTransaction(id: string) {
     await fetchWithAutoRefresh(`/api/transactions/${id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
+    })
+  );
+}
+
+export async function listTransactionAttachments(transactionId: string) {
+  return readJson<ListTransactionAttachmentsResponse>(
+    await fetchWithAutoRefresh(`/api/transactions/${transactionId}/attachments`, {
+      cache: "no-store",
+    })
+  );
+}
+
+export async function uploadTransactionAttachment(
+  transactionId: string,
+  payload: {
+    documentType: TransactionAttachmentDocumentType;
+    file: File;
+  }
+) {
+  const formData = new FormData();
+  formData.append("documentType", payload.documentType);
+  formData.append("file", payload.file);
+
+  return readJson<UploadTransactionAttachmentResponse>(
+    await fetchWithAutoRefresh(`/api/transactions/${transactionId}/attachments`, {
+      method: "POST",
+      body: formData,
     })
   );
 }
