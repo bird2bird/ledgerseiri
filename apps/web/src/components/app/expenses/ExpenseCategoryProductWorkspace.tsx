@@ -1503,15 +1503,15 @@ export function ExpenseCategoryProductWorkspace(props: {
     }
 
     setExpenseEditDeletingAttachmentId(normalizedAttachmentId);
-    setExpenseEditAttachmentStatus("証憑ファイルを削除しています...");
+    setExpenseEditAttachmentStatus("証憑ファイルを削除しています。");
 
     try {
       await deleteTransactionAttachment(transactionId, normalizedAttachmentId);
       await loadExpenseCategoryAttachments(transactionId);
-      setExpenseEditAttachmentStatus("証憑ファイルを削除しました。");
+      setExpenseEditAttachmentStatus("証憑ファイルを削除しました。一覧を更新しました。");
     } catch (error) {
       console.error("[ExpenseCategoryProductWorkspace] failed to delete attachment", error);
-      setExpenseEditAttachmentStatus("証憑ファイルの削除に失敗しました。時間をおいて再度お試しください。");
+      setExpenseEditAttachmentStatus("証憑ファイルの削除に失敗しました。通信状況を確認して再度お試しください。");
     } finally {
       setExpenseEditDeletingAttachmentId("");
     }
