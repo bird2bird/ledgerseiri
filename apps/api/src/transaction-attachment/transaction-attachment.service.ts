@@ -154,6 +154,52 @@ export class TransactionAttachmentService {
     };
   }
 
+  async deleteForTransaction(
+    transactionId: string,
+    attachmentId: string,
+    companyIdInput?: string | null,
+  ) {
+    const companyId = this.resolveCompanyId(companyIdInput);
+    const normalizedTransactionId = await this.assertTransactionBelongsToCompany(
+      transactionId,
+      companyId,
+    );
+    const normalizedAttachmentId = String(attachmentId || '').trim();
+
+    if (!normalizedAttachmentId) {
+      throw new NotFoundException('ATTACHMENT_NOT_FOUND');
+    }
+
+    const item = await this.prisma.transactionAttachment.findFirst({
+      where: {
+        id: normalizedAttachmentId,
+        companyId,
+        transactionId: normalizedTransactionId,
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('ATTACHMENT_NOT_FOUND');
+    }
+
+    await this.prisma.transactionAttachment.delete({
+      where: {
+        id: item.id,
+      },
+    });
+
+    await this.storage.delete(item.storageKey);
+
+    return {
+      ok: true,
+      domain: 'transactionAttachments',
+      action: 'delete',
+      transactionId: normalizedTransactionId,
+      id: item.id,
+      item: this.normalizeAttachment(item),
+    };
+  }
+
   async createForTransaction(
     transactionId: string,
     companyIdInput: string | null | undefined,

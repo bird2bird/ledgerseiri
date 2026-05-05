@@ -51,6 +51,15 @@ export type UploadTransactionAttachmentResponse = {
   item: TransactionAttachmentItem;
 };
 
+export type DeleteTransactionAttachmentResponse = {
+  ok: boolean;
+  domain: "transactionAttachments";
+  action: "delete";
+  transactionId: string;
+  id: string;
+  item: TransactionAttachmentItem;
+};
+
 export type TransactionItem = {
   id: string;
   companyId: string | null;
@@ -185,6 +194,22 @@ export function getTransactionAttachmentDownloadUrl(
   return `/api/transactions/${encodeURIComponent(transactionId)}/attachments/${encodeURIComponent(
     attachmentId
   )}/download`;
+}
+
+export async function deleteTransactionAttachment(
+  transactionId: string,
+  attachmentId: string
+) {
+  return readJson<DeleteTransactionAttachmentResponse>(
+    await fetchWithAutoRefresh(
+      `/api/transactions/${encodeURIComponent(transactionId)}/attachments/${encodeURIComponent(
+        attachmentId
+      )}`,
+      {
+        method: "DELETE",
+      }
+    )
+  );
 }
 
 export async function uploadTransactionAttachment(

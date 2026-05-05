@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { TRANSACTION_ATTACHMENT_MAX_FILE_SIZE_BYTES } from './transaction-attachment.constants';
@@ -37,6 +37,19 @@ export class TransactionAttachmentController {
     res.setHeader('Cache-Control', 'private, no-store');
 
     return res.sendFile(result.absolutePath);
+  }
+
+  @Delete('api/transactions/:id/attachments/:attachmentId')
+  delete(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.service.deleteForTransaction(
+      id,
+      attachmentId,
+      req.user?.companyId,
+    );
   }
 
   @Post('api/transactions/:id/attachments')

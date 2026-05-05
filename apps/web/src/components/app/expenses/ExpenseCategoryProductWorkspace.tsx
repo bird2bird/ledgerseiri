@@ -8,6 +8,7 @@ import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialo
 import { ExpenseImportHistoryPanel } from "@/components/app/imports/ExpenseImportHistoryPanel";
 import { ExpenseAttachmentStatusCard } from "./ExpenseAttachmentStatusCard";
 import {
+  deleteTransactionAttachment,
   getTransactionAttachmentDownloadUrl,
   listTransactionAttachments,
   listTransactions,
@@ -1339,6 +1340,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [expenseEditAttachments, setExpenseEditAttachments] = React.useState<TransactionAttachmentItem[]>([]);
   const [expenseEditAttachmentsLoading, setExpenseEditAttachmentsLoading] = React.useState(false);
   const [expenseEditAttachmentStatus, setExpenseEditAttachmentStatus] = React.useState("");
+  const [expenseEditDeletingAttachmentId, setExpenseEditDeletingAttachmentId] = React.useState("");
   const [expenseEditBucket, setExpenseEditBucket] = React.useState("all");
   const [expenseEditSaving, setExpenseEditSaving] = React.useState(false);
   const [expenseEditError, setExpenseEditError] = React.useState("");
@@ -1424,6 +1426,28 @@ export function ExpenseCategoryProductWorkspace(props: {
       : "";
   }
 
+  function getExpenseAttachmentFileName(item: TransactionAttachmentItem) {
+    return item.fileName || item.originalName || "uploaded file";
+  }
+
+  function getExpenseAttachmentMetaLine(item: TransactionAttachmentItem) {
+    return [
+      formatExpenseAttachmentCreatedAt(item.createdAt),
+      formatExpenseAttachmentFileSize(item.sizeBytes),
+    ]
+      .filter(Boolean)
+      .join("・");
+  }
+
+  function getExpenseAttachmentStatusCardItems(target: "bank" | "invoice") {
+    return getExpenseAttachmentsByTarget(target).map((item) => ({
+      id: item.id,
+      fileName: getExpenseAttachmentFileName(item),
+      metaLine: getExpenseAttachmentMetaLine(item),
+      downloadHref: getTransactionAttachmentDownloadUrl(item.transactionId, item.id),
+    }));
+  }
+
   function formatExpenseAttachmentLatestLine(target: "bank" | "invoice") {
     const latest = getExpenseAttachmentSummary(target).latest;
     if (!latest) {
@@ -1467,6 +1491,34 @@ export function ExpenseCategoryProductWorkspace(props: {
       setExpenseEditAttachmentStatus("証憑ファイルの取得に失敗しました。保存は継続できます。");
     } finally {
       setExpenseEditAttachmentsLoading(false);
+    }
+  }
+
+  async function deleteExpenseCategoryAttachment(attachmentId: string) {
+    const normalizedAttachmentId = String(attachmentId || "").trim();
+    const transactionId = String(editingExpenseRow?.id || "").trim();
+
+    if (!normalizedAttachmentId || !transactionId) {
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("この証憑ファイルを削除しますか？");
+      if (!ok) return;
+    }
+
+    setExpenseEditDeletingAttachmentId(normalizedAttachmentId);
+    setExpenseEditAttachmentStatus("証憑ファイルを削除しています...");
+
+    try {
+      await deleteTransactionAttachment(transactionId, normalizedAttachmentId);
+      await loadExpenseCategoryAttachments(transactionId);
+      setExpenseEditAttachmentStatus("証憑ファイルを削除しました。");
+    } catch (error) {
+      console.error("[ExpenseCategoryProductWorkspace] failed to delete attachment", error);
+      setExpenseEditAttachmentStatus("証憑ファイルの削除に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setExpenseEditDeletingAttachmentId("");
     }
   }
 
@@ -2727,6 +2779,9 @@ export function ExpenseCategoryProductWorkspace(props: {
                             status={formatExpenseAttachmentStatus("bank")}
                             latestLine={formatExpenseAttachmentLatestLine("bank")}
                             downloadHref={getExpenseAttachmentDownloadHref("bank")}
+                            items={getExpenseAttachmentStatusCardItems("bank")}
+                            deletingAttachmentId={expenseEditDeletingAttachmentId}
+                            onDeleteAttachment={deleteExpenseCategoryAttachment}
                           />
                         ) : (
                           <div className="mt-2 text-xs font-bold text-amber-700">
@@ -2771,6 +2826,9 @@ export function ExpenseCategoryProductWorkspace(props: {
                               status={formatExpenseAttachmentStatus("invoice")}
                               latestLine={formatExpenseAttachmentLatestLine("invoice")}
                               downloadHref={getExpenseAttachmentDownloadHref("invoice")}
+                              items={getExpenseAttachmentStatusCardItems("invoice")}
+                              deletingAttachmentId={expenseEditDeletingAttachmentId}
+                              onDeleteAttachment={deleteExpenseCategoryAttachment}
                             />
                           ) : (
                             <div className="mt-2 text-xs font-bold text-amber-700">
