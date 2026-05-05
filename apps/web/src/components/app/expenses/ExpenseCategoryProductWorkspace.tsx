@@ -1448,6 +1448,53 @@ export function ExpenseCategoryProductWorkspace(props: {
     }));
   }
 
+  function getExpenseEditHasChanges() {
+    if (!editingExpenseRow) return false;
+
+    const normalizedAmount = normalizeExpenseAmountInput(expenseEditAmount);
+    const currentAmount = Math.round(Math.abs(Number(editingExpenseRow.amount || 0)));
+    const amountChanged =
+      Number.isFinite(normalizedAmount) && normalizedAmount !== currentAmount;
+
+    return (
+      amountChanged ||
+      String(expenseEditMemo || "").trim() !== String(editingExpenseRow.memo || "").trim() ||
+      String(expenseEditVendor || "").trim() !== String(editingExpenseRow.vendor || "").trim() ||
+      String(expenseEditAccountName || "").trim() !== String(editingExpenseRow.account || "").trim() ||
+      Boolean(String(expenseEditEvidenceNo || "").trim())
+    );
+  }
+
+  function getExpenseEditSaveStatusLabel() {
+    if (expenseEditSaving) return "保存中";
+    if (expenseEditError) return "保存エラー";
+    if (expenseEditMessage) return "保存済み";
+    if (getExpenseEditHasChanges()) return "未保存の変更があります";
+    return "最新の状態";
+  }
+
+  function getExpenseEditSaveStatusClassName() {
+    if (expenseEditSaving) {
+      return "border-sky-100 bg-sky-50 text-sky-700";
+    }
+    if (expenseEditError) {
+      return "border-rose-100 bg-rose-50 text-rose-700";
+    }
+    if (expenseEditMessage) {
+      return "border-emerald-100 bg-emerald-50 text-emerald-700";
+    }
+    if (getExpenseEditHasChanges()) {
+      return "border-amber-100 bg-amber-50 text-amber-700";
+    }
+    return "border-slate-200 bg-slate-50 text-slate-500";
+  }
+
+  function getExpenseEditPrimaryActionLabel() {
+    if (expenseEditSaving) return "保存中...";
+    if (getExpenseEditHasChanges()) return "変更を保存";
+    return "保存";
+  }
+
   function formatExpenseAttachmentLatestLine(target: "bank" | "invoice") {
     const latest = getExpenseAttachmentSummary(target).latest;
     if (!latest) {
@@ -2636,6 +2683,9 @@ export function ExpenseCategoryProductWorkspace(props: {
                 </h2>
                 <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
                   金額・口座・支払先・証憑情報を確認して保存できます。
+                  <span className={`ml-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${getExpenseEditSaveStatusClassName()}`}>
+                    {getExpenseEditSaveStatusLabel()}
+                  </span>
                 </div>
               </div>
               <button
@@ -2900,7 +2950,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                   disabled={!expenseEditCanSave}
                   className="rounded-2xl bg-slate-950 px-5 py-2 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {expenseEditSaving ? "保存中..." : "保存"}
+                  {getExpenseEditPrimaryActionLabel()}
                 </button>
               </div>
             </div>
