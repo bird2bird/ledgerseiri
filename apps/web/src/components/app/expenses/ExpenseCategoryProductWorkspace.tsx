@@ -987,15 +987,29 @@ function getExpenseImportTraceLabel(row: ExpenseCategoryRecord | null | undefine
   return parts.join(" / ") || "取込トレースあり";
 }
 
-function getExpenseImportTraceUrl(row: ExpenseCategoryRecord | null | undefined) {
+// Step109-Z1-H25-B-EXPENSE-IMPORT-CENTER-TRACE-NAV:
+ // Build an Import Center URL that preserves the real expense module.
+ // Ordinary importJobId URLs still only highlight rows in Import Center; the
+ // explicit from=expense-import-trace marker lets Import Center safely auto-open
+ // the drawer only for this source navigation.
+function getExpenseImportTraceUrl(
+  row: ExpenseCategoryRecord | null | undefined,
+  kind: ExpenseCategoryProductKind
+) {
   const meta = getExpenseImportTraceMeta(row);
   if (!meta.importJobId) return "";
 
   const params = new URLSearchParams();
+  params.set("from", "expense-import-trace");
   params.set("domain", "ledger");
-  params.set("module", "expense");
+  params.set("module", getWorkspaceLedgerScope(kind));
   params.set("importJobId", meta.importJobId);
   params.set("traceTarget", "expense-category");
+
+  if (kind === "company-operation") params.set("category", "other");
+  if (kind === "payroll") params.set("category", "payroll");
+  if (kind === "other-expense") params.set("category", "other-expense");
+
   if (row?.id) params.set("transactionId", row.id);
   if (meta.sourceRowNo) params.set("sourceRowNo", meta.sourceRowNo);
 
@@ -3219,9 +3233,9 @@ export function ExpenseCategoryProductWorkspace(props: {
                               ) : null}
                             </div>
 
-                            {getExpenseImportTraceUrl(editingExpenseRow) ? (
+                            {getExpenseImportTraceUrl(editingExpenseRow, props.kind) ? (
                               <Link
-                                href={getExpenseImportTraceUrl(editingExpenseRow)}
+                                href={getExpenseImportTraceUrl(editingExpenseRow, props.kind)}
                                 className="mt-4 inline-flex h-9 items-center justify-center rounded-2xl border border-sky-200 bg-white px-4 text-xs font-black text-sky-700 shadow-sm transition hover:bg-sky-50"
                               >
                                 Import Centerで確認

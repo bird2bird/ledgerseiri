@@ -6,14 +6,50 @@ import type { ImportJobItem } from "@/core/jobs";
 // - importJobId highlights the row only.
 // - Drawer is opened manually by user action.
 
-export function getImportJobIdFromUrl() {
-  if (typeof window === "undefined") return "";
+export type ImportCenterUrlSelectionInfo = {
+  importJobId: string;
+  from: string;
+  traceTarget: string;
+  shouldAutoOpenDrawer: boolean;
+};
+
+export function readImportCenterUrlSelectionInfo(): ImportCenterUrlSelectionInfo {
+  if (typeof window === "undefined") {
+    return {
+      importJobId: "",
+      from: "",
+      traceTarget: "",
+      shouldAutoOpenDrawer: false,
+    };
+  }
 
   try {
-    return new URLSearchParams(window.location.search).get("importJobId") || "";
+    const params = new URLSearchParams(window.location.search);
+    const importJobId = params.get("importJobId") || "";
+    const from = params.get("from") || "";
+    const traceTarget = params.get("traceTarget") || "";
+
+    return {
+      importJobId,
+      from,
+      traceTarget,
+      shouldAutoOpenDrawer:
+        Boolean(importJobId) &&
+        from === "expense-import-trace" &&
+        traceTarget === "expense-category",
+    };
   } catch {
-    return "";
+    return {
+      importJobId: "",
+      from: "",
+      traceTarget: "",
+      shouldAutoOpenDrawer: false,
+    };
   }
+}
+
+export function getImportJobIdFromUrl() {
+  return readImportCenterUrlSelectionInfo().importJobId;
 }
 
 export function syncImportJobIdToUrl(importJobId: string | null) {

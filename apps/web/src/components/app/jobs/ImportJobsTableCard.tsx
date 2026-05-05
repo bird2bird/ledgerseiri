@@ -44,8 +44,8 @@ import {
   JsonPayloadDetails,
 } from "./import-center-drawer-primitives";
 import {
-  getImportJobIdFromUrl,
   getSelectedImportJobRowClass,
+  readImportCenterUrlSelectionInfo,
   syncImportJobIdToUrl,
 } from "./import-center-selection";
 import { getDrawerActionToneClass } from "./import-center-drawer-tone";
@@ -549,17 +549,35 @@ export function ImportJobsTableCard(props: {
   }, [selectedJob?.id]);
 
   React.useEffect(() => {
-    const importJobId = getImportJobIdFromUrl();
+    const selectionInfo = readImportCenterUrlSelectionInfo();
+    const importJobId = selectionInfo.importJobId;
 
     if (!importJobId) {
       return;
     }
 
-    // FIX3: URL selection should only highlight the row.
-    // Auto-opening the drawer from URL caused overlay repaint/flicker on hover.
     setSelectedJobId((current) => (current === importJobId ? current : importJobId));
-    setSelectedJob(null);
-  }, [props.jobs]);
+
+    if (!selectionInfo.shouldAutoOpenDrawer) {
+      // FIX3 baseline: ordinary URL selection should only highlight the row.
+      // Auto-opening is limited to explicit expense trace navigation.
+      setSelectedJob(null);
+      return;
+    }
+
+    const targetJob = props.jobs.find((job) => job.id === importJobId) || null;
+    if (!targetJob) {
+      setSelectedJob(null);
+      return;
+    }
+
+    if (appliedUrlImportJobIdRef.current === importJobId && selectedJob?.id === importJobId) {
+      return;
+    }
+
+    appliedUrlImportJobIdRef.current = importJobId;
+    setSelectedJob(targetJob);
+  }, [props.jobs, selectedJob?.id]);
 
   const filteredJobs = React.useMemo(() => {
     const q = query.trim().toLowerCase();
