@@ -1357,23 +1357,81 @@ export function ExpenseCategoryProductWorkspace(props: {
     return "INVOICE";
   }
 
-  function formatExpenseAttachmentStatus(target: "bank" | "invoice") {
-    const matched = expenseEditAttachments.find((item) => {
-      if (target === "bank") {
-        return item.documentType === "BANK_STATEMENT" || item.documentType === "PAYROLL_BANK_STATEMENT";
-      }
-      return item.documentType === "INVOICE" || item.documentType === "RECEIPT";
-    });
+  function getExpenseAttachmentsByTarget(target: "bank" | "invoice") {
+    return expenseEditAttachments
+      .filter((item) => {
+        if (target === "bank") {
+          return item.documentType === "BANK_STATEMENT" || item.documentType === "PAYROLL_BANK_STATEMENT";
+        }
+        return item.documentType === "INVOICE" || item.documentType === "RECEIPT";
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return bTime - aTime;
+      });
+  }
 
-    if (matched) {
-      return `実ファイル保存済み: ${matched.fileName || matched.originalName}`;
+  function formatExpenseAttachmentFileSize(sizeBytes: number) {
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      return "";
     }
+    if (sizeBytes < 1024) {
+      return `${sizeBytes} B`;
+    }
+    if (sizeBytes < 1024 * 1024) {
+      return `${Math.round((sizeBytes / 1024) * 10) / 10} KB`;
+    }
+    return `${Math.round((sizeBytes / 1024 / 1024) * 10) / 10} MB`;
+  }
 
-    const legacyName =
+  function formatExpenseAttachmentCreatedAt(createdAt: string) {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mi = String(date.getMinutes()).padStart(2, "0");
+    return `${yyyy}/${mm}/${dd} ${hh}:${mi}`;
+  }
+
+  function getExpenseAttachmentSummary(target: "bank" | "invoice") {
+    const attachments = getExpenseAttachmentsByTarget(target);
+    const latest = attachments[0] ?? null;
+    const fallback =
       target === "bank" ? expenseEditBankStatementFileName : expenseEditInvoiceFileName;
 
-    if (legacyName) return `選択済み: ${legacyName}`;
-    return "";
+    return {
+      count: attachments.length,
+      latest,
+      fallbackName: fallback.trim(),
+    };
+  }
+
+  function formatExpenseAttachmentLatestLine(target: "bank" | "invoice") {
+    const latest = getExpenseAttachmentSummary(target).latest;
+    if (!latest) {
+      return "";
+    }
+
+    return [
+      latest.fileName || latest.originalName || "uploaded file",
+      formatExpenseAttachmentCreatedAt(latest.createdAt),
+      formatExpenseAttachmentFileSize(latest.sizeBytes),
+    ]
+      .filter(Boolean)
+      .join("・");
+  }
+
+  function formatExpenseAttachmentStatus(target: "bank" | "invoice") {
+    const summary = getExpenseAttachmentSummary(target);
+    if (summary.latest) {
+      return `実ファイル保存済み ${summary.count}件`;
+    }
+    return summary.fallbackName ? `ファイル名記録済み: ${summary.fallbackName}` : "";
   }
 
   async function loadExpenseCategoryAttachments(transactionId: string) {
@@ -2652,8 +2710,15 @@ export function ExpenseCategoryProductWorkspace(props: {
                             保存済みファイルを確認しています...
                           </div>
                         ) : formatExpenseAttachmentStatus("bank") ? (
-                          <div className="mt-2 text-xs font-bold text-emerald-700">
-                            {formatExpenseAttachmentStatus("bank")}
+                          <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                            <p className="text-xs font-semibold text-emerald-700">
+                              {formatExpenseAttachmentStatus("bank")}
+                            </p>
+                            {formatExpenseAttachmentLatestLine("bank") ? (
+                              <p className="mt-1 text-[11px] font-medium leading-5 text-emerald-700">
+                                最新: {formatExpenseAttachmentLatestLine("bank")}
+                              </p>
+                            ) : null}
                           </div>
                         ) : (
                           <div className="mt-2 text-xs font-bold text-amber-700">
@@ -2694,8 +2759,15 @@ export function ExpenseCategoryProductWorkspace(props: {
                               保存済みファイルを確認しています...
                             </div>
                           ) : formatExpenseAttachmentStatus("invoice") ? (
-                            <div className="mt-2 text-xs font-bold text-emerald-700">
-                              {formatExpenseAttachmentStatus("invoice")}
+                            <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                              <p className="text-xs font-semibold text-emerald-700">
+                                {formatExpenseAttachmentStatus("invoice")}
+                              </p>
+                              {formatExpenseAttachmentLatestLine("invoice") ? (
+                                <p className="mt-1 text-[11px] font-medium leading-5 text-emerald-700">
+                                  最新: {formatExpenseAttachmentLatestLine("invoice")}
+                                </p>
+                              ) : null}
                             </div>
                           ) : (
                             <div className="mt-2 text-xs font-bold text-amber-700">
