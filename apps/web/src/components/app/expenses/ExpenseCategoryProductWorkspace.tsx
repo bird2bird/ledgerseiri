@@ -1734,6 +1734,16 @@ export function ExpenseCategoryProductWorkspace(props: {
     const normalizedId = String(transactionId || "").trim();
     if (!normalizedId) {
       setExpenseEditAttachments([]);
+      // Step109-Z1-H23-FIX2-EVIDENCE-SUMMARY-SYNC:
+      // Keep row badges in sync with drawer attachment state after load/upload/delete.
+      setExpenseEvidenceSummaryByTransactionId((current) => ({
+        ...current,
+        [transactionId]: {
+          bankCount: 0,
+          invoiceCount: 0,
+          loaded: true,
+        },
+      }));
       return;
     }
 
@@ -1743,10 +1753,26 @@ export function ExpenseCategoryProductWorkspace(props: {
     try {
       const res = await listTransactionAttachments(normalizedId);
       setExpenseEditAttachments(normalizeTransactionAttachmentItems(res.items || []));
+      // Step109-Z1-H23-FIX2-EVIDENCE-SUMMARY-SYNC:
+      // Keep row badges in sync with drawer attachment state after load/upload/delete.
+      setExpenseEvidenceSummaryByTransactionId((current) => ({
+        ...current,
+        [normalizedId]: summarizeTransactionAttachments(normalizeTransactionAttachmentItems(res.items || [])),
+      }));
       setExpenseEditAttachmentStatus("");
     } catch (error) {
       console.error("[ExpenseCategoryProductWorkspace] failed to load attachments", error);
       setExpenseEditAttachments([]);
+      // Step109-Z1-H23-FIX2-EVIDENCE-SUMMARY-SYNC:
+      // Keep row badges in sync with drawer attachment state after load/upload/delete.
+      setExpenseEvidenceSummaryByTransactionId((current) => ({
+        ...current,
+        [transactionId]: {
+          bankCount: 0,
+          invoiceCount: 0,
+          loaded: true,
+        },
+      }));
       setExpenseEditAttachmentStatus("証憑ファイルの取得に失敗しました。保存は継続できます。");
     } finally {
       setExpenseEditAttachmentsLoading(false);
