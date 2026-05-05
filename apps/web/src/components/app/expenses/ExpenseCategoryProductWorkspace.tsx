@@ -919,6 +919,44 @@ function buildExpenseEvidenceStatusFlags(
   return flags;
 }
 
+// Step109-Z1-H23-EXPENSE-TABLE-UX-CLOSEOUT:
+// Productized table display helpers for evidence badges and numeric columns.
+function getExpenseStatusBadgeClassName(flag: string) {
+  const normalized = String(flag || "").trim();
+
+  if (normalized === "銀行流水確認済み" || normalized === "証憑確認済み") {
+    return "rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm";
+  }
+
+  if (normalized === "銀行流水未確認" || normalized === "証憑未添付") {
+    return "rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-800 shadow-sm";
+  }
+
+  if (normalized === "証憑不要") {
+    return "rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600";
+  }
+
+  return "rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-sm";
+}
+
+function getExpenseStatusBadgeTitle(flag: string) {
+  const normalized = String(flag || "").trim();
+
+  if (normalized === "銀行流水確認済み") return "銀行流水ファイルが添付されています。";
+  if (normalized === "銀行流水未確認") return "銀行流水ファイルが未添付です。確認が必要です。";
+  if (normalized === "証憑確認済み") return "請求書・領収書などの証憑ファイルが添付されています。";
+  if (normalized === "証憑未添付") return "請求書・領収書などの証憑ファイルが未添付です。";
+  if (normalized === "証憑不要") return "この支出区分では証憑添付を必須としていません。";
+
+  return normalized || "支出ステータス";
+}
+
+function getExpenseAmountTextClassName(amount: number) {
+  const normalized = Number(amount || 0);
+  if (normalized < 0) return "text-right font-mono text-sm font-black tabular-nums text-rose-700";
+  return "text-right font-mono text-sm font-black tabular-nums text-slate-900";
+}
+
 // Step109-Z1-H17-B-EXPENSE-VENDOR-MARKER-EDIT:
 // Short-term production strategy: vendor/payee is stored in Transaction.memo marker
 // because PATCH /api/transactions/:id currently supports only amount and memo.
@@ -2763,7 +2801,11 @@ export function ExpenseCategoryProductWorkspace(props: {
                   <div className="mt-1 flex flex-wrap gap-1">
                     {getExpenseRowStatusFlags(row).length > 0 ? (
                       getExpenseRowStatusFlags(row).map((flag) => (
-                        <span key={flag} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+                        <span
+                          key={flag}
+                          className={getExpenseStatusBadgeClassName(flag)}
+                          title={getExpenseStatusBadgeTitle(flag)}
+                        >
                           {flag}
                         </span>
                       ))
@@ -2853,7 +2895,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                     </span>
                   )}
                 </div>
-                <div className="text-right font-bold text-slate-950">{formatIncomeJPY(row.amount)}</div>
+                <div className={getExpenseAmountTextClassName(row.amount)}>{formatIncomeJPY(row.amount)}</div>
               </button>
             ))
           )}
