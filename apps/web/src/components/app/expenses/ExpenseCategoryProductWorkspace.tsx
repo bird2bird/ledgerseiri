@@ -958,6 +958,50 @@ function getExpenseStatusBadgeTitle(flag: string) {
   return normalized || "支出ステータス";
 }
 
+// Step109-Z1-H24-EXPENSE-IMPORT-RELATION-POLISH:
+// Productized import trace display for expense rows and drawer source context.
+function getExpenseImportTraceMeta(row: ExpenseCategoryRecord | null | undefined) {
+  const importJobId = String(row?.importJobId || "").trim();
+  const sourceFileName = String(row?.sourceFileName || "").trim();
+  const sourceRowNo = String(row?.sourceRowNo || "").trim();
+
+  return {
+    hasTrace: Boolean(importJobId || sourceFileName || sourceRowNo),
+    importJobId,
+    sourceFileName,
+    sourceRowNo,
+    shortImportJobId: importJobId ? `${importJobId.slice(0, 8)}…` : "",
+  };
+}
+
+function getExpenseImportTraceLabel(row: ExpenseCategoryRecord | null | undefined) {
+  const meta = getExpenseImportTraceMeta(row);
+  if (!meta.hasTrace) return "手動登録 / 取込元なし";
+
+  const parts = [
+    meta.sourceFileName ? `ファイル: ${meta.sourceFileName}` : "",
+    meta.sourceRowNo ? `行: ${meta.sourceRowNo}` : "",
+    meta.shortImportJobId ? `Job: ${meta.shortImportJobId}` : "",
+  ].filter(Boolean);
+
+  return parts.join(" / ") || "取込トレースあり";
+}
+
+function getExpenseImportTraceUrl(row: ExpenseCategoryRecord | null | undefined) {
+  const meta = getExpenseImportTraceMeta(row);
+  if (!meta.importJobId) return "";
+
+  const params = new URLSearchParams();
+  params.set("domain", "ledger");
+  params.set("module", "expense");
+  params.set("importJobId", meta.importJobId);
+  params.set("traceTarget", "expense-category");
+  if (row?.id) params.set("transactionId", row.id);
+  if (meta.sourceRowNo) params.set("sourceRowNo", meta.sourceRowNo);
+
+  return `/ja/app/data/import?${params.toString()}`;
+}
+
 function getExpenseAmountTextClassName(amount: number) {
   const normalized = Number(amount || 0);
   if (normalized < 0) return "text-right font-mono text-sm font-black tabular-nums text-rose-700";
@@ -2847,6 +2891,14 @@ export function ExpenseCategoryProductWorkspace(props: {
                         確認済み
                       </span>
                     )}
+                    {getExpenseImportTraceMeta(row).hasTrace ? (
+                      <span
+                        className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-black text-sky-700 shadow-sm"
+                        title={getExpenseImportTraceLabel(row)}
+                      >
+                        取込元あり
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <div>
@@ -3124,6 +3176,60 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <div className="mt-1 text-xs font-semibold text-slate-400">
                           PDF / CSV / Excel / 画像ファイルを選択できます。
                         </div>
+                        {editingExpenseRow && getExpenseImportTraceMeta(editingExpenseRow).hasTrace ? (
+                          <section className="mb-4 rounded-[1.5rem] border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-black text-slate-900">取込元トレース</div>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                                  この支出明細は CSV / Excel 取込から登録されています。Import Center 側の履歴確認に利用できます。
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-black text-sky-700">
+                                import
+                              </span>
+                            </div>
+
+                            <div className="mt-4 grid gap-2 text-xs font-semibold text-slate-600">
+                              {getExpenseImportTraceMeta(editingExpenseRow).sourceFileName ? (
+                                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                  <span className="text-slate-400">ファイル</span>
+                                  <span className="truncate text-right font-bold text-slate-700">
+                                    {getExpenseImportTraceMeta(editingExpenseRow).sourceFileName}
+                                  </span>
+                                </div>
+                              ) : null}
+
+                              {getExpenseImportTraceMeta(editingExpenseRow).sourceRowNo ? (
+                                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                  <span className="text-slate-400">CSV行</span>
+                                  <span className="font-mono font-bold text-slate-700">
+                                    {getExpenseImportTraceMeta(editingExpenseRow).sourceRowNo}
+                                  </span>
+                                </div>
+                              ) : null}
+
+                              {getExpenseImportTraceMeta(editingExpenseRow).importJobId ? (
+                                <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                                  <span className="text-slate-400">ImportJob</span>
+                                  <span className="font-mono font-bold text-slate-700">
+                                    {getExpenseImportTraceMeta(editingExpenseRow).shortImportJobId}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {getExpenseImportTraceUrl(editingExpenseRow) ? (
+                              <Link
+                                href={getExpenseImportTraceUrl(editingExpenseRow)}
+                                className="mt-4 inline-flex h-9 items-center justify-center rounded-2xl border border-sky-200 bg-white px-4 text-xs font-black text-sky-700 shadow-sm transition hover:bg-sky-50"
+                              >
+                                Import Centerで確認
+                              </Link>
+                            ) : null}
+                          </section>
+                        ) : null}
+
                         {expenseEditAttachmentsLoading ? (
                           <div className="mt-2 text-xs font-bold text-slate-500">
                             保存済みファイルを確認しています...
