@@ -881,11 +881,18 @@ function getExpenseRequiresInvoice(kind: ExpenseCategoryProductKind) {
   return kind !== "payroll";
 }
 
+function isExpenseBankAttachment(item: TransactionAttachmentItem) {
+  return (
+    item.documentType === "BANK_STATEMENT" ||
+    item.documentType === "PAYROLL_BANK_STATEMENT"
+  );
+}
+
 function summarizeTransactionAttachments(
   attachments: TransactionAttachmentItem[]
 ): ExpenseEvidenceSummary {
   return {
-    bankCount: attachments.filter((item) => item.documentType === "BANK_STATEMENT").length,
+    bankCount: attachments.filter(isExpenseBankAttachment).length,
     invoiceCount: attachments.filter((item) => item.documentType === "INVOICE").length,
     loaded: true,
   };
