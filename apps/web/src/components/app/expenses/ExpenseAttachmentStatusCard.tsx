@@ -21,7 +21,6 @@ type ExpenseAttachmentStatusCardProps = {
 export function ExpenseAttachmentStatusCard({
   status,
   latestLine,
-  downloadHref,
   items = [],
   deletingAttachmentId = "",
   onDeleteAttachment,
@@ -53,17 +52,6 @@ export function ExpenseAttachmentStatusCard({
             ) : null}
           </div>
 
-          {downloadHref ? (
-            <a
-              href={downloadHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-black text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
-              aria-label="download最新ファイル"
-            >
-              ダウンロード
-            </a>
-          ) : null}
         </div>
 
         {hasFiles ? (
