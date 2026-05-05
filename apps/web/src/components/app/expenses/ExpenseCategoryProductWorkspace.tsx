@@ -7,6 +7,7 @@ import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemp
 import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialog";
 import { ExpenseImportHistoryPanel } from "@/components/app/imports/ExpenseImportHistoryPanel";
 import {
+  getTransactionAttachmentDownloadUrl,
   listTransactionAttachments,
   listTransactions,
   updateTransaction,
@@ -1411,6 +1412,10 @@ export function ExpenseCategoryProductWorkspace(props: {
     };
   }
 
+  function getExpenseAttachmentLatest(target: "bank" | "invoice") {
+    return getExpenseAttachmentSummary(target).latest;
+  }
+
   function formatExpenseAttachmentLatestLine(target: "bank" | "invoice") {
     const latest = getExpenseAttachmentSummary(target).latest;
     if (!latest) {
@@ -2719,6 +2724,20 @@ export function ExpenseCategoryProductWorkspace(props: {
                                 最新: {formatExpenseAttachmentLatestLine("bank")}
                               </p>
                             ) : null}
+                            {getExpenseAttachmentLatest("bank") ? (
+                              <a
+                                href={getTransactionAttachmentDownloadUrl(
+                                  getExpenseAttachmentLatest("bank")!.transactionId,
+                                  getExpenseAttachmentLatest("bank")!.id
+                                )}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-2 inline-flex h-8 items-center rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                                aria-label="download最新ファイル"
+                              >
+                                ダウンロード
+                              </a>
+                            ) : null}
                           </div>
                         ) : (
                           <div className="mt-2 text-xs font-bold text-amber-700">
@@ -2767,6 +2786,20 @@ export function ExpenseCategoryProductWorkspace(props: {
                                 <p className="mt-1 text-[11px] font-medium leading-5 text-emerald-700">
                                   最新: {formatExpenseAttachmentLatestLine("invoice")}
                                 </p>
+                              ) : null}
+                              {getExpenseAttachmentLatest("invoice") ? (
+                                <a
+                                  href={getTransactionAttachmentDownloadUrl(
+                                    getExpenseAttachmentLatest("invoice")!.transactionId,
+                                    getExpenseAttachmentLatest("invoice")!.id
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-2 inline-flex h-8 items-center rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                                  aria-label="download最新ファイル"
+                                >
+                                  ダウンロード
+                                </a>
                               ) : null}
                             </div>
                           ) : (
