@@ -1468,7 +1468,7 @@ export function ExpenseCategoryProductWorkspace(props: {
     if (summary.latest) {
       return `実ファイル保存済み ${summary.count}件`;
     }
-    return summary.fallbackName ? `ファイル名記録済み: ${summary.fallbackName}` : "";
+    return "";
   }
 
   async function loadExpenseCategoryAttachments(transactionId: string) {
@@ -1500,11 +1500,6 @@ export function ExpenseCategoryProductWorkspace(props: {
 
     if (!normalizedAttachmentId || !transactionId) {
       return;
-    }
-
-    if (typeof window !== "undefined") {
-      const ok = window.confirm("この証憑ファイルを削除しますか？");
-      if (!ok) return;
     }
 
     setExpenseEditDeletingAttachmentId(normalizedAttachmentId);
