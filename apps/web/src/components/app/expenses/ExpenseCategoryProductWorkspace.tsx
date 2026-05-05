@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialog";
 import { ExpenseImportHistoryPanel } from "@/components/app/imports/ExpenseImportHistoryPanel";
+import { ExpenseAttachmentStatusCard } from "./ExpenseAttachmentStatusCard";
 import {
   getTransactionAttachmentDownloadUrl,
   listTransactionAttachments,
@@ -1416,6 +1417,13 @@ export function ExpenseCategoryProductWorkspace(props: {
     return getExpenseAttachmentSummary(target).latest;
   }
 
+  function getExpenseAttachmentDownloadHref(target: "bank" | "invoice") {
+    const latest = getExpenseAttachmentLatest(target);
+    return latest
+      ? getTransactionAttachmentDownloadUrl(latest.transactionId, latest.id)
+      : "";
+  }
+
   function formatExpenseAttachmentLatestLine(target: "bank" | "invoice") {
     const latest = getExpenseAttachmentSummary(target).latest;
     if (!latest) {
@@ -2715,30 +2723,11 @@ export function ExpenseCategoryProductWorkspace(props: {
                             保存済みファイルを確認しています...
                           </div>
                         ) : formatExpenseAttachmentStatus("bank") ? (
-                          <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                            <p className="text-xs font-semibold text-emerald-700">
-                              {formatExpenseAttachmentStatus("bank")}
-                            </p>
-                            {formatExpenseAttachmentLatestLine("bank") ? (
-                              <p className="mt-1 text-[11px] font-medium leading-5 text-emerald-700">
-                                最新: {formatExpenseAttachmentLatestLine("bank")}
-                              </p>
-                            ) : null}
-                            {getExpenseAttachmentLatest("bank") ? (
-                              <a
-                                href={getTransactionAttachmentDownloadUrl(
-                                  getExpenseAttachmentLatest("bank")!.transactionId,
-                                  getExpenseAttachmentLatest("bank")!.id
-                                )}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-2 inline-flex h-8 items-center rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
-                                aria-label="download最新ファイル"
-                              >
-                                ダウンロード
-                              </a>
-                            ) : null}
-                          </div>
+                          <ExpenseAttachmentStatusCard
+                            status={formatExpenseAttachmentStatus("bank")}
+                            latestLine={formatExpenseAttachmentLatestLine("bank")}
+                            downloadHref={getExpenseAttachmentDownloadHref("bank")}
+                          />
                         ) : (
                           <div className="mt-2 text-xs font-bold text-amber-700">
                             未選択: 銀行流水未確認として扱います。
@@ -2778,30 +2767,11 @@ export function ExpenseCategoryProductWorkspace(props: {
                               保存済みファイルを確認しています...
                             </div>
                           ) : formatExpenseAttachmentStatus("invoice") ? (
-                            <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                              <p className="text-xs font-semibold text-emerald-700">
-                                {formatExpenseAttachmentStatus("invoice")}
-                              </p>
-                              {formatExpenseAttachmentLatestLine("invoice") ? (
-                                <p className="mt-1 text-[11px] font-medium leading-5 text-emerald-700">
-                                  最新: {formatExpenseAttachmentLatestLine("invoice")}
-                                </p>
-                              ) : null}
-                              {getExpenseAttachmentLatest("invoice") ? (
-                                <a
-                                  href={getTransactionAttachmentDownloadUrl(
-                                    getExpenseAttachmentLatest("invoice")!.transactionId,
-                                    getExpenseAttachmentLatest("invoice")!.id
-                                  )}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="mt-2 inline-flex h-8 items-center rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
-                                  aria-label="download最新ファイル"
-                                >
-                                  ダウンロード
-                                </a>
-                              ) : null}
-                            </div>
+                            <ExpenseAttachmentStatusCard
+                              status={formatExpenseAttachmentStatus("invoice")}
+                              latestLine={formatExpenseAttachmentLatestLine("invoice")}
+                              downloadHref={getExpenseAttachmentDownloadHref("invoice")}
+                            />
                           ) : (
                             <div className="mt-2 text-xs font-bold text-amber-700">
                               未選択: 証憑未添付として扱います。
