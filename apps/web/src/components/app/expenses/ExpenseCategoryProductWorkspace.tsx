@@ -53,6 +53,14 @@ type ExpenseCategoryRecord = {
   sourceFileName: string;
 };
 
+type ExpenseEditSnapshot = {
+  amount: number | null;
+  memo: string;
+  vendor: string;
+  accountName: string;
+  evidenceNo: string;
+};
+
 
 type ExpenseClassificationDebugRow = {
   id: string;
@@ -893,6 +901,35 @@ function normalizeExpenseAmountInput(value: string) {
   return Math.round(amount);
 }
 
+function normalizeExpenseEditText(value: string | null | undefined) {
+  return String(value || "").trim();
+}
+
+function normalizeExpenseEditAmountSnapshot(value: string | number | null | undefined) {
+  if (typeof value === "number") {
+    const rounded = Math.round(Math.abs(value));
+    return Number.isFinite(rounded) ? rounded : null;
+  }
+
+  const normalized = normalizeExpenseAmountInput(String(value || ""));
+  return Number.isFinite(normalized) ? normalized : null;
+}
+
+function areExpenseEditSnapshotsEqual(
+  left: ExpenseEditSnapshot | null,
+  right: ExpenseEditSnapshot | null
+) {
+  if (!left || !right) return false;
+
+  return (
+    left.amount === right.amount &&
+    left.memo === right.memo &&
+    left.vendor === right.vendor &&
+    left.accountName === right.accountName &&
+    left.evidenceNo === right.evidenceNo
+  );
+}
+
 function stripExpenseDisplaySystemMarkers(memo: string | null | undefined) {
   return stripLedgerMarkersFromMemo(memo)
     .replace(/\[vendor:[^\]]+\]/gi, "")
@@ -1328,6 +1365,8 @@ export function ExpenseCategoryProductWorkspace(props: {
   // Step109-Z1-H17-C-EXPENSE-EVIDENCE-NO-MARKER-EDIT:
   // Temporary evidence/reference number edit stored as Transaction.memo [evidence_no:*].
   const [expenseEditEvidenceNo, setExpenseEditEvidenceNo] = React.useState("");
+  const [expenseEditInitialSnapshot, setExpenseEditInitialSnapshot] =
+    React.useState<ExpenseEditSnapshot | null>(null);
   // Step109-Z1-H17-B2-EXPENSE-DOCUMENT-UPLOAD-CONTROLS:
   // Temporary document controls store selected filenames as memo markers.
   // Real file persistence will be connected after attachment API/storage is implemented.
@@ -1448,20 +1487,51 @@ export function ExpenseCategoryProductWorkspace(props: {
     }));
   }
 
+  function buildExpenseEditSnapshotFromValues(values: {
+    amount: string | number | null | undefined;
+    memo: string | null | undefined;
+    vendor: string | null | undefined;
+    accountName: string | null | undefined;
+    evidenceNo: string | null | undefined;
+  }): ExpenseEditSnapshot {
+    return {
+      amount: normalizeExpenseEditAmountSnapshot(values.amount),
+      memo: normalizeExpenseEditText(values.memo),
+      vendor: normalizeExpenseEditText(values.vendor),
+      accountName: normalizeExpenseEditText(values.accountName),
+      evidenceNo: normalizeExpenseEditText(values.evidenceNo),
+    };
+  }
+
+  function buildCurrentExpenseEditSnapshot() {
+    return buildExpenseEditSnapshotFromValues({
+      amount: expenseEditAmount,
+      memo: expenseEditMemo,
+      vendor: expenseEditVendor,
+      accountName: expenseEditAccountName,
+      evidenceNo: expenseEditEvidenceNo,
+    });
+  }
+
+  function buildExpenseEditSnapshotFromRow(row: ExpenseCategoryRecord) {
+    return buildExpenseEditSnapshotFromValues({
+      amount: row.amount,
+      memo: row.memo,
+      vendor: row.vendor,
+      accountName: row.account,
+      evidenceNo: readExpenseMemoMarker(row.rawMemo || row.memo, ["evidence_no", "invoice_no", "evidence", "invoice"]),
+    });
+  }
+
+  function refreshExpenseEditInitialSnapshotFromCurrent() {
+    setExpenseEditInitialSnapshot(buildCurrentExpenseEditSnapshot());
+  }
+
   function getExpenseEditHasChanges() {
-    if (!editingExpenseRow) return false;
-
-    const normalizedAmount = normalizeExpenseAmountInput(expenseEditAmount);
-    const currentAmount = Math.round(Math.abs(Number(editingExpenseRow.amount || 0)));
-    const amountChanged =
-      Number.isFinite(normalizedAmount) && normalizedAmount !== currentAmount;
-
-    return (
-      amountChanged ||
-      String(expenseEditMemo || "").trim() !== String(editingExpenseRow.memo || "").trim() ||
-      String(expenseEditVendor || "").trim() !== String(editingExpenseRow.vendor || "").trim() ||
-      String(expenseEditAccountName || "").trim() !== String(editingExpenseRow.account || "").trim() ||
-      Boolean(String(expenseEditEvidenceNo || "").trim())
+    if (!editingExpenseRow || !expenseEditInitialSnapshot) return false;
+    return !areExpenseEditSnapshotsEqual(
+      buildCurrentExpenseEditSnapshot(),
+      expenseEditInitialSnapshot
     );
   }
 
@@ -1596,6 +1666,7 @@ export function ExpenseCategoryProductWorkspace(props: {
 
   function openExpenseCategoryEditDrawer(row: ExpenseCategoryRecord) {
     setEditingExpenseRow(row);
+    setExpenseEditInitialSnapshot(buildExpenseEditSnapshotFromRow(row));
     const rawMemo = row.rawMemo || row.memo || "";
     setExpenseEditMemo(stripExpenseDisplaySystemMarkers(rawMemo));
     setExpenseEditAmount(String(Math.abs(Number(row.amount || 0)) || ""));
@@ -1617,6 +1688,7 @@ export function ExpenseCategoryProductWorkspace(props: {
   function closeExpenseCategoryEditDrawer() {
     if (expenseEditSaving) return;
     setEditingExpenseRow(null);
+    setExpenseEditInitialSnapshot(null);
     setExpenseEditAmount("");
     setExpenseEditVendor("");
     setExpenseEditAccountName("");
@@ -1714,6 +1786,17 @@ export function ExpenseCategoryProductWorkspace(props: {
       // The list is updated optimistically, then reloadSeq asks the existing loader
       // to reconcile with server state without a full window.location refresh.
       const nextDisplayMemo = stripExpenseDisplaySystemMarkers(nextMemo);
+
+      setExpenseEditInitialSnapshot(
+        buildExpenseEditSnapshotFromValues({
+          amount: nextAmount,
+          memo: nextDisplayMemo,
+          vendor: expenseEditVendor.trim() || editingExpenseRow.vendor,
+          accountName: expenseEditAccountName.trim() || editingExpenseRow.account,
+          evidenceNo: expenseEditEvidenceNo.trim(),
+        })
+      );
+
       const nextDisplaySource = nextBucket || editingExpenseRow.source || "all";
       const nextDisplayRow: ExpenseCategoryRecord = {
         ...editingExpenseRow,
