@@ -559,9 +559,10 @@ export function ImportJobsTableCard(props: {
     setSelectedJobId((current) => (current === importJobId ? current : importJobId));
 
     if (!selectionInfo.shouldAutoOpenDrawer) {
-      // FIX3 baseline: ordinary URL selection should only highlight the row.
-      // Auto-opening is limited to explicit expense trace navigation.
-      setSelectedJob(null);
+      // Step109-Z1-H26-B-FIX-ORDINARY-URL-DETAIL-DRAWER:
+      // Ordinary ?importJobId= URLs should highlight the row only on page load.
+      // Do not clear selectedJob here after the user manually clicks 詳細;
+      // otherwise the URL effect immediately closes the drawer again.
       return;
     }
 
@@ -571,13 +572,13 @@ export function ImportJobsTableCard(props: {
       return;
     }
 
-    if (appliedUrlImportJobIdRef.current === importJobId && selectedJob?.id === importJobId) {
+    if (appliedUrlImportJobIdRef.current === importJobId) {
       return;
     }
 
     appliedUrlImportJobIdRef.current = importJobId;
     setSelectedJob(targetJob);
-  }, [props.jobs, selectedJob?.id]);
+  }, [props.jobs]);
 
   const filteredJobs = React.useMemo(() => {
     const q = query.trim().toLowerCase();
