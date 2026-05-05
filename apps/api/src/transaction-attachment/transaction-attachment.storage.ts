@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, stat, unlink, writeFile } from 'fs/promises';
+import { join, resolve, sep } from 'path';
 import {
   TRANSACTION_ATTACHMENT_STORAGE_KEY_PREFIX,
   TRANSACTION_ATTACHMENT_STORAGE_ROOT,
@@ -58,7 +58,42 @@ export class TransactionAttachmentStorage {
       .map((segment) => this.sanitizePathSegment(segment))
       .join('/');
 
-    return join(this.storageRoot, normalizedKey);
+    if (!normalizedKey || !normalizedKey.startsWith(`${TRANSACTION_ATTACHMENT_STORAGE_KEY_PREFIX}/`)) {
+      throw new BadRequestException('INVALID_ATTACHMENT_STORAGE_KEY');
+    }
+
+    const root = resolve(this.storageRoot);
+    const absolutePath = resolve(root, normalizedKey);
+
+    if (absolutePath !== root && !absolutePath.startsWith(`${root}${sep}`)) {
+      throw new BadRequestException('INVALID_ATTACHMENT_STORAGE_PATH');
+    }
+
+    return absolutePath;
+  }
+
+  async getFileInfo(storageKey: string) {
+    const absolutePath = this.resolveAbsolutePath(storageKey);
+
+    try {
+      const fileStat = await stat(absolutePath);
+      if (!fileStat.isFile()) {
+        throw new NotFoundException('ATTACHMENT_FILE_NOT_FOUND');
+      }
+
+      return {
+        absolutePath,
+        sizeBytes: fileStat.size,
+      };
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error?.code === 'ENOENT') {
+        throw new NotFoundException('ATTACHMENT_FILE_NOT_FOUND');
+      }
+      throw error;
+    }
   }
 
   async put(input: PutLocalAttachmentInput): Promise<PutLocalAttachmentResult> {

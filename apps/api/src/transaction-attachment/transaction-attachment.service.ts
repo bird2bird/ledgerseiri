@@ -111,6 +111,49 @@ export class TransactionAttachmentService {
     };
   }
 
+  async downloadForTransaction(
+    transactionId: string,
+    attachmentId: string,
+    companyIdInput?: string | null,
+  ) {
+    const companyId = this.resolveCompanyId(companyIdInput);
+    const normalizedTransactionId = await this.assertTransactionBelongsToCompany(
+      transactionId,
+      companyId,
+    );
+    const normalizedAttachmentId = String(attachmentId || '').trim();
+
+    if (!normalizedAttachmentId) {
+      throw new NotFoundException('ATTACHMENT_NOT_FOUND');
+    }
+
+    const item = await this.prisma.transactionAttachment.findFirst({
+      where: {
+        id: normalizedAttachmentId,
+        companyId,
+        transactionId: normalizedTransactionId,
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('ATTACHMENT_NOT_FOUND');
+    }
+
+    const fileInfo = await this.storage.getFileInfo(item.storageKey);
+
+    return {
+      ok: true,
+      domain: 'transactionAttachments',
+      action: 'download',
+      transactionId: normalizedTransactionId,
+      item: this.normalizeAttachment(item),
+      absolutePath: fileInfo.absolutePath,
+      mimeType: item.mimeType || 'application/octet-stream',
+      sizeBytes: fileInfo.sizeBytes || item.sizeBytes,
+      downloadName: item.originalName || item.fileName || 'attachment',
+    };
+  }
+
   async createForTransaction(
     transactionId: string,
     companyIdInput: string | null | undefined,

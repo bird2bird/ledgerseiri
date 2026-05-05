@@ -178,6 +178,15 @@ export async function listTransactionAttachments(transactionId: string) {
   );
 }
 
+export function getTransactionAttachmentDownloadUrl(
+  transactionId: string,
+  attachmentId: string
+) {
+  return `/api/transactions/${encodeURIComponent(transactionId)}/attachments/${encodeURIComponent(
+    attachmentId
+  )}/download`;
+}
+
 export async function uploadTransactionAttachment(
   transactionId: string,
   payload: {
