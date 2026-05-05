@@ -6,7 +6,15 @@ import { useSearchParams } from "next/navigation";
 import { LedgerTemplateDownloadButton } from "@/components/app/ledger/LedgerTemplateDownloadButton";
 import { ExpenseImportDialog } from "@/components/app/imports/ExpenseImportDialog";
 import { ExpenseImportHistoryPanel } from "@/components/app/imports/ExpenseImportHistoryPanel";
-import { listTransactions, updateTransaction, type TransactionItem } from "@/core/transactions/api";
+import {
+  listTransactionAttachments,
+  listTransactions,
+  updateTransaction,
+  uploadTransactionAttachment,
+  type TransactionAttachmentDocumentType,
+  type TransactionAttachmentItem,
+  type TransactionItem,
+} from "@/core/transactions/api";
 import type { ExpenseImportHistoryModule } from "@/core/imports/api";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import {
@@ -1322,6 +1330,13 @@ export function ExpenseCategoryProductWorkspace(props: {
   // Real file persistence will be connected after attachment API/storage is implemented.
   const [expenseEditBankStatementFileName, setExpenseEditBankStatementFileName] = React.useState("");
   const [expenseEditInvoiceFileName, setExpenseEditInvoiceFileName] = React.useState("");
+  // Step109-Z1-H18-K-EXPENSE-ATTACHMENT-UPLOAD-WIRING:
+  // Keep real File objects for POST /api/transactions/:id/attachments while preserving legacy memo filename markers.
+  const [expenseEditBankStatementFile, setExpenseEditBankStatementFile] = React.useState<File | null>(null);
+  const [expenseEditInvoiceFile, setExpenseEditInvoiceFile] = React.useState<File | null>(null);
+  const [expenseEditAttachments, setExpenseEditAttachments] = React.useState<TransactionAttachmentItem[]>([]);
+  const [expenseEditAttachmentsLoading, setExpenseEditAttachmentsLoading] = React.useState(false);
+  const [expenseEditAttachmentStatus, setExpenseEditAttachmentStatus] = React.useState("");
   const [expenseEditBucket, setExpenseEditBucket] = React.useState("all");
   const [expenseEditSaving, setExpenseEditSaving] = React.useState(false);
   const [expenseEditError, setExpenseEditError] = React.useState("");
@@ -1333,6 +1348,87 @@ export function ExpenseCategoryProductWorkspace(props: {
     kind === "payroll" ||
     kind === "other-expense";
 
+  function getExpenseAttachmentDocumentType(
+    target: "bank" | "invoice"
+  ): TransactionAttachmentDocumentType {
+    if (target === "bank") {
+      return kind === "payroll" ? "PAYROLL_BANK_STATEMENT" : "BANK_STATEMENT";
+    }
+    return "INVOICE";
+  }
+
+  function formatExpenseAttachmentStatus(target: "bank" | "invoice") {
+    const matched = expenseEditAttachments.find((item) => {
+      if (target === "bank") {
+        return item.documentType === "BANK_STATEMENT" || item.documentType === "PAYROLL_BANK_STATEMENT";
+      }
+      return item.documentType === "INVOICE" || item.documentType === "RECEIPT";
+    });
+
+    if (matched) {
+      return `実ファイル保存済み: ${matched.fileName || matched.originalName}`;
+    }
+
+    const legacyName =
+      target === "bank" ? expenseEditBankStatementFileName : expenseEditInvoiceFileName;
+
+    if (legacyName) return `選択済み: ${legacyName}`;
+    return "";
+  }
+
+  async function loadExpenseCategoryAttachments(transactionId: string) {
+    const normalizedId = String(transactionId || "").trim();
+    if (!normalizedId) {
+      setExpenseEditAttachments([]);
+      return;
+    }
+
+    setExpenseEditAttachmentsLoading(true);
+    setExpenseEditAttachmentStatus("証憑ファイルを確認しています...");
+
+    try {
+      const res = await listTransactionAttachments(normalizedId);
+      setExpenseEditAttachments(res.items || []);
+      setExpenseEditAttachmentStatus("");
+    } catch (error) {
+      console.error("[ExpenseCategoryProductWorkspace] failed to load attachments", error);
+      setExpenseEditAttachments([]);
+      setExpenseEditAttachmentStatus("証憑ファイルの取得に失敗しました。保存は継続できます。");
+    } finally {
+      setExpenseEditAttachmentsLoading(false);
+    }
+  }
+
+  async function uploadExpenseCategorySelectedAttachments(transactionId: string) {
+    const uploaded: TransactionAttachmentItem[] = [];
+
+    if (expenseEditBankStatementFile) {
+      const bank = await uploadTransactionAttachment(transactionId, {
+        documentType: getExpenseAttachmentDocumentType("bank"),
+        file: expenseEditBankStatementFile,
+      });
+      uploaded.push(bank.item);
+    }
+
+    if (kind !== "payroll" && expenseEditInvoiceFile) {
+      const invoice = await uploadTransactionAttachment(transactionId, {
+        documentType: getExpenseAttachmentDocumentType("invoice"),
+        file: expenseEditInvoiceFile,
+      });
+      uploaded.push(invoice.item);
+    }
+
+    if (uploaded.length) {
+      const refreshed = await listTransactionAttachments(transactionId);
+      setExpenseEditAttachments(refreshed.items || uploaded);
+      setExpenseEditBankStatementFile(null);
+      setExpenseEditInvoiceFile(null);
+      setExpenseEditAttachmentStatus(`${uploaded.length}件の証憑ファイルを保存しました。`);
+    }
+
+    return uploaded;
+  }
+
   function openExpenseCategoryEditDrawer(row: ExpenseCategoryRecord) {
     setEditingExpenseRow(row);
     const rawMemo = row.rawMemo || row.memo || "";
@@ -1343,9 +1439,14 @@ export function ExpenseCategoryProductWorkspace(props: {
     setExpenseEditEvidenceNo(readExpenseMemoMarker(rawMemo, ["evidence_no", "invoice_no", "evidence", "invoice"]));
     setExpenseEditBankStatementFileName(readExpenseMemoMarker(rawMemo, ["bank_statement_file"]));
     setExpenseEditInvoiceFileName(readExpenseMemoMarker(rawMemo, ["invoice_file", "receipt_file", "document_file"]));
+    setExpenseEditBankStatementFile(null);
+    setExpenseEditInvoiceFile(null);
+    setExpenseEditAttachments([]);
+    setExpenseEditAttachmentStatus("");
     setExpenseEditBucket(row.source && row.source !== "all" ? row.source : "all");
     setExpenseEditError("");
     setExpenseEditMessage("");
+    void loadExpenseCategoryAttachments(row.id);
   }
 
   function closeExpenseCategoryEditDrawer() {
@@ -1357,6 +1458,11 @@ export function ExpenseCategoryProductWorkspace(props: {
     setExpenseEditEvidenceNo("");
     setExpenseEditBankStatementFileName("");
     setExpenseEditInvoiceFileName("");
+    setExpenseEditBankStatementFile(null);
+    setExpenseEditInvoiceFile(null);
+    setExpenseEditAttachments([]);
+    setExpenseEditAttachmentsLoading(false);
+    setExpenseEditAttachmentStatus("");
     setExpenseEditError("");
     setExpenseEditMessage("");
   }
@@ -1374,7 +1480,8 @@ export function ExpenseCategoryProductWorkspace(props: {
         expenseEditVendor.trim() ||
         expenseEditEvidenceNo.trim() ||
         expenseEditBankStatementFileName.trim() ||
-        (kind !== "payroll" && expenseEditInvoiceFileName.trim())
+        Boolean(expenseEditBankStatementFile) ||
+        (kind !== "payroll" && (expenseEditInvoiceFileName.trim() || Boolean(expenseEditInvoiceFile)))
       )
   );
 
@@ -1435,6 +1542,8 @@ export function ExpenseCategoryProductWorkspace(props: {
     try {
       await updateTransaction(editingExpenseRow.id, { amount: nextAmount, memo: nextMemo });
 
+      const uploadedAttachments = await uploadExpenseCategorySelectedAttachments(editingExpenseRow.id);
+
       // Step109-Z1-H17-F-EXPENSE-DRAWER-LOCAL-REFRESH:
       // Keep the drawer and scroll position stable after save.
       // The list is updated optimistically, then reloadSeq asks the existing loader
@@ -1456,7 +1565,11 @@ export function ExpenseCategoryProductWorkspace(props: {
         currentRows.map((row) => (row.id === editingExpenseRow.id ? nextDisplayRow : row))
       );
       setEditingExpenseRow(nextDisplayRow);
-      setExpenseEditMessage("保存しました。一覧を更新しました。");
+      setExpenseEditMessage(
+        uploadedAttachments.length
+          ? `保存しました。証憑ファイル${uploadedAttachments.length}件をアップロードしました。`
+          : "保存しました。一覧を更新しました。"
+      );
       setReloadSeq((value) => value + 1);
     } catch (error) {
       const message = error instanceof Error ? error.message : "保存に失敗しました。";
@@ -2519,7 +2632,7 @@ export function ExpenseCategoryProductWorkspace(props: {
                     </div>
                   </div>
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700">
-                    API接続待ち
+                    API接続済み
                   </span>
                 </div>
 
@@ -2534,9 +2647,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                         <div className="mt-1 text-xs font-semibold text-slate-400">
                           PDF / CSV / Excel / 画像ファイルを選択できます。
                         </div>
-                        {expenseEditBankStatementFileName ? (
+                        {expenseEditAttachmentsLoading ? (
+                          <div className="mt-2 text-xs font-bold text-slate-500">
+                            保存済みファイルを確認しています...
+                          </div>
+                        ) : formatExpenseAttachmentStatus("bank") ? (
                           <div className="mt-2 text-xs font-bold text-emerald-700">
-                            選択済み: {expenseEditBankStatementFileName}
+                            {formatExpenseAttachmentStatus("bank")}
                           </div>
                         ) : (
                           <div className="mt-2 text-xs font-bold text-amber-700">
@@ -2553,8 +2670,10 @@ export function ExpenseCategoryProductWorkspace(props: {
                       accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
                       className="sr-only"
                       onChange={(event) => {
-                        const file = event.target.files?.[0];
+                        const file = event.target.files?.[0] || null;
+                        setExpenseEditBankStatementFile(file);
                         setExpenseEditBankStatementFileName(file?.name || "");
+                        if (file) setExpenseEditAttachmentStatus("保存時に銀行流水ファイルをアップロードします。");
                       }}
                     />
                   </label>
@@ -2570,9 +2689,13 @@ export function ExpenseCategoryProductWorkspace(props: {
                           <div className="mt-1 text-xs font-semibold text-slate-400">
                             仕入先・支払先から受領した請求書、領収書、レシートを選択します。
                           </div>
-                          {expenseEditInvoiceFileName ? (
+                          {expenseEditAttachmentsLoading ? (
+                            <div className="mt-2 text-xs font-bold text-slate-500">
+                              保存済みファイルを確認しています...
+                            </div>
+                          ) : formatExpenseAttachmentStatus("invoice") ? (
                             <div className="mt-2 text-xs font-bold text-emerald-700">
-                              選択済み: {expenseEditInvoiceFileName}
+                              {formatExpenseAttachmentStatus("invoice")}
                             </div>
                           ) : (
                             <div className="mt-2 text-xs font-bold text-amber-700">
@@ -2589,16 +2712,23 @@ export function ExpenseCategoryProductWorkspace(props: {
                         accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.csv"
                         className="sr-only"
                         onChange={(event) => {
-                          const file = event.target.files?.[0];
+                          const file = event.target.files?.[0] || null;
+                          setExpenseEditInvoiceFile(file);
                           setExpenseEditInvoiceFileName(file?.name || "");
+                          if (file) setExpenseEditAttachmentStatus("保存時に請求書・領収書ファイルをアップロードします。");
                         }}
                       />
                     </label>
                   ) : null}
 
                   <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold leading-5 text-slate-500">
-                    現段階では実ファイルの保存は未接続です。保存時に選択ファイル名を
-                    Transaction.memo の marker として記録し、監査状態の判定に利用します。
+                    保存時に実ファイルを TransactionAttachment として保存します。既存の
+                    Transaction.memo marker は互換表示として残します。
+                    {expenseEditAttachmentStatus ? (
+                      <span className="mt-2 block font-bold text-slate-700">
+                        {expenseEditAttachmentStatus}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
