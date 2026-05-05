@@ -53,6 +53,12 @@ type ExpenseCategoryRecord = {
   sourceFileName: string;
 };
 
+type ExpenseEvidenceSummary = {
+  bankCount: number;
+  invoiceCount: number;
+  loaded: boolean;
+};
+
 type ExpenseEditSnapshot = {
   amount: number | null;
   memo: string;
@@ -859,6 +865,48 @@ function readExpenseMemoMarker(
   return "";
 }
 
+const EXPENSE_EVIDENCE_STATUS_LABELS = [
+  "銀行流水確認済み",
+  "銀行流水未確認",
+  "証憑確認済み",
+  "証憑未添付",
+  "証憑不要",
+];
+
+function isExpenseEvidenceStatusFlag(flag: string) {
+  return EXPENSE_EVIDENCE_STATUS_LABELS.includes(String(flag || "").trim());
+}
+
+function getExpenseRequiresInvoice(kind: ExpenseCategoryProductKind) {
+  return kind !== "payroll";
+}
+
+function summarizeTransactionAttachments(
+  attachments: TransactionAttachmentItem[]
+): ExpenseEvidenceSummary {
+  return {
+    bankCount: attachments.filter((item) => item.documentType === "BANK_STATEMENT").length,
+    invoiceCount: attachments.filter((item) => item.documentType === "INVOICE").length,
+    loaded: true,
+  };
+}
+
+function buildExpenseEvidenceStatusFlags(
+  kind: ExpenseCategoryProductKind,
+  summary: ExpenseEvidenceSummary | undefined
+) {
+  if (!summary?.loaded) return [];
+
+  const flags: string[] = [];
+  flags.push(summary.bankCount > 0 ? "銀行流水確認済み" : "銀行流水未確認");
+
+  if (getExpenseRequiresInvoice(kind)) {
+    flags.push(summary.invoiceCount > 0 ? "証憑確認済み" : "証憑未添付");
+  }
+
+  return flags;
+}
+
 // Step109-Z1-H17-B-EXPENSE-VENDOR-MARKER-EDIT:
 // Short-term production strategy: vendor/payee is stored in Transaction.memo marker
 // because PATCH /api/transactions/:id currently supports only amount and memo.
@@ -1377,6 +1425,8 @@ export function ExpenseCategoryProductWorkspace(props: {
   const [expenseEditBankStatementFile, setExpenseEditBankStatementFile] = React.useState<File | null>(null);
   const [expenseEditInvoiceFile, setExpenseEditInvoiceFile] = React.useState<File | null>(null);
   const [expenseEditAttachments, setExpenseEditAttachments] = React.useState<TransactionAttachmentItem[]>([]);
+  const [expenseEvidenceSummaryByTransactionId, setExpenseEvidenceSummaryByTransactionId] =
+    React.useState<Record<string, ExpenseEvidenceSummary>>({});
   const [expenseEditAttachmentsLoading, setExpenseEditAttachmentsLoading] = React.useState(false);
   const [expenseEditAttachmentStatus, setExpenseEditAttachmentStatus] = React.useState("");
   const [expenseEditDeletingAttachmentId, setExpenseEditDeletingAttachmentId] = React.useState("");
@@ -1485,6 +1535,48 @@ export function ExpenseCategoryProductWorkspace(props: {
       metaLine: getExpenseAttachmentMetaLine(item),
       downloadHref: getTransactionAttachmentDownloadUrl(item.transactionId, item.id),
     }));
+  }
+
+  function getExpenseEvidenceSummaryForRow(row: ExpenseCategoryRecord) {
+    if (editingExpenseRow?.id === row.id) {
+      return summarizeTransactionAttachments(expenseEditAttachments);
+    }
+
+    return expenseEvidenceSummaryByTransactionId[row.id];
+  }
+
+  function getExpenseRowStatusFlags(row: ExpenseCategoryRecord) {
+    const baseFlags = (row.statusFlags || []).filter(
+      (flag) => !isExpenseEvidenceStatusFlag(flag)
+    );
+    const evidenceFlags = buildExpenseEvidenceStatusFlags(
+      kind,
+      getExpenseEvidenceSummaryForRow(row)
+    );
+
+    return [...baseFlags, ...evidenceFlags];
+  }
+
+  async function refreshExpenseEvidenceSummaryForTransaction(transactionId: string) {
+    const normalizedTransactionId = String(transactionId || "").trim();
+    if (!normalizedTransactionId) return;
+
+    try {
+      const attachments = await listTransactionAttachments(normalizedTransactionId);
+      setExpenseEvidenceSummaryByTransactionId((current) => ({
+        ...current,
+        [normalizedTransactionId]: summarizeTransactionAttachments(attachments),
+      }));
+    } catch {
+      setExpenseEvidenceSummaryByTransactionId((current) => ({
+        ...current,
+        [normalizedTransactionId]: {
+          bankCount: 0,
+          invoiceCount: 0,
+          loaded: true,
+        },
+      }));
+    }
   }
 
   function buildExpenseEditSnapshotFromValues(values: {
@@ -2083,6 +2175,53 @@ export function ExpenseCategoryProductWorkspace(props: {
     return sortRecords(next, sortMode);
   }, [rows, sourceFilter, sortMode, kind]);
 
+  React.useEffect(() => {
+    let active = true;
+
+    async function loadExpenseEvidenceSummaries() {
+      const candidateIds = Array.from(
+        new Set(
+          rows
+            .map((row) => String(row.id || "").trim())
+            .filter(Boolean)
+            .slice(0, 100)
+        )
+      );
+
+      if (!candidateIds.length) {
+        setExpenseEvidenceSummaryByTransactionId({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        candidateIds.map(async (transactionId) => {
+          try {
+            const attachments = await listTransactionAttachments(transactionId);
+            return [transactionId, summarizeTransactionAttachments(attachments)] as const;
+          } catch {
+            return [
+              transactionId,
+              {
+                bankCount: 0,
+                invoiceCount: 0,
+                loaded: true,
+              },
+            ] as const;
+          }
+        })
+      );
+
+      if (!active) return;
+      setExpenseEvidenceSummaryByTransactionId(Object.fromEntries(entries));
+    }
+
+    void loadExpenseEvidenceSummaries();
+
+    return () => {
+      active = false;
+    };
+  }, [rows]);
+
   const totalAmount = React.useMemo(
     () => filteredRows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
     [filteredRows]
@@ -2610,8 +2749,8 @@ export function ExpenseCategoryProductWorkspace(props: {
                 <div>
                   <div className="text-slate-700">{row.account}</div>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {row.statusFlags.length > 0 ? (
-                      row.statusFlags.map((flag) => (
+                    {getExpenseRowStatusFlags(row).length > 0 ? (
+                      getExpenseRowStatusFlags(row).map((flag) => (
                         <span key={flag} className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
                           {flag}
                         </span>
