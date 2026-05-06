@@ -160,6 +160,13 @@ type StoreOrderInventoryDeductionResult = {
   balanceId?: string;
 };
 
+type StoreOrderInventoryDeductionSummary = {
+  deductedRows: number;
+  skippedRows: number;
+  unresolvedRows: number;
+  results: StoreOrderInventoryDeductionResult[];
+};
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -2424,6 +2431,8 @@ export class ImportsService {
       let conflictRows = 0;
       let errorRows = 0;
 
+      const inventoryDeductionResults: StoreOrderInventoryDeductionResult[] = [];
+
       const seenHashes = new Set<string>();
 
       for (const row of stagingRows) {
@@ -2558,6 +2567,20 @@ export class ImportsService {
           },
         });
 
+        if (module === 'store-orders') {
+          const deductionResult = await this.applyStoreOrderInventoryDeduction({
+            tx,
+            companyId,
+            transactionId: created.id,
+            importJobId,
+            rowNo: row.rowNo,
+            businessMonth,
+            payload,
+          });
+
+          inventoryDeductionResults.push(deductionResult);
+        }
+
         await tx.importStagingRow.update({
           where: { id: row.id },
           data: {
@@ -2600,6 +2623,13 @@ export class ImportsService {
         },
       });
 
+      const inventoryDeduction: StoreOrderInventoryDeductionSummary = {
+        deductedRows: inventoryDeductionResults.filter((item) => item.deducted).length,
+        skippedRows: inventoryDeductionResults.filter((item) => item.skipped).length,
+        unresolvedRows: inventoryDeductionResults.filter((item) => item.unresolved).length,
+        results: inventoryDeductionResults,
+      };
+
       return {
         job: updatedJob,
         importedRows,
@@ -2607,7 +2637,8 @@ export class ImportsService {
         conflictRows,
         errorRows,
         deletedRows,
-      };
+              inventoryDeduction,
+};
     });
 
     const summary = await this.buildImportResultSummary({
