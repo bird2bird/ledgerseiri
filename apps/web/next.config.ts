@@ -6,16 +6,22 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
 
   async rewrites() {
-    return {
-      // Keep existing Next.js API routes/pages first.
-      // Only missing /api/* routes fall back to the Nest API container.
-      fallback: [
-        {
-          source: "/api/:path*",
-          destination: `${apiInternalUrl}/api/:path*`,
-        },
-      ],
-    };
+    return [
+      // Explicitly proxy Nest API routes used by client-side app pages.
+      // Keep existing Next.js API routes such as /api/dashboard/cockpit-v3 untouched.
+      {
+        source: "/api/inventory/:path*",
+        destination: `${apiInternalUrl}/api/inventory/:path*`,
+      },
+      {
+        source: "/api/products",
+        destination: `${apiInternalUrl}/api/products`,
+      },
+      {
+        source: "/api/products/:path*",
+        destination: `${apiInternalUrl}/api/products/:path*`,
+      },
+    ];
   },
 };
 
