@@ -153,6 +153,35 @@ function isClosedIssue(item: AuditIssueItem | null) {
   return String(item?.audit?.status ?? "").toUpperCase() === "CLOSED";
 }
 
+function statusLabel(status: string) {
+  if (status === "OPEN") return "未解決";
+  if (status === "CLOSED") return "解決済み";
+  return "すべて";
+}
+
+function statusTone(status: unknown) {
+  const normalized = String(status ?? "").toUpperCase();
+  if (normalized === "CLOSED") {
+    return "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800";
+  }
+  if (normalized === "OPEN") {
+    return "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800";
+  }
+  return "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700";
+}
+
+function shortId(value: unknown) {
+  const text = asText(value);
+  if (text === "-") return text;
+  return text.length > 14 ? `${text.slice(0, 8)}…${text.slice(-4)}` : text;
+}
+
+function countByStatus(data: AuditIssuesResponse | null, targetStatus: string) {
+  return (
+    data?.summary?.byStatus?.find((item) => item.status === targetStatus)?.count ?? 0
+  );
+}
+
 function formatDateTime(value: unknown) {
   if (!value) return "-";
   const date = new Date(String(value));
@@ -185,6 +214,7 @@ function buildQuery(params: Record<string, string>) {
 
 export default function InventoryAuditQueueWorkspace() {
   const [status, setStatus] = useState("OPEN");
+  const [reason, setReason] = useState("");
   const [skuDraft, setSkuDraft] = useState("");
   const [sku, setSku] = useState("");
   const [data, setData] = useState<AuditIssuesResponse | null>(null);
@@ -206,11 +236,12 @@ export default function InventoryAuditQueueWorkspace() {
     () =>
       buildQuery({
         status,
+        reason,
         sku,
         limit: "50",
         offset: "0",
       }),
-    [status, sku],
+    [status, reason, sku],
   );
 
   async function load(options: { refresh?: boolean } = {}) {
@@ -335,6 +366,7 @@ export default function InventoryAuditQueueWorkspace() {
     setResolveSuccess(null);
     setLastResolve(null);
     setResolveNote("");
+    setSelectedSkuId("");
   }
 
   useEffect(() => {
@@ -352,6 +384,7 @@ export default function InventoryAuditQueueWorkspace() {
   const items = data?.items ?? [];
   const openIssues = data?.summary?.openIssues ?? 0;
   const totalIssues = data?.summary?.totalIssues ?? 0;
+  const closedIssues = countByStatus(data, "CLOSED");
   const selectedProduct = products.find((item) => item.id === selectedSkuId) ?? null;
 
   return (
@@ -370,10 +403,14 @@ export default function InventoryAuditQueueWorkspace() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="grid grid-cols-2 gap-3 text-center xl:grid-cols-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <div className="text-xs font-semibold text-amber-700">OPEN</div>
+                <div className="text-xs font-semibold text-amber-700">未解決</div>
                 <div className="mt-1 text-2xl font-bold text-amber-900">{formatNumber(openIssues)}</div>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <div className="text-xs font-semibold text-emerald-700">解決済み</div>
+                <div className="mt-1 text-2xl font-bold text-emerald-900">{formatNumber(closedIssues)}</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-xs font-semibold text-slate-500">TOTAL</div>
@@ -386,58 +423,78 @@ export default function InventoryAuditQueueWorkspace() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-end">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-500">ステータス</span>
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-                className="h-10 min-w-36 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500"
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap gap-2">
+              {["OPEN", "CLOSED", "ALL"].map((nextStatus) => (
+                <button
+                  key={nextStatus}
+                  type="button"
+                  onClick={() => setStatus(nextStatus)}
+                  className={
+                    status === nextStatus
+                      ? "rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm"
+                      : "rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+                  }
+                >
+                  {statusLabel(nextStatus)}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-slate-500">理由</span>
+                <select
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  className="h-10 min-w-56 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500"
+                >
+                  <option value="">すべて</option>
+                  <option value="PRODUCT_SKU_NOT_FOUND">PRODUCT_SKU_NOT_FOUND</option>
+                </select>
+              </label>
+
+              <label className="flex flex-1 flex-col gap-1">
+                <span className="text-xs font-semibold text-slate-500">SKU検索</span>
+                <input
+                  value={skuDraft}
+                  onChange={(event) => setSkuDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") setSku(skuDraft);
+                  }}
+                  placeholder="SKU / seller-sku"
+                  className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setSku(skuDraft)}
+                className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-700"
               >
-                <option value="OPEN">OPEN</option>
-                <option value="ALL">ALL</option>
-              </select>
-            </label>
+                検索
+              </button>
 
-            <label className="flex flex-1 flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-500">SKU検索</span>
-              <input
-                value={skuDraft}
-                onChange={(event) => setSkuDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") setSku(skuDraft);
+              <button
+                type="button"
+                onClick={() => {
+                  setSkuDraft("");
+                  setSku("");
+                  setReason("");
                 }}
-                placeholder="SKU / seller-sku"
-                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500"
-              />
-            </label>
+                className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+              >
+                解除
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setSku(skuDraft)}
-              className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-700"
-            >
-              検索
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSkuDraft("");
-                setSku("");
-              }}
-              className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
-            >
-              解除
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void load({ refresh: true })}
-              className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
-            >
-              {refreshing ? "更新中..." : "再取得"}
-            </button>
+              <button
+                type="button"
+                onClick={() => void load({ refresh: true })}
+                className="h-10 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
+              >
+                {refreshing ? "更新中..." : "再取得"}
+              </button>
+            </div>
           </div>
 
           {resolveSuccess ? (
@@ -480,10 +537,11 @@ export default function InventoryAuditQueueWorkspace() {
                     <th className="px-5 py-3">SKU</th>
                     <th className="px-5 py-3">状態</th>
                     <th className="px-5 py-3">理由</th>
+                    <th className="px-5 py-3">紐づけ先</th>
                     <th className="px-5 py-3">注文ID</th>
                     <th className="px-5 py-3 text-right">数量</th>
                     <th className="px-5 py-3">取込ファイル</th>
-                    <th className="px-5 py-3">取込日時</th>
+                    <th className="px-5 py-3">解決日時</th>
                     <th className="px-5 py-3"></th>
                   </tr>
                 </thead>
@@ -497,20 +555,31 @@ export default function InventoryAuditQueueWorkspace() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span
-                          className={
-                            isClosedIssue(item)
-                              ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800"
-                              : "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
-                          }
-                        >
-                          {asText(item.audit.status)}
+                        <span className={statusTone(item.audit.status)}>
+                          {isClosedIssue(item) ? "解決済み" : "未解決"}
                         </span>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {isClosedIssue(item) ? "在庫移動作成済み" : "在庫減算が未反映です"}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                           {asText(item.audit.reason)}
                         </span>
+                      </td>
+                      <td className="max-w-xs px-5 py-4">
+                        {isClosedIssue(item) ? (
+                          <>
+                            <div className="font-semibold text-slate-900">
+                              {asText(item.audit.linkedSkuCode)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              movement: {shortId(item.audit.resolutionMovementId)}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-xs font-semibold text-amber-700">未紐づけ</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-slate-700">{asText(item.source.orderId)}</td>
                       <td className="px-5 py-4 text-right font-semibold text-slate-900">
@@ -523,7 +592,21 @@ export default function InventoryAuditQueueWorkspace() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-slate-600">
-                        {formatDateTime(item.importJob.importedAt)}
+                        {isClosedIssue(item) ? (
+                          <>
+                            <div>{formatDateTime(item.audit.resolvedAt)}</div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              imported: {formatDateTime(item.importJob.importedAt)}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-amber-700">未解決</div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              imported: {formatDateTime(item.importJob.importedAt)}
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button
@@ -602,6 +685,11 @@ export default function InventoryAuditQueueWorkspace() {
 
               {isOpenIssue(selected) ? (
                 <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                    この明細はまだ在庫減算が未反映です。既存SKUへ紐づけると、
+                    注文数量 {formatNumber(selected.audit.quantity ?? selected.source.quantity)} 点を在庫OUTとして反映します。
+                  </div>
+
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-950">既存SKUに紐づけて解決</h4>
@@ -718,6 +806,10 @@ export default function InventoryAuditQueueWorkspace() {
                     <div>
                       <dt className="text-xs font-semibold text-emerald-700">closedReason</dt>
                       <dd className="mt-1 text-emerald-950">{asText(selected.audit.closedReason)}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-semibold text-emerald-700">resolutionNote</dt>
+                      <dd className="mt-1 break-words text-emerald-950">{asText(selected.audit.resolutionNote)}</dd>
                     </div>
                   </dl>
                 </section>
