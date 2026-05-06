@@ -2610,6 +2610,8 @@ export class ImportsService {
           },
         });
 
+        let inventoryDeductionResult: StoreOrderInventoryDeductionResult | null = null;
+
         if (module === 'store-orders') {
           const deductionResult = await this.applyStoreOrderInventoryDeduction({
             tx,
@@ -2621,6 +2623,7 @@ export class ImportsService {
             payload,
           });
 
+          inventoryDeductionResult = deductionResult;
           inventoryDeductionResults.push(deductionResult);
 
           if (deductionResult.unresolved) {
@@ -2640,7 +2643,11 @@ export class ImportsService {
           data: {
             targetEntityType: 'transaction',
             targetEntityId: created.id,
-            matchReason: row.matchReason || 'committed to Transaction',
+            matchReason: inventoryDeductionResult?.unresolved
+              ? `INVENTORY_DEDUCTION_UNRESOLVED:${
+                  inventoryDeductionResult.reason || 'INVENTORY_DEDUCTION_UNRESOLVED'
+                }`
+              : row.matchReason || 'committed to Transaction',
           },
         });
 
