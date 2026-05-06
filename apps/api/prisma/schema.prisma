@@ -275,17 +275,20 @@ model Product {
 }
 
 model ProductSku {
-  id         String   @id @default(cuid())
-  companyId  String
-  productId  String
-  storeId    String?
-  skuCode    String
-  name       String?
-  costAmount Int?
-  salePrice  Int?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  companyId          String
+  productId          String
+  storeId            String?
+  skuCode            String
+  name               String?
+  costAmount         Int?
+  salePrice          Int?
+  asin               String?
+  externalSku        String?
+  fulfillmentChannel String   @default("FBA")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -298,6 +301,10 @@ model ProductSku {
   @@index([companyId])
   @@index([productId])
   @@index([storeId])
+  @@index([companyId, storeId])
+  @@index([companyId, asin])
+  @@index([companyId, externalSku])
+  @@index([companyId, fulfillmentChannel])
 }
 
 model InventoryBalance {
@@ -316,20 +323,31 @@ model InventoryBalance {
 }
 
 model InventoryMovement {
-  id         String                @id @default(cuid())
-  companyId  String
-  skuId      String
-  type       InventoryMovementType
-  quantity   Int
-  occurredAt DateTime
-  memo       String?
-  createdAt  DateTime              @default(now())
+  id            String                @id @default(cuid())
+  companyId     String
+  skuId         String
+  type          InventoryMovementType
+  quantity      Int
+  occurredAt    DateTime
+  sourceType    String?
+  sourceId      String?
+  importJobId   String?
+  sourceRowNo   Int?
+  transactionId String?
+  businessMonth String?
+  memo          String?
+  createdAt     DateTime              @default(now())
 
   company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   sku     ProductSku @relation(fields: [skuId], references: [id], onDelete: Cascade)
 
   @@index([companyId, occurredAt])
   @@index([skuId, occurredAt])
+  @@index([companyId, importJobId])
+  @@index([companyId, transactionId])
+  @@index([companyId, businessMonth])
+  @@index([companyId, sourceType])
+  @@index([companyId, sourceId])
 }
 
 model Invoice {
