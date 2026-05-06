@@ -2614,42 +2614,96 @@ export function ExpenseCategoryProductWorkspace(props: {
       {expenseCategoryTraceSelection.active ? (
         <div
           data-expense-category-trace-banner="true"
-          className={`rounded-[24px] border p-4 shadow-sm ${
+          className={`mb-5 rounded-[1.5rem] border p-4 shadow-sm ${
             expenseCategoryTraceTargetExists
-              ? "border-sky-200 bg-sky-50"
-              : "border-amber-200 bg-amber-50"
+              ? "border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white"
+              : "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white"
           }`}
         >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+          {/* Step109-Z1-H26-C-FIX2-EXPENSE-TRACE-RETURN-BANNER-POLISH:
+              Productized return context for Import Center transaction trace navigation. */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
               <div
-                className={`text-sm font-bold ${
-                  expenseCategoryTraceTargetExists ? "text-sky-900" : "text-amber-900"
+                className={`inline-flex rounded-full border bg-white px-2.5 py-1 text-[11px] font-black shadow-sm ${
+                  expenseCategoryTraceTargetExists
+                    ? "border-sky-200 text-sky-700"
+                    : "border-amber-200 text-amber-700"
                 }`}
               >
-                Import Center から選択中
+                Import Center Trace
               </div>
+
               <div
-                className={`mt-1 text-xs leading-5 ${
-                  expenseCategoryTraceTargetExists ? "text-sky-800" : "text-amber-800"
+                className={`mt-2 text-sm font-black ${
+                  expenseCategoryTraceTargetExists ? "text-sky-950" : "text-amber-950"
                 }`}
               >
-                transactionId: {expenseCategoryTraceSelection.transactionId || "-"}
-                {expenseCategoryTraceSelection.sourceRowNo ? ` / sourceRowNo: ${expenseCategoryTraceSelection.sourceRowNo}` : ""}
+                Import Center から関連明細を表示しています。
               </div>
-              <div className="mt-1 text-xs font-semibold text-slate-500">
+
+              <p
+                className={`mt-1 text-xs font-semibold leading-5 ${
+                  expenseCategoryTraceTargetExists ? "text-sky-700" : "text-amber-700"
+                }`}
+              >
                 {expenseCategoryTraceTargetExists
-                  ? "該当する支出明細をハイライトしています。"
-                  : "現在の支出一覧に該当する明細が見つかりません。フィルターやページ範囲を確認してください。"}
+                  ? "Transaction Trace から遷移した支出明細をハイライト表示しています。確認後は選択解除で通常表示に戻せます。"
+                  : "指定された明細は現在の検索条件・フィルターでは非表示、または一覧内に見つかりません。条件を変更するか選択解除してください。"}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
+                {expenseCategoryTraceSelection.transactionId ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                    Transaction:{" "}
+                    <span className="font-mono text-slate-900">
+                      {expenseCategoryTraceSelection.transactionId.slice(0, 10)}...
+                    </span>
+                  </span>
+                ) : null}
+
+                {expenseCategoryTraceSelection.importJobId ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                    ImportJob:{" "}
+                    <span className="font-mono text-slate-900">
+                      {expenseCategoryTraceSelection.importJobId.slice(0, 10)}...
+                    </span>
+                  </span>
+                ) : null}
+
+                {expenseCategoryTraceSelection.sourceRowNo ? (
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                    Source Row:{" "}
+                    <span className="font-mono text-slate-900">
+                      {expenseCategoryTraceSelection.sourceRowNo}
+                    </span>
+                  </span>
+                ) : null}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={closeExpenseCategoryTraceSelectionBanner}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-            >
-              選択解除
-            </button>
+
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {expenseCategoryTraceSelection.importJobId ? (
+                <Link
+                  href={`/ja/app/data/import?from=expense-import-trace&domain=ledger&module=${encodeURIComponent(
+                    expenseCategoryTraceSelection.module
+                  )}&importJobId=${encodeURIComponent(
+                    expenseCategoryTraceSelection.importJobId
+                  )}&traceTarget=expense-category`}
+                  className="inline-flex h-9 items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  Import Centerで確認
+                </Link>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={closeExpenseCategoryTraceSelectionBanner}
+                className="inline-flex h-9 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                選択解除
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
