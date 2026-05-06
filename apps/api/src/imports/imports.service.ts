@@ -2637,8 +2637,8 @@ export class ImportsService {
         conflictRows,
         errorRows,
         deletedRows,
-              inventoryDeduction,
-};
+        inventoryDeduction,
+      };
     });
 
     const summary = await this.buildImportResultSummary({
@@ -2664,6 +2664,7 @@ export class ImportsService {
       conflictRows: result.conflictRows,
       errorRows: result.errorRows,
       deletedRows: result.deletedRows,
+      inventoryDeduction: result.inventoryDeduction,
       status: result.job.status,
       job: result.job,
       summary,
