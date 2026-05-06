@@ -30,6 +30,16 @@ type AuditIssueItem = {
     quantity: unknown;
     message: unknown;
     createdAt: unknown;
+    previousStatus?: unknown;
+    resolvedAt?: unknown;
+    resolvedBy?: unknown;
+    resolutionAction?: unknown;
+    resolutionNote?: unknown;
+    linkedSkuId?: unknown;
+    linkedSkuCode?: unknown;
+    linkedProductName?: unknown;
+    resolutionMovementId?: unknown;
+    closedReason?: unknown;
   };
   source: {
     orderId: unknown;
@@ -66,15 +76,87 @@ type AuditIssuesResponse = {
   message: string;
 };
 
+type ProductSkuItem = {
+  id: string;
+  name: string;
+  sku: string;
+  store: string;
+  status: string;
+  productId: string | null;
+  storeId: string | null;
+  brand: string | null;
+  category: string | null;
+};
+
+type ProductsResponse = {
+  ok: boolean;
+  domain: string;
+  action: string;
+  items: ProductSkuItem[];
+  total: number;
+  message: string;
+};
+
+type ResolveResponse = {
+  ok: boolean;
+  domain: string;
+  action: string;
+  item: {
+    auditIssueId: string;
+    audit: {
+      status: string;
+      resolutionAction: string;
+      linkedSkuId: string;
+      linkedSkuCode: string;
+      resolutionMovementId: string;
+      resolvedAt: string;
+      closedReason: string;
+    };
+    sku: {
+      id: string;
+      skuCode: string;
+      name: string | null;
+      productName: string | null;
+    };
+    movement: {
+      id: string;
+      type: string;
+      quantity: number;
+      occurredAt: string;
+      sourceType: string;
+      sourceId: string;
+    };
+    balance: {
+      id: string;
+      quantity: number;
+      reservedQty: number;
+      availableQty: number;
+      alertLevel: number;
+      stockStatus: string;
+      stockStatusLabel: string;
+      updatedAt: string;
+    };
+  };
+  message: string;
+};
+
 function asText(value: unknown, fallback = "-") {
   if (value === undefined || value === null || value === "") return fallback;
   return String(value);
 }
 
-function formatDateTime(value: string | null | undefined) {
+function isOpenIssue(item: AuditIssueItem | null) {
+  return String(item?.audit?.status ?? "").toUpperCase() === "OPEN";
+}
+
+function isClosedIssue(item: AuditIssueItem | null) {
+  return String(item?.audit?.status ?? "").toUpperCase() === "CLOSED";
+}
+
+function formatDateTime(value: unknown) {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -107,6 +189,15 @@ export default function InventoryAuditQueueWorkspace() {
   const [sku, setSku] = useState("");
   const [data, setData] = useState<AuditIssuesResponse | null>(null);
   const [selected, setSelected] = useState<AuditIssueItem | null>(null);
+  const [products, setProducts] = useState<ProductSkuItem[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const [selectedSkuId, setSelectedSkuId] = useState("");
+  const [resolveNote, setResolveNote] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolveSuccess, setResolveSuccess] = useState<string | null>(null);
+  const [lastResolve, setLastResolve] = useState<ResolveResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,6 +237,11 @@ export default function InventoryAuditQueueWorkspace() {
 
       const nextData = (await response.json()) as AuditIssuesResponse;
       setData(nextData);
+
+      setSelected((current) => {
+        if (!current) return current;
+        return nextData.items.find((item) => item.id === current.id) ?? current;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "監査キューの取得に失敗しました。");
     } finally {
@@ -154,14 +250,109 @@ export default function InventoryAuditQueueWorkspace() {
     }
   }
 
+  async function loadProducts() {
+    setProductsLoading(true);
+    setProductsError(null);
+
+    try {
+      const response = await fetch("/api/products", {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const nextProducts = (await response.json()) as ProductsResponse;
+      const items = nextProducts.items ?? [];
+      setProducts(items);
+
+      if (!selectedSkuId && items[0]?.id) {
+        setSelectedSkuId(items[0].id);
+      }
+    } catch (err) {
+      setProductsError(err instanceof Error ? err.message : "商品SKU一覧の取得に失敗しました。");
+    } finally {
+      setProductsLoading(false);
+    }
+  }
+
+  async function resolveSelectedIssue() {
+    if (!selected) return;
+
+    if (!selectedSkuId) {
+      setResolveError("紐づける既存SKUを選択してください。");
+      return;
+    }
+
+    setResolving(true);
+    setResolveError(null);
+    setResolveSuccess(null);
+    setLastResolve(null);
+
+    try {
+      const response = await fetch(`/api/inventory/audit-issues/${selected.id}/resolve`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          skuId: selectedSkuId,
+          note: resolveNote.trim() || "Resolved from inventory audit drawer",
+        }),
+      });
+
+      const responseText = await response.text();
+      const parsed = responseText ? (JSON.parse(responseText) as ResolveResponse) : null;
+
+      if (!response.ok || !parsed?.ok) {
+        throw new Error(parsed?.message || `HTTP ${response.status}`);
+      }
+
+      setLastResolve(parsed);
+      setResolveSuccess(
+        `解決しました。${parsed.item.sku.skuCode} に紐づけ、在庫移動 ${parsed.item.movement.id} を作成しました。`,
+      );
+
+      setStatus("ALL");
+      await load({ refresh: true });
+    } catch (err) {
+      setResolveError(err instanceof Error ? err.message : "監査明細の解決に失敗しました。");
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  function openDrawer(item: AuditIssueItem) {
+    setSelected(item);
+    setResolveError(null);
+    setResolveSuccess(null);
+    setLastResolve(null);
+    setResolveNote("");
+  }
+
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  useEffect(() => {
+    if (selected) {
+      void loadProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
+
   const items = data?.items ?? [];
   const openIssues = data?.summary?.openIssues ?? 0;
   const totalIssues = data?.summary?.totalIssues ?? 0;
+  const selectedProduct = products.find((item) => item.id === selectedSkuId) ?? null;
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900">
@@ -175,7 +366,7 @@ export default function InventoryAuditQueueWorkspace() {
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 Amazon注文取込時にSKUが商品マスタへ紐づかず、在庫引当・減算がスキップされた明細を確認します。
-                この画面はStep110-V時点では読み取り専用です。
+                既存SKUに紐づけると、在庫OUT移動を作成し監査明細をCLOSEDにします。
               </p>
             </div>
 
@@ -248,6 +439,12 @@ export default function InventoryAuditQueueWorkspace() {
               {refreshing ? "更新中..." : "再取得"}
             </button>
           </div>
+
+          {resolveSuccess ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              {resolveSuccess}
+            </div>
+          ) : null}
         </section>
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -255,7 +452,7 @@ export default function InventoryAuditQueueWorkspace() {
             <div>
               <h2 className="text-base font-bold text-slate-950">監査対象明細</h2>
               <p className="mt-1 text-xs text-slate-500">
-                SKUマッピング未解決の取込行を確認できます。
+                SKUマッピング未解決・解決済みの取込行を確認できます。
               </p>
             </div>
             {data?.page?.hasMore ? (
@@ -281,6 +478,7 @@ export default function InventoryAuditQueueWorkspace() {
                 <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-5 py-3">SKU</th>
+                    <th className="px-5 py-3">状態</th>
                     <th className="px-5 py-3">理由</th>
                     <th className="px-5 py-3">注文ID</th>
                     <th className="px-5 py-3 text-right">数量</th>
@@ -299,7 +497,18 @@ export default function InventoryAuditQueueWorkspace() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                        <span
+                          className={
+                            isClosedIssue(item)
+                              ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800"
+                              : "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
+                          }
+                        >
+                          {asText(item.audit.status)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
                           {asText(item.audit.reason)}
                         </span>
                       </td>
@@ -319,7 +528,7 @@ export default function InventoryAuditQueueWorkspace() {
                       <td className="px-5 py-4 text-right">
                         <button
                           type="button"
-                          onClick={() => setSelected(item)}
+                          onClick={() => openDrawer(item)}
                           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
                         >
                           詳細
@@ -361,27 +570,182 @@ export default function InventoryAuditQueueWorkspace() {
             </div>
 
             <div className="space-y-5 p-6">
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <h4 className="text-sm font-bold text-amber-900">監査ステータス</h4>
+              <section
+                className={
+                  isClosedIssue(selected)
+                    ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+                    : "rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                }
+              >
+                <h4 className={isClosedIssue(selected) ? "text-sm font-bold text-emerald-900" : "text-sm font-bold text-amber-900"}>
+                  監査ステータス
+                </h4>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <dt className="text-xs font-semibold text-amber-700">status</dt>
-                    <dd className="mt-1 font-semibold text-amber-950">{asText(selected.audit.status)}</dd>
+                    <dt className="text-xs font-semibold text-slate-500">status</dt>
+                    <dd className="mt-1 font-semibold text-slate-950">{asText(selected.audit.status)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold text-amber-700">severity</dt>
-                    <dd className="mt-1 font-semibold text-amber-950">{asText(selected.audit.severity)}</dd>
+                    <dt className="text-xs font-semibold text-slate-500">severity</dt>
+                    <dd className="mt-1 font-semibold text-slate-950">{asText(selected.audit.severity)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold text-amber-700">reason</dt>
-                    <dd className="mt-1 font-semibold text-amber-950">{asText(selected.audit.reason)}</dd>
+                    <dt className="text-xs font-semibold text-slate-500">reason</dt>
+                    <dd className="mt-1 font-semibold text-slate-950">{asText(selected.audit.reason)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold text-amber-700">code</dt>
-                    <dd className="mt-1 font-semibold text-amber-950">{asText(selected.audit.code)}</dd>
+                    <dt className="text-xs font-semibold text-slate-500">code</dt>
+                    <dd className="mt-1 font-semibold text-slate-950">{asText(selected.audit.code)}</dd>
                   </div>
                 </dl>
               </section>
+
+              {isOpenIssue(selected) ? (
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-950">既存SKUに紐づけて解決</h4>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        選択したSKUに注文数量をOUT移動として反映し、この監査明細をCLOSEDにします。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void loadProducts()}
+                      className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                      SKU再取得
+                    </button>
+                  </div>
+
+                  <label className="mt-4 flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-slate-500">紐づけ先SKU</span>
+                    <select
+                      value={selectedSkuId}
+                      onChange={(event) => setSelectedSkuId(event.target.value)}
+                      disabled={productsLoading || resolving}
+                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    >
+                      <option value="">
+                        {productsLoading ? "SKUを読み込み中..." : "SKUを選択してください"}
+                      </option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.sku} / {product.name} / {product.store}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {selectedProduct ? (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <div className="font-semibold text-slate-900">{selectedProduct.sku}</div>
+                      <div className="mt-1">{selectedProduct.name}</div>
+                      <div className="mt-1">
+                        店舗: {selectedProduct.store} / 状態: {selectedProduct.status}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <label className="mt-4 flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-slate-500">メモ</span>
+                    <textarea
+                      value={resolveNote}
+                      onChange={(event) => setResolveNote(event.target.value)}
+                      disabled={resolving}
+                      placeholder="任意: 解決理由や確認メモ"
+                      className="min-h-20 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    />
+                  </label>
+
+                  {productsError ? (
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {productsError}
+                    </div>
+                  ) : null}
+
+                  {resolveError ? (
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {resolveError}
+                    </div>
+                  ) : null}
+
+                  {resolveSuccess ? (
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      {resolveSuccess}
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => void resolveSelectedIssue()}
+                    disabled={!selectedSkuId || resolving || productsLoading}
+                    className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {resolving ? "解決処理中..." : "既存SKUに紐づけて解決"}
+                  </button>
+
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    実行後、在庫OUT移動が作成され、監査ステータスはCLOSEDになります。
+                  </p>
+                </section>
+              ) : null}
+
+              {isClosedIssue(selected) ? (
+                <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <h4 className="text-sm font-bold text-emerald-950">解決情報</h4>
+                  <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">resolvedAt</dt>
+                      <dd className="mt-1 text-emerald-950">{formatDateTime(selected.audit.resolvedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">resolutionAction</dt>
+                      <dd className="mt-1 text-emerald-950">{asText(selected.audit.resolutionAction)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">linkedSkuCode</dt>
+                      <dd className="mt-1 text-emerald-950">{asText(selected.audit.linkedSkuCode)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">linkedProductName</dt>
+                      <dd className="mt-1 text-emerald-950">{asText(selected.audit.linkedProductName)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">movementId</dt>
+                      <dd className="mt-1 break-all text-emerald-950">{asText(selected.audit.resolutionMovementId)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-emerald-700">closedReason</dt>
+                      <dd className="mt-1 text-emerald-950">{asText(selected.audit.closedReason)}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
+
+              {lastResolve ? (
+                <section className="rounded-2xl border border-emerald-200 bg-white p-4">
+                  <h4 className="text-sm font-bold text-slate-950">今回の解決結果</h4>
+                  <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-500">SKU</dt>
+                      <dd className="mt-1 text-slate-900">{lastResolve.item.sku.skuCode}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-500">在庫移動</dt>
+                      <dd className="mt-1 break-all text-slate-900">{lastResolve.item.movement.id}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-500">数量</dt>
+                      <dd className="mt-1 text-slate-900">{formatNumber(lastResolve.item.movement.quantity)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-500">在庫状態</dt>
+                      <dd className="mt-1 text-slate-900">{lastResolve.item.balance.stockStatusLabel}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
 
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h4 className="text-sm font-bold text-slate-950">Amazon注文ソース</h4>
@@ -441,13 +805,6 @@ export default function InventoryAuditQueueWorkspace() {
                     <dd className="mt-1 text-slate-900">{asText(selected.matchReason)}</dd>
                   </div>
                 </dl>
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h4 className="text-sm font-bold text-slate-950">次の対応</h4>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Step110-Vでは読み取り専用です。次ステップでSKUマッピング作成、再処理、CLOSED化などの操作を追加します。
-                </p>
               </section>
             </div>
           </aside>
