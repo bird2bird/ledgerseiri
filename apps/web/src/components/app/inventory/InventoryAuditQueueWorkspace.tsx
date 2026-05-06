@@ -97,6 +97,33 @@ type ProductsResponse = {
   message: string;
 };
 
+type InventoryStockItem = {
+  id: string;
+  skuId: string;
+  sku: string;
+  skuCode: string;
+  name: string;
+  productName: string | null;
+  store: string;
+  storeId: string | null;
+  quantity: number;
+  reservedQty: number;
+  availableQty: number;
+  alertLevel: number;
+  stockStatus: string;
+  stockStatusLabel: string;
+  updatedAt: string;
+};
+
+type InventoryStocksResponse = {
+  ok: boolean;
+  domain: string;
+  action: string;
+  items: InventoryStockItem[];
+  total: number;
+  message: string;
+};
+
 type ResolveResponse = {
   ok: boolean;
   domain: string;
@@ -202,6 +229,27 @@ function formatNumber(value: unknown) {
   return new Intl.NumberFormat("ja-JP").format(n);
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeSearchText(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function stockTone(stock: InventoryStockItem | null, nextQuantity: number | null) {
+  if (nextQuantity !== null && nextQuantity < 0) {
+    return "border-red-200 bg-red-50 text-red-900";
+  }
+
+  if (stock?.stockStatus === "low" || stock?.stockStatus === "out" || stock?.stockStatus === "negative") {
+    return "border-amber-200 bg-amber-50 text-amber-900";
+  }
+
+  return "border-emerald-200 bg-emerald-50 text-emerald-900";
+}
+
 function buildQuery(params: Record<string, string>) {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -223,6 +271,11 @@ export default function InventoryAuditQueueWorkspace() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [selectedSkuId, setSelectedSkuId] = useState("");
+  const [skuSearchDraft, setSkuSearchDraft] = useState("");
+  const [stockPreview, setStockPreview] = useState<InventoryStockItem | null>(null);
+  const [stockPreviewLoading, setStockPreviewLoading] = useState(false);
+  const [stockPreviewError, setStockPreviewError] = useState<string | null>(null);
+  const [resolutionConfirmed, setResolutionConfirmed] = useState(false);
   const [resolveNote, setResolveNote] = useState("");
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
@@ -312,11 +365,55 @@ export default function InventoryAuditQueueWorkspace() {
     }
   }
 
+  async function loadStockPreview(product: ProductSkuItem | null) {
+    if (!product) {
+      setStockPreview(null);
+      setStockPreviewError(null);
+      return;
+    }
+
+    setStockPreviewLoading(true);
+    setStockPreviewError(null);
+
+    try {
+      const query = buildQuery({ q: product.sku });
+      const response = await fetch(`/api/inventory/stocks${query}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = (await response.json()) as InventoryStocksResponse;
+      const nextStock =
+        payload.items.find((item) => item.skuId === product.id || item.skuCode === product.sku) ??
+        payload.items[0] ??
+        null;
+
+      setStockPreview(nextStock);
+    } catch (err) {
+      setStockPreview(null);
+      setStockPreviewError(err instanceof Error ? err.message : "在庫プレビューの取得に失敗しました。");
+    } finally {
+      setStockPreviewLoading(false);
+    }
+  }
+
   async function resolveSelectedIssue() {
     if (!selected) return;
 
     if (!selectedSkuId) {
       setResolveError("紐づける既存SKUを選択してください。");
+      return;
+    }
+
+    if (!resolutionConfirmed) {
+      setResolveError("在庫減算の内容を確認し、確認チェックを入れてください。");
       return;
     }
 
@@ -367,6 +464,10 @@ export default function InventoryAuditQueueWorkspace() {
     setLastResolve(null);
     setResolveNote("");
     setSelectedSkuId("");
+    setSkuSearchDraft("");
+    setStockPreview(null);
+    setStockPreviewError(null);
+    setResolutionConfirmed(false);
   }
 
   useEffect(() => {
@@ -381,11 +482,32 @@ export default function InventoryAuditQueueWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
+  useEffect(() => {
+    const product = products.find((item) => item.id === selectedSkuId) ?? null;
+    setResolutionConfirmed(false);
+    void loadStockPreview(product);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSkuId]);
+
   const items = data?.items ?? [];
   const openIssues = data?.summary?.openIssues ?? 0;
   const totalIssues = data?.summary?.totalIssues ?? 0;
   const closedIssues = countByStatus(data, "CLOSED");
   const selectedProduct = products.find((item) => item.id === selectedSkuId) ?? null;
+  const normalizedSkuSearch = normalizeSearchText(skuSearchDraft);
+  const filteredProducts = normalizedSkuSearch
+    ? products.filter((product) =>
+        [product.sku, product.name, product.store, product.status, product.brand, product.category]
+          .filter(Boolean)
+          .some((value) => normalizeSearchText(String(value)).includes(normalizedSkuSearch)),
+      )
+    : products;
+  const deductionQuantity = asNumber(selected?.audit?.quantity ?? selected?.source?.quantity, 0);
+  const previewCurrentQuantity = stockPreview ? stockPreview.quantity : null;
+  const previewNextQuantity =
+    previewCurrentQuantity === null ? null : previewCurrentQuantity - deductionQuantity;
+  const previewAvailableAfter =
+    stockPreview && previewNextQuantity !== null ? previewNextQuantity - stockPreview.reservedQty : null;
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900">
@@ -703,7 +825,8 @@ export default function InventoryAuditQueueWorkspace() {
                 <section className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
                     この明細はまだ在庫減算が未反映です。既存SKUへ紐づけると、
-                    注文数量 {formatNumber(selected.audit.quantity ?? selected.source.quantity)} 点を在庫OUTとして反映します。
+                    注文数量 {formatNumber(deductionQuantity)} 点を在庫OUTとして反映します。
+                    誤ったSKUを選択すると在庫数がずれるため、SKU・商品名・店舗・扣減後在庫を確認してください。
                   </div>
 
                   <div className="flex items-start justify-between gap-3">
@@ -722,24 +845,40 @@ export default function InventoryAuditQueueWorkspace() {
                     </button>
                   </div>
 
-                  <label className="mt-4 flex flex-col gap-1">
-                    <span className="text-xs font-semibold text-slate-500">紐づけ先SKU</span>
-                    <select
-                      value={selectedSkuId}
-                      onChange={(event) => setSelectedSkuId(event.target.value)}
-                      disabled={productsLoading || resolving}
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
-                    >
-                      <option value="">
-                        {productsLoading ? "SKUを読み込み中..." : "SKUを選択してください"}
-                      </option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.sku} / {product.name} / {product.store}
+                  <div className="mt-4 grid gap-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold text-slate-500">SKU候補検索</span>
+                      <input
+                        value={skuSearchDraft}
+                        onChange={(event) => setSkuSearchDraft(event.target.value)}
+                        disabled={productsLoading || resolving}
+                        placeholder="SKU / 商品名 / 店舗で絞り込み"
+                        className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold text-slate-500">
+                        紐づけ先SKU
+                        {productsLoading ? "" : ` (${formatNumber(filteredProducts.length)} / ${formatNumber(products.length)} 件)`}
+                      </span>
+                      <select
+                        value={selectedSkuId}
+                        onChange={(event) => setSelectedSkuId(event.target.value)}
+                        disabled={productsLoading || resolving}
+                        className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+                      >
+                        <option value="">
+                          {productsLoading ? "SKUを読み込み中..." : "SKUを選択してください"}
                         </option>
-                      ))}
-                    </select>
-                  </label>
+                        {filteredProducts.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.sku} / {product.name} / {product.store}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
 
                   {selectedProduct ? (
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
@@ -748,6 +887,67 @@ export default function InventoryAuditQueueWorkspace() {
                       <div className="mt-1">
                         店舗: {selectedProduct.store} / 状態: {selectedProduct.status}
                       </div>
+                      <div className="mt-1">
+                        brand: {asText(selectedProduct.brand)} / category: {asText(selectedProduct.category)}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedProduct ? (
+                    <div className={`mt-3 rounded-2xl border p-3 text-xs leading-5 ${stockTone(stockPreview, previewNextQuantity)}`}>
+                      <div className="font-bold">在庫減算プレビュー</div>
+                      {stockPreviewLoading ? (
+                        <div className="mt-2">在庫情報を読み込み中...</div>
+                      ) : stockPreviewError ? (
+                        <div className="mt-2 text-red-700">在庫情報の取得に失敗しました: {stockPreviewError}</div>
+                      ) : stockPreview ? (
+                        <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          <div>
+                            <dt className="font-semibold">現在庫</dt>
+                            <dd>{formatNumber(stockPreview.quantity)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-semibold">予約数</dt>
+                            <dd>{formatNumber(stockPreview.reservedQty)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-semibold">利用可能</dt>
+                            <dd>{formatNumber(stockPreview.availableQty)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-semibold">扣減数量</dt>
+                            <dd>-{formatNumber(deductionQuantity)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-semibold">扣減後在庫</dt>
+                            <dd>{formatNumber(previewNextQuantity)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-semibold">扣減後利用可能</dt>
+                            <dd>{formatNumber(previewAvailableAfter)}</dd>
+                          </div>
+                          <div className="sm:col-span-3">
+                            <dt className="font-semibold">現在の在庫状態</dt>
+                            <dd>
+                              {stockPreview.stockStatusLabel} / alertLevel {formatNumber(stockPreview.alertLevel)}
+                            </dd>
+                          </div>
+                        </dl>
+                      ) : (
+                        <div className="mt-2">
+                          このSKUの在庫残高がまだ存在しません。解決実行時に残高が作成されます。
+                        </div>
+                      )}
+
+                      {previewNextQuantity !== null && previewNextQuantity < 0 ? (
+                        <div className="mt-2 font-semibold text-red-700">
+                          注意: 解決後にマイナス在庫になります。SKU選択が正しいか確認してください。
+                        </div>
+                      ) : previewAvailableAfter !== null && stockPreview && previewAvailableAfter <= stockPreview.alertLevel ? (
+                        <div className="mt-2 font-semibold text-amber-700">
+                          注意: 解決後の利用可能在庫がアラート水準以下になります。
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -780,13 +980,27 @@ export default function InventoryAuditQueueWorkspace() {
                     </div>
                   ) : null}
 
+                  <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={resolutionConfirmed}
+                      onChange={(event) => setResolutionConfirmed(event.target.checked)}
+                      disabled={!selectedSkuId || resolving || productsLoading || stockPreviewLoading}
+                      className="mt-1 h-4 w-4 rounded border-slate-300"
+                    />
+                    <span>
+                      注文SKU・紐づけ先SKU・店舗・在庫減算プレビューを確認しました。
+                      このSKUから {formatNumber(deductionQuantity)} 点を減算します。
+                    </span>
+                  </label>
+
                   <button
                     type="button"
                     onClick={() => void resolveSelectedIssue()}
-                    disabled={!selectedSkuId || resolving || productsLoading}
+                    disabled={!selectedSkuId || !resolutionConfirmed || resolving || productsLoading || stockPreviewLoading}
                     className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {resolving ? "解決処理中..." : "既存SKUに紐づけて解決"}
+                    {resolving ? "解決処理中..." : "確認して在庫減算を実行"}
                   </button>
 
                   <p className="mt-3 text-xs leading-5 text-slate-500">
