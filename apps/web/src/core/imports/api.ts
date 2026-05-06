@@ -169,7 +169,7 @@ export async function commitExpenseImport(
 // Step109-Z1-H8-6B-IMPORT-HISTORY-HELPER:
 // Additive helper for income import history panels.
 // Keep existing imports API exports intact because /app/data/import still depends on them.
-export type IncomeImportHistoryModule = "cash-income" | "other-income";
+export type IncomeImportHistoryModule = "cash-income" | "other-income" | "store-orders";
 
 // Step109-Z1-H9-4B-EXPENSE-HISTORY-HELPER:
 // Additive helper for expense ImportJob history panels.

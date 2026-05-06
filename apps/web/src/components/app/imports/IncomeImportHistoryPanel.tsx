@@ -27,6 +27,7 @@ type IncomeImportHistoryPanelProps = {
   // Parent/event may trigger history reload after IncomeImportDialog commit.
   refreshToken?: number;
   highlightedImportJobId?: string | null;
+  defaultOpen?: boolean;
 };
 
 function getImportHistoryModuleLabel(module?: string | null) {
@@ -191,9 +192,10 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
     limit = 5,
     refreshToken = 0,
     highlightedImportJobId = null,
+    defaultOpen = false,
   } = props;
 
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen);
   const [loading, setLoading] = React.useState(false);
   const [items, setItems] = React.useState<ImportJobHistoryItem[]>([]);
   const [error, setError] = React.useState("");
@@ -238,7 +240,12 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [module]);
+  }, [module, limit]);
+
+  React.useEffect(() => {
+    if (!defaultOpen) return;
+    void loadHistory();
+  }, [defaultOpen, loadHistory]);
 
   React.useEffect(() => {
     if (!autoRefreshMountedRef.current) {
@@ -292,7 +299,7 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
   }
 
   return (
-    <section className="rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100">
+    <section data-testid="income-import-history-panel"  className="rounded-[2rem] border border-slate-200 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -433,6 +440,7 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                         </span>
                         {inventoryAuditSummaries[item.id]?.total > 0 ? (
                           <a
+                            data-testid={`inventory-audit-import-link-${item.id}`}
                             href={buildInventoryAuditHref(item.id)}
                             className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${getInventoryAuditSummaryClass(
                               inventoryAuditSummaries[item.id]

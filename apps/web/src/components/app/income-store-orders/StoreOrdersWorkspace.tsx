@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { IncomeRow } from "@/core/transactions/transactions";
 import { formatIncomeJPY } from "@/core/transactions/income-page-constants";
 import { renderTransactionsSelectedSummary } from "@/core/transactions/transactions-selected-summary";
+import { IncomeImportHistoryPanel } from "@/components/app/imports/IncomeImportHistoryPanel";
 import {
   buildImportAwareBannerText,
   buildStoreOperationWorkspaceHref,
@@ -923,6 +924,7 @@ function getStoreOrderRowImportJobId(row: IncomeRow) {
 }
 
 export function StoreOrdersWorkspace(props: Props) {
+  const [showStoreOrdersImportHistory, setShowStoreOrdersImportHistory] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const crossQuery = readCrossWorkspaceQuery(searchParams);
@@ -1677,6 +1679,46 @@ React.useEffect(() => {
 
   return (
     <div className="relative space-y-6">
+      {/* Step112-A-FIX2: Store Orders import history / inventory audit link-back */}
+      <section
+        data-testid="store-orders-import-history-entry"
+        className="rounded-3xl border border-violet-100 bg-white p-4 shadow-sm"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
+              Import History
+            </p>
+            <h2 className="mt-1 text-base font-bold text-slate-950">
+              店舗注文の取込履歴
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Amazon注文CSVの取込結果と、在庫監査へのリンクバックを確認できます。
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="store-orders-import-history-toggle"
+            onClick={() => setShowStoreOrdersImportHistory((value) => !value)}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-4 text-sm font-bold text-violet-700 shadow-sm hover:bg-violet-100"
+          >
+            {showStoreOrdersImportHistory ? "取込履歴を閉じる" : "取込履歴を表示"}
+          </button>
+        </div>
+
+        {showStoreOrdersImportHistory ? (
+          <div data-testid="store-orders-import-history-panel" className="mt-4">
+            <IncomeImportHistoryPanel
+              module="store-orders"
+              title="店舗注文の取込履歴"
+              description="Amazon注文CSVの取込結果と、在庫監査へのリンクバックを確認できます。"
+              defaultOpen
+            />
+          </div>
+        ) : null}
+      </section>
+
+
       {importContext.active ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4">
           <div className="text-sm font-semibold text-emerald-800">
