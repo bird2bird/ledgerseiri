@@ -263,6 +263,7 @@ export type InventoryAuditIssueForImportJob = {
   audit?: {
     status?: unknown;
     reason?: unknown;
+    code?: unknown;
     sku?: unknown;
     linkedSkuCode?: unknown;
     resolutionMovementId?: unknown;
@@ -289,22 +290,70 @@ export type InventoryAuditImportSummary = {
   closed: number;
   unresolved: number;
   resolved: number;
+  skuIssueRows: number;
+  unresolvedSkuRows: number;
+  resolvedSkuRows: number;
+  deductedRows: number;
+  inventoryMovementCount: number;
 };
 
 export function summarizeInventoryAuditIssuesForImportJob(
   data: InventoryAuditIssuesForImportJobResponse
 ): InventoryAuditImportSummary {
   const items = Array.isArray(data.items) ? data.items : [];
-  const total = Number(data.summary?.totalIssues ?? data.total ?? items.length ?? 0);
-  const open = Number(
-    data.summary?.openIssues ??
-      data.summary?.byStatus?.find((item) => item.status === "OPEN")?.count ??
-      items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "OPEN").length
+
+  // Step112-B-FIX1:
+  // This helper is used for a single ImportJob row. Therefore detailed counts must be scoped
+  // to the returned items, not to response.summary, because summary may represent a wider
+  // audit queue aggregate depending on backend implementation.
+  const scopedTotal = items.length;
+  const scopedOpen = items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "OPEN").length;
+  const scopedClosed = items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "CLOSED").length;
+
+  const total = scopedTotal || Number(data.total ?? data.summary?.totalIssues ?? 0);
+  const open =
+    scopedTotal > 0
+      ? scopedOpen
+      : Number(
+          data.summary?.openIssues ??
+            data.summary?.byStatus?.find((item) => item.status === "OPEN")?.count ??
+            0
+        );
+  const closed =
+    scopedTotal > 0
+      ? scopedClosed
+      : Number(
+          data.summary?.byStatus?.find((item) => item.status === "CLOSED")?.count ??
+            Math.max(total - open, 0)
+        );
+
+  const skuIssueRows = items.filter((item) => {
+    const code = String(item.audit?.code ?? item.audit?.reason ?? "").toUpperCase();
+    return code === "PRODUCT_SKU_NOT_FOUND";
+  }).length;
+
+  const unresolvedSkuRows = items.filter((item) => {
+    const status = String(item.audit?.status ?? "").toUpperCase();
+    const code = String(item.audit?.code ?? item.audit?.reason ?? "").toUpperCase();
+    return status === "OPEN" && code === "PRODUCT_SKU_NOT_FOUND";
+  }).length;
+
+  const resolvedSkuRows = items.filter((item) => {
+    const status = String(item.audit?.status ?? "").toUpperCase();
+    const code = String(item.audit?.code ?? item.audit?.reason ?? "").toUpperCase();
+    return status === "CLOSED" && code === "PRODUCT_SKU_NOT_FOUND";
+  }).length;
+
+  const movementIds = new Set(
+    items
+      .map((item) => String(item.audit?.resolutionMovementId ?? "").trim())
+      .filter(Boolean)
   );
-  const closed = Number(
-    data.summary?.byStatus?.find((item) => item.status === "CLOSED")?.count ??
-      items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "CLOSED").length
-  );
+
+  const deductedRows = items.filter((item) => {
+    const status = String(item.audit?.status ?? "").toUpperCase();
+    return status === "CLOSED" && String(item.audit?.resolutionMovementId ?? "").trim();
+  }).length;
 
   return {
     total,
@@ -312,6 +361,11 @@ export function summarizeInventoryAuditIssuesForImportJob(
     closed,
     unresolved: open,
     resolved: closed,
+    skuIssueRows: skuIssueRows || (scopedTotal ? 0 : total),
+    unresolvedSkuRows,
+    resolvedSkuRows,
+    deductedRows,
+    inventoryMovementCount: movementIds.size,
   };
 }
 

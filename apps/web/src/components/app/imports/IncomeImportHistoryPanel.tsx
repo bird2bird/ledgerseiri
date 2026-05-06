@@ -184,6 +184,39 @@ function getInventoryAuditSummaryClass(summary?: InventoryAuditImportSummary | n
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
+function hasInventoryDeductionSummary(summary?: InventoryAuditImportSummary | null) {
+  return Boolean(summary && summary.total > 0);
+}
+
+function getInventoryDeductionSummaryTone(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) return "neutral";
+  if (summary.unresolvedSkuRows > 0) return "warning";
+  if (summary.deductedRows > 0) return "success";
+  return "info";
+}
+
+function getInventoryDeductionSummaryCardClass(summary?: InventoryAuditImportSummary | null) {
+  const tone = getInventoryDeductionSummaryTone(summary);
+
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (tone === "info") return "border-sky-200 bg-sky-50 text-sky-800";
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function formatInventoryDeductionSummaryLine(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) return "在庫監査対象なし";
+
+  return [
+    `SKU未匹配 ${summary.skuIssueRows}`,
+    `未解決 ${summary.unresolvedSkuRows}`,
+    `解決済み ${summary.resolvedSkuRows}`,
+    `扣減成功 ${summary.deductedRows}`,
+    `在庫移動 ${summary.inventoryMovementCount}`,
+  ].join(" / ");
+}
+
 export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
   const {
     module,
@@ -229,7 +262,21 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
             const auditData = await listInventoryAuditIssuesForImportJob(item.id);
             return [item.id, summarizeInventoryAuditIssuesForImportJob(auditData)] as const;
           } catch {
-            return [item.id, { total: 0, open: 0, closed: 0, unresolved: 0, resolved: 0 }] as const;
+            return [
+              item.id,
+              {
+                total: 0,
+                open: 0,
+                closed: 0,
+                unresolved: 0,
+                resolved: 0,
+                skuIssueRows: 0,
+                unresolvedSkuRows: 0,
+                resolvedSkuRows: 0,
+                deductedRows: 0,
+                inventoryMovementCount: 0,
+              },
+            ] as const;
           }
         })
       );
@@ -455,6 +502,22 @@ export function IncomeImportHistoryPanel(props: IncomeImportHistoryPanelProps) {
                           </span>
                         ) : null}
                       </div>
+
+                      {hasInventoryDeductionSummary(inventoryAuditSummaries[item.id]) ? (
+                        <div
+                          data-testid={`inventory-deduction-summary-${item.id}`}
+                          className={`mt-2 rounded-2xl border px-3 py-2 text-[11px] font-bold leading-5 ${getInventoryDeductionSummaryCardClass(
+                            inventoryAuditSummaries[item.id]
+                          )}`}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-white/80 px-2 py-0.5">
+                              在庫扣減サマリー
+                            </span>
+                            <span>{formatInventoryDeductionSummaryLine(inventoryAuditSummaries[item.id])}</span>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="text-sm font-semibold text-slate-600">
