@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type AuditIssueItem = {
   id: string;
@@ -261,7 +262,10 @@ function buildQuery(params: Record<string, string>) {
 }
 
 export default function InventoryAuditQueueWorkspace() {
-  const [status, setStatus] = useState("OPEN");
+  const searchParams = useSearchParams();
+  const linkedImportJobId = searchParams.get("importJobId")?.trim() ?? "";
+
+  const [status, setStatus] = useState(linkedImportJobId ? "ALL" : "OPEN");
   const [reason, setReason] = useState("");
   const [skuDraft, setSkuDraft] = useState("");
   const [sku, setSku] = useState("");
@@ -291,10 +295,11 @@ export default function InventoryAuditQueueWorkspace() {
         status,
         reason,
         sku,
+        importJobId: linkedImportJobId,
         limit: "50",
         offset: "0",
       }),
-    [status, reason, sku],
+    [status, reason, sku, linkedImportJobId],
   );
 
   async function load(options: { refresh?: boolean } = {}) {
@@ -618,6 +623,21 @@ export default function InventoryAuditQueueWorkspace() {
               </button>
             </div>
           </div>
+
+          {linkedImportJobId ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-bold">ImportJob 連携フィルター中</div>
+                <div className="mt-1 font-mono text-xs">{linkedImportJobId}</div>
+              </div>
+              <a
+                href="/ja/app/inventory/audit"
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-violet-200 bg-white px-3 text-xs font-bold text-violet-700 shadow-sm hover:bg-violet-100"
+              >
+                全監査を表示
+              </a>
+            </div>
+          ) : null}
 
           {resolveSuccess ? (
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

@@ -253,6 +253,96 @@ export async function listImportHistory(args: {
   };
 }
 
+
+// Step112-A-INVENTORY-AUDIT-LINKBACK:
+// Lightweight frontend helper for Import History panels.
+// Reuses existing inventory audit queue API; no backend contract change.
+export type InventoryAuditIssueForImportJob = {
+  id: string;
+  importJobId: string;
+  audit?: {
+    status?: unknown;
+    reason?: unknown;
+    sku?: unknown;
+    linkedSkuCode?: unknown;
+    resolutionMovementId?: unknown;
+  };
+};
+
+export type InventoryAuditIssuesForImportJobResponse = {
+  ok?: boolean;
+  domain?: string;
+  action?: string;
+  items?: InventoryAuditIssueForImportJob[];
+  total?: number;
+  summary?: {
+    totalIssues?: number;
+    openIssues?: number;
+    byStatus?: Array<{ status: string; count: number }>;
+  };
+  message?: string;
+};
+
+export type InventoryAuditImportSummary = {
+  total: number;
+  open: number;
+  closed: number;
+  unresolved: number;
+  resolved: number;
+};
+
+export function summarizeInventoryAuditIssuesForImportJob(
+  data: InventoryAuditIssuesForImportJobResponse
+): InventoryAuditImportSummary {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const total = Number(data.summary?.totalIssues ?? data.total ?? items.length ?? 0);
+  const open = Number(
+    data.summary?.openIssues ??
+      data.summary?.byStatus?.find((item) => item.status === "OPEN")?.count ??
+      items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "OPEN").length
+  );
+  const closed = Number(
+    data.summary?.byStatus?.find((item) => item.status === "CLOSED")?.count ??
+      items.filter((item) => String(item.audit?.status ?? "").toUpperCase() === "CLOSED").length
+  );
+
+  return {
+    total,
+    open,
+    closed,
+    unresolved: open,
+    resolved: closed,
+  };
+}
+
+export async function listInventoryAuditIssuesForImportJob(
+  importJobId: string
+): Promise<InventoryAuditIssuesForImportJobResponse> {
+  const params = new URLSearchParams();
+  params.set("status", "ALL");
+  params.set("importJobId", importJobId);
+  params.set("limit", "50");
+  params.set("offset", "0");
+
+  const url = `/api/inventory/audit-issues?${params.toString()}`;
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const data = await readJson<InventoryAuditIssuesForImportJobResponse>(res, url);
+
+  if (data.ok === false) {
+    throw new Error(data.message || "Inventory audit import summary request failed.");
+  }
+
+  return {
+    ...data,
+    items: Array.isArray(data.items) ? data.items : [],
+    total: Number(data.total || data.items?.length || 0),
+  };
+}
+
 export async function listExpenseImportHistory(args: {
   module?: ExpenseImportHistoryModule;
   companyId?: string;

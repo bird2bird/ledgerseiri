@@ -3,8 +3,11 @@
 import React from "react";
 import {
   listExpenseImportHistory,
+  listInventoryAuditIssuesForImportJob,
+  summarizeInventoryAuditIssuesForImportJob,
   type ExpenseImportHistoryModule,
   type ImportJobHistoryItem,
+  type InventoryAuditImportSummary,
 } from "@/core/imports/api";
 import {
   formatImportHistoryDate,
@@ -157,6 +160,39 @@ function getExpenseImportHistorySummaryText(items: ImportJobHistoryItem[]) {
 }
 
 
+function buildInventoryAuditHref(importJobId: string) {
+  if (typeof window !== "undefined") {
+    const lang = window.location.pathname.split("/").filter(Boolean)[0] || "ja";
+    return `/${lang}/app/inventory/audit?importJobId=${encodeURIComponent(importJobId)}`;
+  }
+
+  return `/ja/app/inventory/audit?importJobId=${encodeURIComponent(importJobId)}`;
+}
+
+function getInventoryAuditSummaryText(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) return "";
+
+  const parts = [
+    `在庫監査 ${summary.total}`,
+    summary.unresolved ? `未解決 ${summary.unresolved}` : "",
+    summary.resolved ? `解決済み ${summary.resolved}` : "",
+  ].filter(Boolean);
+
+  return parts.join(" / ");
+}
+
+function getInventoryAuditSummaryClass(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) {
+    return "border-slate-200 bg-slate-50 text-slate-500";
+  }
+
+  if (summary.unresolved > 0) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
 export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps) {
   const {
     module,
@@ -172,6 +208,7 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
   const [items, setItems] = React.useState<ImportJobHistoryItem[]>([]);
   const [error, setError] = React.useState("");
   const [eventHighlightedImportJobId, setEventHighlightedImportJobId] = React.useState<string | null>(null);
+  const [inventoryAuditSummaries, setInventoryAuditSummaries] = React.useState<Record<string, InventoryAuditImportSummary>>({});
   const autoRefreshMountedRef = React.useRef(false);
 
   const visibleItems = React.useMemo(() => items.slice(0, limit), [items, limit]);
@@ -191,7 +228,21 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
 
     try {
       const data = await listExpenseImportHistory({ module });
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+      setItems(nextItems);
+
+      const summaryEntries = await Promise.all(
+        nextItems.slice(0, limit).map(async (item) => {
+          try {
+            const auditData = await listInventoryAuditIssuesForImportJob(item.id);
+            return [item.id, summarizeInventoryAuditIssuesForImportJob(auditData)] as const;
+          } catch {
+            return [item.id, { total: 0, open: 0, closed: 0, unresolved: 0, resolved: 0 }] as const;
+          }
+        })
+      );
+
+      setInventoryAuditSummaries(Object.fromEntries(summaryEntries));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -390,6 +441,16 @@ export function ExpenseImportHistoryPanel(props: ExpenseImportHistoryPanelProps)
                         <span className="font-mono text-[11px] font-semibold text-slate-400">
                           {shortImportJobId(item.id)}
                         </span>
+                        {inventoryAuditSummaries[item.id]?.total > 0 ? (
+                          <a
+                            href={buildInventoryAuditHref(item.id)}
+                            className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${getInventoryAuditSummaryClass(
+                              inventoryAuditSummaries[item.id]
+                            )}`}
+                          >
+                            {getInventoryAuditSummaryText(inventoryAuditSummaries[item.id])}
+                          </a>
+                        ) : null}
                         {isHighlighted ? (
                           <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[11px] font-bold text-violet-700">
                             最新登録
