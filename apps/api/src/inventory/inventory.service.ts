@@ -27,6 +27,12 @@ type AuditIssuesQuery = {
   offset?: string;
 };
 
+type AuditIssueResolvePayload = {
+  skuId?: string;
+  skuCode?: string;
+  note?: string;
+};
+
 type ManualAdjustmentPayload = {
   skuId?: string;
   skuCode?: string;
@@ -610,6 +616,288 @@ export class InventoryService {
         byStatus,
       },
       message: 'inventory audit issues loaded',
+    };
+  }
+
+  private resolveAuditOccurredAt(values: unknown[], fallback: Date): Date {
+    for (const value of values) {
+      if (value === undefined || value === null || value === '') continue;
+
+      const parsed = value instanceof Date ? value : new Date(String(value));
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    return fallback;
+  }
+
+  async resolveAuditIssue(auditIssueId: string, payload: unknown) {
+    const body = (payload ?? {}) as AuditIssueResolvePayload;
+    const companyId = await this.resolveCompanyId();
+
+    const issueId = String(auditIssueId || '').trim();
+    if (!issueId) {
+      throw new BadRequestException('audit issue id is required.');
+    }
+
+    const skuId = String(body.skuId || '').trim();
+    const skuCode = String(body.skuCode || '').trim();
+
+    if (!skuId && !skuCode) {
+      throw new BadRequestException('skuId or skuCode is required.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const issue = await tx.importStagingRow.findFirst({
+        where: {
+          id: issueId,
+          companyId,
+        },
+        select: {
+          id: true,
+          companyId: true,
+          importJobId: true,
+          module: true,
+          rowNo: true,
+          businessMonth: true,
+          matchStatus: true,
+          matchReason: true,
+          targetEntityType: true,
+          targetEntityId: true,
+          normalizedPayloadJson: true,
+          createdAt: true,
+          importJob: {
+            select: {
+              importedAt: true,
+              filename: true,
+              sourceType: true,
+            },
+          },
+        },
+      });
+
+      if (!issue) {
+        throw new NotFoundException('Inventory audit issue was not found.');
+      }
+
+      const normalizedPayload = this.normalizeAuditIssueObject(issue.normalizedPayloadJson);
+      const currentAudit = this.normalizeAuditIssueObject(normalizedPayload.inventoryAudit);
+
+      if (!currentAudit || Object.keys(currentAudit).length === 0) {
+        throw new BadRequestException('ImportStagingRow does not contain inventoryAudit payload.');
+      }
+
+      const currentStatus = String(currentAudit.status || '').trim().toUpperCase();
+      if (currentStatus && currentStatus !== 'OPEN') {
+        throw new BadRequestException(`inventoryAudit is not OPEN. current status: ${currentStatus}`);
+      }
+
+      const sku = await tx.productSku.findFirst({
+        where: {
+          companyId,
+          ...(skuId ? { id: skuId } : {}),
+          ...(skuCode ? { skuCode } : {}),
+        },
+        select: {
+          id: true,
+          skuCode: true,
+          name: true,
+          companyId: true,
+          storeId: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!sku) {
+        throw new NotFoundException('ProductSku not found for this company.');
+      }
+
+      const rawQuantity = currentAudit.quantity ?? normalizedPayload.quantity;
+      const quantity = Math.abs(this.parseInteger(rawQuantity, 'inventoryAudit.quantity'));
+
+      if (quantity <= 0) {
+        throw new BadRequestException('inventoryAudit.quantity must be greater than zero.');
+      }
+
+      const occurredAt = this.resolveAuditOccurredAt(
+        [
+          normalizedPayload.orderDate,
+          normalizedPayload.occurredAt,
+          currentAudit.createdAt,
+          issue.importJob?.importedAt,
+        ],
+        issue.createdAt,
+      );
+
+      const movement = await tx.inventoryMovement.create({
+        data: {
+          companyId,
+          skuId: sku.id,
+          type: InventoryMovementType.OUT,
+          quantity: -quantity,
+          occurredAt,
+          sourceType: 'INVENTORY_AUDIT_RESOLUTION',
+          sourceId: issue.id,
+          importJobId: issue.importJobId,
+          sourceRowNo: issue.rowNo,
+          transactionId: issue.targetEntityId,
+          businessMonth: issue.businessMonth,
+          memo: [
+            '[inventory-audit-resolution]',
+            `[audit_issue_id:${issue.id}]`,
+            `[linked_sku:${sku.skuCode}]`,
+            body.note?.trim() ? body.note.trim() : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        },
+      });
+
+      const currentBalance = await tx.inventoryBalance.findUnique({
+        where: {
+          companyId_skuId: {
+            companyId,
+            skuId: sku.id,
+          },
+        },
+        select: {
+          quantity: true,
+          reservedQty: true,
+          alertLevel: true,
+        },
+      });
+
+      const nextQuantity = Number(currentBalance?.quantity ?? 0) - quantity;
+
+      const balance = await tx.inventoryBalance.upsert({
+        where: {
+          companyId_skuId: {
+            companyId,
+            skuId: sku.id,
+          },
+        },
+        create: {
+          companyId,
+          skuId: sku.id,
+          quantity: nextQuantity,
+          reservedQty: 0,
+          alertLevel: 0,
+        },
+        update: {
+          quantity: nextQuantity,
+        },
+        select: {
+          id: true,
+          quantity: true,
+          reservedQty: true,
+          alertLevel: true,
+          updatedAt: true,
+        },
+      });
+
+      const resolvedAt = new Date().toISOString();
+      const nextAudit = {
+        ...currentAudit,
+        status: 'CLOSED',
+        previousStatus: currentStatus || 'OPEN',
+        resolvedAt,
+        resolvedBy: 'system',
+        resolutionAction: 'LINK_EXISTING_SKU_AND_DEDUCT',
+        resolutionNote: body.note?.trim() || null,
+        linkedSkuId: sku.id,
+        linkedSkuCode: sku.skuCode,
+        linkedProductName: sku.product?.name ?? sku.name ?? null,
+        resolutionMovementId: movement.id,
+        closedReason: 'RESOLVED_BY_SKU_MAPPING',
+      };
+
+      const nextPayload = {
+        ...normalizedPayload,
+        inventoryAudit: nextAudit,
+      };
+
+      const updatedIssue = await tx.importStagingRow.update({
+        where: {
+          id: issue.id,
+        },
+        data: {
+          normalizedPayloadJson: nextPayload as Prisma.InputJsonValue,
+          matchReason: `INVENTORY_AUDIT_RESOLVED:LINK_EXISTING_SKU:${sku.skuCode}`,
+        },
+        select: {
+          id: true,
+          importJobId: true,
+          module: true,
+          rowNo: true,
+          businessMonth: true,
+          matchStatus: true,
+          matchReason: true,
+          normalizedPayloadJson: true,
+          createdAt: true,
+        },
+      });
+
+      return {
+        issue: updatedIssue,
+        audit: nextAudit,
+        sku,
+        movement,
+        balance,
+        quantity,
+      };
+    });
+
+    const balanceQuantity = Number(result.balance.quantity ?? 0);
+    const reservedQty = Number(result.balance.reservedQty ?? 0);
+    const alertLevel = Number(result.balance.alertLevel ?? 0);
+    const availableQty = balanceQuantity - reservedQty;
+    const stockStatus = this.getStockStatus(balanceQuantity, reservedQty, alertLevel);
+
+    return {
+      ok: true,
+      domain: 'inventory',
+      action: 'resolve-audit-issue',
+      item: {
+        auditIssueId: result.issue.id,
+        importJobId: result.issue.importJobId,
+        module: result.issue.module,
+        rowNo: result.issue.rowNo,
+        businessMonth: result.issue.businessMonth,
+        matchStatus: result.issue.matchStatus,
+        matchReason: result.issue.matchReason,
+        audit: result.audit,
+        sku: {
+          id: result.sku.id,
+          skuCode: result.sku.skuCode,
+          name: result.sku.name ?? result.sku.product?.name ?? null,
+          productName: result.sku.product?.name ?? null,
+        },
+        movement: {
+          id: result.movement.id,
+          type: result.movement.type,
+          quantity: result.movement.quantity,
+          occurredAt: result.movement.occurredAt.toISOString(),
+          sourceType: result.movement.sourceType,
+          sourceId: result.movement.sourceId,
+        },
+        balance: {
+          id: result.balance.id,
+          quantity: balanceQuantity,
+          reservedQty,
+          availableQty,
+          alertLevel,
+          stockStatus,
+          stockStatusLabel: this.getStockStatusLabel(stockStatus),
+          updatedAt: result.balance.updatedAt.toISOString(),
+        },
+      },
+      message: 'inventory audit issue resolved',
     };
   }
 

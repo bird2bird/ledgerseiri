@@ -153,6 +153,7 @@ type Dict = {
   productList: string;
   inventoryStatus: string;
   inventoryAlerts: string;
+  inventoryAudit: string;
   invoiceList: string;
   unpaid: string;
   paymentHistory: string;
@@ -207,6 +208,7 @@ const DICT: Record<Lang, Dict> = {
     productList: "商品一覧",
     inventoryStatus: "在庫状況",
     inventoryAlerts: "在庫アラート",
+    inventoryAudit: "在庫監査",
     invoiceList: "請求書",
     unpaid: "未入金",
     paymentHistory: "入金履歴",
@@ -259,6 +261,7 @@ const DICT: Record<Lang, Dict> = {
     productList: "Products",
     inventoryStatus: "Inventory Status",
     inventoryAlerts: "Inventory Alerts",
+    inventoryAudit: "Inventory Audit",
     invoiceList: "Invoices",
     unpaid: "Unpaid",
     paymentHistory: "Payment History",
@@ -311,6 +314,7 @@ const DICT: Record<Lang, Dict> = {
     productList: "商品列表",
     inventoryStatus: "库存状态",
     inventoryAlerts: "库存预警",
+    inventoryAudit: "库存审计",
     invoiceList: "发票",
     unpaid: "未入金",
     paymentHistory: "入金记录",
@@ -363,6 +367,7 @@ const DICT: Record<Lang, Dict> = {
     productList: "商品列表",
     inventoryStatus: "庫存狀態",
     inventoryAlerts: "庫存預警",
+    inventoryAudit: "庫存稽核",
     invoiceList: "請求書",
     unpaid: "未入金",
     paymentHistory: "入金紀錄",
@@ -473,6 +478,7 @@ export function DashboardSidebar() {
           "standard"
         ),
         leaf("inventory-alerts", t.inventoryAlerts, "/app/inventory/alerts"),
+        leaf("inventory-audit", t.inventoryAudit, "/app/inventory/audit"),
       ]),
 
       group("invoices", t.invoices, [

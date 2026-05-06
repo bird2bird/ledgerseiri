@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 
 @Controller('api/inventory/balances')
@@ -87,6 +87,11 @@ export class InventoryRootController {
       limit,
       offset,
     });
+  }
+
+  @Post('audit-issues/:id/resolve')
+  resolveAuditIssue(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.resolveAuditIssue(id, body);
   }
 
   @Post('manual-adjustments')
