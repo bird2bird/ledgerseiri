@@ -11,19 +11,26 @@ import {
 } from "@/core/drilldown/query-contract";
 
 type AlertSeverity = "all" | "info" | "warning" | "critical";
+type StockStatus = "healthy" | "low" | "out" | "negative" | string;
 
-type InventoryBalanceRow = {
+type InventoryStockRow = {
   id: string;
   skuId: string;
   sku: string;
+  skuCode?: string;
+  asin?: string | null;
+  externalSku?: string | null;
+  fulfillmentChannel?: string | null;
   name: string;
+  productName?: string | null;
   store: string;
   storeId?: string | null;
   quantity: number;
   reservedQty: number;
   availableQty: number;
   alertLevel: number;
-  stockStatus: string;
+  stockStatus: StockStatus;
+  stockStatusLabel?: string;
   isActive: boolean;
   updatedAt: string;
 };
@@ -31,16 +38,23 @@ type InventoryBalanceRow = {
 type InventoryAlertRow = {
   id: string;
   sku: string;
+  name: string;
+  store: string;
   title: string;
   severity: Exclude<AlertSeverity, "all">;
-  stock: number;
+  quantity: number;
+  reservedQty: number;
+  availableQty: number;
+  alertLevel: number;
+  stockStatus: StockStatus;
+  stockStatusLabel?: string;
 };
 
 type InventoryListResponse = {
   ok: boolean;
   domain: string;
   action: string;
-  items: InventoryBalanceRow[];
+  items: InventoryStockRow[];
   total?: number;
   message?: string;
 };
@@ -71,16 +85,22 @@ function toneClass(severity: Exclude<AlertSeverity, "all">) {
   }
 }
 
-function mapStockStatusToSeverity(stockStatus: string): Exclude<AlertSeverity, "all"> | null {
-  if (stockStatus === "欠品") return "critical";
-  if (stockStatus === "要補充") return "warning";
+function mapStockStatusToSeverity(stockStatus: StockStatus): Exclude<AlertSeverity, "all"> | null {
+  if (stockStatus === "negative") return "critical";
+  if (stockStatus === "out") return "critical";
+  if (stockStatus === "low") return "warning";
   return null;
 }
 
-function buildAlertTitle(row: InventoryBalanceRow) {
-  if (row.stockStatus === "欠品") return "在庫切れです";
-  if (row.stockStatus === "要補充") return "安全在庫を下回っています";
+function buildAlertTitle(row: InventoryStockRow) {
+  if (row.stockStatus === "negative") return "マイナス在庫が発生しています";
+  if (row.stockStatus === "out") return "在庫切れです";
+  if (row.stockStatus === "low") return "安全在庫を下回っています";
   return "在庫状況を確認してください";
+}
+
+function buildStatusLabel(row: InventoryStockRow) {
+  return row.stockStatusLabel || row.stockStatus;
 }
 
 export default function Page() {
@@ -93,6 +113,7 @@ export default function Page() {
   const source = searchParams.get("source");
   const severity = normalizeAlertSeverityParam(searchParams.get("severity"));
   const isDashboard = from === "dashboard";
+  const lang = params?.lang ?? "ja";
 
   const [rows, setRows] = useState<InventoryAlertRow[]>([]);
   const [adapterNote, setAdapterNote] = useState("");
@@ -104,7 +125,10 @@ export default function Page() {
     setLoading(true);
     setError("");
 
-    fetch("/api/inventory/balances", {
+    const qs = new URLSearchParams();
+    if (storeId && storeId !== "all") qs.set("storeId", storeId);
+
+    fetch(`/api/inventory/stocks?${qs.toString()}`, {
       method: "GET",
       credentials: "include",
       cache: "no-store",
@@ -121,19 +145,22 @@ export default function Page() {
         const allRows = Array.isArray(res.items) ? res.items : [];
 
         const mapped = allRows
-          .filter((row) => {
-            if (storeId && storeId !== "all" && row.storeId !== storeId) return false;
-            return row.stockStatus === "欠品" || row.stockStatus === "要補充";
-          })
           .map((row) => {
             const sev = mapStockStatusToSeverity(row.stockStatus);
             if (!sev) return null;
             return {
               id: row.id,
-              sku: row.sku,
+              sku: row.skuCode || row.sku,
+              name: row.name,
+              store: row.store,
               title: buildAlertTitle(row),
               severity: sev,
-              stock: row.availableQty,
+              quantity: row.quantity,
+              reservedQty: row.reservedQty,
+              availableQty: row.availableQty,
+              alertLevel: row.alertLevel,
+              stockStatus: row.stockStatus,
+              stockStatusLabel: buildStatusLabel(row),
             } as InventoryAlertRow;
           })
           .filter(Boolean) as InventoryAlertRow[];
@@ -144,7 +171,7 @@ export default function Page() {
             : mapped.filter((row) => row.severity === severity);
 
         setRows(filtered);
-        setAdapterNote("Step43-C: inventory alerts now use real inventory balance source.");
+        setAdapterNote("Step110-K: inventory alerts use standard /api/inventory/stocks source.");
       })
       .catch((e: unknown) => {
         if (!mounted) return;
@@ -186,32 +213,41 @@ export default function Page() {
           <div>
             <div className="text-2xl font-semibold text-slate-900">在庫アラート</div>
             <div className="mt-2 text-sm text-slate-500">
-              InventoryBalance の実データから欠品・要補充を抽出します。
+              標準在庫APIから欠品・要補充・マイナス在庫を抽出します。
             </div>
           </div>
 
-          {isDashboard ? (
+          <div className="flex flex-wrap gap-2">
             <Link
-              href={`/${params?.lang ?? "ja"}/app`}
+              href={`/${lang}/app/inventory/status`}
               className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
-              Dashboard に戻る
+              在庫状況へ
             </Link>
-          ) : null}
+
+            {isDashboard ? (
+              <Link
+                href={`/${lang}/app`}
+                className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                Dashboard に戻る
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Store</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{storeId}</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{storeId || "all"}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Range</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{range}</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{range || "-"}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Source</div>
-            <div className="mt-2 text-lg font-semibold text-slate-900">{source ?? "-"}</div>
+            <div className="mt-2 text-lg font-semibold text-slate-900">{source ?? "inventory"}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <div className="text-sm text-slate-500">Severity</div>
@@ -268,14 +304,16 @@ export default function Page() {
 
       <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
         <div className="text-lg font-semibold text-slate-900">Alert Rows</div>
-        <div className="mt-1 text-sm text-slate-500">real inventory source → severity mapping → render</div>
+        <div className="mt-1 text-sm text-slate-500">stocks API → severity mapping → render</div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-          <div className="grid grid-cols-[140px_1fr_100px_100px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+          <div className="grid grid-cols-[150px_1fr_120px_90px_90px_90px] gap-4 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
             <div>SKU</div>
             <div>Title</div>
             <div>Severity</div>
-            <div className="text-right">Stock</div>
+            <div className="text-right">Qty</div>
+            <div className="text-right">Available</div>
+            <div className="text-right">Alert</div>
           </div>
 
           {loading ? (
@@ -286,16 +324,26 @@ export default function Page() {
             rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-[140px_1fr_100px_100px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
+                className="grid grid-cols-[150px_1fr_120px_90px_90px_90px] gap-4 border-t border-slate-100 px-4 py-3 text-sm"
               >
-                <div className="font-medium text-slate-900">{row.sku}</div>
-                <div className="text-slate-700">{row.title}</div>
+                <div>
+                  <div className="font-medium text-slate-900">{row.sku}</div>
+                  <div className="mt-1 truncate text-xs text-slate-400">{row.store}</div>
+                </div>
+                <div>
+                  <div className="text-slate-700">{row.title}</div>
+                  <div className="mt-1 truncate text-xs text-slate-400">
+                    {row.name} / {row.stockStatusLabel}
+                  </div>
+                </div>
                 <div>
                   <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${toneClass(row.severity)}`}>
                     {LABELS[row.severity]}
                   </span>
                 </div>
-                <div className="text-right font-medium text-slate-900">{row.stock}</div>
+                <div className="text-right font-medium text-slate-900">{row.quantity}</div>
+                <div className="text-right font-medium text-slate-900">{row.availableQty}</div>
+                <div className="text-right font-medium text-slate-900">{row.alertLevel}</div>
               </div>
             ))
           )}
