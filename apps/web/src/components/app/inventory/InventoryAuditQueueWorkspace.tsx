@@ -671,6 +671,7 @@ export default function InventoryAuditQueueWorkspace() {
                   {items.map((item) => (
                     <tr
                       key={item.id}
+                      data-testid={`inventory-audit-row-${item.id}`}
                       role="button"
                       tabIndex={0}
                       title="クリックして詳細を開く"
@@ -772,12 +773,17 @@ export default function InventoryAuditQueueWorkspace() {
             className="absolute inset-0 cursor-default"
             onClick={() => setSelected(null)}
           />
-          <aside className="relative z-10 h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl">
+          <aside
+            data-testid="inventory-audit-drawer"
+            className="relative z-10 h-full w-full max-w-2xl overflow-y-auto bg-white shadow-2xl"
+          >
             <div className="sticky top-0 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-xs font-semibold text-amber-700">Inventory Audit Detail</div>
-                  <h3 className="mt-1 text-xl font-bold text-slate-950">{asText(selected.audit.sku)}</h3>
+                  <h3 data-testid="inventory-audit-drawer-title" className="mt-1 text-xl font-bold text-slate-950">
+                    {asText(selected.audit.sku)}
+                  </h3>
                   <p className="mt-1 text-sm text-slate-500">{asText(selected.audit.message)}</p>
                 </div>
                 <button
@@ -849,6 +855,7 @@ export default function InventoryAuditQueueWorkspace() {
                     <label className="flex flex-col gap-1">
                       <span className="text-xs font-semibold text-slate-500">SKU候補検索</span>
                       <input
+                        data-testid="inventory-audit-sku-candidate-search"
                         value={skuSearchDraft}
                         onChange={(event) => setSkuSearchDraft(event.target.value)}
                         disabled={productsLoading || resolving}
@@ -863,6 +870,7 @@ export default function InventoryAuditQueueWorkspace() {
                         {productsLoading ? "" : ` (${formatNumber(filteredProducts.length)} / ${formatNumber(products.length)} 件)`}
                       </span>
                       <select
+                        data-testid="inventory-audit-sku-select"
                         value={selectedSkuId}
                         onChange={(event) => setSelectedSkuId(event.target.value)}
                         disabled={productsLoading || resolving}
@@ -894,7 +902,10 @@ export default function InventoryAuditQueueWorkspace() {
                   ) : null}
 
                   {selectedProduct ? (
-                    <div className={`mt-3 rounded-2xl border p-3 text-xs leading-5 ${stockTone(stockPreview, previewNextQuantity)}`}>
+                    <div
+                      data-testid="inventory-audit-stock-preview"
+                      className={`mt-3 rounded-2xl border p-3 text-xs leading-5 ${stockTone(stockPreview, previewNextQuantity)}`}
+                    >
                       <div className="font-bold">在庫減算プレビュー</div>
                       {stockPreviewLoading ? (
                         <div className="mt-2">在庫情報を読み込み中...</div>
@@ -982,6 +993,7 @@ export default function InventoryAuditQueueWorkspace() {
 
                   <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
                     <input
+                      data-testid="inventory-audit-confirm-checkbox"
                       type="checkbox"
                       checked={resolutionConfirmed}
                       onChange={(event) => setResolutionConfirmed(event.target.checked)}
@@ -995,6 +1007,7 @@ export default function InventoryAuditQueueWorkspace() {
                   </label>
 
                   <button
+                    data-testid="inventory-audit-resolve-button"
                     type="button"
                     onClick={() => void resolveSelectedIssue()}
                     disabled={!selectedSkuId || !resolutionConfirmed || resolving || productsLoading || stockPreviewLoading}
