@@ -68,6 +68,27 @@ export class InventoryRootController {
     return this.service.listMovements({ skuId, skuCode, storeId, limit });
   }
 
+  @Get('audit-issues')
+  auditIssues(
+    @Query('status') status?: string,
+    @Query('reason') reason?: string,
+    @Query('sku') sku?: string,
+    @Query('importJobId') importJobId?: string,
+    @Query('businessMonth') businessMonth?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.service.listAuditIssues({
+      status,
+      reason,
+      sku,
+      importJobId,
+      businessMonth,
+      limit,
+      offset,
+    });
+  }
+
   @Post('manual-adjustments')
   manualAdjustment(@Body() body: unknown) {
     return this.service.createManualAdjustment(body);

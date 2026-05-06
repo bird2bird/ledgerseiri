@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InventoryMovementType } from '@prisma/client';
+import { InventoryMovementType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 type StockStatus = 'healthy' | 'low' | 'out' | 'negative';
@@ -15,6 +15,16 @@ type MovementQuery = {
   skuCode?: string;
   storeId?: string;
   limit?: string;
+};
+
+type AuditIssuesQuery = {
+  status?: string;
+  reason?: string;
+  sku?: string;
+  importJobId?: string;
+  businessMonth?: string;
+  limit?: string;
+  offset?: string;
 };
 
 type ManualAdjustmentPayload = {
@@ -399,6 +409,207 @@ export class InventoryService {
       })),
       total: rows.length,
       message: 'inventory movements loaded',
+    };
+  }
+
+  private normalizeAuditIssueObject(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
+  }
+
+  async listAuditIssues(query: AuditIssuesQuery = {}) {
+    const companyId = await this.resolveCompanyId();
+
+    const normalizedStatus = String(query.status || 'OPEN').trim().toUpperCase();
+    const status = normalizedStatus && normalizedStatus !== 'ALL' ? normalizedStatus : '';
+    const reason = String(query.reason || '').trim();
+    const sku = String(query.sku || '').trim();
+    const importJobId = String(query.importJobId || '').trim();
+    const businessMonth = String(query.businessMonth || '').trim();
+
+    const limitRaw = query.limit ? Number(query.limit) : 50;
+    const offsetRaw = query.offset ? Number(query.offset) : 0;
+
+    const take = Number.isFinite(limitRaw)
+      ? Math.min(Math.max(Math.trunc(limitRaw), 1), 100)
+      : 50;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(Math.trunc(offsetRaw), 0) : 0;
+
+    const where: Prisma.Sql[] = [
+      Prisma.sql`sr."companyId" = ${companyId}`,
+      Prisma.sql`sr."normalizedPayloadJson"->'inventoryAudit' IS NOT NULL`,
+    ];
+
+    if (status) {
+      where.push(
+        Prisma.sql`COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'status', '') = ${status}`,
+      );
+    }
+
+    if (reason) {
+      const reasonPattern = `%${reason}%`;
+      where.push(Prisma.sql`(
+        COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'reason', '') ILIKE ${reasonPattern}
+        OR COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'code', '') ILIKE ${reasonPattern}
+        OR COALESCE(sr."matchReason", '') ILIKE ${reasonPattern}
+      )`);
+    }
+
+    if (sku) {
+      const skuPattern = `%${sku}%`;
+      where.push(Prisma.sql`(
+        COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'sku', '') ILIKE ${skuPattern}
+        OR COALESCE(sr."normalizedPayloadJson"->>'sku', '') ILIKE ${skuPattern}
+        OR COALESCE(sr."normalizedPayloadJson"->>'skuCode', '') ILIKE ${skuPattern}
+      )`);
+    }
+
+    if (importJobId) {
+      where.push(Prisma.sql`sr."importJobId" = ${importJobId}`);
+    }
+
+    if (businessMonth) {
+      where.push(Prisma.sql`sr."businessMonth" = ${businessMonth}`);
+    }
+
+    const whereSql = Prisma.sql`WHERE ${Prisma.join(where, ' AND ')}`;
+
+    const [rows, totalRows, summaryRows] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          importJobId: string;
+          module: string;
+          rowNo: number;
+          businessMonth: string | null;
+          matchStatus: string;
+          matchReason: string | null;
+          targetEntityType: string | null;
+          targetEntityId: string | null;
+          normalizedPayloadJson: unknown;
+          createdAt: Date;
+          filename: string | null;
+          sourceType: string | null;
+          importedAt: Date | null;
+        }>
+      >(Prisma.sql`
+        SELECT
+          sr."id",
+          sr."importJobId",
+          sr."module",
+          sr."rowNo",
+          sr."businessMonth",
+          sr."matchStatus",
+          sr."matchReason",
+          sr."targetEntityType",
+          sr."targetEntityId",
+          sr."normalizedPayloadJson",
+          sr."createdAt",
+          ij."filename",
+          ij."sourceType",
+          ij."importedAt"
+        FROM "ImportStagingRow" sr
+        LEFT JOIN "ImportJob" ij ON ij."id" = sr."importJobId"
+        ${whereSql}
+        ORDER BY sr."createdAt" DESC, sr."rowNo" ASC
+        LIMIT ${take}
+        OFFSET ${offset}
+      `),
+      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS count
+        FROM "ImportStagingRow" sr
+        ${whereSql}
+      `),
+      this.prisma.$queryRaw<Array<{ status: string; count: number }>>(Prisma.sql`
+        SELECT
+          COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'status', 'UNKNOWN') AS status,
+          COUNT(*)::int AS count
+        FROM "ImportStagingRow" sr
+        WHERE sr."companyId" = ${companyId}
+          AND sr."normalizedPayloadJson"->'inventoryAudit' IS NOT NULL
+        GROUP BY COALESCE(sr."normalizedPayloadJson"->'inventoryAudit'->>'status', 'UNKNOWN')
+        ORDER BY status ASC
+      `),
+    ]);
+
+    const items = rows.map((row) => {
+      const payload = this.normalizeAuditIssueObject(row.normalizedPayloadJson);
+      const audit = this.normalizeAuditIssueObject(payload.inventoryAudit);
+
+      return {
+        id: row.id,
+        importJobId: row.importJobId,
+        module: row.module,
+        rowNo: row.rowNo,
+        businessMonth: row.businessMonth,
+        matchStatus: row.matchStatus,
+        matchReason: row.matchReason,
+        targetEntityType: row.targetEntityType,
+        targetEntityId: row.targetEntityId,
+        createdAt: row.createdAt.toISOString(),
+        importJob: {
+          filename: row.filename,
+          sourceType: row.sourceType,
+          importedAt: row.importedAt ? row.importedAt.toISOString() : null,
+        },
+        audit: {
+          scope: audit.scope ?? 'inventory',
+          status: audit.status ?? null,
+          severity: audit.severity ?? null,
+          code: audit.code ?? null,
+          reason: audit.reason ?? null,
+          sku: audit.sku ?? payload.sku ?? payload.skuCode ?? null,
+          sourceType: audit.sourceType ?? null,
+          sourceId: audit.sourceId ?? payload.orderId ?? payload.amazonOrderId ?? null,
+          quantity: audit.quantity ?? payload.quantity ?? null,
+          message: audit.message ?? null,
+          createdAt: audit.createdAt ?? null,
+        },
+        source: {
+          orderId: payload.orderId ?? payload.amazonOrderId ?? null,
+          sku: payload.sku ?? payload.skuCode ?? null,
+          productName: payload.productName ?? payload.rawLabel ?? null,
+          quantity: payload.quantity ?? null,
+          amount: payload.amount ?? payload.grossAmount ?? payload.netAmount ?? null,
+        },
+      };
+    });
+
+    const total = Number(totalRows[0]?.count ?? 0);
+    const byStatus = summaryRows.map((row) => ({
+      status: row.status,
+      count: Number(row.count ?? 0),
+    }));
+
+    return {
+      ok: true,
+      domain: 'inventory',
+      action: 'audit-issues',
+      filters: {
+        status: status || 'ALL',
+        reason: reason || null,
+        sku: sku || null,
+        importJobId: importJobId || null,
+        businessMonth: businessMonth || null,
+      },
+      items,
+      total,
+      page: {
+        limit: take,
+        offset,
+        hasMore: offset + items.length < total,
+      },
+      summary: {
+        totalIssues: byStatus.reduce((sum, row) => sum + row.count, 0),
+        openIssues: byStatus
+          .filter((row) => row.status === 'OPEN')
+          .reduce((sum, row) => sum + row.count, 0),
+        byStatus,
+      },
+      message: 'inventory audit issues loaded',
     };
   }
 
