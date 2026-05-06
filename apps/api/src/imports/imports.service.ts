@@ -137,6 +137,29 @@ type ExpenseImportCommitDto = {
   rows?: ExpenseImportCommitRow[];
 };
 
+type StoreOrderInventoryDeductionInput = {
+  tx: Prisma.TransactionClient;
+  companyId: string;
+  transactionId?: string | null;
+  importJobId?: string | null;
+  rowNo?: number | null;
+  businessMonth?: string | null;
+  payload: Record<string, unknown>;
+};
+
+type StoreOrderInventoryDeductionResult = {
+  deducted: boolean;
+  skipped: boolean;
+  unresolved: boolean;
+  reason?: string;
+  sku?: string;
+  skuId?: string;
+  skuCode?: string;
+  quantityDelta?: number;
+  movementId?: string;
+  balanceId?: string;
+};
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -846,6 +869,190 @@ export class ImportsService {
       charge.signedAmount,
       charge.description,
     ]);
+  }
+
+  private normalizeInventoryPayloadString(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private normalizeInventoryPayloadNumber(value: unknown): number {
+    if (value === undefined || value === null || value === '') return 0;
+
+    const normalized =
+      typeof value === 'string'
+        ? value.replace(/[,\s]/g, '').replace(/[０-９]/g, (d) =>
+            String.fromCharCode(d.charCodeAt(0) - 0xfee0),
+          )
+        : value;
+
+    const n = Number(normalized);
+    if (!Number.isFinite(n)) return 0;
+    return Math.trunc(n);
+  }
+
+  private normalizeInventoryOccurredAt(value: unknown): Date {
+    const raw = this.normalizeInventoryPayloadString(value);
+    if (!raw) return new Date();
+
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return new Date();
+
+    return d;
+  }
+
+  private async applyStoreOrderInventoryDeduction(
+    input: StoreOrderInventoryDeductionInput,
+  ): Promise<StoreOrderInventoryDeductionResult> {
+    const payload = input.payload || {};
+
+    const sku = this.normalizeInventoryPayloadString(
+      payload.sku || payload.skuCode || payload.sellerSku || payload.externalSku,
+    );
+
+    const orderId = this.normalizeInventoryPayloadString(payload.orderId || payload.amazonOrderId);
+
+    const rawQuantity = this.normalizeInventoryPayloadNumber(payload.quantity);
+    const quantity = Math.abs(rawQuantity);
+
+    if (!sku) {
+      return {
+        deducted: false,
+        skipped: true,
+        unresolved: true,
+        reason: 'SKU_EMPTY',
+      };
+    }
+
+    if (!quantity || quantity <= 0) {
+      return {
+        deducted: false,
+        skipped: true,
+        unresolved: false,
+        reason: 'QUANTITY_NOT_POSITIVE',
+        sku,
+      };
+    }
+
+    const productSku = await input.tx.productSku.findFirst({
+      where: {
+        companyId: input.companyId,
+        OR: [
+          { skuCode: sku },
+          { externalSku: sku },
+        ],
+      },
+      select: {
+        id: true,
+        skuCode: true,
+      },
+    });
+
+    if (!productSku) {
+      return {
+        deducted: false,
+        skipped: true,
+        unresolved: true,
+        reason: 'PRODUCT_SKU_NOT_FOUND',
+        sku,
+      };
+    }
+
+    const duplicateWhere: Record<string, unknown> = {
+      companyId: input.companyId,
+      skuId: productSku.id,
+      sourceType: 'AMAZON_ORDER_IMPORT',
+    };
+
+    if (input.importJobId) {
+      duplicateWhere.importJobId = input.importJobId;
+    }
+
+    if (input.rowNo !== undefined && input.rowNo !== null) {
+      duplicateWhere.sourceRowNo = input.rowNo;
+    } else if (orderId) {
+      duplicateWhere.sourceId = orderId;
+    }
+
+    const existingMovement = await input.tx.inventoryMovement.findFirst({
+      where: duplicateWhere,
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingMovement) {
+      return {
+        deducted: false,
+        skipped: true,
+        unresolved: false,
+        reason: 'DUPLICATE_INVENTORY_DEDUCTION',
+        sku,
+        skuId: productSku.id,
+        skuCode: productSku.skuCode,
+        movementId: existingMovement.id,
+      };
+    }
+
+    const quantityDelta = -quantity;
+    const occurredAt = this.normalizeInventoryOccurredAt(payload.orderDate || payload.occurredAt);
+    const memo = `[amazon-order-inventory-deduction] orderId=${orderId || '-'} sku=${sku} qty=${quantity}`;
+
+    const movement = await input.tx.inventoryMovement.create({
+      data: {
+        companyId: input.companyId,
+        skuId: productSku.id,
+        type: 'OUT',
+        quantity: quantityDelta,
+        occurredAt,
+        sourceType: 'AMAZON_ORDER_IMPORT',
+        sourceId: orderId || null,
+        importJobId: input.importJobId || null,
+        sourceRowNo: input.rowNo ?? null,
+        transactionId: input.transactionId || null,
+        businessMonth: input.businessMonth || null,
+        memo,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const balance = await input.tx.inventoryBalance.upsert({
+      where: {
+        companyId_skuId: {
+          companyId: input.companyId,
+          skuId: productSku.id,
+        },
+      },
+      create: {
+        companyId: input.companyId,
+        skuId: productSku.id,
+        quantity: quantityDelta,
+        reservedQty: 0,
+        alertLevel: 0,
+      },
+      update: {
+        quantity: {
+          increment: quantityDelta,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return {
+      deducted: true,
+      skipped: false,
+      unresolved: false,
+      reason: 'DEDUCTED',
+      sku,
+      skuId: productSku.id,
+      skuCode: productSku.skuCode,
+      quantityDelta,
+      movementId: movement.id,
+      balanceId: balance.id,
+    };
   }
 
   private buildStoreOrderPreviewRows(args: {
