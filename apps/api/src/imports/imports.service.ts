@@ -907,6 +907,49 @@ export class ImportsService {
     return d;
   }
 
+  private async persistStoreOrderInventoryAuditIssue(args: {
+    tx: Prisma.TransactionClient;
+    importJobId: string;
+    companyId: string;
+    rowNo: number;
+    payload: Record<string, unknown>;
+    result: StoreOrderInventoryDeductionResult;
+  }): Promise<void> {
+    if (!args.result.unresolved) return;
+
+    const inventoryAudit = {
+      scope: 'inventory',
+      status: 'OPEN',
+      severity: 'warning',
+      code: args.result.reason || 'INVENTORY_DEDUCTION_UNRESOLVED',
+      reason: args.result.reason || 'INVENTORY_DEDUCTION_UNRESOLVED',
+      sku: args.result.sku || String(args.payload.sku || ''),
+      sourceType: 'AMAZON_ORDER_IMPORT',
+      sourceId: String(args.payload.orderId || args.payload.amazonOrderId || ''),
+      quantity: args.payload.quantity ?? null,
+      createdAt: new Date().toISOString(),
+      message:
+        args.result.reason === 'PRODUCT_SKU_NOT_FOUND'
+          ? 'ProductSku mapping was not found. Inventory deduction was skipped and requires manual review.'
+          : 'Inventory deduction was skipped and requires manual review.',
+    };
+
+    await args.tx.importStagingRow.updateMany({
+      where: {
+        importJobId: args.importJobId,
+        companyId: args.companyId,
+        rowNo: args.rowNo,
+      },
+      data: {
+        matchReason: `INVENTORY_DEDUCTION_UNRESOLVED:${inventoryAudit.reason}`,
+        normalizedPayloadJson: {
+          ...args.payload,
+          inventoryAudit,
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   private async applyStoreOrderInventoryDeduction(
     input: StoreOrderInventoryDeductionInput,
   ): Promise<StoreOrderInventoryDeductionResult> {
@@ -2579,6 +2622,17 @@ export class ImportsService {
           });
 
           inventoryDeductionResults.push(deductionResult);
+
+          if (deductionResult.unresolved) {
+            await this.persistStoreOrderInventoryAuditIssue({
+              tx,
+              importJobId,
+              companyId,
+              rowNo: row.rowNo,
+              payload,
+              result: deductionResult,
+            });
+          }
         }
 
         await tx.importStagingRow.update({
