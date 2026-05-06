@@ -547,7 +547,20 @@ export default function InventoryAuditQueueWorkspace() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item) => (
-                    <tr key={item.id} className="hover:bg-amber-50/60">
+                    <tr
+                      key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      title="クリックして詳細を開く"
+                      onClick={() => openDrawer(item)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openDrawer(item);
+                        }
+                      }}
+                      className="cursor-pointer hover:bg-amber-50/60 focus:bg-amber-50 focus:outline-none"
+                    >
                       <td className="max-w-xs px-5 py-4">
                         <div className="font-semibold text-slate-950">{asText(item.audit.sku)}</div>
                         <div className="mt-1 truncate text-xs text-slate-500">
@@ -611,7 +624,10 @@ export default function InventoryAuditQueueWorkspace() {
                       <td className="px-5 py-4 text-right">
                         <button
                           type="button"
-                          onClick={() => openDrawer(item)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDrawer(item);
+                          }}
                           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"
                         >
                           詳細
