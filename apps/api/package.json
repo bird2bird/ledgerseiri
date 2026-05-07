@@ -26,7 +26,8 @@
     "smoke:amazon-sp-api-sandbox-contract": "node scripts/smoke-amazon-sp-api-sandbox-contract.js",
     "smoke:amazon-sp-api-sandbox-staging-row": "node scripts/smoke-amazon-sp-api-sandbox-staging-row.js",
     "smoke:amazon-sp-api-sandbox-service-boundary-dry-run": "node scripts/smoke-amazon-sp-api-sandbox-service-boundary-dry-run.js",
-    "smoke:amazon-sp-api-sandbox-preview-commit-split": "node scripts/smoke-amazon-sp-api-sandbox-preview-commit-split.js"
+    "smoke:amazon-sp-api-sandbox-preview-commit-split": "node scripts/smoke-amazon-sp-api-sandbox-preview-commit-split.js",
+    "smoke:amazon-sp-api-sandbox-controller-disabled-contract": "node scripts/smoke-amazon-sp-api-sandbox-controller-disabled-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
