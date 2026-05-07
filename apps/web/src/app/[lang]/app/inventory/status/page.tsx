@@ -90,6 +90,28 @@ type InventoryMetaResponse = {
   message?: string;
 };
 
+type ManualAdjustmentResponse = {
+  ok: boolean;
+  domain: string;
+  action: string;
+  item?: {
+    movementId: string;
+    balanceId: string;
+    skuId: string;
+    skuCode: string;
+    type: string;
+    quantityDelta: number;
+    quantity: number;
+    reservedQty: number;
+    availableQty: number;
+    alertLevel: number;
+    stockStatus: StockStatus;
+    stockStatusLabel?: string;
+    occurredAt: string;
+  };
+  message?: string;
+};
+
 type AdjustmentForm = {
   skuCode: string;
   type: "IN" | "OUT" | "ADJUST";
@@ -202,10 +224,65 @@ function riskCount(summary: InventorySummary) {
   return (summary.lowStock ?? 0) + (summary.outOfStock ?? 0) + (summary.negativeStock ?? 0);
 }
 
+// Step114-A-3: drawer guidance for risky inventory states.
+function recommendedAction(row: InventoryRow | null) {
+  if (!row) return null;
+
+  if (row.stockStatus === "negative") {
+    return {
+      title: "マイナス在庫です",
+      body: "Amazon注文・監査解決・手動調整の履歴を確認し、必要に応じて棚卸差分をADJUSTで補正してください。",
+      tone: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900",
+    };
+  }
+
+  if (row.stockStatus === "out") {
+    return {
+      title: "欠品状態です",
+      body: "販売継続前に入庫予定・FBA在庫・未反映の注文取込を確認してください。",
+      tone: "border-rose-200 bg-rose-50 text-rose-900",
+    };
+  }
+
+  if (row.stockStatus === "low") {
+    return {
+      title: "補充確認が必要です",
+      body: "利用可能数が閾値以下です。補充計画またはalertLevelの妥当性を確認してください。",
+      tone: "border-amber-200 bg-amber-50 text-amber-900",
+    };
+  }
+
+  return null;
+}
+
+function movementImportCenterHref(lang: Lang, movement: InventoryMovementRow) {
+  return movement.importJobId ? `/${lang}/app/data/import?importJobId=${encodeURIComponent(movement.importJobId)}` : "";
+}
+
+function movementAuditHref(lang: Lang, movement: InventoryMovementRow) {
+  if (movement.sourceType !== "INVENTORY_AUDIT_RESOLUTION") return "";
+  if (movement.importJobId) return `/${lang}/app/inventory/audit?importJobId=${encodeURIComponent(movement.importJobId)}`;
+  return `/${lang}/app/inventory/audit`;
+}
+
+function applyManualAdjustmentResult(row: InventoryRow, result?: ManualAdjustmentResponse["item"]): InventoryRow {
+  if (!result) return row;
+
+  return {
+    ...row,
+    quantity: result.quantity,
+    reservedQty: result.reservedQty,
+    availableQty: result.availableQty,
+    alertLevel: result.alertLevel,
+    stockStatus: result.stockStatus,
+    stockStatusLabel: result.stockStatusLabel ?? row.stockStatusLabel,
+    updatedAt: result.occurredAt || row.updatedAt,
+  };
+}
+
 export default function Page() {
   const params = useParams<{ lang: string }>();
   const lang = normalizeLang(params?.lang) as Lang;
-  void lang;
 
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [movements, setMovements] = useState<InventoryMovementRow[]>([]);
@@ -349,6 +426,8 @@ export default function Page() {
 
   const selectedTone = selected ? statusTone(selected.stockStatus) : null;
 
+  const selectedRecommendation = selected ? recommendedAction(selected) : null;
+
   function openDrawer(row: InventoryRow) {
     setSelected(row);
     setForm(buildAdjustmentForm(row));
@@ -372,6 +451,10 @@ export default function Page() {
     setError("");
 
     try {
+      if (!form.memo.trim()) {
+        throw new Error("手動在庫調整には理由・メモが必要です。");
+      }
+
       const res = await fetch("/api/inventory/manual-adjustments", {
         method: "POST",
         credentials: "include",
@@ -388,7 +471,7 @@ export default function Page() {
         }),
       });
 
-      const json = await res.json().catch(() => null);
+      const json: ManualAdjustmentResponse | null = await res.json().catch(() => null);
 
       if (!res.ok) {
         throw new Error(json?.message || `manual adjustment failed: ${res.status}`);
@@ -396,6 +479,13 @@ export default function Page() {
 
       setSaveMessage("手動調整を保存しました。");
       setForm((prev) => ({ ...prev, quantity: "", memo: "" }));
+
+      if (selected && json?.item) {
+        const nextSelected = applyManualAdjustmentResult(selected, json.item);
+        setSelected(nextSelected);
+        setRows((current) => current.map((row) => (row.skuId === nextSelected.skuId ? nextSelected : row)));
+      }
+
       await loadStocks();
       await loadMovements(selected);
     } catch (e: unknown) {
@@ -598,7 +688,9 @@ export default function Page() {
                       <tr
                         key={row.id}
                         onClick={() => openDrawer(row)}
-                        className="cursor-pointer transition hover:bg-sky-50/60"
+                        className={`cursor-pointer transition hover:bg-sky-50/60 ${
+                          selected?.skuId === row.skuId ? "bg-sky-50 ring-1 ring-inset ring-sky-200" : ""
+                        }`}
                       >
                         <td className="whitespace-nowrap px-5 py-4">
                           <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${tone.badge}`}>
@@ -694,7 +786,17 @@ export default function Page() {
                   <Metric label="閾値" value={formatNumber(selected.alertLevel)} />
                   <Metric label="更新" value={formatDate(selected.updatedAt)} />
                 </div>
-              </section>
+</section>
+
+              {selectedRecommendation ? (
+                <section className={`rounded-3xl border px-5 py-4 ${selectedRecommendation.tone}`}>
+                  <div className="text-xs font-bold uppercase tracking-[0.18em] opacity-70">
+                    Recommended Action
+                  </div>
+                  <div className="mt-2 text-base font-black">{selectedRecommendation.title}</div>
+                  <p className="mt-1 text-sm leading-6 opacity-80">{selectedRecommendation.body}</p>
+                </section>
+              ) : null}
 
               {saveMessage ? (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
@@ -719,11 +821,11 @@ export default function Page() {
                   <div>
                     <div className="text-base font-black text-slate-950">手動在庫調整</div>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      必ず InventoryMovement を作成し、その結果として InventoryBalance を更新します。
+                      必ず理由・メモを残し、InventoryMovement を作成してから InventoryBalance を更新します。
                     </p>
                   </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                    Trace required
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                    Memo required
                   </span>
                 </div>
 
@@ -780,12 +882,13 @@ export default function Page() {
                   </label>
 
                   <label className="grid gap-1 text-sm font-bold text-slate-700">
-                    Memo
+                    Memo <span className="text-xs font-semibold text-rose-600">必須</span>
                     <textarea
                       value={form.memo}
                       onChange={(e) => setForm((prev) => ({ ...prev, memo: e.target.value }))}
                       placeholder="棚卸、手動補正、破損、返品など"
                       className="min-h-24 rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      required
                     />
                   </label>
 
@@ -848,6 +951,24 @@ export default function Page() {
                             <div className="text-lg font-black text-slate-950">{formatNumber(movement.quantity)}</div>
                             <div className="mt-1 text-xs text-slate-500">{formatDateTime(movement.occurredAt)}</div>
                           </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                          {movement.importJobId ? (
+                            <a
+                              href={movementImportCenterHref(lang, movement)}
+                              className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-violet-700 hover:bg-violet-100"
+                            >
+                              Import Center
+                            </a>
+                          ) : null}
+                          {movementAuditHref(lang, movement) ? (
+                            <a
+                              href={movementAuditHref(lang, movement)}
+                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700 hover:bg-amber-100"
+                            >
+                              Inventory Audit
+                            </a>
+                          ) : null}
                         </div>
                         <div className="mt-3 grid gap-1 text-xs text-slate-500">
                           <div className="break-all">sourceId: {movement.sourceId || "-"}</div>
