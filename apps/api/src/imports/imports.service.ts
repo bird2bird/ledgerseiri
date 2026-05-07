@@ -19,6 +19,7 @@ import type { IncomeImportPreviewDto, IncomeImportPreviewRowDto, IncomeImportLed
 import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
 import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
+import { assertAmazonSpApiSandboxEnvironmentGate } from './dto/amazon-sp-api-sandbox-internal-contract.dto';
 
 type MonthStat = {
   month: string;
@@ -257,6 +258,9 @@ export class ImportsService {
     filename?: string;
     orders: AmazonSpApiSandboxOrder[];
   }): Promise<AmazonSpApiSandboxBoundaryPreviewResult> {
+    // Step116-G: require explicit SP-API sandbox internal env gate before service usage.
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
     const companyId = await this.resolveCompanyId(args.companyId);
     const filename =
       String(args.filename || '').trim() ||
@@ -333,6 +337,9 @@ export class ImportsService {
     preview?: AmazonSpApiSandboxBoundaryPreviewResult;
     dryRun?: boolean;
   }): Promise<AmazonSpApiSandboxBoundaryCommitResult> {
+    // Step116-G: commit-to-staging also requires the explicit internal sandbox env gate.
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
     const preview =
       args.preview ??
       (await this.previewAmazonSpApiSandboxOrders({

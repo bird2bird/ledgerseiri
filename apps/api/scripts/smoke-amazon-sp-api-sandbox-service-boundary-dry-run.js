@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
+process.env.AMAZON_SP_API_SANDBOX_INTERNAL_ENABLED = "true";
+process.env.AMAZON_SP_API_REAL_ENABLED = "false";
+process.env.AMAZON_SP_API_OAUTH_ENABLED = "false";
+process.env.AMAZON_SP_API_TOKEN_PERSISTENCE_ENABLED = "false";
+
 const { PrismaClient } = require("@prisma/client");
 const { ImportsService } = require("../dist/src/imports/imports.service");
 
