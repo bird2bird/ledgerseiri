@@ -58,7 +58,8 @@
     "smoke:amazon-sp-api-sandbox-permanent-importjob-persistence-hardening": "node scripts/smoke-amazon-sp-api-sandbox-permanent-importjob-persistence-hardening.js",
     "smoke:amazon-sp-api-sandbox-import-center-visibility-contract": "node scripts/smoke-amazon-sp-api-sandbox-import-center-visibility-contract.js",
     "smoke:amazon-sp-api-sandbox-importjob-list-query-classification-policy": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-query-classification-policy.js",
-    "smoke:amazon-sp-api-sandbox-importjob-list-filter-sort-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-filter-sort-contract.js"
+    "smoke:amazon-sp-api-sandbox-importjob-list-filter-sort-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-filter-sort-contract.js",
+    "smoke:amazon-sp-api-sandbox-importjob-list-query-projection-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-query-projection-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
