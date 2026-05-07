@@ -29,6 +29,7 @@ function listFiles(dir, predicate, acc = []) {
 
 function assertNoFetchOrEndpointLeak(repoRoot, shellFile) {
   const webRoot = path.resolve(repoRoot, "apps/web/src");
+  const step122XClientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
   const files = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const endpointLeaks = [];
   const fetchLeaks = [];
@@ -38,11 +39,17 @@ function assertNoFetchOrEndpointLeak(repoRoot, shellFile) {
     const text = read(file);
     const rel = path.relative(repoRoot, file);
 
-    if (text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
+    // Step122-X FIX3: client helper file is allowed to contain the endpoint string.
+    if (file !== step122XClientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
       endpointLeaks.push(rel);
     }
 
-    if (text.includes("fetchAmazonSpApiSandboxImportJobReadModel") || text.includes("amazonSpApiSandboxImportJobReadModelClient")) {
+    // Step122-X FIX3: client helper file is allowed to contain helper export/module symbols.
+    // Any page/shell/component importing or referencing it before Step122-Y remains forbidden.
+    if (
+      file !== step122XClientFile &&
+      (text.includes("fetchAmazonSpApiSandboxImportJobReadModel") || text.includes("amazonSpApiSandboxImportJobReadModelClient"))
+    ) {
       clientLeaks.push(rel);
     }
 
@@ -53,8 +60,8 @@ function assertNoFetchOrEndpointLeak(repoRoot, shellFile) {
     }
   }
 
-  assert(endpointLeaks.length === 0, `Step122-W shell must not expose backend endpoint in apps/web: ${JSON.stringify(endpointLeaks)}`);
-  assert(clientLeaks.length === 0, `Step122-W must not implement frontend client helper yet: ${JSON.stringify(clientLeaks)}`);
+  assert(endpointLeaks.length === 0, `Step122-W/Step122-X-aware guard: endpoint may exist only in frontend client helper: ${JSON.stringify(endpointLeaks)}`);
+  assert(clientLeaks.length === 0, `Step122-W/Step122-X-aware guard: frontend client helper may exist, but must not be imported by shell/page yet: ${JSON.stringify(clientLeaks)}`);
   assert(fetchLeaks.length === 0, `Step122-W shell must not fetch data: ${JSON.stringify(fetchLeaks)}`);
 
   return {
@@ -98,6 +105,7 @@ async function main() {
   assert(!shellSource.includes("useEffect("), "shell must not use effect for data loading");
 
   const webRoot = path.resolve(repoRoot, "apps/web/src");
+  const step122XClientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
   const files = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const mounts = [];
 

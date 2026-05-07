@@ -36,31 +36,49 @@ function routeSourceFrom(controllerSource) {
   return controllerSource.slice(start, end);
 }
 
-// Step122-W-aware: UI shell is allowed; endpoint/client/fetch implementation remains forbidden.
+// Step122-X FIX5: UI shell and the dedicated client helper file are allowed.
+// Runtime page/shell integration remains forbidden until Step122-Y.
 function assertNoFrontendImplementation(repoRoot) {
   const webRoot = path.resolve(repoRoot, "apps/web/src");
+  const step122XClientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
+  const step122WShellFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
   const webFiles = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const leaks = [];
 
   for (const file of webFiles) {
     const text = read(file);
-    if (
-      text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
-      text.includes("internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
-      text.includes("listAmazonSpApiSandboxImportJobsReadModelDryRun") ||
-      text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")
-    ) {
-      leaks.push(path.relative(repoRoot, file));
+    const rel = path.relative(repoRoot, file);
+    const isClientFile = file === step122XClientFile;
+    const isShellFile = file === step122WShellFile;
+
+    if (!isClientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
+      leaks.push(`${rel}: endpoint string outside client helper`);
+    }
+
+    if (!isClientFile && text.includes("fetchAmazonSpApiSandboxImportJobReadModel")) {
+      leaks.push(`${rel}: client helper referenced before Step122-Y`);
+    }
+
+    if (!isClientFile && text.includes("amazonSpApiSandboxImportJobReadModelClient")) {
+      leaks.push(`${rel}: client helper module referenced before Step122-Y`);
+    }
+
+    if (isShellFile && (text.includes("fetch(") || text.includes("useEffect(") || text.includes("axios") || text.includes("XMLHttpRequest"))) {
+      leaks.push(`${rel}: shell must remain static in Step122-X`);
     }
   }
 
-  assert(leaks.length === 0, `Step122-U/Step122-W-aware guard: apps/web may contain the shell, but must not fetch yet: ${JSON.stringify(leaks)}`);
+  assert(
+    leaks.length === 0,
+    "Step122-U/Step122-X-aware guard: apps/web may contain shell and client helper, but page/shell must not fetch/import endpoint. " + JSON.stringify(leaks),
+  );
 
   return {
     scannedFiles: webFiles.length,
     frontendLeaks: leaks,
   };
 }
+
 
 async function main() {
   const root = path.resolve(__dirname, "..");
