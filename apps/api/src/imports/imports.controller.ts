@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ImportsService } from './imports.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
@@ -9,10 +9,45 @@ import type { IncomeImportPreviewDto } from './dto/income-import-preview.dto';
 import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
 import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
+import {
+  assertAmazonSpApiSandboxImportJobReadModelControllerContract,
+  buildAmazonSpApiSandboxImportJobReadModelControllerContract,
+  normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery,
+  type AmazonSpApiSandboxImportJobReadModelControllerQuery,
+} from './dto/amazon-sp-api-sandbox-importjob-read-model-controller-contract.dto';
+
 
 @Controller('api/imports')
 export class ImportsController {
   constructor(private readonly service: ImportsService) {}
+
+  // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
+  // This shell intentionally has no Nest route decorator and must not call the read-model service.
+  async ['amazonSpApiSandboxImportJobReadModelControllerDisabledShell'](
+    query: AmazonSpApiSandboxImportJobReadModelControllerQuery,
+  ): Promise<never> {
+    const contract = assertAmazonSpApiSandboxImportJobReadModelControllerContract(
+      buildAmazonSpApiSandboxImportJobReadModelControllerContract(),
+    );
+
+    if (
+      contract.controllerImplementedNow !== false ||
+      contract.controllerRouteExposedNow !== false ||
+      contract.frontendExposedNow !== false ||
+      contract.writesDatabase !== false
+    ) {
+      throw new BadRequestException(
+        'STEP122_I_CONTROLLER_DISABLED_SHELL_CONTRACT_DRIFT: read-model controller contract must remain disabled.',
+      );
+    }
+
+    normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
+
+    throw new BadRequestException(
+      'STEP122_I_CONTROLLER_DISABLED_SHELL_BLOCKED: Amazon SP-API sandbox ImportJob read-model controller route is intentionally disabled.',
+    );
+  }
+
 
   @Post('detect-month-conflicts')
   detectMonthConflicts(@Body() body: DetectMonthConflictsDto) {
