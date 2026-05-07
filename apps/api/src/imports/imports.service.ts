@@ -33,6 +33,10 @@ import {
   buildAmazonSpApiSandboxPlanningAggregate,
   type AmazonSpApiSandboxPlanningAggregate,
 } from './dto/amazon-sp-api-sandbox-planning-aggregate.dto';
+import {
+  type AmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
+  assertAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
+} from './dto/amazon-sp-api-sandbox-persisted-importjob-execution-gate-upgrade.dto';
 
 type MonthStat = {
   month: string;
@@ -291,6 +295,35 @@ type AmazonSpApiSandboxPlanningAggregateDryRunResult = {
   filename: string;
   preview: AmazonSpApiSandboxBoundaryPreviewResult;
   aggregate: AmazonSpApiSandboxPlanningAggregate;
+};
+
+
+type AmazonSpApiSandboxRollbackOnlyPersistRow = {
+  stagingRowId: string;
+  importJobId: string;
+  rowNo: number | null;
+  businessMonth: string | null;
+  dedupeHash: string | null;
+};
+
+type AmazonSpApiSandboxRollbackOnlyPersistResult = {
+  ok: true;
+  rollbackOnly: true;
+  forceRollback: true;
+  rollbackVerified: true;
+  writesDatabasePermanently: false;
+  companyId: string;
+  filename: string;
+  importJobId: string;
+  summary: {
+    sourceType: 'amazon-sp-api-sandbox';
+    normalizedSourceType: 'AMAZON_ORDER_SP_API';
+    importJobRows: number;
+    stagingRows: number;
+    transactionRows: 0;
+    inventoryMovementRows: 0;
+  };
+  rows: AmazonSpApiSandboxRollbackOnlyPersistRow[];
 };
 
 @Injectable()
@@ -761,6 +794,289 @@ export class ImportsService {
       preview,
       aggregate,
     };
+  }
+
+  // Step120-E: rollback-only ImportJob / ImportStagingRow persistence simulation at service level.
+  // This method intentionally writes inside a transaction and always forces rollback.
+  // It must never be exposed by controller and must never permanently write database rows.
+  async rollbackOnlyPersistAmazonSpApiSandboxImportJob(args: {
+    companyId?: string;
+    filename?: string;
+    aggregate: AmazonSpApiSandboxPlanningAggregate;
+    executionGate: AmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade;
+    rollbackOnly: boolean;
+    forceRollback: boolean;
+  }): Promise<AmazonSpApiSandboxRollbackOnlyPersistResult> {
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    if (args.rollbackOnly !== true) {
+      throw new BadRequestException(
+        'STEP120_E_ROLLBACK_ONLY_REQUIRED: rollbackOnlyPersistAmazonSpApiSandboxImportJob requires rollbackOnly=true.',
+      );
+    }
+
+    if (args.forceRollback !== true) {
+      throw new BadRequestException(
+        'STEP120_E_FORCE_ROLLBACK_REQUIRED: rollbackOnlyPersistAmazonSpApiSandboxImportJob requires forceRollback=true.',
+      );
+    }
+
+    const executionGate = assertAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade(
+      args.executionGate,
+    );
+
+    if (executionGate.decision !== 'ROLLBACK_SMOKE_COVERED_BUT_EXECUTION_BLOCKED') {
+      throw new BadRequestException(
+        'STEP120_E_EXECUTION_GATE_NOT_ROLLBACK_ONLY_READY: rollback-only service method requires covered rollback smoke.',
+      );
+    }
+
+    if (
+      executionGate.currentExecutionAllowed !== false ||
+      executionGate.dryRunFalseAllowed !== false ||
+      executionGate.writesDatabase !== false ||
+      executionGate.readyForPermanentPersistence !== false
+    ) {
+      throw new BadRequestException(
+        'STEP120_E_PERMANENT_PERSISTENCE_STILL_BLOCKED: execution gate must keep permanent persistence disabled.',
+      );
+    }
+
+    const aggregate = args.aggregate;
+    if (
+      aggregate.planOnly !== true ||
+      aggregate.writesDatabase !== false ||
+      aggregate.currentExecutionAllowed !== false ||
+      aggregate.dryRunFalseAllowed !== false
+    ) {
+      throw new BadRequestException(
+        'STEP120_E_INVALID_AGGREGATE_FOR_ROLLBACK_ONLY_PERSISTENCE: aggregate must remain plan-only and non-writing.',
+      );
+    }
+
+    const companyId = await this.resolveCompanyId(args.companyId || aggregate.companyId);
+    const filename = String(args.filename || aggregate.filename || '').trim();
+    if (!filename) {
+      throw new BadRequestException('filename is required for rollback-only SP-API sandbox persistence.');
+    }
+
+    const previewDedupeHashes = aggregate.previewRows.map((row) => row.dedupeHash);
+    const leakedJobBefore = await this.prisma.importJob.findFirst({
+      where: { filename },
+      select: { id: true },
+    });
+
+    if (leakedJobBefore) {
+      throw new Error(`Step120-E precheck found existing ImportJob ${leakedJobBefore.id}`);
+    }
+
+    if (previewDedupeHashes.length) {
+      const leakedRowsBefore = await this.prisma.importStagingRow.findMany({
+        where: {
+          dedupeHash: { in: previewDedupeHashes },
+        },
+        select: { id: true },
+        take: 10,
+      });
+
+      if (leakedRowsBefore.length) {
+        throw new Error(
+          `Step120-E precheck found existing ImportStagingRow count=${leakedRowsBefore.length}`,
+        );
+      }
+    }
+
+    const rollbackMessage = 'STEP120_E_ROLLBACK_ONLY_SERVICE_METHOD_FORCED_ROLLBACK';
+    let captured: AmazonSpApiSandboxRollbackOnlyPersistResult | null = null;
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const importJobPlan = aggregate.importJobPlan.plannedImportJob;
+        const importJob = await tx.importJob.create({
+          data: {
+            companyId,
+            domain: importJobPlan.domain,
+            module: importJobPlan.module,
+            sourceType: importJobPlan.sourceType,
+            filename,
+            status: importJobPlan.status,
+            totalRows: importJobPlan.totalRows,
+            successRows: importJobPlan.successRows,
+            failedRows: importJobPlan.failedRows,
+            fileMonthsJson: importJobPlan.fileMonthsJson,
+            conflictMonthsJson: {
+              planningAggregateVersion: aggregate.version,
+              sourceType: aggregate.sourceType,
+              normalizedSourceType: aggregate.normalizedSourceType,
+              rollbackOnly: true,
+              forceRollback: true,
+              controllerDisabled: true,
+              transactionCommitDisabled: true,
+              inventoryCommitDisabled: true,
+              step120ERollbackOnlyServiceMethod: true,
+            } as Prisma.InputJsonObject,
+            importedAt: importJobPlan.importedAt,
+          },
+          select: {
+            id: true,
+            filename: true,
+          },
+        });
+
+        const rows: AmazonSpApiSandboxRollbackOnlyPersistRow[] = [];
+
+        for (const [index, row] of aggregate.importJobPlan.plannedStagingRows.entries()) {
+          const stagingRow = await tx.importStagingRow.create({
+            data: {
+              importJobId: importJob.id,
+              companyId,
+              module: row.module,
+              rowNo: row.rowNo || index + 1,
+              businessMonth: row.businessMonth,
+              matchStatus: row.matchStatus,
+              matchReason: row.matchReason || 'STEP120_E_ROLLBACK_ONLY_SERVICE_METHOD',
+              dedupeHash: row.dedupeHash,
+              rawPayloadJson: {
+                ...(row.rawPayloadJson as Record<string, unknown>),
+                rollbackOnly: true,
+                forceRollback: true,
+                step120ERollbackOnlyServiceMethod: true,
+              } as Prisma.InputJsonObject,
+              normalizedPayloadJson: {
+                ...(row.normalizedPayloadJson as Record<string, unknown>),
+                importJobId: importJob.id,
+                sourceFileName: importJob.filename,
+                rollbackOnly: true,
+                forceRollback: true,
+                step120ERollbackOnlyServiceMethod: true,
+              } as Prisma.InputJsonObject,
+            },
+            select: {
+              id: true,
+              importJobId: true,
+              rowNo: true,
+              businessMonth: true,
+              dedupeHash: true,
+            },
+          });
+
+          rows.push({
+            stagingRowId: stagingRow.id,
+            importJobId: stagingRow.importJobId,
+            rowNo: stagingRow.rowNo,
+            businessMonth: stagingRow.businessMonth,
+            dedupeHash: stagingRow.dedupeHash,
+          });
+        }
+
+        const insideJob = await tx.importJob.findFirst({
+          where: { id: importJob.id },
+          select: { id: true },
+        });
+
+        if (!insideJob) {
+          throw new Error('Step120-E rollback-only service method could not see ImportJob inside transaction.');
+        }
+
+        const insideRows = await tx.importStagingRow.findMany({
+          where: { importJobId: importJob.id },
+          select: { id: true },
+        });
+
+        if (insideRows.length !== aggregate.importJobPlan.plannedStagingRows.length) {
+          throw new Error(
+            `Step120-E rollback-only service method staging row count mismatch: ${insideRows.length}`,
+          );
+        }
+
+        captured = {
+          ok: true,
+          rollbackOnly: true,
+          forceRollback: true,
+          rollbackVerified: true,
+          writesDatabasePermanently: false,
+          companyId,
+          filename: importJob.filename,
+          importJobId: importJob.id,
+          summary: {
+            sourceType: 'amazon-sp-api-sandbox',
+            normalizedSourceType: 'AMAZON_ORDER_SP_API',
+            importJobRows: 1,
+            stagingRows: rows.length,
+            transactionRows: 0,
+            inventoryMovementRows: 0,
+          },
+          rows,
+        };
+
+        throw new Error(rollbackMessage);
+      });
+    } catch (err) {
+      if (!(err instanceof Error) || err.message !== rollbackMessage) {
+        throw err;
+      }
+    }
+
+    if (!captured) {
+      throw new Error('Step120-E rollback-only service method did not capture transaction writes.');
+    }
+
+    const leakedJobAfter = await this.prisma.importJob.findFirst({
+      where: { filename },
+      select: { id: true },
+    });
+
+    if (leakedJobAfter) {
+      throw new Error(`Step120-E rollback-only service method leaked ImportJob ${leakedJobAfter.id}`);
+    }
+
+    if (previewDedupeHashes.length) {
+      const leakedRowsAfter = await this.prisma.importStagingRow.findMany({
+        where: {
+          dedupeHash: { in: previewDedupeHashes },
+        },
+        select: { id: true },
+        take: 10,
+      });
+
+      if (leakedRowsAfter.length) {
+        throw new Error(
+          `Step120-E rollback-only service method leaked ImportStagingRow count=${leakedRowsAfter.length}`,
+        );
+      }
+    }
+
+    const leakedTransactions = await this.prisma.transaction.count({
+      where: {
+        companyId,
+        sourceFileName: filename,
+      },
+    });
+
+    if (leakedTransactions !== 0) {
+      throw new Error(`Step120-E rollback-only service method leaked Transaction count=${leakedTransactions}`);
+    }
+
+    const inventorySourceIds = aggregate.inventoryCompensationPlan.operations.map(
+      (operation) => operation.operationId,
+    );
+
+    if (inventorySourceIds.length) {
+      const leakedInventoryMovements = await this.prisma.inventoryMovement.count({
+        where: {
+          companyId,
+          sourceId: { in: inventorySourceIds },
+        },
+      });
+
+      if (leakedInventoryMovements !== 0) {
+        throw new Error(
+          `Step120-E rollback-only service method leaked InventoryMovement count=${leakedInventoryMovements}`,
+        );
+      }
+    }
+
+    return captured;
   }
 
   // Step116-C compatibility wrapper; Step116-D delegates to preview/commit split.

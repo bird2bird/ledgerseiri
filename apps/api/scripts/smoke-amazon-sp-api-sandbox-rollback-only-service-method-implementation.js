@@ -22,10 +22,6 @@ const {
   buildAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
   assertAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
 } = require("../dist/src/imports/dto/amazon-sp-api-sandbox-persisted-importjob-execution-gate-upgrade.dto");
-const {
-  buildAmazonSpApiSandboxRollbackOnlyServiceMethodDesign,
-  assertAmazonSpApiSandboxRollbackOnlyServiceMethodDesign,
-} = require("../dist/src/imports/dto/amazon-sp-api-sandbox-rollback-only-service-method-design.dto");
 
 const prisma = new PrismaClient();
 
@@ -83,28 +79,28 @@ async function resolveCompanyId() {
 function buildOrders(runId) {
   return [
     {
-      amazonOrderId: `SPAPI-STEP120-D-ORDER-1-${runId}`,
+      amazonOrderId: `SPAPI-STEP120-E-ORDER-1-${runId}`,
       purchaseDate: "2026-05-07T12:34:56Z",
       marketplaceId: "A1VC38T7YXB528",
       orderStatus: "Shipped",
       fulfillmentChannel: "AFN",
       salesChannel: "Amazon.co.jp",
-      orderTotal: { currencyCode: "JPY", amount: "17980" },
+      orderTotal: { currencyCode: "JPY", amount: "18980" },
       items: [
         {
-          orderItemId: `SPAPI-STEP120-D-ITEM-1-${runId}`,
-          sellerSku: `spapi-step120-d-sku-001-${runId}`,
-          title: `Step120-D Rollback Only Service Method Design Product ${runId}`,
+          orderItemId: `SPAPI-STEP120-E-ITEM-1-${runId}`,
+          sellerSku: `spapi-step120-e-sku-001-${runId}`,
+          title: `Step120-E Rollback Only Service Method Product ${runId}`,
           quantityOrdered: "3",
-          itemPrice: { currencyCode: "JPY", amount: "17980" },
-          itemTax: { currencyCode: "JPY", amount: "1798" },
+          itemPrice: { currencyCode: "JPY", amount: "18980" },
+          itemTax: { currencyCode: "JPY", amount: "1898" },
           feeBreakdown: [
-            { type: "Commission", amount: { currencyCode: "JPY", amount: "1580" } },
+            { type: "Commission", amount: { currencyCode: "JPY", amount: "1680" } },
           ],
-          raw: { fixture: "step120-d-item-1" },
+          raw: { fixture: "step120-e-item-1" },
         },
       ],
-      raw: { fixture: "step120-d-order-1" },
+      raw: { fixture: "step120-e-order-1" },
     },
   ];
 }
@@ -160,7 +156,7 @@ async function main() {
   const runId = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const company = await resolveCompanyId();
   const service = new ImportsService(prisma);
-  const filename = `step120-d-rollback-only-service-method-design-${runId}.json`;
+  const filename = `step120-e-rollback-only-service-method-${runId}.json`;
   const orders = buildOrders(runId);
 
   const aggregateResult = await service.planAmazonSpApiSandboxImportAggregate({
@@ -174,10 +170,10 @@ async function main() {
         occurredAt: orders[0].purchaseDate,
         sellerSku: orders[0].items[0].sellerSku,
         quantity: 1,
-        amount: 17900,
-        grossAmount: 17900,
-        netAmount: 16300,
-        feeAmount: 1600,
+        amount: 18900,
+        grossAmount: 18900,
+        netAmount: 17200,
+        feeAmount: 1700,
         currency: "JPY",
         businessMonth: "2026-05",
         sourceType: "AMAZON_ORDER_CSV",
@@ -200,54 +196,60 @@ async function main() {
   const executionGate = assertAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade(
     buildAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade({ rollbackSimulation }),
   );
-  const serviceDesign = assertAmazonSpApiSandboxRollbackOnlyServiceMethodDesign(
-    buildAmazonSpApiSandboxRollbackOnlyServiceMethodDesign({ executionGate }),
+
+  const result = await service.rollbackOnlyPersistAmazonSpApiSandboxImportJob({
+    companyId: company.id,
+    filename,
+    aggregate,
+    executionGate,
+    rollbackOnly: true,
+    forceRollback: true,
+  });
+
+  assert(result.ok === true, "rollback-only result ok mismatch");
+  assert(result.rollbackOnly === true, "rollbackOnly mismatch");
+  assert(result.forceRollback === true, "forceRollback mismatch");
+  assert(result.rollbackVerified === true, "rollbackVerified mismatch");
+  assert(result.writesDatabasePermanently === false, "writesDatabasePermanently must be false");
+  assert(result.companyId === company.id, "companyId mismatch");
+  assert(result.filename === filename, "filename mismatch");
+  assert(result.importJobId, "importJobId should be captured from rolled-back transaction");
+  assert(result.summary.importJobRows === 1, "importJobRows mismatch");
+  assert(result.summary.stagingRows === aggregate.importJobPlan.plannedStagingRows.length, "stagingRows mismatch");
+  assert(result.summary.transactionRows === 0, "transactionRows must be 0");
+  assert(result.summary.inventoryMovementRows === 0, "inventoryMovementRows must be 0");
+  assert(result.rows.length === aggregate.importJobPlan.plannedStagingRows.length, "rows length mismatch");
+
+  await expectReject(
+    "Step120-E rollbackOnly=false blocked",
+    () =>
+      service.rollbackOnlyPersistAmazonSpApiSandboxImportJob({
+        companyId: company.id,
+        filename,
+        aggregate,
+        executionGate,
+        rollbackOnly: false,
+        forceRollback: true,
+      }),
+    "STEP120_E_ROLLBACK_ONLY_REQUIRED",
   );
 
-  assert(serviceDesign.version === "amazon-sp-api-sandbox-rollback-only-service-method-design-v1", "service design version mismatch");
-  assert(serviceDesign.decision === "DESIGN_ALLOWED_SERVICE_NOT_IMPLEMENTED", "service design decision mismatch");
-  assert(serviceDesign.designOnly === true, "service design designOnly mismatch");
-  assert(serviceDesign.serviceMethodImplemented === false, "service method must not be implemented yet");
-  assert(serviceDesign.serviceMethodMayBeDesigned === true, "service method may be designed");
-  assert(serviceDesign.controllerMayCallServiceMethod === false, "controller may not call service method");
-  assert(serviceDesign.frontendMayCallServiceMethod === false, "frontend may not call service method");
-
-  assert(serviceDesign.proposedServiceMethod.name === "rollbackOnlyPersistAmazonSpApiSandboxImportJob", "proposed method name mismatch");
-  assert(serviceDesign.proposedServiceMethod.visibility === "internal-service-only", "visibility mismatch");
-  assert(serviceDesign.proposedServiceMethod.requiresInternalSandboxEnv === true, "env gate required mismatch");
-  assert(serviceDesign.proposedServiceMethod.requiresRollbackOnly === true, "rollbackOnly required mismatch");
-  assert(serviceDesign.proposedServiceMethod.requiresForceRollback === true, "forceRollback required mismatch");
-  assert(serviceDesign.proposedServiceMethod.allowsPermanentCommit === false, "permanent commit must be false");
-  assert(serviceDesign.proposedServiceMethod.allowsDryRunFalse === false, "dryRun:false must be false");
-  assert(serviceDesign.proposedServiceMethod.returnsRollbackVerification === true, "rollback verification return mismatch");
-
-  assert(serviceDesign.plannedTransactionBehavior.createImportJobInsideTransaction === true, "ImportJob transaction design mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.createImportStagingRowsInsideTransaction === true, "staging row transaction design mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.forceRollbackBeforeReturn === true, "force rollback design mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.verifyNoImportJobLeak === true, "ImportJob leak verification mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.verifyNoImportStagingRowLeak === true, "staging leak verification mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.verifyNoTransactionLeak === true, "Transaction leak verification mismatch");
-  assert(serviceDesign.plannedTransactionBehavior.verifyNoInventoryMovementLeak === true, "InventoryMovement leak verification mismatch");
-
-  assert(serviceDesign.currentBlocks.currentExecutionAllowed === false, "current execution must remain false");
-  assert(serviceDesign.currentBlocks.dryRunFalseAllowed === false, "dryRun false must remain false");
-  assert(serviceDesign.currentBlocks.writesDatabasePermanently === false, "permanent writes must remain false");
-  assert(serviceDesign.currentBlocks.readyForPermanentPersistence === false, "permanent persistence readiness must remain false");
-  assert(serviceDesign.currentBlocks.readyForController === false, "controller readiness must remain false");
-  assert(serviceDesign.currentBlocks.readyForFrontend === false, "frontend readiness must remain false");
-
-  assert(serviceDesign.summary.rollbackSmokeCovered === true, "rollback smoke coverage mismatch");
-  assert(serviceDesign.summary.readyForRollbackOnlyServiceMethodImplementation === true, "rollback-only service method implementation readiness mismatch");
-  assert(serviceDesign.summary.readyForPermanentPersistence === false, "permanent persistence readiness must be false");
-  assert(serviceDesign.summary.readyForController === false, "controller readiness must be false");
-  assert(serviceDesign.summary.readyForFrontend === false, "frontend readiness must be false");
-
-  for (const [key, blocked] of Object.entries(serviceDesign.outOfScope)) {
-    assert(blocked === true, `serviceDesign.outOfScope.${key} must remain true`);
-  }
+  await expectReject(
+    "Step120-E forceRollback=false blocked",
+    () =>
+      service.rollbackOnlyPersistAmazonSpApiSandboxImportJob({
+        companyId: company.id,
+        filename,
+        aggregate,
+        executionGate,
+        rollbackOnly: true,
+        forceRollback: false,
+      }),
+    "STEP120_E_FORCE_ROLLBACK_REQUIRED",
+  );
 
   const aggregateNonDryRunReject = await expectReject(
-    "Step120-D aggregate non-dry-run blocked",
+    "Step120-E aggregate non-dry-run blocked",
     () =>
       service.planAmazonSpApiSandboxImportAggregate({
         companyId: company.id,
@@ -259,7 +261,7 @@ async function main() {
   );
 
   const stagingNonDryRunReject = await expectReject(
-    "Step120-D staging non-dry-run still blocked",
+    "Step120-E staging non-dry-run still blocked",
     () =>
       service.commitAmazonSpApiSandboxOrdersToStaging({
         companyId: company.id,
@@ -274,7 +276,7 @@ async function main() {
     where: { filename },
     select: { id: true },
   });
-  assert(!leakedJob, "rollback-only service method design leaked ImportJob");
+  assert(!leakedJob, "rollback-only service method leaked ImportJob");
 
   const leakedRows = await prisma.importStagingRow.findMany({
     where: {
@@ -285,7 +287,7 @@ async function main() {
     select: { id: true },
     take: 10,
   });
-  assert(leakedRows.length === 0, `rollback-only service method design leaked ImportStagingRow count=${leakedRows.length}`);
+  assert(leakedRows.length === 0, `rollback-only service method leaked ImportStagingRow count=${leakedRows.length}`);
 
   const leakedTxCount = await prisma.transaction.count({
     where: {
@@ -293,67 +295,55 @@ async function main() {
       sourceFileName: filename,
     },
   });
-  assert(leakedTxCount === 0, "rollback-only service method design leaked Transaction");
+  assert(leakedTxCount === 0, "rollback-only service method leaked Transaction");
 
   const leakedMovementCount = await prisma.inventoryMovement.count({
     where: {
       companyId: company.id,
-      sourceId: aggregate.inventoryCompensationPlan.operations[0]?.operationId || "missing-operation",
+      sourceId: {
+        in: aggregate.inventoryCompensationPlan.operations.map((operation) => operation.operationId),
+      },
     },
   });
-  assert(leakedMovementCount === 0, "rollback-only service method design leaked InventoryMovement");
+  assert(leakedMovementCount === 0, "rollback-only service method leaked InventoryMovement");
 
   const schema = read(schemaFile);
   assert(schema.includes("model ImportJob"), "schema missing ImportJob");
   assert(schema.includes("model ImportStagingRow"), "schema missing ImportStagingRow");
   assert(schema.includes("model Transaction"), "schema missing Transaction");
   assert(schema.includes("model InventoryMovement"), "schema missing InventoryMovement");
-  assert(!schema.includes("RollbackOnlyServiceMethodDesign"), "Step120-D must not add service design table");
-  assert(!schema.includes("PersistedImportJobExecutionGate"), "Step120-D must not add execution gate table");
-  assert(!schema.includes("PersistedImportJobRollbackSimulation"), "Step120-D must not add rollback simulation table");
-  assert(!schema.includes("PersistedImportJobDesignGate"), "Step120-D must not add design gate table");
-  assert(!schema.includes("PlanningAggregate"), "Step120-D must not add aggregate table");
-  assert(!schema.includes("AmazonSpApiCredential"), "Step120-D must not add credential table");
-  assert(!schema.includes("AmazonSpApiToken"), "Step120-D must not add token table");
+  assert(!schema.includes("RollbackOnlyServiceMethodImplementation"), "Step120-E must not add service implementation table");
+  assert(!schema.includes("AmazonSpApiCredential"), "Step120-E must not add credential table");
+  assert(!schema.includes("AmazonSpApiToken"), "Step120-E must not add token table");
+  assert(!schema.includes("CrossSourceDedupe"), "Step120-E must not add dedupe table");
 
   const serviceSource = read(importsServiceTs);
-  assert(serviceSource.includes("planAmazonSpApiSandboxImportAggregate"), "service aggregate method missing");
-  assert(serviceSource.includes("STEP119_B_SP_API_SANDBOX_AGGREGATE_NON_DRY_RUN_BLOCKED"), "aggregate non-dry-run block missing");
-  assert(serviceSource.includes("STEP116_H_SP_API_SANDBOX_NON_DRY_RUN_BLOCKED"), "staging non-dry-run block missing");
-  // Step120-E compatibility:
-  // After Step120-E, the rollback-only service method may exist in ImportsService.
-  // The durable Step120-D invariant is not "method absent"; it is:
-  // service-only, rollback-only, force-rollback guarded, no permanent commit, and controller-disabled.
-  if (serviceSource.includes("rollbackOnlyPersistAmazonSpApiSandboxImportJob")) {
-    assert(serviceSource.includes("STEP120_E_ROLLBACK_ONLY_REQUIRED"), "rollback-only service method must keep rollbackOnly=true guard");
-    assert(serviceSource.includes("STEP120_E_FORCE_ROLLBACK_REQUIRED"), "rollback-only service method must keep forceRollback=true guard");
-    assert(serviceSource.includes("STEP120_E_ROLLBACK_ONLY_SERVICE_METHOD_FORCED_ROLLBACK"), "rollback-only service method must force rollback");
-    assert(serviceSource.includes("writesDatabasePermanently: false"), "rollback-only service method must report permanent writes as false");
-  }
-  assert(!serviceSource.includes("@Post("), "ImportsService must not define controller decorators");
+  assert(serviceSource.includes("rollbackOnlyPersistAmazonSpApiSandboxImportJob"), "rollback-only service method missing");
+  assert(serviceSource.includes("STEP120_E_ROLLBACK_ONLY_REQUIRED"), "rollbackOnly required guard missing");
+  assert(serviceSource.includes("STEP120_E_FORCE_ROLLBACK_REQUIRED"), "forceRollback required guard missing");
+  assert(serviceSource.includes("STEP120_E_ROLLBACK_ONLY_SERVICE_METHOD_FORCED_ROLLBACK"), "forced rollback marker missing");
+  assert(serviceSource.includes("writesDatabasePermanently: false"), "permanent write false marker missing");
 
   const controllerSource = read(importsControllerTs);
   assert(!controllerSource.includes("rollbackOnlyPersistAmazonSpApiSandboxImportJob"), "controller must not expose rollback-only service method");
   assert(!controllerSource.includes("planAmazonSpApiSandboxImportAggregate"), "controller must not expose aggregate method");
-  assert(!controllerSource.includes("buildAmazonSpApiSandboxRollbackOnlyServiceMethodDesign"), "controller must not import service method design");
   assert(!controllerSource.includes("previewAmazonSpApiSandboxOrders"), "controller must not expose preview method");
   assert(!controllerSource.includes("commitAmazonSpApiSandboxOrdersToStaging"), "controller must not expose commit method");
 
   const routeScan = scanControllerRoutes(root, srcRoot);
   assert(routeScan.exposedRoutes.length === 0, `controller route leak: ${JSON.stringify(routeScan.exposedRoutes)}`);
 
-  console.log("[SMOKE_OK] amazon sp-api sandbox rollback-only service method design smoke passed");
+  console.log("[SMOKE_OK] amazon sp-api sandbox rollback-only service method implementation smoke passed");
   console.log(
     JSON.stringify(
       {
         ok: true,
-        serviceDesign: {
-          version: serviceDesign.version,
-          decision: serviceDesign.decision,
-          designOnly: serviceDesign.designOnly,
-          serviceMethodImplemented: serviceDesign.serviceMethodImplemented,
-          proposedServiceMethod: serviceDesign.proposedServiceMethod,
-          summary: serviceDesign.summary,
+        result: {
+          rollbackOnly: result.rollbackOnly,
+          forceRollback: result.forceRollback,
+          rollbackVerified: result.rollbackVerified,
+          writesDatabasePermanently: result.writesDatabasePermanently,
+          summary: result.summary,
         },
         rejected: [aggregateNonDryRunReject, stagingNonDryRunReject],
         leakCheck: {
