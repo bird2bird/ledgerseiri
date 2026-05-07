@@ -8,6 +8,20 @@ export const AMAZON_SP_API_SANDBOX_REAL_SP_API_ENABLED = false as const;
 export const AMAZON_SP_API_SANDBOX_OAUTH_ENABLED = false as const;
 export const AMAZON_SP_API_SANDBOX_TOKEN_PERSISTENCE_ENABLED = false as const;
 
+export const AMAZON_SP_API_SANDBOX_ENV_INTERNAL_ENABLED =
+  'AMAZON_SP_API_SANDBOX_INTERNAL_ENABLED' as const;
+export const AMAZON_SP_API_REAL_ENV_ENABLED =
+  'AMAZON_SP_API_REAL_ENABLED' as const;
+export const AMAZON_SP_API_OAUTH_ENV_ENABLED =
+  'AMAZON_SP_API_OAUTH_ENABLED' as const;
+export const AMAZON_SP_API_TOKEN_PERSISTENCE_ENV_ENABLED =
+  'AMAZON_SP_API_TOKEN_PERSISTENCE_ENABLED' as const;
+
+function readBooleanEnv(name: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = String(env[name] ?? '').trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export type AmazonSpApiSandboxInternalSourceType = 'amazon-sp-api-sandbox';
 export type AmazonSpApiSandboxInternalNormalizedSourceType = 'AMAZON_ORDER_SP_API';
 export type AmazonSpApiSandboxInternalModule = 'store-orders';
@@ -22,6 +36,18 @@ export type AmazonSpApiSandboxInternalSafetyGuard = {
   realSpApiEnabled: typeof AMAZON_SP_API_SANDBOX_REAL_SP_API_ENABLED;
   oauthEnabled: typeof AMAZON_SP_API_SANDBOX_OAUTH_ENABLED;
   tokenPersistenceEnabled: typeof AMAZON_SP_API_SANDBOX_TOKEN_PERSISTENCE_ENABLED;
+};
+
+export type AmazonSpApiSandboxEnvironmentGate = {
+  internalSandboxEnabled: boolean;
+  realSpApiEnabled: boolean;
+  oauthEnabled: boolean;
+  tokenPersistenceEnabled: boolean;
+  controllerEnabled: false;
+  canPreviewSandbox: boolean;
+  canCommitSandboxStagingDryRun: boolean;
+  canCallRealSpApi: false;
+  canPersistToken: false;
 };
 
 export type AmazonSpApiSandboxPreviewRequestDto = {
@@ -100,10 +126,76 @@ export function assertAmazonSpApiSandboxControllerDisabled(): AmazonSpApiSandbox
   return guard;
 }
 
+export function getAmazonSpApiSandboxEnvironmentGate(
+  env: NodeJS.ProcessEnv = process.env,
+): AmazonSpApiSandboxEnvironmentGate {
+  const internalSandboxEnabled = readBooleanEnv(
+    AMAZON_SP_API_SANDBOX_ENV_INTERNAL_ENABLED,
+    env,
+  );
+  const realSpApiEnvEnabled = readBooleanEnv(AMAZON_SP_API_REAL_ENV_ENABLED, env);
+  const oauthEnvEnabled = readBooleanEnv(AMAZON_SP_API_OAUTH_ENV_ENABLED, env);
+  const tokenPersistenceEnvEnabled = readBooleanEnv(
+    AMAZON_SP_API_TOKEN_PERSISTENCE_ENV_ENABLED,
+    env,
+  );
+
+  return {
+    internalSandboxEnabled,
+    realSpApiEnabled: realSpApiEnvEnabled,
+    oauthEnabled: oauthEnvEnabled,
+    tokenPersistenceEnabled: tokenPersistenceEnvEnabled,
+    controllerEnabled: AMAZON_SP_API_SANDBOX_CONTROLLER_ENABLED,
+    canPreviewSandbox: internalSandboxEnabled,
+    canCommitSandboxStagingDryRun: internalSandboxEnabled,
+    canCallRealSpApi: false,
+    canPersistToken: false,
+  };
+}
+
+export function assertAmazonSpApiSandboxEnvironmentGate(args?: {
+  env?: NodeJS.ProcessEnv;
+  requireInternalSandbox?: boolean;
+}): AmazonSpApiSandboxEnvironmentGate {
+  assertAmazonSpApiSandboxControllerDisabled();
+
+  const gate = getAmazonSpApiSandboxEnvironmentGate(args?.env);
+
+  if (gate.controllerEnabled !== false) {
+    throw new Error('Amazon SP-API sandbox controller must remain disabled by environment gate.');
+  }
+
+  if (gate.realSpApiEnabled) {
+    throw new Error('AMAZON_SP_API_REAL_ENABLED must remain false for sandbox internal flow.');
+  }
+
+  if (gate.oauthEnabled) {
+    throw new Error('AMAZON_SP_API_OAUTH_ENABLED must remain false for sandbox internal flow.');
+  }
+
+  if (gate.tokenPersistenceEnabled) {
+    throw new Error('AMAZON_SP_API_TOKEN_PERSISTENCE_ENABLED must remain false for sandbox internal flow.');
+  }
+
+  if (gate.canCallRealSpApi !== false) {
+    throw new Error('Amazon SP-API real calls must remain disabled.');
+  }
+
+  if (gate.canPersistToken !== false) {
+    throw new Error('Amazon SP-API token persistence must remain disabled.');
+  }
+
+  if (args?.requireInternalSandbox && !gate.internalSandboxEnabled) {
+    throw new Error('AMAZON_SP_API_SANDBOX_INTERNAL_ENABLED must be explicitly enabled for this internal sandbox operation.');
+  }
+
+  return gate;
+}
+
 export function assertAmazonSpApiSandboxInternalRequest(
   value: AmazonSpApiSandboxInternalRequestDto,
 ): AmazonSpApiSandboxInternalRequestDto {
-  assertAmazonSpApiSandboxControllerDisabled();
+  assertAmazonSpApiSandboxEnvironmentGate();
 
   if (!value || typeof value !== 'object') {
     throw new Error('Amazon SP-API sandbox internal request is required.');
