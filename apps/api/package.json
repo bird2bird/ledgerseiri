@@ -75,7 +75,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-internal-auth-guard-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-internal-auth-guard-design.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-internal-jwt-guard-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-internal-jwt-guard-implementation.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-jwt-negative-hardening": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-jwt-negative-hardening.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-jwt-negative-hardening": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-jwt-negative-hardening.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-contract-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-contract-design.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
