@@ -50,7 +50,8 @@
     "smoke:amazon-sp-api-sandbox-rollback-only-service-method-design": "node scripts/smoke-amazon-sp-api-sandbox-rollback-only-service-method-design.js",
     "smoke:amazon-sp-api-sandbox-rollback-only-service-method-implementation": "node scripts/smoke-amazon-sp-api-sandbox-rollback-only-service-method-implementation.js",
     "smoke:amazon-sp-api-sandbox-rollback-only-service-controller-disabled-guard": "node scripts/smoke-amazon-sp-api-sandbox-rollback-only-service-controller-disabled-guard.js",
-    "smoke:amazon-sp-api-sandbox-permanent-importjob-readiness-gate": "node scripts/smoke-amazon-sp-api-sandbox-permanent-importjob-readiness-gate.js"
+    "smoke:amazon-sp-api-sandbox-permanent-importjob-readiness-gate": "node scripts/smoke-amazon-sp-api-sandbox-permanent-importjob-readiness-gate.js",
+    "smoke:amazon-sp-api-sandbox-permanent-importjob-persistence-plan": "node scripts/smoke-amazon-sp-api-sandbox-permanent-importjob-persistence-plan.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
