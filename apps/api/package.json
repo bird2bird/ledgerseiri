@@ -39,7 +39,8 @@
     "smoke:amazon-sp-api-sandbox-persistence-preflight-checklist": "node scripts/smoke-amazon-sp-api-sandbox-persistence-preflight-checklist.js",
     "smoke:amazon-sp-api-sandbox-staged-importjob-persistence-plan": "node scripts/smoke-amazon-sp-api-sandbox-staged-importjob-persistence-plan.js",
     "smoke:amazon-sp-api-sandbox-staged-transaction-overwrite-plan": "node scripts/smoke-amazon-sp-api-sandbox-staged-transaction-overwrite-plan.js",
-    "smoke:amazon-sp-api-sandbox-staged-inventory-compensation-plan": "node scripts/smoke-amazon-sp-api-sandbox-staged-inventory-compensation-plan.js"
+    "smoke:amazon-sp-api-sandbox-staged-inventory-compensation-plan": "node scripts/smoke-amazon-sp-api-sandbox-staged-inventory-compensation-plan.js",
+    "smoke:amazon-sp-api-sandbox-guarded-execution-readiness-matrix": "node scripts/smoke-amazon-sp-api-sandbox-guarded-execution-readiness-matrix.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
