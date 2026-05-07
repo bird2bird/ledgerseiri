@@ -79,7 +79,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-contract-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-contract-design.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-client-contract-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-client-contract-design.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-panel-shell": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-panel-shell.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-runtime-integration": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-runtime-integration.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

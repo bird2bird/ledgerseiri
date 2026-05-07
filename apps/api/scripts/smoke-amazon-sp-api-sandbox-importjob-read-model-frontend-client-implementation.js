@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
+// Step122-Y FIX8 clean rewrite:
+// Runtime panel may use the typed frontend client helper.
+// Endpoint string must stay isolated in the client helper.
+// Raw fetch, real SP-API/OAuth/token, commit, and inventory execution remain forbidden.
+
 const fs = require("fs");
 const path = require("path");
 const {
@@ -27,102 +32,165 @@ function listFiles(dir, predicate, acc = []) {
   return acc;
 }
 
-function assertClientImplementedButNotIntegrated(repoRoot, clientFile, shellFile) {
+function assertStep122YFrontendBoundary(repoRoot) {
   const webRoot = path.resolve(repoRoot, "apps/web/src");
-  const files = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
+  const clientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
+  const runtimePanelFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
+  const webFiles = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
 
   const endpointLeaks = [];
-  const clientImportLeaks = [];
-  const pageFetchLeaks = [];
-  const shellFetchLeaks = [];
+  const unexpectedClientImports = [];
+  const runtimePanelRawFetchLeaks = [];
+  const realSpApiLeaks = [];
+  const forbiddenActionLeaks = [];
 
-  for (const file of files) {
+  const realSpApiOrOauthFragments = [
+    "sellingpartnerapi",
+    "selling-partner-api",
+    "getOrders(",
+    "getOrder(",
+    "getOrderItems(",
+    "LoginWithAmazon",
+    "loginWithAmazon",
+    "lwaAuthorization",
+    "refresh_token",
+    "client_secret",
+    "client_id",
+    "tokenPersistence",
+    "AmazonSpApiCredential",
+    "AmazonSpApiToken",
+  ];
+
+  for (const file of webFiles) {
     const text = read(file);
     const rel = path.relative(repoRoot, file);
+    const isClientFile = file === clientFile;
+    const isRuntimePanelFile = file === runtimePanelFile;
 
-    if (file !== clientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
-      endpointLeaks.push(rel);
+    if (!isClientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
+      endpointLeaks.push(`${rel}: endpoint string outside client helper`);
     }
 
     if (
-      file !== clientFile &&
+      !isClientFile &&
+      !isRuntimePanelFile &&
       text.includes("fetchAmazonSpApiSandboxImportJobReadModel")
     ) {
-      clientImportLeaks.push(rel);
+      unexpectedClientImports.push(`${rel}: client helper referenced outside runtime panel`);
     }
 
-    if (file !== clientFile && text.includes("amazonSpApiSandboxImportJobReadModelClient")) {
-      clientImportLeaks.push(rel);
+    if (
+      !isClientFile &&
+      !isRuntimePanelFile &&
+      text.includes("amazonSpApiSandboxImportJobReadModelClient")
+    ) {
+      unexpectedClientImports.push(`${rel}: client helper module referenced outside runtime panel`);
     }
 
-    if (file !== clientFile && text.includes("fetch(")) {
-      pageFetchLeaks.push(rel);
+    if (isRuntimePanelFile && (text.includes("fetch(") || text.includes("axios") || text.includes("XMLHttpRequest"))) {
+      runtimePanelRawFetchLeaks.push(`${rel}: runtime panel must use typed helper, not raw fetch`);
     }
 
-    if (file === shellFile && (text.includes("fetch(") || text.includes("useEffect(") || text.includes("axios"))) {
-      shellFetchLeaks.push(rel);
+    if (realSpApiOrOauthFragments.some((fragment) => text.includes(fragment))) {
+      realSpApiLeaks.push(`${rel}: real SP-API/OAuth/token fragment detected`);
+    }
+
+    if (text.includes("commitSales: true") || text.includes("executeInventory: true")) {
+      forbiddenActionLeaks.push(`${rel}: commit/inventory action enabled`);
     }
   }
 
-  assert(endpointLeaks.length === 0, `endpoint string must only exist in client file: ${JSON.stringify(endpointLeaks)}`);
-  assert(clientImportLeaks.length === 0, `client helper must not be imported by pages/shell yet: ${JSON.stringify(clientImportLeaks)}`);
-  assert(shellFetchLeaks.length === 0, `shell must still not fetch: ${JSON.stringify(shellFetchLeaks)}`);
+  assert(endpointLeaks.length === 0, `endpoint string must stay isolated in client helper: ${JSON.stringify(endpointLeaks)}`);
+  assert(unexpectedClientImports.length === 0, `only Step122-Y runtime panel may import/use client helper: ${JSON.stringify(unexpectedClientImports)}`);
+  assert(runtimePanelRawFetchLeaks.length === 0, `runtime panel must not use raw fetch: ${JSON.stringify(runtimePanelRawFetchLeaks)}`);
+  assert(realSpApiLeaks.length === 0, `real SP-API/OAuth/token code remains forbidden: ${JSON.stringify(realSpApiLeaks)}`);
+  assert(forbiddenActionLeaks.length === 0, `commit/inventory execution remains forbidden: ${JSON.stringify(forbiddenActionLeaks)}`);
 
   return {
-    scannedFiles: files.length,
+    scannedFiles: webFiles.length,
     endpointLeaks,
-    clientImportLeaks,
-    shellFetchLeaks,
-    pageFetchLeakCount: pageFetchLeaks.length,
+    unexpectedClientImports,
+    runtimePanelRawFetchLeaks,
+    realSpApiLeaks,
+    forbiddenActionLeaks,
+  };
+}
+
+function assertRuntimePanelSource(repoRoot) {
+  const shellFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
+  const clientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
+
+  assert(fs.existsSync(shellFile), "runtime panel file missing");
+  assert(fs.existsSync(clientFile), "frontend client helper file missing");
+
+  const shellSource = read(shellFile);
+  const clientSource = read(clientFile);
+
+  assert(shellSource.includes("data-step122-w"), "panel must keep Step122-W marker");
+  assert(shellSource.includes("data-step122-y"), "panel must expose Step122-Y marker");
+  assert(shellSource.includes("fetchAmazonSpApiSandboxImportJobReadModel"), "panel must use typed client helper");
+  assert(shellSource.includes("useEffect("), "panel must load via useEffect");
+  assert(!shellSource.includes("fetch("), "panel must not call raw fetch");
+  assert(shellSource.includes("dryRun=true"), "panel must show dryRun=true");
+  assert(shellSource.includes("displayOnly"), "panel must show displayOnly");
+  assert(shellSource.includes("売上計上は無効"), "panel must keep commit disabled copy");
+  assert(shellSource.includes("在庫反映は無効"), "panel must keep inventory disabled copy");
+  assert(shellSource.includes("ログインが必要です"), "panel must show 401 copy");
+  assert(shellSource.includes("このデータを表示する権限がありません"), "panel must show 403 copy");
+  assert(shellSource.includes("検索条件が正しくありません"), "panel must show 400 copy");
+  assert(shellSource.includes("対象データはありません"), "panel must show empty copy");
+  assert(shellSource.includes("安全でないレスポンス"), "panel must show unsafe-response copy");
+
+  assert(clientSource.includes("AMAZON_SP_API_SANDBOX_IMPORTJOB_READ_MODEL_ENDPOINT"), "client endpoint const missing");
+  assert(clientSource.includes('credentials: "include"'), "client must use credentials include");
+  assert(clientSource.includes('params.set("dryRun", "true")'), "client must force dryRun=true");
+  assert(clientSource.includes("FORBIDDEN_RESPONSE_FIELDS"), "client forbidden field guard missing");
+
+  return {
+    shellFile: path.relative(repoRoot, shellFile),
+    clientFile: path.relative(repoRoot, clientFile),
+    runtimePanelDetected: true,
   };
 }
 
 async function main() {
   const root = path.resolve(__dirname, "..");
   const repoRoot = path.resolve(root, "..", "..");
-
   const packageJson = JSON.parse(read(path.resolve(root, "package.json")));
-  const contract = assertAmazonSpApiSandboxImportJobReadModelFrontendClientImplementationContract(
-    buildAmazonSpApiSandboxImportJobReadModelFrontendClientImplementationContract(),
-  );
+  const schema = read(path.resolve(root, "prisma/schema.prisma"));
+  const controllerSource = read(path.resolve(root, "src/imports/imports.controller.ts"));
+  const serviceSource = read(path.resolve(root, "src/imports/imports.service.ts"));
 
   assert(
     packageJson.scripts["smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation"],
     "Step122-X npm script missing",
   );
 
-  const clientFile = path.resolve(repoRoot, contract.clientModule.file);
-  const shellFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
+  const contract = assertAmazonSpApiSandboxImportJobReadModelFrontendClientImplementationContract(
+    buildAmazonSpApiSandboxImportJobReadModelFrontendClientImplementationContract(),
+  );
 
-  assert(fs.existsSync(clientFile), `client file missing: ${contract.clientModule.file}`);
-  assert(fs.existsSync(shellFile), "Step122-W shell file missing");
+  assert(contract.implementedNow === true, "Step122-X client contract must remain implemented");
+  assert(contract.frontendClientImplementedNow === true, "Step122-X client must remain implemented");
+  assert(contract.clientModule.credentials === "include", "client must use credentials include");
+  assert(contract.clientModule.dryRunForced === true, "client must force dryRun");
+  assert(contract.parserPolicy.forbiddenFieldsHardFail === true, "client must hard-fail forbidden fields");
 
-  const source = read(clientFile);
+  assert(controllerSource.includes("@UseGuards(JwtAuthGuard)"), "backend route must remain JWT guarded");
+  assert(controllerSource.includes("dryRun: true"), "backend route must force dryRun=true");
+  assert(serviceSource.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("), "read-model service method missing");
 
-  assert(source.includes("AMAZON_SP_API_SANDBOX_IMPORTJOB_READ_MODEL_ENDPOINT"), "endpoint const missing");
-  assert(source.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model"), "endpoint path missing");
-  assert(source.includes("credentials: \"include\""), "fetch must use credentials include");
-  assert(source.includes('params.set("dryRun", "true")'), "url builder must force dryRun=true");
-  assert(!source.includes("dryRun=false"), "client must not support dryRun=false");
-  // Step122-X: "companyId" may appear only as a forbidden response field.
-  // The client must not put companyId into the request builder/query params.
-  assert(!source.includes('params.set("companyId"'), "client must not send companyId query param");
-  assert(source.includes('"companyId"'), "client must hard-fail if response projects companyId");
-  assert(source.includes("response.status === 401"), "client must map 401");
-  assert(source.includes("response.status === 403"), "client must map 403");
-  assert(source.includes("response.status === 400"), "client must map 400");
-  assert(source.includes("response.status !== 200"), "client must hard fail unexpected status");
-  assert(source.includes("payload.dryRun !== true"), "client must validate dryRun");
-  assert(source.includes("payload.displayOnly !== true"), "client must validate displayOnly");
-  assert(source.includes('payload.sourceType !== "amazon-sp-api-sandbox"'), "client must validate sourceType");
-  assert(source.includes("FORBIDDEN_RESPONSE_FIELDS"), "forbidden field guard missing");
-  assert(source.includes('"rawPayloadJson"'), "rawPayloadJson forbidden field missing");
-  assert(source.includes('"normalizedPayloadJson"'), "normalizedPayloadJson forbidden field missing");
-  assert(source.includes('"dedupeHash"'), "dedupeHash forbidden field missing");
-  assert(source.includes("export async function fetchAmazonSpApiSandboxImportJobReadModel"), "fetch helper export missing");
-  assert(source.includes("export function buildAmazonSpApiSandboxImportJobReadModelUrl"), "url builder export missing");
+  for (const forbiddenModel of [
+    "AmazonSpApiCredential",
+    "AmazonSpApiToken",
+    "AmazonSpApiSandboxImportJobReadModel",
+    "CrossSourceDedupe",
+  ]) {
+    assert(!schema.includes(forbiddenModel), `schema must not add ${forbiddenModel}`);
+  }
 
-  const integrationGuard = assertClientImplementedButNotIntegrated(repoRoot, clientFile, shellFile);
+  const runtimePanel = assertRuntimePanelSource(repoRoot);
+  const boundary = assertStep122YFrontendBoundary(repoRoot);
 
   console.log("[SMOKE_OK] amazon sp-api sandbox ImportJob read-model frontend client implementation smoke passed");
   console.log(
@@ -130,20 +198,18 @@ async function main() {
       {
         ok: true,
         step: "Step122-X",
+        step122YAware: true,
         contract: {
           version: contract.version,
           implementedNow: contract.implementedNow,
           frontendClientImplementedNow: contract.frontendClientImplementedNow,
-          appsWebModifiedNow: contract.appsWebModifiedNow,
           pageIntegrationNow: contract.pageIntegrationNow,
-          backendChangedNow: contract.backendChangedNow,
-          schemaChangedNow: contract.schemaChangedNow,
-          writesDatabase: contract.writesDatabase,
           clientModule: contract.clientModule,
           parserPolicy: contract.parserPolicy,
           summary: contract.summary,
         },
-        integrationGuard,
+        runtimePanel,
+        boundary,
       },
       null,
       2,

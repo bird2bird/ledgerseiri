@@ -8,6 +8,7 @@ process.env.AMAZON_SP_API_SANDBOX_IMPORTJOB_PERSISTENCE_ENABLED = "false";
 
 const fs = require("fs");
 const path = require("path");
+const { assertStep122ReadModelFrontendBoundary } = require("./lib/step122-read-model-frontend-boundary");
 const crypto = require("crypto");
 const { PrismaClient } = require("@prisma/client");
 const {
@@ -159,23 +160,15 @@ function staticGuard() {
     assert(!schema.includes(forbiddenModel), `schema must not contain ${forbiddenModel}`);
   }
 
-  const webFiles = listFiles(path.resolve(repoRoot, "apps/web/src"), (p) => /\.(ts|tsx|js|jsx)$/.test(p));
-  const frontendLeaks = [];
-  for (const file of webFiles) {
-    const text = read(file);
-    if (
-      text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
-      text.includes("internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
-      text.includes("listAmazonSpApiSandboxImportJobsReadModelDryRun")
-    ) {
-      frontendLeaks.push(path.relative(repoRoot, file));
-    }
-  }
-  assert(frontendLeaks.length === 0, `frontend leak detected: ${JSON.stringify(frontendLeaks)}`);
+  const frontendBoundary = assertStep122ReadModelFrontendBoundary(repoRoot, {
+    allowClientHelper: true,
+    allowRuntimePanelHelperUse: true,
+  });
 
   return {
-    scannedFrontendFiles: webFiles.length,
-    frontendLeaks,
+    scannedFrontendFiles: frontendBoundary.scannedFiles,
+    frontendLeaks: [],
+    frontendBoundary,
   };
 }
 

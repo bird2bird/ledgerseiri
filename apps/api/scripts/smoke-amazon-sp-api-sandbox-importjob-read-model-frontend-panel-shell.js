@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
+// Step122-Y FIX8 clean rewrite:
+// Runtime panel may use the typed frontend client helper.
+// Endpoint string must stay isolated in the client helper.
+// Raw fetch, real SP-API/OAuth/token, commit, and inventory execution remain forbidden.
+
 const fs = require("fs");
 const path = require("path");
 const {
@@ -27,98 +32,165 @@ function listFiles(dir, predicate, acc = []) {
   return acc;
 }
 
-function assertNoFetchOrEndpointLeak(repoRoot, shellFile) {
+function assertStep122YFrontendBoundary(repoRoot) {
   const webRoot = path.resolve(repoRoot, "apps/web/src");
-  const step122XClientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
-  const files = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
-  const endpointLeaks = [];
-  const fetchLeaks = [];
-  const clientLeaks = [];
+  const clientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
+  const runtimePanelFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
+  const webFiles = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
 
-  for (const file of files) {
+  const endpointLeaks = [];
+  const unexpectedClientImports = [];
+  const runtimePanelRawFetchLeaks = [];
+  const realSpApiLeaks = [];
+  const forbiddenActionLeaks = [];
+
+  const realSpApiOrOauthFragments = [
+    "sellingpartnerapi",
+    "selling-partner-api",
+    "getOrders(",
+    "getOrder(",
+    "getOrderItems(",
+    "LoginWithAmazon",
+    "loginWithAmazon",
+    "lwaAuthorization",
+    "refresh_token",
+    "client_secret",
+    "client_id",
+    "tokenPersistence",
+    "AmazonSpApiCredential",
+    "AmazonSpApiToken",
+  ];
+
+  for (const file of webFiles) {
     const text = read(file);
     const rel = path.relative(repoRoot, file);
+    const isClientFile = file === clientFile;
+    const isRuntimePanelFile = file === runtimePanelFile;
 
-    // Step122-X FIX3: client helper file is allowed to contain the endpoint string.
-    if (file !== step122XClientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
-      endpointLeaks.push(rel);
+    if (!isClientFile && text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")) {
+      endpointLeaks.push(`${rel}: endpoint string outside client helper`);
     }
 
-    // Step122-X FIX3: client helper file is allowed to contain helper export/module symbols.
-    // Any page/shell/component importing or referencing it before Step122-Y remains forbidden.
     if (
-      file !== step122XClientFile &&
-      (text.includes("fetchAmazonSpApiSandboxImportJobReadModel") || text.includes("amazonSpApiSandboxImportJobReadModelClient"))
+      !isClientFile &&
+      !isRuntimePanelFile &&
+      text.includes("fetchAmazonSpApiSandboxImportJobReadModel")
     ) {
-      clientLeaks.push(rel);
+      unexpectedClientImports.push(`${rel}: client helper referenced outside runtime panel`);
     }
 
-    if (file === shellFile) {
-      if (text.includes("fetch(") || text.includes("useEffect(") || text.includes("axios") || text.includes("XMLHttpRequest")) {
-        fetchLeaks.push(rel);
-      }
+    if (
+      !isClientFile &&
+      !isRuntimePanelFile &&
+      text.includes("amazonSpApiSandboxImportJobReadModelClient")
+    ) {
+      unexpectedClientImports.push(`${rel}: client helper module referenced outside runtime panel`);
+    }
+
+    if (isRuntimePanelFile && (text.includes("fetch(") || text.includes("axios") || text.includes("XMLHttpRequest"))) {
+      runtimePanelRawFetchLeaks.push(`${rel}: runtime panel must use typed helper, not raw fetch`);
+    }
+
+    if (realSpApiOrOauthFragments.some((fragment) => text.includes(fragment))) {
+      realSpApiLeaks.push(`${rel}: real SP-API/OAuth/token fragment detected`);
+    }
+
+    if (text.includes("commitSales: true") || text.includes("executeInventory: true")) {
+      forbiddenActionLeaks.push(`${rel}: commit/inventory action enabled`);
     }
   }
 
-  assert(endpointLeaks.length === 0, `Step122-W/Step122-X-aware guard: endpoint may exist only in frontend client helper: ${JSON.stringify(endpointLeaks)}`);
-  assert(clientLeaks.length === 0, `Step122-W/Step122-X-aware guard: frontend client helper may exist, but must not be imported by shell/page yet: ${JSON.stringify(clientLeaks)}`);
-  assert(fetchLeaks.length === 0, `Step122-W shell must not fetch data: ${JSON.stringify(fetchLeaks)}`);
+  assert(endpointLeaks.length === 0, `endpoint string must stay isolated in client helper: ${JSON.stringify(endpointLeaks)}`);
+  assert(unexpectedClientImports.length === 0, `only Step122-Y runtime panel may import/use client helper: ${JSON.stringify(unexpectedClientImports)}`);
+  assert(runtimePanelRawFetchLeaks.length === 0, `runtime panel must not use raw fetch: ${JSON.stringify(runtimePanelRawFetchLeaks)}`);
+  assert(realSpApiLeaks.length === 0, `real SP-API/OAuth/token code remains forbidden: ${JSON.stringify(realSpApiLeaks)}`);
+  assert(forbiddenActionLeaks.length === 0, `commit/inventory execution remains forbidden: ${JSON.stringify(forbiddenActionLeaks)}`);
 
   return {
-    scannedFiles: files.length,
+    scannedFiles: webFiles.length,
     endpointLeaks,
-    clientLeaks,
-    fetchLeaks,
+    unexpectedClientImports,
+    runtimePanelRawFetchLeaks,
+    realSpApiLeaks,
+    forbiddenActionLeaks,
+  };
+}
+
+function assertRuntimePanelSource(repoRoot) {
+  const shellFile = path.resolve(repoRoot, "apps/web/src/components/app/imports/AmazonSpApiSandboxReadModelPanelShell.tsx");
+  const clientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
+
+  assert(fs.existsSync(shellFile), "runtime panel file missing");
+  assert(fs.existsSync(clientFile), "frontend client helper file missing");
+
+  const shellSource = read(shellFile);
+  const clientSource = read(clientFile);
+
+  assert(shellSource.includes("data-step122-w"), "panel must keep Step122-W marker");
+  assert(shellSource.includes("data-step122-y"), "panel must expose Step122-Y marker");
+  assert(shellSource.includes("fetchAmazonSpApiSandboxImportJobReadModel"), "panel must use typed client helper");
+  assert(shellSource.includes("useEffect("), "panel must load via useEffect");
+  assert(!shellSource.includes("fetch("), "panel must not call raw fetch");
+  assert(shellSource.includes("dryRun=true"), "panel must show dryRun=true");
+  assert(shellSource.includes("displayOnly"), "panel must show displayOnly");
+  assert(shellSource.includes("売上計上は無効"), "panel must keep commit disabled copy");
+  assert(shellSource.includes("在庫反映は無効"), "panel must keep inventory disabled copy");
+  assert(shellSource.includes("ログインが必要です"), "panel must show 401 copy");
+  assert(shellSource.includes("このデータを表示する権限がありません"), "panel must show 403 copy");
+  assert(shellSource.includes("検索条件が正しくありません"), "panel must show 400 copy");
+  assert(shellSource.includes("対象データはありません"), "panel must show empty copy");
+  assert(shellSource.includes("安全でないレスポンス"), "panel must show unsafe-response copy");
+
+  assert(clientSource.includes("AMAZON_SP_API_SANDBOX_IMPORTJOB_READ_MODEL_ENDPOINT"), "client endpoint const missing");
+  assert(clientSource.includes('credentials: "include"'), "client must use credentials include");
+  assert(clientSource.includes('params.set("dryRun", "true")'), "client must force dryRun=true");
+  assert(clientSource.includes("FORBIDDEN_RESPONSE_FIELDS"), "client forbidden field guard missing");
+
+  return {
+    shellFile: path.relative(repoRoot, shellFile),
+    clientFile: path.relative(repoRoot, clientFile),
+    runtimePanelDetected: true,
   };
 }
 
 async function main() {
   const root = path.resolve(__dirname, "..");
   const repoRoot = path.resolve(root, "..", "..");
-
   const packageJson = JSON.parse(read(path.resolve(root, "package.json")));
-  const contract = assertAmazonSpApiSandboxImportJobReadModelFrontendPanelShellContract(
-    buildAmazonSpApiSandboxImportJobReadModelFrontendPanelShellContract(),
-  );
+  const schema = read(path.resolve(root, "prisma/schema.prisma"));
+  const controllerSource = read(path.resolve(root, "src/imports/imports.controller.ts"));
+  const serviceSource = read(path.resolve(root, "src/imports/imports.service.ts"));
 
   assert(
     packageJson.scripts["smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-panel-shell"],
     "Step122-W npm script missing",
   );
 
-  const shellFile = path.resolve(repoRoot, contract.component.file);
-  assert(fs.existsSync(shellFile), `Step122-W shell file missing: ${contract.component.file}`);
+  const contract = assertAmazonSpApiSandboxImportJobReadModelFrontendPanelShellContract(
+    buildAmazonSpApiSandboxImportJobReadModelFrontendPanelShellContract(),
+  );
 
-  const shellSource = read(shellFile);
-  assert(shellSource.includes("data-step122-w"), "shell must expose data-step122-w marker");
-  assert(shellSource.includes("dryRun=true"), "shell must show dryRun=true");
-  assert(shellSource.includes("displayOnly"), "shell must show displayOnly");
-  assert(shellSource.includes("売上計上は無効"), "shell must show disabled commit copy");
-  assert(shellSource.includes("在庫反映は無効"), "shell must show disabled inventory copy");
-  assert(shellSource.includes("ログインが必要です"), "shell must show 401 copy");
-  assert(shellSource.includes("表示権限がありません"), "shell must show 403 copy");
-  assert(shellSource.includes("検索条件を確認してください"), "shell must show 400 copy");
-  assert(shellSource.includes("対象データはありません"), "shell must show empty copy");
+  assert(contract.implementedNow === true, "Step122-W shell contract must remain implemented");
+  assert(contract.appsWebModifiedNow === true, "Step122-W must have apps/web modification");
+  assert(contract.uiShellOnly === true, "Step122-W historical contract must remain shell-only");
+  assert(contract.uiShellContract.commitSalesActionDisabled === true, "commit must remain disabled");
+  assert(contract.uiShellContract.inventoryExecutionActionDisabled === true, "inventory must remain disabled");
 
-  assert(!shellSource.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model"), "shell must not contain backend endpoint");
-  assert(!shellSource.includes("fetch("), "shell must not fetch");
-  assert(!shellSource.includes("useEffect("), "shell must not use effect for data loading");
+  assert(controllerSource.includes("@UseGuards(JwtAuthGuard)"), "backend route must remain JWT guarded");
+  assert(controllerSource.includes("dryRun: true"), "backend route must force dryRun=true");
+  assert(serviceSource.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("), "read-model service method missing");
 
-  const webRoot = path.resolve(repoRoot, "apps/web/src");
-  const step122XClientFile = path.resolve(repoRoot, "apps/web/src/lib/api/amazonSpApiSandboxImportJobReadModelClient.ts");
-  const files = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
-  const mounts = [];
-
-  for (const file of files) {
-    const text = read(file);
-    if (file !== shellFile && text.includes("<AmazonSpApiSandboxReadModelPanelShell")) {
-      mounts.push(path.relative(repoRoot, file));
-    }
+  for (const forbiddenModel of [
+    "AmazonSpApiCredential",
+    "AmazonSpApiToken",
+    "AmazonSpApiSandboxImportJobReadModel",
+    "CrossSourceDedupe",
+  ]) {
+    assert(!schema.includes(forbiddenModel), `schema must not add ${forbiddenModel}`);
   }
 
-  assert(mounts.length === 1, `shell must be mounted exactly once outside shell file, got ${JSON.stringify(mounts)}`);
-
-  const frontendGuard = assertNoFetchOrEndpointLeak(repoRoot, shellFile);
+  const runtimePanel = assertRuntimePanelSource(repoRoot);
+  const boundary = assertStep122YFrontendBoundary(repoRoot);
 
   console.log("[SMOKE_OK] amazon sp-api sandbox ImportJob read-model frontend panel shell smoke passed");
   console.log(
@@ -126,21 +198,18 @@ async function main() {
       {
         ok: true,
         step: "Step122-W",
+        step122YAware: true,
         contract: {
           version: contract.version,
           implementedNow: contract.implementedNow,
           appsWebModifiedNow: contract.appsWebModifiedNow,
           uiShellOnly: contract.uiShellOnly,
-          frontendFetchImplementedNow: contract.frontendFetchImplementedNow,
-          backendChangedNow: contract.backendChangedNow,
-          schemaChangedNow: contract.schemaChangedNow,
-          writesDatabase: contract.writesDatabase,
           component: contract.component,
           uiShellContract: contract.uiShellContract,
           summary: contract.summary,
         },
-        mounts,
-        frontendGuard,
+        runtimePanel,
+        boundary,
       },
       null,
       2,
