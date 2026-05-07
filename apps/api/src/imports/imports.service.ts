@@ -37,6 +37,10 @@ import {
   type AmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
   assertAmazonSpApiSandboxPersistedImportJobExecutionGateUpgrade,
 } from './dto/amazon-sp-api-sandbox-persisted-importjob-execution-gate-upgrade.dto';
+import {
+  type AmazonSpApiSandboxPermanentImportJobServiceMethodDesign,
+  assertAmazonSpApiSandboxPermanentImportJobServiceMethodDesign,
+} from './dto/amazon-sp-api-sandbox-permanent-importjob-service-method-design.dto';
 
 type MonthStat = {
   month: string;
@@ -324,6 +328,38 @@ type AmazonSpApiSandboxRollbackOnlyPersistResult = {
     inventoryMovementRows: 0;
   };
   rows: AmazonSpApiSandboxRollbackOnlyPersistRow[];
+};
+
+
+type AmazonSpApiSandboxPermanentImportJobPersistRow = {
+  stagingRowId: string;
+  importJobId: string;
+  rowNo: number | null;
+  businessMonth: string | null;
+  dedupeHash: string | null;
+};
+
+type AmazonSpApiSandboxPermanentImportJobPersistResult = {
+  ok: true;
+  persistenceMode: 'importjob-and-staging-only';
+  envGateEnabled: true;
+  writesDatabasePermanently: true;
+  controllerDisabled: true;
+  frontendDisabled: true;
+  companyId: string;
+  filename: string;
+  importJobId: string;
+  summary: {
+    sourceType: 'amazon-sp-api-sandbox';
+    normalizedSourceType: 'AMAZON_ORDER_SP_API';
+    importJobRows: 1;
+    stagingRows: number;
+    transactionRows: 0;
+    inventoryMovementRows: 0;
+    inventoryBalanceRows: 0;
+    tokenRows: 0;
+  };
+  rows: AmazonSpApiSandboxPermanentImportJobPersistRow[];
 };
 
 @Injectable()
@@ -1077,6 +1113,210 @@ export class ImportsService {
     }
 
     return captured;
+  }
+
+  // Step121-E: permanently persist ImportJob / ImportStagingRow only, behind explicit env gate.
+  // This method is internal-service-only and must never create Transaction or Inventory rows.
+  async persistAmazonSpApiSandboxImportJobOnly(args: {
+    companyId?: string;
+    filename?: string;
+    aggregate: AmazonSpApiSandboxPlanningAggregate;
+    serviceMethodDesign: AmazonSpApiSandboxPermanentImportJobServiceMethodDesign;
+    persistenceMode: 'importjob-and-staging-only';
+  }): Promise<AmazonSpApiSandboxPermanentImportJobPersistResult> {
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    if (process.env.AMAZON_SP_API_SANDBOX_IMPORTJOB_PERSISTENCE_ENABLED !== 'true') {
+      throw new BadRequestException(
+        'STEP121_E_IMPORTJOB_PERSISTENCE_ENV_DISABLED: set AMAZON_SP_API_SANDBOX_IMPORTJOB_PERSISTENCE_ENABLED=true to persist sandbox ImportJob rows.',
+      );
+    }
+
+    if (args.persistenceMode !== 'importjob-and-staging-only') {
+      throw new BadRequestException(
+        'STEP121_E_IMPORTJOB_PERSISTENCE_MODE_REQUIRED: persistenceMode must be importjob-and-staging-only.',
+      );
+    }
+
+    const serviceMethodDesign = assertAmazonSpApiSandboxPermanentImportJobServiceMethodDesign(
+      args.serviceMethodDesign,
+    );
+
+    if (serviceMethodDesign.decision !== 'DESIGN_READY_IMPLEMENTATION_BLOCKED_BY_ENV_GATE') {
+      throw new BadRequestException(
+        'STEP121_E_SERVICE_METHOD_DESIGN_NOT_READY: permanent ImportJob service method design is not ready.',
+      );
+    }
+
+    if (
+      serviceMethodDesign.requiredMethodArgs.allowTransactions !== false ||
+      serviceMethodDesign.requiredMethodArgs.allowInventory !== false ||
+      serviceMethodDesign.requiredMethodArgs.allowRealSpApi !== false ||
+      serviceMethodDesign.requiredMethodArgs.allowTokenPersistence !== false
+    ) {
+      throw new BadRequestException(
+        'STEP121_E_SCOPE_VIOLATION: service method design must keep transactions, inventory, real SP-API, and token persistence disabled.',
+      );
+    }
+
+    const aggregate = args.aggregate;
+
+    if (
+      aggregate.planOnly !== true ||
+      aggregate.writesDatabase !== false ||
+      aggregate.currentExecutionAllowed !== false ||
+      aggregate.dryRunFalseAllowed !== false
+    ) {
+      throw new BadRequestException(
+        'STEP121_E_INVALID_AGGREGATE_FOR_IMPORTJOB_PERSISTENCE: aggregate must remain plan-only and non-writing.',
+      );
+    }
+
+    const companyId = await this.resolveCompanyId(args.companyId || aggregate.companyId);
+    const filename = String(args.filename || aggregate.filename || '').trim();
+
+    if (!filename) {
+      throw new BadRequestException('filename is required for SP-API sandbox ImportJob persistence.');
+    }
+
+    const existingJob = await this.prisma.importJob.findFirst({
+      where: { filename },
+      select: { id: true },
+    });
+
+    if (existingJob) {
+      throw new BadRequestException(
+        `STEP121_E_DUPLICATE_IMPORTJOB_FILENAME: ImportJob already exists for filename=${filename}.`,
+      );
+    }
+
+    const previewDedupeHashes = aggregate.previewRows.map((row) => row.dedupeHash).filter(Boolean);
+
+    if (previewDedupeHashes.length) {
+      const existingRows = await this.prisma.importStagingRow.findMany({
+        where: {
+          dedupeHash: { in: previewDedupeHashes },
+        },
+        select: { id: true, dedupeHash: true },
+        take: 10,
+      });
+
+      if (existingRows.length) {
+        throw new BadRequestException(
+          `STEP121_E_DUPLICATE_STAGING_DEDUPE_HASH: ImportStagingRow already exists count=${existingRows.length}.`,
+        );
+      }
+    }
+
+    const importJobPlan = aggregate.importJobPlan.plannedImportJob;
+
+    const result: AmazonSpApiSandboxPermanentImportJobPersistResult =
+      await this.prisma.$transaction(async (tx): Promise<AmazonSpApiSandboxPermanentImportJobPersistResult> => {
+      const importJob = await tx.importJob.create({
+        data: {
+          companyId,
+          domain: importJobPlan.domain,
+          module: importJobPlan.module,
+          sourceType: importJobPlan.sourceType,
+          filename,
+          status: 'PENDING',
+          totalRows: importJobPlan.totalRows,
+          successRows: 0,
+          failedRows: 0,
+          fileMonthsJson: importJobPlan.fileMonthsJson,
+          conflictMonthsJson: {
+            step121EPermanentImportJobServiceMethod: true,
+            serviceMethodDesignVersion: serviceMethodDesign.version,
+            planningAggregateVersion: aggregate.version,
+            sourceType: aggregate.sourceType,
+            normalizedSourceType: aggregate.normalizedSourceType,
+            persistenceMode: 'importjob-and-staging-only',
+            controllerDisabled: true,
+            frontendDisabled: true,
+            transactionCommitDisabled: true,
+            inventoryCommitDisabled: true,
+            realSpApiDisabled: true,
+            tokenPersistenceDisabled: true,
+          } as Prisma.InputJsonObject,
+          importedAt: null,
+        },
+        select: {
+          id: true,
+          filename: true,
+        },
+      });
+
+      const rows: AmazonSpApiSandboxPermanentImportJobPersistRow[] = [];
+
+      for (const [index, row] of aggregate.importJobPlan.plannedStagingRows.entries()) {
+        const stagingRow = await tx.importStagingRow.create({
+          data: {
+            importJobId: importJob.id,
+            companyId,
+            module: row.module,
+            rowNo: row.rowNo || index + 1,
+            businessMonth: row.businessMonth,
+            matchStatus: row.matchStatus,
+            matchReason: row.matchReason || 'STEP121_E_PERMANENT_IMPORTJOB_SERVICE_METHOD',
+            dedupeHash: row.dedupeHash,
+            rawPayloadJson: {
+              ...(row.rawPayloadJson as Record<string, unknown>),
+              step121EPermanentImportJobServiceMethod: true,
+              persistenceMode: 'importjob-and-staging-only',
+            } as Prisma.InputJsonObject,
+            normalizedPayloadJson: {
+              ...(row.normalizedPayloadJson as Record<string, unknown>),
+              importJobId: importJob.id,
+              sourceFileName: importJob.filename,
+              step121EPermanentImportJobServiceMethod: true,
+              persistenceMode: 'importjob-and-staging-only',
+            } as Prisma.InputJsonObject,
+          },
+          select: {
+            id: true,
+            importJobId: true,
+            rowNo: true,
+            businessMonth: true,
+            dedupeHash: true,
+          },
+        });
+
+        rows.push({
+          stagingRowId: stagingRow.id,
+          importJobId: stagingRow.importJobId,
+          rowNo: stagingRow.rowNo,
+          businessMonth: stagingRow.businessMonth,
+          dedupeHash: stagingRow.dedupeHash,
+        });
+      }
+
+      const persistResult: AmazonSpApiSandboxPermanentImportJobPersistResult = {
+        ok: true,
+        persistenceMode: 'importjob-and-staging-only',
+        envGateEnabled: true,
+        writesDatabasePermanently: true,
+        controllerDisabled: true,
+        frontendDisabled: true,
+        companyId,
+        filename: importJob.filename,
+        importJobId: importJob.id,
+        summary: {
+          sourceType: 'amazon-sp-api-sandbox',
+          normalizedSourceType: 'AMAZON_ORDER_SP_API',
+          importJobRows: 1,
+          stagingRows: rows.length,
+          transactionRows: 0,
+          inventoryMovementRows: 0,
+          inventoryBalanceRows: 0,
+          tokenRows: 0,
+        },
+        rows,
+      };
+
+      return persistResult;
+    });
+
+    return result;
   }
 
   // Step116-C compatibility wrapper; Step116-D delegates to preview/commit split.

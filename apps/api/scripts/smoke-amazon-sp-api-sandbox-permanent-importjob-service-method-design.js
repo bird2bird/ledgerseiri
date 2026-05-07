@@ -155,7 +155,11 @@ async function main() {
   const controllerSource = read(importsControllerTs);
 
   assert(serviceSource.includes("rollbackOnlyPersistAmazonSpApiSandboxImportJob"), "rollback-only service method missing");
-  assert(!serviceSource.includes("persistAmazonSpApiSandboxImportJobOnly("), "Step121-D must not implement permanent service method yet");
+  if (serviceSource.includes("persistAmazonSpApiSandboxImportJobOnly(")) {
+    assert(serviceSource.includes("STEP121_E_IMPORTJOB_PERSISTENCE_ENV_DISABLED"), "Step121-E permanent service method must remain env-gated");
+    assert(serviceSource.includes("STEP121_E_IMPORTJOB_PERSISTENCE_MODE_REQUIRED"), "Step121-E permanent service method must require importjob-and-staging-only mode");
+    assert(serviceSource.includes("STEP121_E_DUPLICATE_IMPORTJOB_FILENAME"), "Step121-E permanent service method must keep duplicate filename guard");
+  }
   assert(serviceSource.includes("STEP119_B_SP_API_SANDBOX_AGGREGATE_NON_DRY_RUN_BLOCKED"), "aggregate non-dry-run guard missing");
   assert(serviceSource.includes("STEP116_H_SP_API_SANDBOX_NON_DRY_RUN_BLOCKED"), "staging non-dry-run guard missing");
 
