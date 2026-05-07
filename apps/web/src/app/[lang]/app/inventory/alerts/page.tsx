@@ -219,6 +219,7 @@ export default function Page() {
 
   const { from, storeId, range } = readBaseDrilldownQuery(searchParams);
   const source = searchParams.get("source");
+  const importJobId = searchParams.get("importJobId")?.trim() ?? "";
   const severity = normalizeAlertSeverityParam(searchParams.get("severity"));
   const q = searchParams.get("q")?.trim() ?? "";
   const isDashboard = from === "dashboard";
@@ -395,6 +396,17 @@ export default function Page() {
             </div>
           ) : null}
 
+          {source || importJobId || q ? (
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <div className="font-black">Inventory drill-down context</div>
+              <div className="mt-2 grid gap-1 font-mono text-xs">
+                {source ? <div>source={source}</div> : null}
+                {importJobId ? <div>importJobId={importJobId}</div> : null}
+                {q ? <div>q={q}</div> : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <KpiCard label="総リスクSKU" value={summary.total} caption="negative / out / low" tone="slate" />
             <KpiCard label="緊急" value={summary.critical} caption="マイナス + 欠品" tone="rose" />
@@ -422,6 +434,7 @@ export default function Page() {
                 <div>store: {storeId || "all"}</div>
                 <div>range: {range || "-"}</div>
                 <div>source: {source || "inventory"}</div>
+                <div>importJobId: {importJobId || "-"}</div>
               </div>
             </div>
           </div>

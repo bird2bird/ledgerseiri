@@ -71,7 +71,7 @@ export const dashboardHomeMock: DashboardHomeData = {
       severity: "warning",
       title: "在庫が少ない商品が 5 件あります",
       description: "補充タイミングの確認が必要です。",
-      href: "/ja/app/inventory/alerts",
+      href: "/ja/app/inventory/alerts?from=dashboard&source=dashboard&severity=warning",
     },
     {
       id: "al2",

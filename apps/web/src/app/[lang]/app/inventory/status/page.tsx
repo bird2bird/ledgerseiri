@@ -260,6 +260,16 @@ function movementImportCenterHref(lang: Lang, movement: InventoryMovementRow) {
   return movement.importJobId ? `/${lang}/app/data/import?importJobId=${encodeURIComponent(movement.importJobId)}` : "";
 }
 
+// Step114-E-1: shared Inventory Alerts drill-down links from Status.
+function buildInventoryAlertsHref(lang: Lang, params?: { severity?: "critical" | "warning"; q?: string; source?: string }) {
+  const qs = new URLSearchParams();
+  qs.set("source", params?.source || "inventory-status");
+  if (params?.severity) qs.set("severity", params.severity);
+  if (params?.q) qs.set("q", params.q);
+  const raw = qs.toString();
+  return `/${lang}/app/inventory/alerts${raw ? `?${raw}` : ""}`;
+}
+
 function movementAuditHref(lang: Lang, movement: InventoryMovementRow) {
   if (movement.sourceType !== "INVENTORY_AUDIT_RESOLUTION") return "";
   if (movement.importJobId) return `/${lang}/app/inventory/audit?importJobId=${encodeURIComponent(movement.importJobId)}`;
@@ -605,6 +615,12 @@ export default function Page() {
                 {loading ? "更新中..." : "再読込"}
               </button>
               <a
+                href={buildInventoryAlertsHref(lang, { q: keyword.trim() || initialSkuQuery || undefined })}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-800 shadow-sm hover:bg-rose-100"
+              >
+                在庫リスクへ
+              </a>
+              <a
                 href="/ja/app/inventory/audit"
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 text-sm font-bold text-amber-800 shadow-sm hover:bg-amber-100"
               >
@@ -726,6 +742,32 @@ export default function Page() {
                   4. 正常
                 </span>
               </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                <a
+                  href={buildInventoryAlertsHref(lang, { q: keyword.trim() || initialSkuQuery || undefined })}
+                  className="inline-flex h-8 items-center justify-center rounded-xl bg-slate-950 px-3 text-white shadow-sm hover:bg-slate-800"
+                >
+                  全リスクを確認
+                </a>
+                <a
+                  href={buildInventoryAlertsHref(lang, {
+                    severity: "critical",
+                    q: keyword.trim() || initialSkuQuery || undefined,
+                  })}
+                  className="inline-flex h-8 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-rose-800 shadow-sm hover:bg-rose-100"
+                >
+                  緊急のみ
+                </a>
+                <a
+                  href={buildInventoryAlertsHref(lang, {
+                    severity: "warning",
+                    q: keyword.trim() || initialSkuQuery || undefined,
+                  })}
+                  className="inline-flex h-8 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-3 text-amber-800 shadow-sm hover:bg-amber-100"
+                >
+                  要補充のみ
+                </a>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -737,6 +779,12 @@ export default function Page() {
                   ? `${riskRows.length} SKU に確認が必要です。`
                   : "現在、リスク在庫はありません。"}
               </div>
+              <a
+                href={buildInventoryAlertsHref(lang, { q: keyword.trim() || initialSkuQuery || undefined })}
+                className="mt-3 inline-flex h-8 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 shadow-sm hover:bg-amber-100"
+              >
+                在庫リスクへ
+              </a>
             </div>
           </div>
         </section>

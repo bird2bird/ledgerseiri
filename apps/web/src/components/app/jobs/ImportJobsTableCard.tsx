@@ -175,6 +175,10 @@ function buildImportCenterInventoryStatusHref(importJobId: string) {
   return `/ja/app/inventory/status?importJobId=${encodeURIComponent(importJobId)}`;
 }
 
+function buildImportCenterInventoryAlertsHref(importJobId: string) {
+  return `/ja/app/inventory/alerts?source=import-center&importJobId=${encodeURIComponent(importJobId)}`;
+}
+
 
 function ImportJobDetailDrawer(props: {
   job: ImportJobItem | null;
@@ -236,6 +240,7 @@ function ImportJobDetailDrawer(props: {
   const inventoryAuditSummary = inventoryAuditSummaryState.summary;
   const inventoryAuditHref = buildImportCenterInventoryAuditHref(job.id);
   const inventoryStatusHref = buildImportCenterInventoryStatusHref(job.id);
+  const inventoryAlertsHref = buildImportCenterInventoryAlertsHref(job.id);
 
   return createPortal(
     <div className="fixed inset-y-0 left-[260px] right-0 z-[1000] pointer-events-none">
@@ -377,6 +382,13 @@ function ImportJobDetailDrawer(props: {
                     className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
                   >
                     在庫状況へ
+                  </a>
+                  <a
+                    data-testid={`import-center-inventory-alerts-link-${job.id}`}
+                    href={inventoryAlertsHref}
+                    className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-800 shadow-sm transition hover:bg-rose-100"
+                  >
+                    在庫リスクへ
                   </a>
                 </div>
               ) : (

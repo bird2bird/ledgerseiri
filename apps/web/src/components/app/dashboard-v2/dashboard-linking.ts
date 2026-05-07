@@ -43,7 +43,7 @@ export function buildDashboardTargetHref(
     case "inventory":
       return `/${l}/app/products`;
     case "stockAlert":
-      return `/${l}/app/inventory/alerts`;
+      return `/${l}/app/inventory/alerts?from=dashboard&source=dashboard`;
     case "runway":
       return `/${l}/app/reports/cashflow`;
     case "invoiceIssued":
@@ -111,6 +111,7 @@ export function getAlertHref(
   return null;
 }
 
+// Step114-E-1: Alerts & Tasks overview remains invoice-focused; stockAlert uses Inventory Alerts via buildDashboardTargetHref.
 export function getAlertsOverviewHref(lang?: string): string {
   return buildDashboardTargetHref("invoice", lang);
 }
