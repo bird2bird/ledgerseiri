@@ -9,6 +9,7 @@ import type { IncomeImportPreviewDto } from './dto/income-import-preview.dto';
 import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
 import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
+import type { AmazonSpApiSandboxImportJobReadModelDryRunResult } from './dto/amazon-sp-api-sandbox-importjob-read-model-dry-run-service-design.dto';
 import {
   assertAmazonSpApiSandboxImportJobReadModelControllerContract,
   buildAmazonSpApiSandboxImportJobReadModelControllerContract,
@@ -56,35 +57,20 @@ export class ImportsController {
 
 
 
-  // Step122-K: Amazon SP-API sandbox ImportJob read-model env-gated blocked controller route.
-  // This route is intentionally blocked before any service call and must not return rows.
+  // Step122-O: Amazon SP-API sandbox ImportJob read-model readonly controller service-call implementation.
+  // Internal readonly endpoint only. Frontend remains unwired; writes, real SP-API, OAuth and token persistence remain disabled.
   @Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')
-  amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute(
+  async amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute(
     @Query() query: AmazonSpApiSandboxImportJobReadModelControllerQuery,
-  ): never {
+  ): Promise<AmazonSpApiSandboxImportJobReadModelDryRunResult> {
     assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
 
-    const contract = assertAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract(
-      buildAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract(),
-    );
+    const normalized = normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
 
-    if (
-      contract.routeImplementedNow !== false ||
-      contract.routeCallableNow !== false ||
-      contract.serviceCallAllowedNow !== false ||
-      contract.frontendExposedNow !== false ||
-      contract.writesDatabase !== false
-    ) {
-      throw new BadRequestException(
-        'STEP122_K_BLOCKED_ROUTE_CONTRACT_DRIFT: blocked route contract must remain non-callable and non-writing.',
-      );
-    }
-
-    normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
-
-    throw new BadRequestException(
-      'STEP122_K_CONTROLLER_BLOCKED_ROUTE_NOT_OPEN: Amazon SP-API sandbox ImportJob read-model controller route is env-gated but not open yet.',
-    );
+    return this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']({
+      ...normalized,
+      dryRun: true,
+    });
   }
 
   @Post('detect-month-conflicts')
