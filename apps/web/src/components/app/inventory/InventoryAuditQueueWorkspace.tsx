@@ -168,7 +168,7 @@ type ResolveResponse = {
   message: string;
 };
 
-// Step113-C-1: ProductSkuAlias creation result used by Inventory Audit drawer.
+// ProductSkuAlias creation result used by Inventory Audit drawer.
 type ProductSkuAliasResponse = {
   ok: boolean;
   domain: string;
@@ -270,7 +270,7 @@ function normalizeAliasSkuPreview(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, "").toUpperCase();
 }
 
-// Step113-C-3: update drawer/list state immediately after resolve without waiting for a full reload.
+// Update drawer/list state immediately after resolve without waiting for a full reload.
 function mergeResolvedAuditIssue(item: AuditIssueItem, resolved: ResolveResponse): AuditIssueItem {
   return {
     ...item,
@@ -666,13 +666,13 @@ export default function InventoryAuditQueueWorkspace() {
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="text-sm font-semibold text-amber-700">Inventory Audit Queue</div>
+              <div className="text-sm font-semibold text-amber-700">Inventory Alias / Audit</div>
               <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950">
                 未解決の在庫監査
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Amazon注文取込時にSKUが商品マスタへ紐づかず、在庫引当・減算がスキップされた明細を確認します。
-                既存SKUに紐づけると、在庫OUT移動を作成し監査明細をCLOSEDにします。
+                Amazon注文取込でSKUが商品マスタへ紐づかない明細を確認し、既存SKUへ紐づけて在庫OUT移動を作成します。
+                Alias登録を同時に行うと、次回以降の同一Seller SKUはProductSkuAlias経由で自動的に在庫減算されます。
               </p>
             </div>
 
@@ -773,17 +773,55 @@ export default function InventoryAuditQueueWorkspace() {
           {linkedImportJobId ? (
             <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="font-bold">ImportJob 連携フィルター中</div>
+                <div className="font-bold">Import Center 連携フィルター中</div>
                 <div className="mt-1 font-mono text-xs">{linkedImportJobId}</div>
               </div>
               <a
                 href="/ja/app/inventory/audit"
                 className="inline-flex h-9 items-center justify-center rounded-xl border border-violet-200 bg-white px-3 text-xs font-bold text-violet-700 shadow-sm hover:bg-violet-100"
               >
-                全監査を表示
+                フィルター解除
               </a>
             </div>
           ) : null}
+
+          <section className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                  Regression Checklist
+                </div>
+                <h3 className="mt-1 text-sm font-black text-slate-950">
+                  Alias / Audit 回帰確認
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  Import Center からこの画面へ遷移した場合は importJobId フィルターを保持し、未解決行・解決済み行・Alias登録結果を同じdrawerで確認します。
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                npm run smoke:inventory-audit-alias
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="font-bold text-slate-800">1. Import Center</div>
+                <div className="mt-1 text-slate-500">ImportJob drawer から在庫監査へ戻れること。</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="font-bold text-slate-800">2. 未解決SKU</div>
+                <div className="mt-1 text-slate-500">ProductSku選択、Alias登録、在庫減算を一連で実行できること。</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="font-bold text-slate-800">3. 解決済みdrawer</div>
+                <div className="mt-1 text-slate-500">linkedSkuCode、movement、resolvedAt が読み取り専用で表示されること。</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="font-bold text-slate-800">4. Alias fallback</div>
+                <div className="mt-1 text-slate-500">同一Seller SKUの再取込で PRODUCT_SKU_ALIAS として在庫減算されること。</div>
+              </div>
+            </div>
+          </section>
 
           {resolveSuccess ? (
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -1187,7 +1225,7 @@ export default function InventoryAuditQueueWorkspace() {
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                           <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">
-                            Step113-C-3 Alias Registration
+                            Alias登録
                           </div>
                           <h4 className="mt-2 text-sm font-black text-sky-950">
                             未解決SKUを ProductSkuAlias として登録
@@ -1251,7 +1289,7 @@ export default function InventoryAuditQueueWorkspace() {
                   ) : (
                     <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                       <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
-                        Step113-C-3 Resolved Audit
+                        解決済み監査
                       </div>
                       <h4 className="mt-2 text-sm font-black text-emerald-950">
                         この監査明細は解決済みです
