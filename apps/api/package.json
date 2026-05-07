@@ -67,7 +67,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-controller-disabled-shell": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-controller-disabled-shell.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-controller-blocked-route-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-controller-blocked-route-contract.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-env-gated-blocked-controller-route": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-env-gated-blocked-controller-route.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-service-call-transition-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-service-call-transition-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
