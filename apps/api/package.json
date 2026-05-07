@@ -22,7 +22,8 @@
     "smoke:inventory-manual-adjustment": "node scripts/smoke-inventory-manual-adjustment.js",
     "smoke:amazon-order-normalized-contract": "node scripts/smoke-amazon-order-normalized-contract.js",
     "smoke:amazon-order-normalized-staging-row": "node scripts/smoke-amazon-order-normalized-staging-row.js",
-    "smoke:amazon-order-normalized-real-import": "node scripts/smoke-amazon-order-normalized-real-import.js"
+    "smoke:amazon-order-normalized-real-import": "node scripts/smoke-amazon-order-normalized-real-import.js",
+    "smoke:amazon-sp-api-sandbox-contract": "node scripts/smoke-amazon-sp-api-sandbox-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
