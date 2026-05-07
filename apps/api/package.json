@@ -59,7 +59,8 @@
     "smoke:amazon-sp-api-sandbox-import-center-visibility-contract": "node scripts/smoke-amazon-sp-api-sandbox-import-center-visibility-contract.js",
     "smoke:amazon-sp-api-sandbox-importjob-list-query-classification-policy": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-query-classification-policy.js",
     "smoke:amazon-sp-api-sandbox-importjob-list-filter-sort-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-filter-sort-contract.js",
-    "smoke:amazon-sp-api-sandbox-importjob-list-query-projection-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-query-projection-contract.js"
+    "smoke:amazon-sp-api-sandbox-importjob-list-query-projection-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-list-query-projection-contract.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-dry-run-service-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-dry-run-service-design.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
