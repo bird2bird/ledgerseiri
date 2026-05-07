@@ -36,7 +36,8 @@
     "smoke:amazon-sp-api-sandbox-csv-dedupe-boundary": "node scripts/smoke-amazon-sp-api-sandbox-csv-dedupe-boundary.js",
     "smoke:amazon-sp-api-sandbox-permission-boundary": "node scripts/smoke-amazon-sp-api-sandbox-permission-boundary.js",
     "smoke:amazon-sp-api-sandbox-override-audit-snapshot": "node scripts/smoke-amazon-sp-api-sandbox-override-audit-snapshot.js",
-    "smoke:amazon-sp-api-sandbox-persistence-preflight-checklist": "node scripts/smoke-amazon-sp-api-sandbox-persistence-preflight-checklist.js"
+    "smoke:amazon-sp-api-sandbox-persistence-preflight-checklist": "node scripts/smoke-amazon-sp-api-sandbox-persistence-preflight-checklist.js",
+    "smoke:amazon-sp-api-sandbox-staged-importjob-persistence-plan": "node scripts/smoke-amazon-sp-api-sandbox-staged-importjob-persistence-plan.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
