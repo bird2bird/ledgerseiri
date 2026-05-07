@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "smoke:inventory-audit-alias": "node scripts/smoke-inventory-audit-alias-reprocess.js",
     "smoke:inventory-manual-adjustment": "node scripts/smoke-inventory-manual-adjustment.js",
-    "smoke:amazon-order-normalized-contract": "node scripts/smoke-amazon-order-normalized-contract.js"
+    "smoke:amazon-order-normalized-contract": "node scripts/smoke-amazon-order-normalized-contract.js",
+    "smoke:amazon-order-normalized-staging-row": "node scripts/smoke-amazon-order-normalized-staging-row.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
