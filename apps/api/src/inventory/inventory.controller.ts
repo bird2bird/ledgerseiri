@@ -68,6 +68,32 @@ export class InventoryRootController {
     return this.service.listMovements({ skuId, skuCode, storeId, limit });
   }
 
+  @Get('sku-aliases')
+  skuAliases(
+    @Query('q') q?: string,
+    @Query('skuId') skuId?: string,
+    @Query('skuCode') skuCode?: string,
+    @Query('sourceType') sourceType?: string,
+    @Query('storeId') storeId?: string,
+    @Query('isActive') isActive?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.listProductSkuAliases({
+      q,
+      skuId,
+      skuCode,
+      sourceType,
+      storeId,
+      isActive,
+      limit,
+    });
+  }
+
+  @Post('sku-aliases')
+  createSkuAlias(@Body() body: unknown) {
+    return this.service.createProductSkuAlias(body);
+  }
+
   @Get('audit-issues')
   auditIssues(
     @Query('status') status?: string,

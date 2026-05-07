@@ -41,6 +41,7 @@ model Company {
   transactionCategories  TransactionCategory[]
   products               Product[]
   productSkus            ProductSku[]
+  productSkuAliases      ProductSkuAlias[]
   inventoryBalances      InventoryBalance[]
   inventoryMovements     InventoryMovement[]
   invoices               Invoice[]
@@ -60,10 +61,11 @@ model Store {
   region    String   @default("JP")
   createdAt DateTime @default(now())
 
-  transactions Transaction[]
-  accounts     Account[]
-  productSkus  ProductSku[]
-  invoices     Invoice[]
+  transactions      Transaction[]
+  accounts          Account[]
+  productSkus       ProductSku[]
+  productSkuAliases ProductSkuAlias[]
+  invoices          Invoice[]
 
   @@index([companyId])
 }
@@ -296,6 +298,7 @@ model ProductSku {
 
   balances  InventoryBalance[]
   movements InventoryMovement[]
+  aliases   ProductSkuAlias[]
 
   @@unique([companyId, skuCode])
   @@index([companyId])
@@ -305,6 +308,30 @@ model ProductSku {
   @@index([companyId, asin])
   @@index([companyId, externalSku])
   @@index([companyId, fulfillmentChannel])
+}
+
+model ProductSkuAlias {
+  id                 String   @id @default(cuid())
+  companyId          String
+  skuId              String
+  storeId            String?
+  sourceType         String   @default("AMAZON_ORDER_IMPORT")
+  aliasSku           String
+  normalizedAliasSku String
+  note               String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sku     ProductSku @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  store   Store?     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([skuId])
+  @@index([storeId])
+  @@index([companyId, sourceType, normalizedAliasSku])
+  @@index([companyId, isActive])
 }
 
 model InventoryBalance {

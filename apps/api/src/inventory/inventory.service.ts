@@ -33,6 +33,26 @@ type AuditIssueResolvePayload = {
   note?: string;
 };
 
+type ProductSkuAliasQuery = {
+  q?: string;
+  skuId?: string;
+  skuCode?: string;
+  sourceType?: string;
+  storeId?: string;
+  isActive?: string;
+  limit?: string;
+};
+
+type ProductSkuAliasPayload = {
+  aliasSku?: string;
+  skuId?: string;
+  skuCode?: string;
+  sourceType?: string;
+  storeId?: string;
+  note?: string;
+  isActive?: boolean | string;
+};
+
 type ManualAdjustmentPayload = {
   skuId?: string;
   skuCode?: string;
@@ -152,6 +172,375 @@ export class InventoryService {
       stockStatusLabel: this.getStockStatusLabel(stockStatus),
       isActive: row.sku.isActive,
       updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+
+  private normalizeAliasSku(value: unknown, fieldName = 'aliasSku') {
+    const text = String(value ?? '').trim();
+
+    if (!text) {
+      throw new BadRequestException(`${fieldName} is required.`);
+    }
+
+    return text.replace(/\s+/g, '').toUpperCase();
+  }
+
+  private normalizeOptionalBoolean(value: unknown) {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (typeof value === 'boolean') return value;
+
+    const text = String(value).trim().toLowerCase();
+    if (['true', '1', 'yes', 'y', 'active'].includes(text)) return true;
+    if (['false', '0', 'no', 'n', 'inactive'].includes(text)) return false;
+
+    throw new BadRequestException('isActive must be boolean.');
+  }
+
+  private toProductSkuAliasItem(row: any) {
+    return {
+      id: row.id,
+      companyId: row.companyId,
+      skuId: row.skuId,
+      storeId: row.storeId,
+      sourceType: row.sourceType,
+      aliasSku: row.aliasSku,
+      normalizedAliasSku: row.normalizedAliasSku,
+      note: row.note,
+      isActive: row.isActive,
+      createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
+      updatedAt: row.updatedAt?.toISOString?.() ?? row.updatedAt,
+      sku: row.sku
+        ? {
+            id: row.sku.id,
+            skuCode: row.sku.skuCode,
+            name: row.sku.name ?? row.sku.product?.name ?? null,
+            asin: row.sku.asin ?? null,
+            externalSku: row.sku.externalSku ?? null,
+            productName: row.sku.product?.name ?? null,
+            storeId: row.sku.storeId ?? null,
+            store: row.sku.store?.name ?? null,
+          }
+        : null,
+      store: row.store
+        ? {
+            id: row.store.id,
+            name: row.store.name,
+          }
+        : null,
+    };
+  }
+
+  async listProductSkuAliases(query: ProductSkuAliasQuery = {}) {
+    const companyId = await this.resolveCompanyId();
+
+    const takeRaw = query.limit ? Number(query.limit) : 50;
+    const take = Number.isFinite(takeRaw) ? Math.min(Math.max(Math.trunc(takeRaw), 1), 100) : 50;
+
+    const q = String(query.q || '').trim();
+    const normalizedQ = q ? q.replace(/\s+/g, '').toUpperCase() : '';
+    const sourceType = String(query.sourceType || '').trim();
+    const skuCode = String(query.skuCode || '').trim();
+    const isActive = this.normalizeOptionalBoolean(query.isActive);
+
+    const where: any = {
+      companyId,
+      ...(query.skuId ? { skuId: query.skuId } : {}),
+      ...(query.storeId ? { storeId: query.storeId } : {}),
+      ...(sourceType ? { sourceType } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+      ...(skuCode ? { sku: { skuCode } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { aliasSku: { contains: q, mode: 'insensitive' } },
+              { normalizedAliasSku: { contains: normalizedQ, mode: 'insensitive' } },
+              { sourceType: { contains: q, mode: 'insensitive' } },
+              { note: { contains: q, mode: 'insensitive' } },
+              { sku: { skuCode: { contains: q, mode: 'insensitive' } } },
+              { sku: { name: { contains: q, mode: 'insensitive' } } },
+              { sku: { asin: { contains: q, mode: 'insensitive' } } },
+              { sku: { externalSku: { contains: q, mode: 'insensitive' } } },
+              { sku: { product: { name: { contains: q, mode: 'insensitive' } } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total, activeCount] = await Promise.all([
+      this.prisma.productSkuAlias.findMany({
+        where,
+        select: {
+          id: true,
+          companyId: true,
+          skuId: true,
+          storeId: true,
+          sourceType: true,
+          aliasSku: true,
+          normalizedAliasSku: true,
+          note: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          sku: {
+            select: {
+              id: true,
+              skuCode: true,
+              name: true,
+              asin: true,
+              externalSku: true,
+              storeId: true,
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              store: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          store: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        take,
+      }),
+      this.prisma.productSkuAlias.count({ where }),
+      this.prisma.productSkuAlias.count({
+        where: {
+          companyId,
+          isActive: true,
+        },
+      }),
+    ]);
+
+    return {
+      ok: true,
+      domain: 'inventory',
+      action: 'sku-aliases',
+      filters: {
+        q: q || null,
+        skuId: query.skuId || null,
+        skuCode: skuCode || null,
+        sourceType: sourceType || null,
+        storeId: query.storeId || null,
+        isActive: isActive === undefined ? null : isActive,
+      },
+      items: rows.map((row) => this.toProductSkuAliasItem(row)),
+      total,
+      summary: {
+        totalAliases: total,
+        activeAliases: activeCount,
+      },
+      message: 'product sku aliases loaded',
+    };
+  }
+
+  async createProductSkuAlias(payload: unknown) {
+    const body = (payload ?? {}) as ProductSkuAliasPayload;
+    const companyId = await this.resolveCompanyId();
+
+    const aliasSku = String(body.aliasSku ?? '').trim();
+    const normalizedAliasSku = this.normalizeAliasSku(aliasSku);
+    const sourceType = String(body.sourceType || 'AMAZON_ORDER_IMPORT').trim() || 'AMAZON_ORDER_IMPORT';
+    const skuId = String(body.skuId || '').trim();
+    const skuCode = String(body.skuCode || '').trim();
+    const storeId = String(body.storeId || '').trim();
+    const isActive = this.normalizeOptionalBoolean(body.isActive) ?? true;
+    const note = String(body.note || '').trim() || null;
+
+    if (!skuId && !skuCode) {
+      throw new BadRequestException('skuId or skuCode is required.');
+    }
+
+    const sku = await this.prisma.productSku.findFirst({
+      where: {
+        companyId,
+        ...(skuId ? { id: skuId } : {}),
+        ...(skuCode ? { skuCode } : {}),
+      },
+      select: {
+        id: true,
+        skuCode: true,
+        name: true,
+        asin: true,
+        externalSku: true,
+        storeId: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        store: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!sku) {
+      throw new NotFoundException('ProductSku not found for this company.');
+    }
+
+    if (storeId) {
+      const store = await this.prisma.store.findFirst({
+        where: {
+          id: storeId,
+          companyId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!store) {
+        throw new NotFoundException('Store not found for this company.');
+      }
+    }
+
+    const existing = await this.prisma.productSkuAlias.findFirst({
+      where: {
+        companyId,
+        sourceType,
+        normalizedAliasSku,
+        storeId: storeId || null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const row = existing
+      ? await this.prisma.productSkuAlias.update({
+          where: {
+            id: existing.id,
+          },
+          data: {
+            skuId: sku.id,
+            aliasSku,
+            normalizedAliasSku,
+            sourceType,
+            storeId: storeId || null,
+            note,
+            isActive,
+          },
+          select: {
+            id: true,
+            companyId: true,
+            skuId: true,
+            storeId: true,
+            sourceType: true,
+            aliasSku: true,
+            normalizedAliasSku: true,
+            note: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            sku: {
+              select: {
+                id: true,
+                skuCode: true,
+                name: true,
+                asin: true,
+                externalSku: true,
+                storeId: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+                store: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            store: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        })
+      : await this.prisma.productSkuAlias.create({
+          data: {
+            companyId,
+            skuId: sku.id,
+            storeId: storeId || null,
+            sourceType,
+            aliasSku,
+            normalizedAliasSku,
+            note,
+            isActive,
+          },
+          select: {
+            id: true,
+            companyId: true,
+            skuId: true,
+            storeId: true,
+            sourceType: true,
+            aliasSku: true,
+            normalizedAliasSku: true,
+            note: true,
+            isActive: true,
+            createdAt: true,
+            updatedAt: true,
+            sku: {
+              select: {
+                id: true,
+                skuCode: true,
+                name: true,
+                asin: true,
+                externalSku: true,
+                storeId: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+                store: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            store: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
+
+    return {
+      ok: true,
+      domain: 'inventory',
+      action: existing ? 'update-sku-alias' : 'create-sku-alias',
+      item: this.toProductSkuAliasItem(row),
+      message: existing ? 'product sku alias updated' : 'product sku alias created',
     };
   }
 
