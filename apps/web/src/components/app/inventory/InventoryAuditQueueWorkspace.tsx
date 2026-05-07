@@ -270,6 +270,27 @@ function normalizeAliasSkuPreview(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, "").toUpperCase();
 }
 
+// Step113-C-3: update drawer/list state immediately after resolve without waiting for a full reload.
+function mergeResolvedAuditIssue(item: AuditIssueItem, resolved: ResolveResponse): AuditIssueItem {
+  return {
+    ...item,
+    matchStatus: "resolved",
+    targetEntityType: "ProductSku",
+    targetEntityId: resolved.item.sku.id,
+    audit: {
+      ...item.audit,
+      status: resolved.item.audit.status,
+      resolutionAction: resolved.item.audit.resolutionAction,
+      linkedSkuId: resolved.item.audit.linkedSkuId,
+      linkedSkuCode: resolved.item.audit.linkedSkuCode,
+      linkedProductName: resolved.item.sku.productName ?? resolved.item.sku.name,
+      resolutionMovementId: resolved.item.audit.resolutionMovementId,
+      resolvedAt: resolved.item.audit.resolvedAt,
+      closedReason: resolved.item.audit.closedReason,
+    },
+  };
+}
+
 function stockTone(stock: InventoryStockItem | null, nextQuantity: number | null) {
   if (nextQuantity !== null && nextQuantity < 0) {
     return "border-red-200 bg-red-50 text-red-900";
@@ -445,7 +466,17 @@ export default function InventoryAuditQueueWorkspace() {
   }
 
   async function resolveSelectedIssue() {
-    if (!selected) return;
+    if (!selected || resolving) return;
+
+    if (!isOpenIssue(selected)) {
+      setResolveError("この監査明細はすでに解決済みです。");
+      return;
+    }
+
+    if (lastResolve) {
+      setResolveError("この監査明細はこの画面ですでに解決処理済みです。");
+      return;
+    }
 
     if (!selectedSkuId) {
       setResolveError("紐づける既存SKUを選択してください。");
@@ -535,6 +566,19 @@ export default function InventoryAuditQueueWorkspace() {
         `${aliasPayload ? "Alias登録後、" : ""}解決しました。${parsed.item.sku.skuCode} に紐づけ、在庫移動 ${parsed.item.movement.id} を作成しました。`,
       );
 
+      const mergedSelected = mergeResolvedAuditIssue(selected, parsed);
+      setSelected(mergedSelected);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((item) => (item.id === selected.id ? mergedSelected : item)),
+            }
+          : current,
+      );
+      setResolutionConfirmed(false);
+      setCreateAliasEnabled(false);
+
       setStatus("ALL");
       await load({ refresh: true });
     } catch (err) {
@@ -556,7 +600,7 @@ export default function InventoryAuditQueueWorkspace() {
     setAliasError(null);
     setAliasSuccess(null);
     setLastAlias(null);
-    setCreateAliasEnabled(true);
+    setCreateAliasEnabled(isOpenIssue(item));
     setResolveNote("");
     setSelectedSkuId("");
     setSkuSearchDraft("");
@@ -591,6 +635,16 @@ export default function InventoryAuditQueueWorkspace() {
   const selectedProduct = products.find((item) => item.id === selectedSkuId) ?? null;
   const selectedAliasSku = asText(selected?.audit?.sku ?? selected?.source?.sku, "");
   const selectedNormalizedAliasSku = normalizeAliasSkuPreview(selectedAliasSku);
+  const selectedIsOpen = isOpenIssue(selected);
+  const selectedIsClosed = isClosedIssue(selected);
+  const hasCompletedResolution = selectedIsClosed || Boolean(lastResolve);
+  const resolveButtonDisabled =
+    !selectedSkuId ||
+    !resolutionConfirmed ||
+    resolving ||
+    productsLoading ||
+    stockPreviewLoading ||
+    hasCompletedResolution;
   const normalizedSkuSearch = normalizeSearchText(skuSearchDraft);
   const filteredProducts = normalizedSkuSearch
     ? products.filter((product) =>
@@ -740,6 +794,25 @@ export default function InventoryAuditQueueWorkspace() {
           {aliasSuccess ? (
             <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
               {aliasSuccess}
+            </div>
+          ) : null}
+
+          {lastAlias ? (
+            <div className="mt-3 grid gap-2 rounded-2xl border border-sky-200 bg-white px-4 py-3 text-xs text-sky-900 sm:grid-cols-3">
+              <div>
+                <div className="font-bold text-sky-700">Alias ID</div>
+                <div className="mt-1 break-all font-mono">{lastAlias.item.id}</div>
+              </div>
+              <div>
+                <div className="font-bold text-sky-700">Normalized</div>
+                <div className="mt-1 break-all font-mono">{lastAlias.item.normalizedAliasSku}</div>
+              </div>
+              <div>
+                <div className="font-bold text-sky-700">Linked SKU</div>
+                <div className="mt-1 break-all font-mono">
+                  {lastAlias.item.sku?.skuCode ?? lastAlias.item.skuId}
+                </div>
+              </div>
             </div>
           ) : null}
         </section>
@@ -1109,58 +1182,100 @@ export default function InventoryAuditQueueWorkspace() {
                     </div>
                   ) : null}
 
-                  <section className="rounded-3xl border border-sky-200 bg-sky-50 p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">
-                          Step113-C Alias Registration
+                  {selectedIsOpen ? (
+                    <section className="rounded-3xl border border-sky-200 bg-sky-50 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">
+                            Step113-C-3 Alias Registration
+                          </div>
+                          <h4 className="mt-2 text-sm font-black text-sky-950">
+                            未解決SKUを ProductSkuAlias として登録
+                          </h4>
+                          <p className="mt-1 text-xs leading-5 text-sky-800">
+                            この監査明細の元SKUを選択済みの商品SKUへ紐づけます。次回以降のAmazon注文取込では Alias 経由で在庫減算されます。
+                          </p>
                         </div>
-                        <h4 className="mt-2 text-sm font-black text-sky-950">
-                          未解決SKUを ProductSkuAlias として登録
-                        </h4>
-                        <p className="mt-1 text-xs leading-5 text-sky-800">
-                          この監査明細の元SKUを選択済みの商品SKUへ紐づけます。次回以降のAmazon注文取込では Alias 経由で在庫減算されます。
-                        </p>
+                        <label className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-800 shadow-sm">
+                          <input
+                            type="checkbox"
+                            checked={createAliasEnabled}
+                            disabled={!selectedIsOpen || resolving || hasCompletedResolution}
+                            onChange={(event) => setCreateAliasEnabled(event.target.checked)}
+                            className="h-4 w-4 rounded border-sky-300"
+                          />
+                          Alias登録を同時実行
+                        </label>
                       </div>
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-800 shadow-sm">
-                        <input
-                          type="checkbox"
-                          checked={createAliasEnabled}
-                          disabled={!isOpenIssue(selected)}
-                          onChange={(event) => setCreateAliasEnabled(event.target.checked)}
-                          className="h-4 w-4 rounded border-sky-300"
-                        />
-                        Alias登録を同時実行
-                      </label>
-                    </div>
-                  
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-2xl border border-sky-200 bg-white px-4 py-3">
-                        <div className="text-xs font-semibold text-sky-700">Alias SKU</div>
-                        <div className="mt-1 break-all font-mono text-sm font-bold text-sky-950">
-                          {selectedAliasSku || "-"}
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-2xl border border-sky-200 bg-white px-4 py-3">
+                          <div className="text-xs font-semibold text-sky-700">Alias SKU</div>
+                          <div className="mt-1 break-all font-mono text-sm font-bold text-sky-950">
+                            {selectedAliasSku || "-"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-sky-200 bg-white px-4 py-3">
+                          <div className="text-xs font-semibold text-sky-700">Normalized Alias SKU</div>
+                          <div className="mt-1 break-all font-mono text-sm font-bold text-sky-950">
+                            {selectedNormalizedAliasSku || "-"}
+                          </div>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-sky-200 bg-white px-4 py-3">
-                        <div className="text-xs font-semibold text-sky-700">Normalized Alias SKU</div>
-                        <div className="mt-1 break-all font-mono text-sm font-bold text-sky-950">
-                          {selectedNormalizedAliasSku || "-"}
+
+                      {lastAlias ? (
+                        <div className="mt-3 grid gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800 sm:grid-cols-3">
+                          <div>
+                            <div className="font-bold">Alias ID</div>
+                            <div className="mt-1 break-all font-mono">{lastAlias.item.id}</div>
+                          </div>
+                          <div>
+                            <div className="font-bold">Normalized</div>
+                            <div className="mt-1 break-all font-mono">{lastAlias.item.normalizedAliasSku}</div>
+                          </div>
+                          <div>
+                            <div className="font-bold">Linked SKU</div>
+                            <div className="mt-1 break-all font-mono">
+                              {lastAlias.item.sku?.skuCode ?? lastAlias.item.skuId}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {aliasError ? (
+                        <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                          {aliasError}
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : (
+                    <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                        Step113-C-3 Resolved Audit
+                      </div>
+                      <h4 className="mt-2 text-sm font-black text-emerald-950">
+                        この監査明細は解決済みです
+                      </h4>
+                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                          <div className="font-bold text-emerald-700">Linked SKU</div>
+                          <div className="mt-1 break-all font-mono">
+                            {asText(selected.audit.linkedSkuCode)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                          <div className="font-bold text-emerald-700">Movement</div>
+                          <div className="mt-1 break-all font-mono">
+                            {asText(selected.audit.resolutionMovementId)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                          <div className="font-bold text-emerald-700">Resolved At</div>
+                          <div className="mt-1">{formatDateTime(selected.audit.resolvedAt)}</div>
                         </div>
                       </div>
-                    </div>
-                  
-                    {lastAlias ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                        Alias登録済み: {lastAlias.item.aliasSku} → {lastAlias.item.sku?.skuCode ?? lastAlias.item.skuId}
-                      </div>
-                    ) : null}
-                  
-                    {aliasError ? (
-                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-                        {aliasError}
-                      </div>
-                    ) : null}
-                  </section>
+                    </section>
+                  )}
 
                   <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-700">
                     <input
@@ -1181,14 +1296,22 @@ export default function InventoryAuditQueueWorkspace() {
                     data-testid="inventory-audit-resolve-button"
                     type="button"
                     onClick={() => void resolveSelectedIssue()}
-                    disabled={!selectedSkuId || !resolutionConfirmed || resolving || productsLoading || stockPreviewLoading}
+                    disabled={resolveButtonDisabled}
                     className="mt-4 w-full rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {resolving ? "解決処理中..." : createAliasEnabled ? "Alias登録＋在庫減算を実行" : "確認して在庫減算を実行"}
+                    {resolving
+                      ? "解決処理中..."
+                      : hasCompletedResolution
+                        ? "解決済み"
+                        : createAliasEnabled
+                          ? "Alias登録＋在庫減算を実行"
+                          : "確認して在庫減算を実行"}
                   </button>
 
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    実行後、在庫OUT移動が作成され、監査ステータスはCLOSEDになります。
+                    {hasCompletedResolution
+                      ? "この明細は解決済みです。追加の在庫移動やAlias登録は実行できません。"
+                      : "実行後、在庫OUT移動が作成され、監査ステータスはCLOSEDになります。"}
                   </p>
                 </section>
               ) : null}
