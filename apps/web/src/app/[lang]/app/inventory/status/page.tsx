@@ -108,6 +108,7 @@ type ManualAdjustmentResponse = {
     stockStatus: StockStatus;
     stockStatusLabel?: string;
     occurredAt: string;
+    movement?: InventoryMovementRow;
   };
   message?: string;
 };
@@ -325,6 +326,32 @@ function applyManualAdjustmentResult(row: InventoryRow, result?: ManualAdjustmen
   };
 }
 
+// Step114-C-3: show the freshly created manual adjustment movement immediately in the drawer.
+function buildManualAdjustmentMovement(row: InventoryRow, result?: ManualAdjustmentResponse["item"]): InventoryMovementRow | null {
+  if (!result?.movement) return null;
+
+  return {
+    id: result.movement.id,
+    skuId: row.skuId,
+    sku: row.skuCode || row.sku,
+    skuCode: row.skuCode || row.sku,
+    productName: row.productName || row.name,
+    storeId: row.storeId ?? null,
+    store: row.store,
+    type: result.movement.type,
+    quantity: result.movement.quantity,
+    occurredAt: result.movement.occurredAt,
+    sourceType: result.movement.sourceType,
+    sourceId: result.movement.sourceId,
+    importJobId: result.movement.importJobId,
+    sourceRowNo: result.movement.sourceRowNo,
+    transactionId: result.movement.transactionId,
+    businessMonth: result.movement.businessMonth,
+    memo: result.movement.memo,
+    createdAt: result.movement.createdAt,
+  };
+}
+
 export default function Page() {
   const params = useParams<{ lang: string }>();
   const searchParams = useSearchParams();
@@ -530,12 +557,21 @@ export default function Page() {
 
       if (selected && json?.item) {
         const nextSelected = applyManualAdjustmentResult(selected, json.item);
+        const nextMovement = buildManualAdjustmentMovement(nextSelected, json.item);
+
         setSelected(nextSelected);
         setRows((current) => current.map((row) => (row.skuId === nextSelected.skuId ? nextSelected : row)));
-      }
 
-      await loadStocks();
-      await loadMovements(selected);
+        if (nextMovement) {
+          setMovements((current) => [nextMovement, ...current.filter((item) => item.id !== nextMovement.id)]);
+        }
+
+        await loadStocks();
+        await loadMovements(nextSelected);
+      } else {
+        await loadStocks();
+        await loadMovements(selected);
+      }
     } catch (e: unknown) {
       setSaveMessage("");
       setError(e instanceof Error ? e.message : String(e));

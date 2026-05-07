@@ -1300,11 +1300,24 @@ export class InventoryService {
     };
   }
 
+  // Step114-C-1: derive business month for manual inventory movements.
+  private formatBusinessMonthFromDate(value: Date) {
+    const yyyy = value.getUTCFullYear();
+    const mm = String(value.getUTCMonth() + 1).padStart(2, '0');
+    return `${yyyy}-${mm}`;
+  }
+
   async createManualAdjustment(payload: unknown) {
     const body = (payload ?? {}) as ManualAdjustmentPayload;
     const companyId = await this.resolveCompanyId();
 
     const type = this.normalizeMovementType(body.type);
+    const memo = String(body.memo ?? '').trim();
+
+    if (!memo) {
+      throw new BadRequestException('memo is required for manual stock adjustment.');
+    }
+
     const rawQuantity =
       body.quantityDelta !== undefined && body.quantityDelta !== null && body.quantityDelta !== ''
         ? this.parseInteger(body.quantityDelta, 'quantityDelta')
@@ -1314,11 +1327,15 @@ export class InventoryService {
       throw new BadRequestException('quantity must not be zero.');
     }
 
+    if ((type === InventoryMovementType.IN || type === InventoryMovementType.OUT) && rawQuantity < 0) {
+      throw new BadRequestException('quantity must be positive for IN or OUT movements.');
+    }
+
     let delta = rawQuantity;
     if (type === InventoryMovementType.IN) {
-      delta = Math.abs(rawQuantity);
+      delta = rawQuantity;
     } else if (type === InventoryMovementType.OUT) {
-      delta = -Math.abs(rawQuantity);
+      delta = -rawQuantity;
     }
 
     const sku = await this.prisma.productSku.findFirst({
@@ -1346,6 +1363,11 @@ export class InventoryService {
     }
 
     const sourceRowNo = this.parseOptionalInteger(body.sourceRowNo, 'sourceRowNo');
+    const sourceType = body.sourceType?.trim() || 'MANUAL_STOCK_ADJUSTMENT';
+    const sourceId =
+      body.sourceId?.trim() ||
+      `manual-stock-adjustment:${sku.skuCode}:${occurredAt.toISOString()}`;
+    const businessMonth = body.businessMonth?.trim() || this.formatBusinessMonthFromDate(occurredAt);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const current = await tx.inventoryBalance.findUnique({
@@ -1372,13 +1394,27 @@ export class InventoryService {
           type,
           quantity: delta,
           occurredAt,
-          sourceType: body.sourceType?.trim() || 'MANUAL',
-          sourceId: body.sourceId?.trim() || null,
+          sourceType,
+          sourceId,
           importJobId: body.importJobId?.trim() || null,
           sourceRowNo: sourceRowNo ?? null,
           transactionId: body.transactionId?.trim() || null,
-          businessMonth: body.businessMonth?.trim() || null,
-          memo: body.memo?.trim() || null,
+          businessMonth,
+          memo,
+        },
+        select: {
+          id: true,
+          type: true,
+          quantity: true,
+          occurredAt: true,
+          sourceType: true,
+          sourceId: true,
+          importJobId: true,
+          sourceRowNo: true,
+          transactionId: true,
+          businessMonth: true,
+          memo: true,
+          createdAt: true,
         },
       });
 
@@ -1435,6 +1471,20 @@ export class InventoryService {
         stockStatus,
         stockStatusLabel: this.getStockStatusLabel(stockStatus),
         occurredAt: result.movement.occurredAt.toISOString(),
+        movement: {
+          id: result.movement.id,
+          type: result.movement.type,
+          quantity: result.movement.quantity,
+          occurredAt: result.movement.occurredAt.toISOString(),
+          sourceType: result.movement.sourceType,
+          sourceId: result.movement.sourceId,
+          importJobId: result.movement.importJobId,
+          sourceRowNo: result.movement.sourceRowNo,
+          transactionId: result.movement.transactionId,
+          businessMonth: result.movement.businessMonth,
+          memo: result.movement.memo,
+          createdAt: result.movement.createdAt.toISOString(),
+        },
       },
       message: 'inventory manual adjustment created',
     };
