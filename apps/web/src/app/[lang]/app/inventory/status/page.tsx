@@ -265,6 +265,51 @@ function movementAuditHref(lang: Lang, movement: InventoryMovementRow) {
   return `/${lang}/app/inventory/audit`;
 }
 
+function movementTransactionHref(lang: Lang, movement: InventoryMovementRow) {
+  return movement.transactionId ? `/${lang}/app/transactions?transactionId=${encodeURIComponent(movement.transactionId)}` : "";
+}
+
+// Step114-B-1: semantic trace labels for inventory movement source provenance.
+function movementTraceKind(movement: InventoryMovementRow) {
+  if (movement.sourceType === "INVENTORY_AUDIT_RESOLUTION") return "audit";
+  if (movement.sourceType === "AMAZON_ORDER_IMPORT") return "amazon";
+  if (movement.importJobId) return "import";
+  if (movement.transactionId) return "transaction";
+  if (movement.type === "ADJUST") return "manual";
+  return "other";
+}
+
+function movementTraceLabel(movement: InventoryMovementRow) {
+  const kind = movementTraceKind(movement);
+  if (kind === "audit") return "在庫監査解決";
+  if (kind === "amazon") return "Amazon注文取込";
+  if (kind === "import") return "取込データ";
+  if (kind === "transaction") return "取引連動";
+  if (kind === "manual") return "手動調整";
+  return movement.sourceType || "在庫移動";
+}
+
+function movementTraceTone(movement: InventoryMovementRow) {
+  const kind = movementTraceKind(movement);
+  if (kind === "audit") return "border-amber-200 bg-amber-50 text-amber-900";
+  if (kind === "amazon") return "border-sky-200 bg-sky-50 text-sky-900";
+  if (kind === "import") return "border-violet-200 bg-violet-50 text-violet-900";
+  if (kind === "transaction") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (kind === "manual") return "border-slate-200 bg-slate-50 text-slate-900";
+  return "border-slate-200 bg-white text-slate-900";
+}
+
+function movementTraceSummary(movement: InventoryMovementRow) {
+  const parts = [
+    movement.sourceType ? `sourceType=${movement.sourceType}` : null,
+    movement.businessMonth ? `businessMonth=${movement.businessMonth}` : null,
+    movement.sourceRowNo != null ? `row=${movement.sourceRowNo}` : null,
+    movement.transactionId ? "transaction linked" : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" / ") : "追跡情報はmovement単体で記録されています。";
+}
+
 function applyManualAdjustmentResult(row: InventoryRow, result?: ManualAdjustmentResponse["item"]): InventoryRow {
   if (!result) return row;
 
@@ -907,7 +952,7 @@ export default function Page() {
                   <div>
                     <div className="text-base font-black text-slate-950">最近の在庫移動</div>
                     <p className="mt-1 text-xs text-slate-500">
-                      sourceType / importJobId / memo から取込・監査の経路を追跡します。
+                      sourceType / sourceId / importJobId / transactionId から取込・監査・取引連動の経路を追跡します。
                     </p>
                   </div>
                   <button
@@ -952,28 +997,60 @@ export default function Page() {
                             <div className="mt-1 text-xs text-slate-500">{formatDateTime(movement.occurredAt)}</div>
                           </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
-                          {movement.importJobId ? (
-                            <a
-                              href={movementImportCenterHref(lang, movement)}
-                              className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-violet-700 hover:bg-violet-100"
-                            >
-                              Import Center
-                            </a>
+                        <div className={`mt-3 rounded-2xl border px-4 py-3 ${movementTraceTone(movement)}`}>
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <div className="text-xs font-bold uppercase tracking-[0.18em] opacity-70">
+                                Movement Trace
+                              </div>
+                              <div className="mt-1 text-sm font-black">{movementTraceLabel(movement)}</div>
+                              <div className="mt-1 text-xs leading-5 opacity-80">
+                                {movementTraceSummary(movement)}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs font-bold">
+                              {movement.importJobId ? (
+                                <a
+                                  href={movementImportCenterHref(lang, movement)}
+                                  className="rounded-full border border-white/70 bg-white/80 px-3 py-1 text-violet-700 shadow-sm hover:bg-white"
+                                >
+                                  Import Center
+                                </a>
+                              ) : null}
+                              {movementAuditHref(lang, movement) ? (
+                                <a
+                                  href={movementAuditHref(lang, movement)}
+                                  className="rounded-full border border-white/70 bg-white/80 px-3 py-1 text-amber-700 shadow-sm hover:bg-white"
+                                >
+                                  Inventory Audit
+                                </a>
+                              ) : null}
+                              {movementTransactionHref(lang, movement) ? (
+                                <a
+                                  href={movementTransactionHref(lang, movement)}
+                                  className="rounded-full border border-white/70 bg-white/80 px-3 py-1 text-emerald-700 shadow-sm hover:bg-white"
+                                >
+                                  Transaction
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                            <TraceField label="sourceType" value={movement.sourceType || "-"} />
+                            <TraceField label="sourceId" value={movement.sourceId || "-"} />
+                            <TraceField label="importJobId" value={movement.importJobId || "-"} />
+                            <TraceField label="transactionId" value={movement.transactionId || "-"} />
+                            <TraceField label="businessMonth" value={movement.businessMonth || "-"} />
+                            <TraceField label="sourceRowNo" value={movement.sourceRowNo != null ? String(movement.sourceRowNo) : "-"} />
+                          </div>
+
+                          {movement.memo ? (
+                            <div className="mt-3 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-xs leading-5 text-slate-700">
+                              <div className="font-black text-slate-500">memo</div>
+                              <div className="mt-1 break-all">{movement.memo}</div>
+                            </div>
                           ) : null}
-                          {movementAuditHref(lang, movement) ? (
-                            <a
-                              href={movementAuditHref(lang, movement)}
-                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700 hover:bg-amber-100"
-                            >
-                              Inventory Audit
-                            </a>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 grid gap-1 text-xs text-slate-500">
-                          <div className="break-all">sourceId: {movement.sourceId || "-"}</div>
-                          <div className="break-all">importJobId: {movement.importJobId || "-"}</div>
-                          <div className="break-all">memo: {movement.memo || "-"}</div>
                         </div>
                       </div>
                     ))
@@ -1024,6 +1101,15 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-white/70 bg-white px-4 py-3 shadow-sm">
       <div className="text-xs font-bold text-slate-500">{label}</div>
       <div className="mt-1 text-lg font-black text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function TraceField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-1 break-all font-mono text-[11px] font-bold text-slate-700">{value || "-"}</div>
     </div>
   );
 }
