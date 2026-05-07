@@ -70,7 +70,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-endpoint-contract.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-service-call-transition-contract": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-service-call-transition-contract.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-controller-preflight": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-controller-preflight.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-http-get-runtime": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-http-get-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

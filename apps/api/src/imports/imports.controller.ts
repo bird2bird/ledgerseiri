@@ -65,7 +65,16 @@ export class ImportsController {
   ): Promise<AmazonSpApiSandboxImportJobReadModelDryRunResult> {
     assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
 
-    const normalized = normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
+    let normalized: ReturnType<typeof normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery>;
+
+    try {
+      normalized = normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(
+        `STEP122_P_HTTP_QUERY_VALIDATION_BAD_REQUEST: ${message}`,
+      );
+    }
 
     return this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']({
       ...normalized,
