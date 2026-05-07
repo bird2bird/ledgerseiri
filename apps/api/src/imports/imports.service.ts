@@ -41,6 +41,19 @@ import {
   type AmazonSpApiSandboxPermanentImportJobServiceMethodDesign,
   assertAmazonSpApiSandboxPermanentImportJobServiceMethodDesign,
 } from './dto/amazon-sp-api-sandbox-permanent-importjob-service-method-design.dto';
+import {
+  projectAmazonSpApiSandboxImportJobListRows,
+} from './dto/amazon-sp-api-sandbox-importjob-list-query-projection-contract.dto';
+import type {
+  AmazonSpApiSandboxImportJobListFilterKey,
+  AmazonSpApiSandboxImportJobListSortKey,
+  AmazonSpApiSandboxImportJobListRowCandidate,
+} from './dto/amazon-sp-api-sandbox-importjob-list-filter-sort-contract.dto';
+import type {
+  AmazonSpApiSandboxImportJobReadModelDryRunArgs,
+  AmazonSpApiSandboxImportJobReadModelDryRunResult,
+} from './dto/amazon-sp-api-sandbox-importjob-read-model-dry-run-service-design.dto';
+
 
 type MonthStat = {
   month: string;
@@ -829,6 +842,171 @@ export class ImportsService {
       filename,
       preview,
       aggregate,
+    };
+  }
+
+
+  // Step122-F: Amazon SP-API sandbox ImportJob read-model dry-run service implementation.
+  // Internal service only. Controller/frontend remain disabled.
+  // This method is read-only and must not expose rawPayloadJson / normalizedPayloadJson / dedupeHash.
+  async ['listAmazonSpApiSandboxImportJobsReadModelDryRun'](
+    args: {
+      companyId?: string;
+    } & AmazonSpApiSandboxImportJobReadModelDryRunArgs,
+  ): Promise<AmazonSpApiSandboxImportJobReadModelDryRunResult> {
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    if (args.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP122_F_READ_MODEL_DRY_RUN_REQUIRED: listAmazonSpApiSandboxImportJobsReadModelDryRun requires dryRun=true.',
+      );
+    }
+
+    const companyId = await this.resolveCompanyId(args.companyId);
+
+    const allowedFilters: AmazonSpApiSandboxImportJobListFilterKey[] = [
+      'all',
+      'amazon-sp-api-sandbox',
+      'pending-review',
+      'uncommitted-staging',
+      'invalid-sp-api-sandbox',
+    ];
+    const allowedSorts: AmazonSpApiSandboxImportJobListSortKey[] = [
+      'createdAt_desc',
+      'createdAt_asc',
+      'filename_asc',
+      'filename_desc',
+      'totalRows_desc',
+      'totalRows_asc',
+    ];
+    const allowedPageSizes = [20, 50, 100] as const;
+
+    const filterValue = String(args.filter || 'all');
+    const sortValue = String(args.sort || 'createdAt_desc');
+    const pageValue = Math.max(1, Math.floor(Number(args.page || 1)));
+    const pageSizeValue = Number(args.pageSize || 20);
+
+    if (!allowedFilters.includes(filterValue as AmazonSpApiSandboxImportJobListFilterKey)) {
+      throw new BadRequestException(
+        `STEP122_F_INVALID_READ_MODEL_FILTER: filter must be one of ${allowedFilters.join(', ')}.`,
+      );
+    }
+
+    if (!allowedSorts.includes(sortValue as AmazonSpApiSandboxImportJobListSortKey)) {
+      throw new BadRequestException(
+        `STEP122_F_INVALID_READ_MODEL_SORT: sort must be one of ${allowedSorts.join(', ')}.`,
+      );
+    }
+
+    if (!allowedPageSizes.includes(pageSizeValue as 20 | 50 | 100)) {
+      throw new BadRequestException(
+        'STEP122_F_INVALID_READ_MODEL_PAGE_SIZE: pageSize must be 20, 50, or 100.',
+      );
+    }
+
+    const importJobs = await this.prisma.importJob.findMany({
+      where: {
+        companyId,
+        sourceType: 'amazon-sp-api-sandbox',
+        module: 'store-orders',
+        status: 'PENDING',
+      },
+      select: {
+        id: true,
+        filename: true,
+        sourceType: true,
+        module: true,
+        status: true,
+        totalRows: true,
+        successRows: true,
+        failedRows: true,
+        importedAt: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const importJobIds = importJobs.map((job) => job.id);
+
+    const stagingRows = importJobIds.length
+      ? await this.prisma.importStagingRow.findMany({
+          where: {
+            companyId,
+            module: 'store-orders',
+            importJobId: {
+              in: importJobIds,
+            },
+          },
+          select: {
+            importJobId: true,
+            targetEntityId: true,
+          },
+        })
+      : [];
+
+    const stagingAggregation = new Map<
+      string,
+      {
+        stagingRows: number;
+        stagingTargetEntityIds: Array<string | null>;
+      }
+    >();
+
+    for (const row of stagingRows) {
+      const current =
+        stagingAggregation.get(row.importJobId) || {
+          stagingRows: 0,
+          stagingTargetEntityIds: [],
+        };
+
+      current.stagingRows += 1;
+      current.stagingTargetEntityIds.push(row.targetEntityId ?? null);
+      stagingAggregation.set(row.importJobId, current);
+    }
+
+    const candidates: AmazonSpApiSandboxImportJobListRowCandidate[] = importJobs.map((job) => {
+      const aggregate =
+        stagingAggregation.get(job.id) || {
+          stagingRows: 0,
+          stagingTargetEntityIds: [],
+        };
+
+      return {
+        id: job.id,
+        filename: job.filename,
+        sourceType: job.sourceType,
+        module: job.module,
+        status: job.status,
+        totalRows: Number(job.totalRows || 0),
+        successRows: job.successRows ?? null,
+        failedRows: job.failedRows ?? null,
+        importedAt: job.importedAt,
+        createdAt: job.createdAt,
+        stagingRows: aggregate.stagingRows,
+        stagingTargetEntityIds: aggregate.stagingTargetEntityIds,
+        transactionRows: 0,
+        inventoryMovementRows: 0,
+      };
+    });
+
+    const projected = projectAmazonSpApiSandboxImportJobListRows(candidates, {
+      filter: filterValue as AmazonSpApiSandboxImportJobListFilterKey,
+      sort: sortValue as AmazonSpApiSandboxImportJobListSortKey,
+      page: pageValue,
+      pageSize: pageSizeValue as 20 | 50 | 100,
+    });
+
+    return {
+      dryRun: true,
+      sourceType: 'amazon-sp-api-sandbox',
+      displayOnly: true,
+      rows: projected.rows,
+      page: projected.page,
+      pageSize: projected.pageSize,
+      totalRows: projected.totalRows,
+      totalPages: projected.totalPages,
     };
   }
 
