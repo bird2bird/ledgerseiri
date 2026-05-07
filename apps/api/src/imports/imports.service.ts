@@ -5,6 +5,10 @@ import {
   buildAmazonOrderNormalizedPayload,
   type AmazonOrderNormalizedPayload,
 } from './amazon-order-normalized-contract';
+import {
+  buildAmazonSpApiSandboxNormalizedPayloads,
+  type AmazonSpApiSandboxOrder,
+} from './amazon-sp-api-sandbox-adapter';
 import { PrismaService } from '../prisma.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
@@ -175,9 +179,276 @@ type StoreOrderInventoryDeductionSummary = {
   results: StoreOrderInventoryDeductionResult[];
 };
 
+
+type AmazonSpApiSandboxBoundaryDryRunRow = {
+  stagingRowId: string;
+  importJobId: string;
+  rowNo: number | null;
+  businessMonth: string | null;
+  dedupeHash: string;
+  payload: AmazonOrderNormalizedPayload & Record<string, unknown>;
+};
+
+type AmazonSpApiSandboxBoundaryDryRunResult = {
+  ok: true;
+  rollbackVerified: true;
+  companyId: string;
+  filename: string;
+  importJobId: string;
+  summary: {
+    orders: number;
+    rows: number;
+    sourceType: 'amazon-sp-api-sandbox';
+    normalizedSourceType: 'AMAZON_ORDER_SP_API';
+    businessMonths: string[];
+  };
+  rows: AmazonSpApiSandboxBoundaryDryRunRow[];
+};
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma: PrismaService) {}
+
+
+  // Step116-C: SP-API sandbox service boundary dry-run.
+  // This intentionally does not call real Amazon SP-API, does not store OAuth/token data,
+  // does not expose a controller API, and does not create Transaction rows.
+  // It verifies that SP-API-like normalized payloads can cross the ImportsService boundary
+  // into ImportJob / ImportStagingRow and then rolls back the transaction.
+  async dryRunAmazonSpApiSandboxImportBoundary(args: {
+    companyId?: string;
+    filename?: string;
+    orders: AmazonSpApiSandboxOrder[];
+  }): Promise<AmazonSpApiSandboxBoundaryDryRunResult> {
+    const companyId = await this.resolveCompanyId(args.companyId);
+    const filename =
+      String(args.filename || '').trim() ||
+      `amazon-sp-api-sandbox-boundary-dry-run-${Date.now()}.json`;
+
+    const orders = Array.isArray(args.orders) ? args.orders : [];
+    if (!orders.length) {
+      throw new BadRequestException('orders must include at least one SP-API sandbox order.');
+    }
+
+    const rollbackMessage = 'ROLLBACK_EXPECTED_STEP116_C_SERVICE_BOUNDARY';
+    let captured: AmazonSpApiSandboxBoundaryDryRunResult | null = null;
+    const dedupeHashes: string[] = [];
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const importJob = await tx.importJob.create({
+          data: {
+            companyId,
+            domain: 'store-orders',
+            module: 'store-orders',
+            sourceType: 'amazon-sp-api-sandbox',
+            filename,
+            status: 'SUCCEEDED',
+            totalRows: 0,
+            successRows: 0,
+            failedRows: 0,
+            fileMonthsJson: [],
+            importedAt: new Date(),
+          },
+        });
+
+        const rows: AmazonSpApiSandboxBoundaryDryRunRow[] = [];
+        let rowNoCursor = 1;
+
+        for (const order of orders) {
+          const payloads = buildAmazonSpApiSandboxNormalizedPayloads({
+            importJobId: importJob.id,
+            sourceFileName: importJob.filename,
+            startRowNo: rowNoCursor,
+            order,
+          });
+
+          for (const payload of payloads) {
+            const dedupeHash = this.hashPayload([
+              companyId,
+              'store-orders',
+              'AMAZON_ORDER_SP_API',
+              payload.orderId,
+              payload.sellerSku,
+              payload.businessMonth,
+              payload.grossAmount,
+              payload.quantity,
+            ]);
+
+            dedupeHashes.push(dedupeHash);
+
+            const normalizedPayloadJson = {
+              ...payload,
+              dedupeHash,
+            } as Prisma.InputJsonObject;
+
+            const stagingRow = await tx.importStagingRow.create({
+              data: {
+                importJob: {
+                  connect: { id: importJob.id },
+                },
+                company: {
+                  connect: { id: companyId },
+                },
+                module: 'store-orders',
+                rowNo: payload.sourceRowNo ?? rowNoCursor,
+                businessMonth: payload.businessMonth,
+                matchStatus: 'new',
+                matchReason: 'STEP116_C_SP_API_SANDBOX_SERVICE_BOUNDARY_DRY_RUN',
+                dedupeHash,
+                rawPayloadJson: {
+                  orderId: payload.orderId,
+                  amazonOrderId: payload.amazonOrderId,
+                  sellerSku: payload.sellerSku,
+                  normalizedSellerSku: payload.normalizedSellerSku,
+                  quantity: payload.quantity,
+                  grossAmount: payload.grossAmount,
+                  sourceType: payload.sourceType,
+                } as Prisma.InputJsonObject,
+                normalizedPayloadJson,
+              },
+            });
+
+            const reloaded = await tx.importStagingRow.findUniqueOrThrow({
+              where: { id: stagingRow.id },
+              select: {
+                id: true,
+                importJobId: true,
+                rowNo: true,
+                businessMonth: true,
+                dedupeHash: true,
+                normalizedPayloadJson: true,
+              },
+            });
+
+            const reloadedPayload =
+              reloaded.normalizedPayloadJson &&
+              typeof reloaded.normalizedPayloadJson === 'object' &&
+              !Array.isArray(reloaded.normalizedPayloadJson)
+                ? (reloaded.normalizedPayloadJson as AmazonOrderNormalizedPayload &
+                    Record<string, unknown>)
+                : ({} as AmazonOrderNormalizedPayload & Record<string, unknown>);
+
+            if (reloadedPayload.contractVersion !== 'amazon-order-normalized-v1') {
+              throw new Error('SP-API sandbox boundary dry-run contractVersion mismatch');
+            }
+
+            if (reloadedPayload.sourceType !== 'AMAZON_ORDER_SP_API') {
+              throw new Error('SP-API sandbox boundary dry-run sourceType mismatch');
+            }
+
+            if (reloadedPayload.module !== 'store-orders') {
+              throw new Error('SP-API sandbox boundary dry-run module mismatch');
+            }
+
+            if (reloadedPayload.importJobId !== importJob.id) {
+              throw new Error('SP-API sandbox boundary dry-run importJobId mismatch');
+            }
+
+            if (reloadedPayload.sourceFileName !== importJob.filename) {
+              throw new Error('SP-API sandbox boundary dry-run sourceFileName mismatch');
+            }
+
+            if (!reloadedPayload.orderId || !reloadedPayload.amazonOrderId) {
+              throw new Error('SP-API sandbox boundary dry-run orderId missing');
+            }
+
+            if (!reloadedPayload.sellerSku || !reloadedPayload.normalizedSellerSku) {
+              throw new Error('SP-API sandbox boundary dry-run sellerSku missing');
+            }
+
+            if (!Number.isFinite(reloadedPayload.quantity)) {
+              throw new Error('SP-API sandbox boundary dry-run quantity must be finite');
+            }
+
+            if (!Number.isFinite(reloadedPayload.grossAmount)) {
+              throw new Error('SP-API sandbox boundary dry-run grossAmount must be finite');
+            }
+
+            rows.push({
+              stagingRowId: reloaded.id,
+              importJobId: reloaded.importJobId,
+              rowNo: reloaded.rowNo,
+              businessMonth: reloaded.businessMonth,
+              dedupeHash,
+              payload: reloadedPayload,
+            });
+          }
+
+          rowNoCursor += payloads.length;
+        }
+
+        const businessMonths = Array.from(
+          new Set(rows.map((row) => row.businessMonth).filter((x): x is string => Boolean(x))),
+        ).sort();
+
+        await tx.importJob.update({
+          where: { id: importJob.id },
+          data: {
+            totalRows: rows.length,
+            successRows: rows.length,
+            failedRows: 0,
+            fileMonthsJson: businessMonths,
+          },
+        });
+
+        captured = {
+          ok: true,
+          rollbackVerified: true,
+          companyId,
+          filename: importJob.filename,
+          importJobId: importJob.id,
+          summary: {
+            orders: orders.length,
+            rows: rows.length,
+            sourceType: 'amazon-sp-api-sandbox',
+            normalizedSourceType: 'AMAZON_ORDER_SP_API',
+            businessMonths,
+          },
+          rows,
+        };
+
+        throw new Error(rollbackMessage);
+      });
+    } catch (err) {
+      if (!(err instanceof Error) || err.message !== rollbackMessage) {
+        throw err;
+      }
+    }
+
+    if (!captured) {
+      throw new Error('SP-API sandbox boundary dry-run did not capture ImportJob/ImportStagingRow payloads');
+    }
+
+    const leakedJob = await this.prisma.importJob.findFirst({
+      where: { filename },
+      select: { id: true },
+    });
+
+    if (leakedJob) {
+      throw new Error(`SP-API sandbox boundary dry-run rollback failed: ImportJob leaked ${leakedJob.id}`);
+    }
+
+    if (dedupeHashes.length) {
+      const leakedRows = await this.prisma.importStagingRow.findMany({
+        where: {
+          dedupeHash: {
+            in: dedupeHashes,
+          },
+        },
+        select: { id: true, dedupeHash: true },
+        take: 10,
+      });
+
+      if (leakedRows.length) {
+        throw new Error(
+          `SP-API sandbox boundary dry-run rollback failed: ImportStagingRow leaked count=${leakedRows.length}`,
+        );
+      }
+    }
+
+    return captured;
+  }
 
   private detectDelimiter(headerLine: string): 'comma' | 'tab' {
     const tabCount = (headerLine.match(/\t/g) || []).length;
