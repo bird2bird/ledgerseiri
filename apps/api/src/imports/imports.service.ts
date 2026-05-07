@@ -20,6 +20,19 @@ import type { IncomeImportCommitDto } from './dto/income-import-commit.dto';
 import type { ExpenseImportPreviewDto } from './dto/expense-import-preview.dto';
 import type { ExpenseImportCommitFromJobDto } from './dto/expense-import-commit.dto';
 import { assertAmazonSpApiSandboxEnvironmentGate } from './dto/amazon-sp-api-sandbox-internal-contract.dto';
+import {
+  buildAmazonSpApiSandboxOverrideAuditSnapshot,
+  type AmazonSpApiSandboxOverrideAuditSnapshot,
+} from './dto/amazon-sp-api-sandbox-override-audit-snapshot.dto';
+import { buildAmazonSpApiSandboxPersistencePreflightChecklist } from './dto/amazon-sp-api-sandbox-persistence-preflight-checklist.dto';
+import { buildAmazonSpApiSandboxStagedImportJobPersistencePlan } from './dto/amazon-sp-api-sandbox-staged-importjob-persistence-plan.dto';
+import { buildAmazonSpApiSandboxStagedTransactionOverwritePlan } from './dto/amazon-sp-api-sandbox-staged-transaction-overwrite-plan.dto';
+import { buildAmazonSpApiSandboxStagedInventoryCompensationPlan } from './dto/amazon-sp-api-sandbox-staged-inventory-compensation-plan.dto';
+import { buildAmazonSpApiSandboxGuardedExecutionReadinessMatrix } from './dto/amazon-sp-api-sandbox-guarded-execution-readiness-matrix.dto';
+import {
+  buildAmazonSpApiSandboxPlanningAggregate,
+  type AmazonSpApiSandboxPlanningAggregate,
+} from './dto/amazon-sp-api-sandbox-planning-aggregate.dto';
 
 type MonthStat = {
   month: string;
@@ -245,6 +258,39 @@ type AmazonSpApiSandboxBoundaryCommitResult = {
     businessMonths: string[];
   };
   rows: AmazonSpApiSandboxBoundaryCommitRow[];
+};
+
+
+type AmazonSpApiSandboxPlanningAggregateExistingOrder = {
+  orderId?: string | null;
+  amazonOrderId?: string | null;
+  occurredAt?: string | null;
+  sellerSku?: string | null;
+  normalizedSellerSku?: string | null;
+  quantity?: number | null;
+  amount?: number | null;
+  grossAmount?: number | null;
+  netAmount?: number | null;
+  feeAmount?: number | null;
+  currency?: string | null;
+  businessMonth?: string | null;
+  sourceType?: 'AMAZON_ORDER_CSV' | 'MANUAL_DB_EXISTING';
+  importJobId?: string | null;
+  sourceRowNo?: number | null;
+  sourceFileName?: string | null;
+  raw?: Record<string, unknown>;
+};
+
+type AmazonSpApiSandboxPlanningAggregateDryRunResult = {
+  ok: true;
+  dryRun: true;
+  rollbackVerified: true;
+  planOnly: true;
+  writesDatabase: false;
+  companyId: string;
+  filename: string;
+  preview: AmazonSpApiSandboxBoundaryPreviewResult;
+  aggregate: AmazonSpApiSandboxPlanningAggregate;
 };
 
 @Injectable()
@@ -546,6 +592,177 @@ export class ImportsService {
     return captured;
   }
 
+  // Step119-B: build the full SP-API sandbox planning aggregate at service level.
+  // This is internal, dry-run only, controller-disabled, and must not write database rows.
+  async planAmazonSpApiSandboxImportAggregate(args: {
+    companyId?: string;
+    filename?: string;
+    orders: AmazonSpApiSandboxOrder[];
+    existingOrders?: AmazonSpApiSandboxPlanningAggregateExistingOrder[];
+    dryRun?: boolean;
+  }): Promise<AmazonSpApiSandboxPlanningAggregateDryRunResult> {
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    const dryRun = args.dryRun !== false;
+
+    if (!dryRun) {
+      throw new BadRequestException(
+        'STEP119_B_SP_API_SANDBOX_AGGREGATE_NON_DRY_RUN_BLOCKED: Amazon SP-API sandbox planning aggregate currently requires dryRun=true.',
+      );
+    }
+
+    const preview = await this.previewAmazonSpApiSandboxOrders({
+      companyId: args.companyId,
+      filename: args.filename,
+      orders: args.orders,
+    });
+
+    const companyId = await this.resolveCompanyId(args.companyId || preview.companyId);
+    const filename = String(args.filename || preview.filename || '').trim();
+
+    const existingOrders = Array.isArray(args.existingOrders) ? args.existingOrders : [];
+    const snapshots: AmazonSpApiSandboxOverrideAuditSnapshot[] = [];
+
+    for (const previewRow of preview.rows) {
+      const payload = previewRow.payload;
+      const existing = existingOrders.find((candidate) => {
+        const candidateOrderId = String(candidate.amazonOrderId || candidate.orderId || '').trim();
+        const candidateSku = this.normalizeAmazonPlanSku(
+          candidate.normalizedSellerSku || candidate.sellerSku,
+        );
+        const payloadSku = this.normalizeAmazonPlanSku(
+          payload.normalizedSellerSku || payload.sellerSku,
+        );
+
+        return (
+          candidateOrderId === String(payload.amazonOrderId || payload.orderId || '').trim() &&
+          candidateSku === payloadSku &&
+          String(candidate.businessMonth || '') === String(payload.businessMonth || '')
+        );
+      });
+
+      if (!existing) {
+        continue;
+      }
+
+      const existingPayload = buildAmazonOrderNormalizedPayload({
+        sourceType: 'AMAZON_ORDER_CSV',
+        importJobId: existing.importJobId || 'existing-db-or-csv-import-job',
+        sourceRowNo: existing.sourceRowNo ?? null,
+        sourceFileName: existing.sourceFileName || 'existing-order.csv',
+        amazonOrderId: existing.amazonOrderId || existing.orderId || payload.amazonOrderId || payload.orderId,
+        orderId: existing.orderId || existing.amazonOrderId || payload.orderId || payload.amazonOrderId,
+        occurredAt: existing.occurredAt || payload.occurredAt,
+        sellerSku: existing.sellerSku || existing.normalizedSellerSku || payload.sellerSku,
+        quantity: Number.isFinite(existing.quantity) ? Number(existing.quantity) : payload.quantity,
+        amount: Number.isFinite(existing.amount)
+          ? Number(existing.amount)
+          : Number.isFinite(existing.grossAmount)
+            ? Number(existing.grossAmount)
+            : payload.grossAmount,
+        grossAmount: Number.isFinite(existing.grossAmount)
+          ? Number(existing.grossAmount)
+          : Number.isFinite(existing.amount)
+            ? Number(existing.amount)
+            : payload.grossAmount,
+        netAmount: Number.isFinite(existing.netAmount) ? Number(existing.netAmount) : payload.netAmount,
+        currency: existing.currency || payload.currency,
+        feeAmount: Number.isFinite(existing.feeAmount) ? Number(existing.feeAmount) : payload.feeAmount,
+        businessMonth: existing.businessMonth || payload.businessMonth,
+        rawTransactionType: 'existing-order-for-step119-b-plan',
+        raw: {
+          ...(existing.raw || {}),
+          step119BExistingOrder: true,
+          sourceType: existing.sourceType || 'AMAZON_ORDER_CSV',
+        },
+      });
+
+      snapshots.push(
+        buildAmazonSpApiSandboxOverrideAuditSnapshot({
+          existingPayload,
+          spApiPayload: payload,
+          overwrittenSource: existing.sourceType || 'AMAZON_ORDER_CSV',
+        }),
+      );
+    }
+
+    const preflightChecklist = buildAmazonSpApiSandboxPersistencePreflightChecklist({
+      auditSnapshot: snapshots[0] || undefined,
+    });
+
+    const importJobPlan = buildAmazonSpApiSandboxStagedImportJobPersistencePlan({
+      companyId,
+      filename,
+      previewRows: preview.rows,
+      preflightChecklist,
+      overrideAuditSnapshots: snapshots,
+    });
+
+    const transactionOverwritePlan = buildAmazonSpApiSandboxStagedTransactionOverwritePlan({
+      importJobPlan,
+      overrideAuditSnapshots: snapshots,
+    });
+
+    const inventoryCompensationPlan = buildAmazonSpApiSandboxStagedInventoryCompensationPlan({
+      transactionOverwritePlan,
+    });
+
+    const readinessMatrix = buildAmazonSpApiSandboxGuardedExecutionReadinessMatrix({
+      inventoryCompensationPlan,
+    });
+
+    const aggregate = buildAmazonSpApiSandboxPlanningAggregate({
+      companyId,
+      filename,
+      previewRows: preview.rows,
+      overrideAuditSnapshots: snapshots,
+      preflightChecklist,
+      importJobPlan,
+      transactionOverwritePlan,
+      inventoryCompensationPlan,
+      readinessMatrix,
+    });
+
+    const leakedJob = await this.prisma.importJob.findFirst({
+      where: { filename },
+      select: { id: true },
+    });
+
+    if (leakedJob) {
+      throw new Error(`Step119-B planning aggregate leaked ImportJob ${leakedJob.id}`);
+    }
+
+    if (preview.rows.length) {
+      const leakedRows = await this.prisma.importStagingRow.findMany({
+        where: {
+          dedupeHash: {
+            in: preview.rows.map((row) => row.dedupeHash),
+          },
+        },
+        select: { id: true },
+        take: 10,
+      });
+
+      if (leakedRows.length) {
+        throw new Error(
+          `Step119-B planning aggregate leaked ImportStagingRow count=${leakedRows.length}`,
+        );
+      }
+    }
+
+    return {
+      ok: true,
+      dryRun: true,
+      rollbackVerified: true,
+      planOnly: true,
+      writesDatabase: false,
+      companyId,
+      filename,
+      preview,
+      aggregate,
+    };
+  }
+
   // Step116-C compatibility wrapper; Step116-D delegates to preview/commit split.
   async dryRunAmazonSpApiSandboxImportBoundary(args: {
     companyId?: string;
@@ -564,6 +781,14 @@ export class ImportsService {
     }
 
     return result as AmazonSpApiSandboxBoundaryDryRunResult;
+  }
+
+  private normalizeAmazonPlanSku(value: unknown): string {
+    return String(value || '')
+      .trim()
+      .normalize('NFKC')
+      .replace(/[\s_\-]+/g, '')
+      .toUpperCase();
   }
 
   private detectDelimiter(headerLine: string): 'comma' | 'tab' {
