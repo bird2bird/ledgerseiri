@@ -15,6 +15,12 @@ import {
   normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery,
   type AmazonSpApiSandboxImportJobReadModelControllerQuery,
 } from './dto/amazon-sp-api-sandbox-importjob-read-model-controller-contract.dto';
+import {
+  assertAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract,
+  buildAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract,
+} from './dto/amazon-sp-api-sandbox-importjob-read-model-controller-blocked-route-contract.dto';
+import { assertAmazonSpApiSandboxEnvironmentGate } from './dto/amazon-sp-api-sandbox-internal-contract.dto';
+
 
 
 @Controller('api/imports')
@@ -48,6 +54,38 @@ export class ImportsController {
     );
   }
 
+
+
+  // Step122-K: Amazon SP-API sandbox ImportJob read-model env-gated blocked controller route.
+  // This route is intentionally blocked before any service call and must not return rows.
+  @Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')
+  amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute(
+    @Query() query: AmazonSpApiSandboxImportJobReadModelControllerQuery,
+  ): never {
+    assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    const contract = assertAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract(
+      buildAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract(),
+    );
+
+    if (
+      contract.routeImplementedNow !== false ||
+      contract.routeCallableNow !== false ||
+      contract.serviceCallAllowedNow !== false ||
+      contract.frontendExposedNow !== false ||
+      contract.writesDatabase !== false
+    ) {
+      throw new BadRequestException(
+        'STEP122_K_BLOCKED_ROUTE_CONTRACT_DRIFT: blocked route contract must remain non-callable and non-writing.',
+      );
+    }
+
+    normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query);
+
+    throw new BadRequestException(
+      'STEP122_K_CONTROLLER_BLOCKED_ROUTE_NOT_OPEN: Amazon SP-API sandbox ImportJob read-model controller route is env-gated but not open yet.',
+    );
+  }
 
   @Post('detect-month-conflicts')
   detectMonthConflicts(@Body() body: DetectMonthConflictsDto) {

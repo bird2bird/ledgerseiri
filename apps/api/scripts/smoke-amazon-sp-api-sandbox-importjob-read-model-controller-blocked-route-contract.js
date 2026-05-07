@@ -122,18 +122,66 @@ async function main() {
     controllerSource.includes("amazonSpApiSandboxImportJobReadModelControllerDisabledShell"),
     "Step122-I controller disabled shell must still exist",
   );
-  assert(
-    !controllerSource.includes("@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')"),
-    "Step122-J must not add real GET route",
+  // Step122-K transition-aware regression:
+  // Step122-J originally required no route. After Step122-K, exactly one GET route may exist,
+  // but it must remain env-gated, blocked before service call, and must not return rows.
+  const step122KRouteExists = controllerSource.includes(
+    "@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')",
   );
+
   assert(
     !controllerSource.includes("@Post('internal/amazon-sp-api-sandbox/import-jobs/read-model')"),
-    "Step122-J must not add POST route",
+    "Step122-J/K regression must not add POST route",
   );
-  assert(
-    !controllerSource.includes("STEP122_J_CONTROLLER_BLOCKED_ROUTE_NOT_OPEN"),
-    "Step122-J must not add controller blocked route implementation yet",
-  );
+
+  if (step122KRouteExists) {
+    const kStart = controllerSource.indexOf(
+      "Step122-K: Amazon SP-API sandbox ImportJob read-model env-gated blocked controller route.",
+    );
+    const kEnd = controllerSource.indexOf("@Post('detect-month-conflicts')", kStart);
+
+    assert(kStart >= 0, "Step122-K route marker missing while route exists");
+    assert(kEnd > kStart, "Step122-K route end anchor missing");
+
+    const kRouteSource = controllerSource.slice(kStart, kEnd);
+
+    assert(
+      kRouteSource.includes("assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true })"),
+      "Step122-K route must remain env-gated",
+    );
+    assert(
+      kRouteSource.includes("normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query)"),
+      "Step122-K route must validate query",
+    );
+    assert(
+      kRouteSource.includes("STEP122_K_CONTROLLER_BLOCKED_ROUTE_NOT_OPEN"),
+      "Step122-K route must remain blocked",
+    );
+
+    for (const forbidden of [
+      "listAmazonSpApiSandboxImportJobsReadModelDryRun",
+      "this.service.",
+      "rawPayloadJson",
+      "normalizedPayloadJson",
+      "dedupeHash",
+      "transaction.find",
+      "inventoryMovement.find",
+      "inventoryBalance.find",
+      "return this.service",
+      "return {",
+      "rows:",
+    ]) {
+      assert(
+        !kRouteSource.includes(forbidden),
+        `Step122-K transition route must not contain forbidden fragment: ${forbidden}`,
+      );
+    }
+  } else {
+    assert(
+      !controllerSource.includes("STEP122_J_CONTROLLER_BLOCKED_ROUTE_NOT_OPEN"),
+      "Step122-J pre-route state must not add controller blocked route implementation",
+    );
+  }
 
   assert(
     serviceSource.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("),
@@ -145,7 +193,36 @@ async function main() {
   );
 
   const routeScan = scanControllerRoutes(root, srcRoot);
-  assert(routeScan.exposedRoutes.length === 0, `controller route leak: ${JSON.stringify(routeScan.exposedRoutes)}`);
+
+  // Step122-K transition-aware route scan:
+  // after Step122-K, exactly one env-gated blocked GET route is allowed.
+  const allowedBlockedRoute = "internal/amazon-sp-api-sandbox/import-jobs/read-model";
+  const readModelRoutes = routeScan.exposedRoutes.filter(
+    (route) => String(route.route || "") === allowedBlockedRoute,
+  );
+  const unexpectedRoutes = routeScan.exposedRoutes.filter(
+    (route) => String(route.route || "") !== allowedBlockedRoute,
+  );
+
+  if (step122KRouteExists) {
+    assert(
+      readModelRoutes.length === 1,
+      `Step122-K transition expected exactly one blocked read-model route, got ${JSON.stringify(readModelRoutes)}`,
+    );
+    assert(
+      readModelRoutes[0].method === "Get",
+      `Step122-K transition blocked read-model route must be GET, got ${readModelRoutes[0].method}`,
+    );
+    assert(
+      unexpectedRoutes.length === 0,
+      `unexpected controller route leak: ${JSON.stringify(unexpectedRoutes)}`,
+    );
+  } else {
+    assert(
+      routeScan.exposedRoutes.length === 0,
+      `controller route leak before Step122-K: ${JSON.stringify(routeScan.exposedRoutes)}`,
+    );
+  }
 
   const webFiles = listFiles(webSrcRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const frontendLeaks = [];

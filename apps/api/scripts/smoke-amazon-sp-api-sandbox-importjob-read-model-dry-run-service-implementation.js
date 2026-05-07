@@ -388,7 +388,36 @@ async function main() {
         }
       }
     }
-    assert(exposedRoutes.length === 0, `controller route leak: ${JSON.stringify(exposedRoutes)}`);
+    // Step122-K transition-aware route scan for Step122-F smoke:
+    // Step122-F originally required zero SP-API routes. After Step122-K,
+    // exactly one env-gated blocked GET route is allowed, and no other SP-API routes are allowed.
+    const allowedBlockedRoute = "internal/amazon-sp-api-sandbox/import-jobs/read-model";
+    const readModelRoutes = exposedRoutes.filter(
+      (route) => String(route.route || "") === allowedBlockedRoute,
+    );
+    const unexpectedRoutes = exposedRoutes.filter(
+      (route) => String(route.route || "") !== allowedBlockedRoute,
+    );
+
+    if (controllerSource.includes("@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')")) {
+      assert(
+        readModelRoutes.length === 1,
+        `Step122-K transition expected exactly one blocked read-model route, got ${JSON.stringify(readModelRoutes)}`,
+      );
+      assert(
+        readModelRoutes[0].method === "Get",
+        `Step122-K transition blocked read-model route must be GET, got ${readModelRoutes[0].method}`,
+      );
+      assert(
+        unexpectedRoutes.length === 0,
+        `unexpected controller route leak: ${JSON.stringify(unexpectedRoutes)}`,
+      );
+    } else {
+      assert(
+        exposedRoutes.length === 0,
+        `controller route leak before Step122-K: ${JSON.stringify(exposedRoutes)}`,
+      );
+    }
 
     console.log("[SMOKE_OK] amazon sp-api sandbox ImportJob read-model dry-run service implementation smoke passed");
     console.log(

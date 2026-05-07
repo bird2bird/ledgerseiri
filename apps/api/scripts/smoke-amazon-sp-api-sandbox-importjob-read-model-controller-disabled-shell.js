@@ -74,9 +74,23 @@ function extractStep122IShellSource(controllerSource) {
   const start = controllerSource.indexOf(
     "Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell",
   );
-  const end = controllerSource.indexOf("@Post('detect-month-conflicts')", start);
 
   assert(start >= 0, "Step122-I controller-disabled shell marker missing");
+
+  // Step122-K transition-aware shell end:
+  // after Step122-K, the blocked @Get route is inserted between the Step122-I shell and legacy routes.
+  // The Step122-I shell scope must stop before Step122-K if that marker exists.
+  const step122KStart = controllerSource.indexOf(
+    "Step122-K: Amazon SP-API sandbox ImportJob read-model env-gated blocked controller route.",
+    start,
+  );
+  const legacyRouteStart = controllerSource.indexOf("@Post('detect-month-conflicts')", start);
+
+  const end =
+    step122KStart > start
+      ? step122KStart
+      : legacyRouteStart;
+
   assert(end > start, "Step122-I shell end anchor missing");
 
   return controllerSource.slice(start, end);
@@ -184,7 +198,37 @@ async function main() {
   );
 
   const routeScan = scanControllerRoutes(root, srcRoot);
-  assert(routeScan.exposedRoutes.length === 0, `controller route leak: ${JSON.stringify(routeScan.exposedRoutes)}`);
+
+  // Step122-K transition-aware route scan for Step122-I smoke:
+  // Step122-I originally required zero SP-API routes. After Step122-K,
+  // exactly one env-gated blocked GET route is allowed, and no other SP-API routes are allowed.
+  const allowedBlockedRoute = "internal/amazon-sp-api-sandbox/import-jobs/read-model";
+  const readModelRoutes = routeScan.exposedRoutes.filter(
+    (route) => String(route.route || "") === allowedBlockedRoute,
+  );
+  const unexpectedRoutes = routeScan.exposedRoutes.filter(
+    (route) => String(route.route || "") !== allowedBlockedRoute,
+  );
+
+  if (controllerSource.includes("@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')")) {
+    assert(
+      readModelRoutes.length === 1,
+      `Step122-K transition expected exactly one blocked read-model route, got ${JSON.stringify(readModelRoutes)}`,
+    );
+    assert(
+      readModelRoutes[0].method === "Get",
+      `Step122-K transition blocked read-model route must be GET, got ${readModelRoutes[0].method}`,
+    );
+    assert(
+      unexpectedRoutes.length === 0,
+      `unexpected controller route leak: ${JSON.stringify(unexpectedRoutes)}`,
+    );
+  } else {
+    assert(
+      routeScan.exposedRoutes.length === 0,
+      `controller route leak before Step122-K: ${JSON.stringify(routeScan.exposedRoutes)}`,
+    );
+  }
 
   const webFiles = listFiles(webSrcRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const frontendLeaks = [];
