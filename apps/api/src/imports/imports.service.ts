@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
+import {
+  buildAmazonOrderNormalizedPayload,
+  type AmazonOrderNormalizedPayload,
+} from './amazon-order-normalized-contract';
 import { PrismaService } from '../prisma.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
@@ -868,7 +872,118 @@ export class ImportsService {
     ]);
   }
 
-  private buildStoreOperationDedupeHash(companyId: string, charge: AmazonTransactionCharge): string {
+  
+
+  // Step115-C-1: build the store-orders staging payload with the v1 Amazon order contract
+  // while preserving all legacy top-level fields used by Import Center, Store Orders, and Inventory Audit.
+  private buildStoreOrderNormalizedPayload(args: {
+    fact: AmazonPreviewFact;
+    businessMonth: string | null;
+    dedupeHash: string;
+  }): AmazonOrderNormalizedPayload & Record<string, unknown> {
+    const { fact, businessMonth, dedupeHash } = args;
+
+    const legacyPayload: Record<string, unknown> = {
+      entityType: 'transaction',
+      module: 'store-orders',
+      orderId: fact.orderId,
+      orderDate: fact.orderDate ?? null,
+      sku: fact.sku,
+      productName: fact.productName,
+      quantity: fact.quantity,
+
+      amount: fact.amount,
+      grossAmount: fact.grossAmount,
+      netAmount: fact.netAmount,
+      feeAmount: fact.feeAmount,
+      taxAmount: fact.taxAmount,
+      shippingAmount: fact.shippingAmount,
+      promotionAmount: fact.promotionAmount,
+
+      itemSalesAmount: fact.itemSalesAmount,
+      itemSalesTaxAmount: fact.itemSalesTaxAmount,
+      shippingTaxAmount: fact.shippingTaxAmount,
+      promotionDiscountAmount: fact.promotionDiscountAmount,
+      promotionDiscountTaxAmount: fact.promotionDiscountTaxAmount,
+      commissionFeeAmount: fact.commissionFeeAmount,
+      fbaFeeAmount: fact.fbaFeeAmount,
+
+      rawTransactionType: fact.rawTransactionType ?? null,
+      signedAmount: fact.signedAmount ?? null,
+      description: fact.description ?? null,
+      store: fact.store ?? null,
+      fulfillment: fact.fulfillment ?? null,
+      rawLabel: fact.rawLabel,
+      dedupeHash,
+    };
+
+    const contractPayload = buildAmazonOrderNormalizedPayload({
+      sourceType: 'AMAZON_ORDER_CSV',
+      sourceRowNo: fact.rowNo,
+      orderId: fact.orderId,
+      amazonOrderId: fact.orderId,
+      orderDate: fact.orderDate ?? null,
+      occurredAt: fact.orderDate ?? '',
+      businessMonth,
+      sellerSku: fact.sku,
+      skuCode: fact.sku,
+      productName: fact.productName,
+      quantity: fact.quantity,
+
+      amount: fact.amount,
+      grossAmount: fact.grossAmount,
+      netAmount: fact.netAmount,
+      signedAmount: fact.signedAmount ?? null,
+
+      itemSalesAmount: fact.itemSalesAmount,
+      itemSalesTaxAmount: fact.itemSalesTaxAmount,
+      shippingAmount: fact.shippingAmount,
+      shippingTaxAmount: fact.shippingTaxAmount,
+      promotionAmount: fact.promotionAmount,
+      promotionDiscountAmount: fact.promotionDiscountAmount,
+      promotionDiscountTaxAmount: fact.promotionDiscountTaxAmount,
+      commissionFeeAmount: fact.commissionFeeAmount,
+      fbaFeeAmount: fact.fbaFeeAmount,
+      feeAmount: fact.feeAmount,
+      taxAmount: fact.taxAmount,
+
+      store: fact.store ?? null,
+      fulfillment: fact.fulfillment ?? null,
+      rawLabel: fact.rawLabel,
+      rawTransactionType: fact.rawTransactionType ?? null,
+      description: fact.description ?? null,
+      dedupeHash,
+      raw: legacyPayload,
+    });
+
+    return {
+      ...legacyPayload,
+      ...contractPayload,
+      // Keep legacy aliases explicit at top-level for older UI / audit readers.
+      contractVersion: contractPayload.contractVersion,
+      orderId: fact.orderId,
+      amazonOrderId: fact.orderId,
+      orderDate: fact.orderDate ?? null,
+      occurredAt: fact.orderDate ?? '',
+      sku: fact.sku,
+      skuCode: fact.sku,
+      sellerSku: fact.sku,
+      normalizedSellerSku: contractPayload.normalizedSellerSku,
+      productName: fact.productName,
+      quantity: fact.quantity,
+      amount: fact.amount,
+      grossAmount: fact.grossAmount,
+      netAmount: fact.netAmount,
+      feeAmount: fact.feeAmount,
+      commissionFeeAmount: fact.commissionFeeAmount,
+      fbaFeeAmount: fact.fbaFeeAmount,
+      shippingTaxAmount: fact.shippingTaxAmount,
+      promotionDiscountTaxAmount: fact.promotionDiscountTaxAmount,
+      dedupeHash,
+    };
+  }
+
+private buildStoreOperationDedupeHash(companyId: string, charge: AmazonTransactionCharge): string {
     return this.hashPayload([
       companyId,
       'store-operation',
@@ -1234,37 +1349,11 @@ export class ImportsService {
         businessMonth,
         matchStatus,
         matchReason: matchReason || undefined,
-        normalizedPayload: {
-          entityType: 'transaction',
-          module: 'store-orders',
+        normalizedPayload: this.buildStoreOrderNormalizedPayload({
+          fact,
+          businessMonth,
           dedupeHash,
-          orderId: fact.orderId,
-          orderDate: fact.orderDate,
-          sku: fact.sku,
-          productName: fact.productName,
-          quantity: fact.quantity,
-          grossAmount: fact.grossAmount,
-          netAmount: fact.netAmount,
-          feeAmount: fact.feeAmount,
-          taxAmount: fact.taxAmount,
-          shippingAmount: fact.shippingAmount,
-          promotionAmount: fact.promotionAmount,
-
-          itemSalesAmount: fact.itemSalesAmount,
-          itemSalesTaxAmount: fact.itemSalesTaxAmount,
-          shippingTaxAmount: fact.shippingTaxAmount,
-          promotionDiscountAmount: fact.promotionDiscountAmount,
-          promotionDiscountTaxAmount: fact.promotionDiscountTaxAmount,
-          commissionFeeAmount: fact.commissionFeeAmount,
-          fbaFeeAmount: fact.fbaFeeAmount,
-
-          rawTransactionType: fact.rawTransactionType,
-          signedAmount: fact.signedAmount,
-          description: fact.description,
-          store: fact.store,
-          fulfillment: fact.fulfillment,
-          rawLabel: fact.rawLabel,
-        },
+        }),
       };
     });
   }
