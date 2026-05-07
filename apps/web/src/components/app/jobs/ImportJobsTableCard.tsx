@@ -3,6 +3,11 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
+import {
+  listInventoryAuditIssuesForImportJob,
+  summarizeInventoryAuditIssuesForImportJob,
+  type InventoryAuditImportSummary,
+} from "@/core/imports/api";
 import { fmtDate } from "./jobs-shared";
 import {
   formatRows,
@@ -116,6 +121,57 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 
 
 
+type ImportCenterInventoryAuditSummaryState = {
+  loading: boolean;
+  error: string;
+  summary: InventoryAuditImportSummary | null;
+};
+
+const EMPTY_IMPORT_CENTER_INVENTORY_AUDIT_SUMMARY: ImportCenterInventoryAuditSummaryState = {
+  loading: false,
+  error: "",
+  summary: null,
+};
+
+function hasImportCenterInventoryAuditSummary(summary?: InventoryAuditImportSummary | null) {
+  return Boolean(summary && summary.total > 0);
+}
+
+function getImportCenterInventoryAuditSummaryTone(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) return "neutral";
+  if (summary.unresolvedSkuRows > 0) return "warning";
+  if (summary.deductedRows > 0) return "success";
+  return "info";
+}
+
+function getImportCenterInventoryAuditSummaryClass(summary?: InventoryAuditImportSummary | null) {
+  const tone = getImportCenterInventoryAuditSummaryTone(summary);
+
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-900";
+  if (tone === "success") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (tone === "info") return "border-sky-200 bg-sky-50 text-sky-900";
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function formatImportCenterInventoryAuditSummaryLine(summary?: InventoryAuditImportSummary | null) {
+  if (!summary || summary.total <= 0) return "在庫監査対象なし";
+
+  return [
+    `在庫監査 ${summary.total}`,
+    `SKU未匹配 ${summary.skuIssueRows}`,
+    `未解決 ${summary.unresolvedSkuRows}`,
+    `解決済み ${summary.resolvedSkuRows}`,
+    `扣減成功 ${summary.deductedRows}`,
+    `在庫移動 ${summary.inventoryMovementCount}`,
+  ].join(" / ");
+}
+
+function buildImportCenterInventoryAuditHref(importJobId: string) {
+  return `/ja/app/inventory/audit?importJobId=${encodeURIComponent(importJobId)}`;
+}
+
+
 function ImportJobDetailDrawer(props: {
   job: ImportJobItem | null;
   onClose: () => void;
@@ -134,6 +190,47 @@ function ImportJobDetailDrawer(props: {
   const sourceActionHint = getImportJobSourceActionHint(job);
   const drawerActionToneClass = getDrawerActionToneClass(job);
   const drawerTone = getImportCenterJobTone(job);
+  const [inventoryAuditSummaryState, setInventoryAuditSummaryState] =
+    React.useState<ImportCenterInventoryAuditSummaryState>(
+      EMPTY_IMPORT_CENTER_INVENTORY_AUDIT_SUMMARY
+    );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    setInventoryAuditSummaryState({
+      loading: true,
+      error: "",
+      summary: null,
+    });
+
+    listInventoryAuditIssuesForImportJob(job.id)
+      .then((data) => {
+        if (cancelled) return;
+
+        setInventoryAuditSummaryState({
+          loading: false,
+          error: "",
+          summary: summarizeInventoryAuditIssuesForImportJob(data),
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+
+        setInventoryAuditSummaryState({
+          loading: false,
+          error: error instanceof Error ? error.message : String(error),
+          summary: null,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id]);
+
+  const inventoryAuditSummary = inventoryAuditSummaryState.summary;
+  const inventoryAuditHref = buildImportCenterInventoryAuditHref(job.id);
 
   return createPortal(
     <div className="fixed inset-y-0 left-[260px] right-0 z-[1000] pointer-events-none">
@@ -235,6 +332,44 @@ function ImportJobDetailDrawer(props: {
               >
                 Import Center で表示
               </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-b border-slate-200 bg-white px-6 py-4">
+          <div
+            data-testid={`import-center-inventory-audit-summary-${job.id}`}
+            className={`rounded-2xl border px-4 py-3 ${getImportCenterInventoryAuditSummaryClass(
+              inventoryAuditSummary
+            )}`}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-sm font-black text-slate-950">
+                  Inventory Audit Summary
+                </div>
+                <div className="mt-1 text-xs font-bold leading-5 opacity-90">
+                  {inventoryAuditSummaryState.loading
+                    ? "在庫監査サマリーを読み込んでいます..."
+                    : inventoryAuditSummaryState.error
+                      ? inventoryAuditSummaryState.error
+                      : formatImportCenterInventoryAuditSummaryLine(inventoryAuditSummary)}
+                </div>
+              </div>
+
+              {hasImportCenterInventoryAuditSummary(inventoryAuditSummary) ? (
+                <a
+                  data-testid={`import-center-inventory-audit-link-${job.id}`}
+                  href={inventoryAuditHref}
+                  className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  在庫監査へ移動
+                </a>
+              ) : (
+                <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500">
+                  対象なし
+                </span>
+              )}
             </div>
           </div>
         </div>
