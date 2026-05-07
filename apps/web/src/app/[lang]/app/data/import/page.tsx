@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
+
   loadImportJobsPageSnapshot,
   type ImportJobItem,
   type ImportMetaResponse,
@@ -15,6 +16,7 @@ import { ImportJobsHero } from "@/components/app/jobs/ImportJobsHero";
 import { ImportJobsTableCard } from "@/components/app/jobs/ImportJobsTableCard";
 import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaSummaryCard";
 import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceShell";
+import { AmazonSpApiSandboxReadModelPanelShell } from "@/components/app/imports/AmazonSpApiSandboxReadModelPanelShell";
 
 export default function DataImportPage() {
   const params = useParams<{ lang: string }>();
@@ -79,6 +81,8 @@ export default function DataImportPage() {
 
   return (
     <main className="space-y-6">
+      {/* Step122-W: Amazon SP-API sandbox read-model panel UI shell. No fetch / no endpoint call. */}
+      <AmazonSpApiSandboxReadModelPanelShell />
       <ImportJobsHero
         lang={lang}
         onReload={load}

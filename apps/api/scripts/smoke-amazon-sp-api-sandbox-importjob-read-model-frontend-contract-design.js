@@ -36,6 +36,7 @@ function routeSourceFrom(controllerSource) {
   return controllerSource.slice(start, end);
 }
 
+// Step122-W-aware: UI shell is allowed; endpoint/client/fetch implementation remains forbidden.
 function assertNoFrontendImplementation(repoRoot) {
   const webRoot = path.resolve(repoRoot, "apps/web/src");
   const webFiles = listFiles(webRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
@@ -47,14 +48,13 @@ function assertNoFrontendImplementation(repoRoot) {
       text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
       text.includes("internal/amazon-sp-api-sandbox/import-jobs/read-model") ||
       text.includes("listAmazonSpApiSandboxImportJobsReadModelDryRun") ||
-      text.includes("Amazon SP-API Sandbox ImportJob ReadModel Panel") ||
-      text.includes("amazon-sp-api-sandbox-importjob-read-model")
+      text.includes("/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-model")
     ) {
       leaks.push(path.relative(repoRoot, file));
     }
   }
 
-  assert(leaks.length === 0, `Step122-U must not modify apps/web or add frontend fetch yet: ${JSON.stringify(leaks)}`);
+  assert(leaks.length === 0, `Step122-U/Step122-W-aware guard: apps/web may contain the shell, but must not fetch yet: ${JSON.stringify(leaks)}`);
 
   return {
     scannedFiles: webFiles.length,
