@@ -30,7 +30,8 @@
     "smoke:amazon-sp-api-sandbox-controller-disabled-contract": "node scripts/smoke-amazon-sp-api-sandbox-controller-disabled-contract.js",
     "smoke:amazon-sp-api-sandbox-env-gate": "node scripts/smoke-amazon-sp-api-sandbox-env-gate.js",
     "smoke:amazon-sp-api-sandbox-service-env-gate": "node scripts/smoke-amazon-sp-api-sandbox-service-env-gate.js",
-    "smoke:amazon-sp-api-sandbox-block-non-dry-run": "node scripts/smoke-amazon-sp-api-sandbox-block-non-dry-run.js"
+    "smoke:amazon-sp-api-sandbox-block-non-dry-run": "node scripts/smoke-amazon-sp-api-sandbox-block-non-dry-run.js",
+    "smoke:amazon-sp-api-sandbox-lifecycle-decision": "node scripts/smoke-amazon-sp-api-sandbox-lifecycle-decision.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
