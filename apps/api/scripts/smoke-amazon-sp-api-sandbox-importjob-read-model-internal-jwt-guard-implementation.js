@@ -11,9 +11,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { PrismaClient } = require("@prisma/client");
 const {
-  buildAmazonSpApiSandboxImportJobReadModelHttpAuthBoundaryPreflight,
-  assertAmazonSpApiSandboxImportJobReadModelHttpAuthBoundaryPreflight,
-} = require("../dist/src/imports/dto/amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight.dto");
+  buildAmazonSpApiSandboxImportJobReadModelInternalJwtGuardImplementation,
+  assertAmazonSpApiSandboxImportJobReadModelInternalJwtGuardImplementation,
+} = require("../dist/src/imports/dto/amazon-sp-api-sandbox-importjob-read-model-internal-jwt-guard-implementation.dto");
 
 const prisma = new PrismaClient();
 
@@ -24,43 +24,33 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-// Step122-S auth-aware helper: HTTP read-model endpoint now requires JwtAuthGuard.
+function read(file) {
+  return fs.readFileSync(file, "utf8");
+}
+
 function base64url(input) {
   return Buffer.from(input).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-function signStep122SmokeJwt(payload) {
+function signJwt(payload) {
   const secret = process.env.JWT_SECRET || "dev_secret_change_me";
-  const now = Math.floor(Date.now() / 1000);
   const header = { alg: "HS256", typ: "JWT" };
-  const body = { iat: now, exp: now + 60 * 60, ...payload };
+  const now = Math.floor(Date.now() / 1000);
+  const fullPayload = {
+    iat: now,
+    exp: now + 60 * 60,
+    ...payload,
+  };
   const encodedHeader = base64url(JSON.stringify(header));
-  const encodedBody = base64url(JSON.stringify(body));
+  const encodedPayload = base64url(JSON.stringify(fullPayload));
   const signature = crypto
     .createHmac("sha256", secret)
-    .update(`${encodedHeader}.${encodedBody}`)
+    .update(`${encodedHeader}.${encodedPayload}`)
     .digest("base64")
     .replace(/=/g, "")
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
-  return `${encodedHeader}.${encodedBody}.${signature}`;
-}
-
-async function resolveStep122SmokeUserWithCompany() {
-  const user = await prisma.user.findFirst({
-    where: { companyId: { not: null } },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, companyId: true, email: true },
-  });
-  if (!user || !user.companyId) {
-    throw new Error("No user with companyId found for Step122 HTTP smoke");
-  }
-  return user;
-}
-
-
-function read(file) {
-  return fs.readFileSync(file, "utf8");
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
 function listFiles(dir, predicate, acc = []) {
@@ -78,48 +68,9 @@ function routeSourceFrom(controllerSource) {
   const marker = "Step122-O: Amazon SP-API sandbox ImportJob read-model readonly controller service-call implementation.";
   const start = controllerSource.indexOf(marker);
   const end = controllerSource.indexOf("@Post('detect-month-conflicts')", start);
-
   assert(start >= 0, "Step122-O route marker missing");
   assert(end > start, "Step122-O route end anchor missing");
-
   return controllerSource.slice(start, end);
-}
-
-function assertOrdered(routeSource, first, second) {
-  const a = routeSource.indexOf(first);
-  const b = routeSource.indexOf(second);
-  assert(a >= 0, `missing ordered fragment: ${first}`);
-  assert(b >= 0, `missing ordered fragment: ${second}`);
-  assert(a < b, `expected ${first} before ${second}`);
-}
-
-async function requestJson(url, token) {
-  const headers = {
-    Accept: "application/json",
-    "X-Step122-Smoke": "Step122-Q",
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(url, {
-    method: "GET",
-    headers,
-  });
-
-  const text = await res.text();
-  let json = null;
-
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-
-  return {
-    ok: res.ok,
-    status: res.status,
-    text,
-    json,
-  };
 }
 
 function buildUrl(params) {
@@ -130,13 +81,52 @@ function buildUrl(params) {
   return url;
 }
 
-async function resolveCompany() {
-  const company = await prisma.company.findFirst({
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true },
+async function requestJson(url, token) {
+  const headers = {
+    Accept: "application/json",
+    "X-Step122-Smoke": "Step122-S",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers,
   });
-  if (!company) throw new Error("No company found for Step122-Q smoke");
-  return company;
+
+  const text = await res.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return { ok: res.ok, status: res.status, text, json };
+}
+
+async function resolveUserWithCompany() {
+  const user = await prisma.user.findFirst({
+    where: {
+      companyId: {
+        not: null,
+      },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, companyId: true, email: true },
+  });
+  if (!user || !user.companyId) {
+    throw new Error("No user with companyId found for Step122-S smoke");
+  }
+  return user;
+}
+
+async function resolveUserWithoutCompany() {
+  const user = await prisma.user.findFirst({
+    where: { companyId: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, companyId: true, email: true },
+  });
+  return user;
 }
 
 async function cleanupByFilename(filename) {
@@ -145,18 +135,10 @@ async function cleanupByFilename(filename) {
     select: { id: true },
   });
   const ids = jobs.map((job) => job.id);
-
   if (ids.length) {
-    await prisma.importStagingRow.deleteMany({
-      where: {
-        importJobId: { in: ids },
-      },
-    });
+    await prisma.importStagingRow.deleteMany({ where: { importJobId: { in: ids } } });
   }
-
-  await prisma.importJob.deleteMany({
-    where: { filename },
-  });
+  await prisma.importJob.deleteMany({ where: { filename } });
 }
 
 function assertNoSensitiveProjection(row) {
@@ -172,36 +154,32 @@ function assertNoSensitiveProjection(row) {
   }
 }
 
-function staticBoundaryPreflight() {
+function staticGuard() {
   const root = path.resolve(__dirname, "..");
   const repoRoot = path.resolve(root, "..", "..");
+
+  const packageJson = JSON.parse(read(path.resolve(root, "package.json")));
   const controllerSource = read(path.resolve(root, "src/imports/imports.controller.ts"));
   const serviceSource = read(path.resolve(root, "src/imports/imports.service.ts"));
   const schema = read(path.resolve(root, "prisma/schema.prisma"));
-  const packageJson = JSON.parse(read(path.resolve(root, "package.json")));
 
   assert(
-    packageJson.scripts["smoke:amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight"],
-    "Step122-Q npm smoke script missing",
-  );
-
-  assert(
-    serviceSource.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("),
-    "read-model service method missing",
+    packageJson.scripts["smoke:amazon-sp-api-sandbox-importjob-read-model-internal-jwt-guard-implementation"],
+    "Step122-S npm script missing",
   );
 
   const routeSource = routeSourceFrom(controllerSource);
 
-  assert(routeSource.includes("@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')"), "GET route missing");
-  assert(routeSource.includes("assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true })"), "env gate missing");
-  assert(routeSource.includes("normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery(query)"), "query normalizer missing");
-  assert(routeSource.includes("STEP122_P_HTTP_QUERY_VALIDATION_BAD_REQUEST"), "query validation 400 boundary missing");
-  assert(routeSource.includes("this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']"), "readonly service call missing");
-  assert(routeSource.includes("dryRun: true"), "dryRun=true enforcement missing");
-
-  assertOrdered(routeSource, "assertAmazonSpApiSandboxEnvironmentGate", "normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery");
-  assertOrdered(routeSource, "normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery", "this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']");
-  assertOrdered(routeSource, "this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']", "dryRun: true");
+  assert(controllerSource.includes("import { JwtAuthGuard } from '../auth/jwt.guard';"), "JwtAuthGuard import missing");
+  assert(routeSource.includes("@UseGuards(JwtAuthGuard)"), "route must use JwtAuthGuard");
+  assert(routeSource.indexOf("@UseGuards(JwtAuthGuard)") < routeSource.indexOf("@Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')"), "guard decorator must be before GET decorator");
+  assert(routeSource.includes("@Req() req: Step122SAuthenticatedRequest"), "route must accept authenticated request");
+  assert(routeSource.includes("req.user?.companyId"), "route must derive companyId from req.user.companyId");
+  assert(routeSource.includes("STEP122_S_AUTH_COMPANY_REQUIRED"), "route must reject missing companyId");
+  assert(routeSource.includes("companyId,"), "service call must pass companyId");
+  assert(routeSource.includes("dryRun: true"), "dryRun must remain true");
+  assert(routeSource.includes("STEP122_P_HTTP_QUERY_VALIDATION_BAD_REQUEST"), "query validation 400 boundary must remain");
+  assert(serviceSource.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("), "read-model service method missing");
 
   for (const forbidden of [
     "rawPayloadJson",
@@ -229,10 +207,8 @@ function staticBoundaryPreflight() {
     assert(!schema.includes(forbiddenModel), `schema must not contain ${forbiddenModel}`);
   }
 
-  const webSrcRoot = path.resolve(repoRoot, "apps/web/src");
-  const webFiles = listFiles(webSrcRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p));
+  const webFiles = listFiles(path.resolve(repoRoot, "apps/web/src"), (p) => /\.(ts|tsx|js|jsx)$/.test(p));
   const frontendLeaks = [];
-
   for (const file of webFiles) {
     const text = read(file);
     if (
@@ -243,52 +219,39 @@ function staticBoundaryPreflight() {
       frontendLeaks.push(path.relative(repoRoot, file));
     }
   }
-
   assert(frontendLeaks.length === 0, `frontend leak detected: ${JSON.stringify(frontendLeaks)}`);
 
-  return {
-    webFiles: webFiles.length,
-    frontendLeaks,
-  };
+  return { scannedFrontendFiles: webFiles.length, frontendLeaks };
 }
 
 async function main() {
-  const contract = assertAmazonSpApiSandboxImportJobReadModelHttpAuthBoundaryPreflight(
-    buildAmazonSpApiSandboxImportJobReadModelHttpAuthBoundaryPreflight(),
+  const contract = assertAmazonSpApiSandboxImportJobReadModelInternalJwtGuardImplementation(
+    buildAmazonSpApiSandboxImportJobReadModelInternalJwtGuardImplementation(),
   );
-
-  assert(contract.preflightOnly === true, "contract must remain preflight-only");
-  assert(contract.introducesAuthGuardNow === false, "Step122-Q must not introduce auth guard");
+  assert(contract.implementedNow === true, "Step122-S contract must be implemented");
+  assert(contract.endpointRequiresJwtNow === true, "endpoint must require JWT now");
+  assert(contract.endpointRequiresCompanyIdNow === true, "endpoint must require companyId now");
   assert(contract.frontendExposedNow === false, "frontend must remain disabled");
   assert(contract.writesDatabase === false, "writes must remain disabled");
 
-  const staticGuard = staticBoundaryPreflight();
+  const sourceGuard = staticGuard();
 
   const health = await requestJson(new URL("/health", API_BASE));
-  assert(health.status === 200, `health should return 200. status=${health.status}, body=${health.text}`);
+  assert(health.status === 200, `health should be 200. status=${health.status}, body=${health.text}`);
 
-  const smokeUser = await resolveStep122SmokeUserWithCompany();
-  const smokeToken = signStep122SmokeJwt({ sub: smokeUser.id });
-  const company = { id: smokeUser.companyId, name: 'Step122 smoke company from JWT user' };
+  const user = await resolveUserWithCompany();
+  const token = signJwt({ sub: user.id });
+
   const runId = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-  const filename = `step122-q-auth-boundary-${runId}.json`;
+  const filename = `step122-s-jwt-guard-${runId}.json`;
 
   await cleanupByFilename(filename);
 
   const txBefore = await prisma.transaction.count({
-    where: {
-      companyId: company.id,
-      sourceFileName: filename,
-    },
+    where: { companyId: user.companyId, sourceFileName: filename },
   });
-
   const movementBefore = await prisma.inventoryMovement.count({
-    where: {
-      companyId: company.id,
-      sourceId: {
-        contains: `STEP122-Q-${runId}`,
-      },
-    },
+    where: { companyId: user.companyId, sourceId: { contains: `STEP122-S-${runId}` } },
   });
 
   let importJob = null;
@@ -296,7 +259,7 @@ async function main() {
   try {
     importJob = await prisma.importJob.create({
       data: {
-        companyId: company.id,
+        companyId: user.companyId,
         domain: "store-orders",
         module: "store-orders",
         sourceType: "amazon-sp-api-sandbox",
@@ -313,13 +276,13 @@ async function main() {
     await prisma.importStagingRow.create({
       data: {
         importJob: { connect: { id: importJob.id } },
-        company: { connect: { id: company.id } },
+        company: { connect: { id: user.companyId } },
         module: "store-orders",
         rowNo: 1,
         businessMonth: "2026-05",
         matchStatus: "new",
-        matchReason: "STEP122_Q_AUTH_BOUNDARY_PREFLIGHT",
-        dedupeHash: `STEP122-Q-${runId}-1`,
+        matchReason: "STEP122_S_JWT_GUARD_FIXTURE",
+        dedupeHash: `STEP122-S-${runId}-1`,
         rawPayloadJson: { mustNotBeProjected: true },
         normalizedPayloadJson: {
           mustNotBeProjected: true,
@@ -341,16 +304,19 @@ async function main() {
     const unauthenticated = await requestJson(validUrl);
     assert(
       unauthenticated.status === 401,
-      `unauthenticated request must return 401 after Step122-S. status=${unauthenticated.status}, body=${unauthenticated.text}`,
+      `unauthenticated request must return 401. status=${unauthenticated.status}, body=${unauthenticated.text}`,
     );
 
-    const valid = await requestJson(validUrl, smokeToken);
+    const authenticated = await requestJson(validUrl, token);
+    assert(
+      authenticated.status === 200,
+      `authenticated request must return 200. status=${authenticated.status}, body=${authenticated.text}`,
+    );
+    assert(authenticated.json && Array.isArray(authenticated.json.rows), "authenticated response must include rows");
 
-    assert(valid.status === 200, `valid readonly request should return 200. status=${valid.status}, body=${valid.text}`);
-    assert(valid.json && Array.isArray(valid.json.rows), "valid readonly response must be JSON with rows");
-
-    const row = valid.json.rows.find((item) => item.id === importJob.id);
-    assert(row, `fixture ImportJob not found in readonly response: ${importJob.id}`);
+    const row = authenticated.json.rows.find((item) => item.id === importJob.id);
+    assert(row, `fixture ImportJob missing from authenticated response: ${importJob.id}`);
+    assert(row.filename === filename, "fixture filename mismatch");
     assertNoSensitiveProjection(row);
 
     const invalidPageSize = await requestJson(
@@ -361,14 +327,12 @@ async function main() {
         pageSize: 10,
         dryRun: true,
       }),
-      smokeToken,
+      token,
     );
-
     assert(
       invalidPageSize.status === 400,
-      `invalid pageSize must return 400. status=${invalidPageSize.status}, body=${invalidPageSize.text}`,
+      `authenticated invalid pageSize must return 400. status=${invalidPageSize.status}, body=${invalidPageSize.text}`,
     );
-    assert(!String(invalidPageSize.text || "").includes("Internal server error"), "invalid pageSize must not return 500 body");
 
     const missingDryRun = await requestJson(
       buildUrl({
@@ -377,54 +341,58 @@ async function main() {
         page: 1,
         pageSize: 20,
       }),
-      smokeToken,
+      token,
     );
-
     assert(
       missingDryRun.status === 400,
-      `missing dryRun must return 400. status=${missingDryRun.status}, body=${missingDryRun.text}`,
+      `authenticated missing dryRun must return 400. status=${missingDryRun.status}, body=${missingDryRun.text}`,
     );
-    assert(!String(missingDryRun.text || "").includes("Internal server error"), "missing dryRun must not return 500 body");
+
+    const userWithoutCompany = await resolveUserWithoutCompany();
+    let missingCompanyStatus = "SKIPPED_NO_USER_WITHOUT_COMPANY";
+    if (userWithoutCompany) {
+      const noCompanyToken = signJwt({ sub: userWithoutCompany.id });
+      const noCompany = await requestJson(validUrl, noCompanyToken);
+      assert(
+        noCompany.status === 403,
+        `authenticated user without companyId must return 403. status=${noCompany.status}, body=${noCompany.text}`,
+      );
+      missingCompanyStatus = "403";
+    }
 
     const txAfter = await prisma.transaction.count({
-      where: {
-        companyId: company.id,
-        sourceFileName: filename,
-      },
+      where: { companyId: user.companyId, sourceFileName: filename },
     });
-
     const movementAfter = await prisma.inventoryMovement.count({
-      where: {
-        companyId: company.id,
-        sourceId: {
-          contains: `STEP122-Q-${runId}`,
-        },
-      },
+      where: { companyId: user.companyId, sourceId: { contains: `STEP122-S-${runId}` } },
     });
 
-    assert(txBefore === txAfter, "auth-boundary preflight must not write Transaction rows");
-    assert(movementBefore === movementAfter, "auth-boundary preflight must not write InventoryMovement rows");
+    assert(txBefore === txAfter, "JWT guarded read-model endpoint must not write Transaction rows");
+    assert(movementBefore === movementAfter, "JWT guarded read-model endpoint must not write InventoryMovement rows");
 
-    console.log("[SMOKE_OK] amazon sp-api sandbox ImportJob read-model HTTP auth-boundary preflight smoke passed");
+    console.log("[SMOKE_OK] amazon sp-api sandbox ImportJob read-model internal JWT guard implementation smoke passed");
     console.log(
       JSON.stringify(
         {
           ok: true,
-          step: "Step122-Q",
+          step: "Step122-S",
           apiBase: API_BASE,
           endpoint: ENDPOINT,
           contract: {
             version: contract.version,
-            preflightOnly: contract.preflightOnly,
-            introducesAuthGuardNow: contract.introducesAuthGuardNow,
+            implementedNow: contract.implementedNow,
+            authGuardImplementedNow: contract.authGuardImplementedNow,
+            endpointRequiresJwtNow: contract.endpointRequiresJwtNow,
+            endpointRequiresCompanyIdNow: contract.endpointRequiresCompanyIdNow,
             frontendExposedNow: contract.frontendExposedNow,
             writesDatabase: contract.writesDatabase,
           },
           http: {
-            healthStatus: health.status,
-            validStatus: valid.status,
+            unauthenticatedStatus: unauthenticated.status,
+            authenticatedStatus: authenticated.status,
             invalidPageSizeStatus: invalidPageSize.status,
             missingDryRunStatus: missingDryRun.status,
+            missingCompanyStatus,
           },
           fixture: {
             importJobId: importJob.id,
@@ -445,7 +413,7 @@ async function main() {
             inventoryMovementBefore: movementBefore,
             inventoryMovementAfter: movementAfter,
           },
-          frontendGuard: staticGuard,
+          sourceGuard,
         },
         null,
         2,

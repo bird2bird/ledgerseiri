@@ -107,18 +107,18 @@ async function main() {
   assert(routeSource.includes("this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']"), "readonly service call missing");
   assert(routeSource.includes("dryRun: true"), "dryRun=true enforcement missing");
 
-  assert(
-    !routeSource.includes("@UseGuards(JwtAuthGuard)"),
-    "Step122-R must not implement @UseGuards(JwtAuthGuard) yet",
-  );
-  assert(
-    !importsController.includes("import { JwtAuthGuard }"),
-    "Step122-R must not import JwtAuthGuard into ImportsController yet",
-  );
-  assert(
-    !routeSource.includes("@Req()") && !routeSource.includes("req.user"),
-    "Step122-R must not add req.user based implementation yet",
-  );
+  // Step122-S-aware guard implementation compatibility:
+  // Step122-R originally required no guard implementation. After Step122-S,
+  // the same smoke remains useful by validating that the implemented guard follows the Step122-R design.
+  if (routeSource.includes("@UseGuards(JwtAuthGuard)")) {
+    assert(importsController.includes("import { JwtAuthGuard }"), "Step122-S must import JwtAuthGuard");
+    assert(routeSource.includes("@Req() req: Step122SAuthenticatedRequest"), "Step122-S must accept authenticated request");
+    assert(routeSource.includes("req.user?.companyId"), "Step122-S must derive companyId from req.user.companyId");
+    assert(routeSource.includes("STEP122_S_AUTH_COMPANY_REQUIRED"), "Step122-S must reject missing companyId");
+  } else {
+    assert(!importsController.includes("import { JwtAuthGuard }"), "pre-Step122-S controller must not import JwtAuthGuard");
+    assert(!routeSource.includes("@Req()") && !routeSource.includes("req.user"), "pre-Step122-S route must not add req.user based implementation");
+  }
 
   assert(
     importsService.includes("async ['listAmazonSpApiSandboxImportJobsReadModelDryRun']("),
@@ -178,7 +178,7 @@ async function main() {
           bearerTokenSupported: true,
           accessCookieSupported: true,
           requestUserCompanyIdSupported: true,
-          importsControllerGuardNotImplementedYet: true,
+          importsControllerGuardMatchesDesign: true,
           frontendStillDisabled: true,
           schemaStillDisabled: true,
         },

@@ -9,6 +9,7 @@ process.env.AMAZON_SP_API_SANDBOX_IMPORTJOB_PERSISTENCE_ENABLED = "false";
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
@@ -19,6 +20,41 @@ const ENDPOINT = "/api/imports/internal/amazon-sp-api-sandbox/import-jobs/read-m
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+// Step122-S auth-aware helper: HTTP read-model endpoint now requires JwtAuthGuard.
+function base64url(input) {
+  return Buffer.from(input).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+function signStep122SmokeJwt(payload) {
+  const secret = process.env.JWT_SECRET || "dev_secret_change_me";
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: "HS256", typ: "JWT" };
+  const body = { iat: now, exp: now + 60 * 60, ...payload };
+  const encodedHeader = base64url(JSON.stringify(header));
+  const encodedBody = base64url(JSON.stringify(body));
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(`${encodedHeader}.${encodedBody}`)
+    .digest("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return `${encodedHeader}.${encodedBody}.${signature}`;
+}
+
+async function resolveStep122SmokeUserWithCompany() {
+  const user = await prisma.user.findFirst({
+    where: { companyId: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, companyId: true, email: true },
+  });
+  if (!user || !user.companyId) {
+    throw new Error("No user with companyId found for Step122 HTTP smoke");
+  }
+  return user;
+}
+
 
 function read(file) {
   return fs.readFileSync(file, "utf8");
@@ -61,13 +97,16 @@ function buildUrl(params) {
   return url;
 }
 
-async function requestJson(url) {
+async function requestJson(url, token) {
+  const headers = {
+    Accept: "application/json",
+    "X-Step122-Smoke": "Step122-P",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(url, {
     method: "GET",
-    headers: {
-      Accept: "application/json",
-      "X-Step122-Smoke": "Step122-P",
-    },
+    headers,
   });
 
   const text = await res.text();
@@ -213,7 +252,9 @@ async function main() {
 
   const runId = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const filename = `step122-p-http-runtime-${runId}.json`;
-  const company = await resolveCompany();
+  const smokeUser = await resolveStep122SmokeUserWithCompany();
+  const smokeToken = signStep122SmokeJwt({ sub: smokeUser.id });
+  const company = { id: smokeUser.companyId, name: 'Step122 smoke company from JWT user' };
 
   await cleanupByFilename(filename);
 
@@ -282,7 +323,7 @@ async function main() {
       dryRun: true,
     });
 
-    const okResponse = await requestJson(okUrl);
+    const okResponse = await requestJson(okUrl, smokeToken);
     assert(
       okResponse.ok,
       `HTTP readonly endpoint should return 2xx. status=${okResponse.status}, body=${okResponse.text}`,
@@ -315,7 +356,7 @@ async function main() {
       pageSize: 10,
       dryRun: true,
     });
-    const invalidPageSize = await requestJson(invalidPageSizeUrl);
+    const invalidPageSize = await requestJson(invalidPageSizeUrl, smokeToken);
     assert(
       invalidPageSize.status === 400,
       `invalid pageSize should return 400. status=${invalidPageSize.status}, body=${invalidPageSize.text}`,
@@ -327,7 +368,7 @@ async function main() {
       page: 1,
       pageSize: 20,
     });
-    const missingDryRun = await requestJson(missingDryRunUrl);
+    const missingDryRun = await requestJson(missingDryRunUrl, smokeToken);
     assert(
       missingDryRun.status === 400,
       `missing dryRun should return 400. status=${missingDryRun.status}, body=${missingDryRun.text}`,

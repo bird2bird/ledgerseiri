@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ImportsService } from './imports.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
@@ -21,7 +21,17 @@ import {
   buildAmazonSpApiSandboxImportJobReadModelControllerBlockedRouteContract,
 } from './dto/amazon-sp-api-sandbox-importjob-read-model-controller-blocked-route-contract.dto';
 import { assertAmazonSpApiSandboxEnvironmentGate } from './dto/amazon-sp-api-sandbox-internal-contract.dto';
+import { JwtAuthGuard } from '../auth/jwt.guard';
 
+
+type Step122SAuthenticatedRequest = {
+  user?: {
+    id?: string;
+    userId?: string;
+    companyId?: string | null;
+    email?: string;
+  };
+};
 
 
 @Controller('api/imports')
@@ -58,12 +68,23 @@ export class ImportsController {
 
 
   // Step122-O: Amazon SP-API sandbox ImportJob read-model readonly controller service-call implementation.
-  // Internal readonly endpoint only. Frontend remains unwired; writes, real SP-API, OAuth and token persistence remain disabled.
+  // Step122-S: JWT guard is now enforced for this internal readonly endpoint.
+  // Frontend remains unwired; writes, real SP-API, OAuth and token persistence remain disabled.
+  @UseGuards(JwtAuthGuard)
   @Get('internal/amazon-sp-api-sandbox/import-jobs/read-model')
   async amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute(
+    @Req() req: Step122SAuthenticatedRequest,
     @Query() query: AmazonSpApiSandboxImportJobReadModelControllerQuery,
   ): Promise<AmazonSpApiSandboxImportJobReadModelDryRunResult> {
     assertAmazonSpApiSandboxEnvironmentGate({ requireInternalSandbox: true });
+
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP122_S_AUTH_COMPANY_REQUIRED: authenticated user must belong to a company to access Amazon SP-API sandbox ImportJob read-model.',
+      );
+    }
 
     let normalized: ReturnType<typeof normalizeAmazonSpApiSandboxImportJobReadModelControllerQuery>;
 
@@ -78,6 +99,7 @@ export class ImportsController {
 
     return this.service['listAmazonSpApiSandboxImportJobsReadModelDryRun']({
       ...normalized,
+      companyId,
       dryRun: true,
     });
   }

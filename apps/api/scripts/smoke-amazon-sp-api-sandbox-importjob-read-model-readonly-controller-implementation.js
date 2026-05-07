@@ -262,13 +262,26 @@ async function main() {
     });
 
     const controller = new ImportsController(new ImportsService(prisma));
-    const result = await controller.amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute({
-      filter: "amazon-sp-api-sandbox",
-      sort: "createdAt_desc",
-      page: 1,
-      pageSize: 20,
-      dryRun: true,
-    });
+
+    // Step122-S direct controller authenticated request mock:
+    // the controller route now requires req.user.companyId even for direct smoke invocation.
+    const result = await controller.amazonSpApiSandboxImportJobReadModelEnvGatedBlockedRoute(
+      {
+        user: {
+          id: "step122-o-direct-smoke-user",
+          userId: "step122-o-direct-smoke-user",
+          companyId: company.id,
+          email: "step122-o-direct-smoke@example.test",
+        },
+      },
+      {
+        filter: "amazon-sp-api-sandbox",
+        sort: "createdAt_desc",
+        page: 1,
+        pageSize: 20,
+        dryRun: true,
+      },
+    );
 
     assert(result.dryRun === true, "controller result dryRun mismatch");
     assert(result.displayOnly === true, "controller result displayOnly mismatch");
