@@ -171,6 +171,10 @@ function buildImportCenterInventoryAuditHref(importJobId: string) {
   return `/ja/app/inventory/audit?importJobId=${encodeURIComponent(importJobId)}`;
 }
 
+function buildImportCenterInventoryStatusHref(importJobId: string) {
+  return `/ja/app/inventory/status?importJobId=${encodeURIComponent(importJobId)}`;
+}
+
 
 function ImportJobDetailDrawer(props: {
   job: ImportJobItem | null;
@@ -231,6 +235,7 @@ function ImportJobDetailDrawer(props: {
 
   const inventoryAuditSummary = inventoryAuditSummaryState.summary;
   const inventoryAuditHref = buildImportCenterInventoryAuditHref(job.id);
+  const inventoryStatusHref = buildImportCenterInventoryStatusHref(job.id);
 
   return createPortal(
     <div className="fixed inset-y-0 left-[260px] right-0 z-[1000] pointer-events-none">
@@ -358,13 +363,22 @@ function ImportJobDetailDrawer(props: {
               </div>
 
               {hasImportCenterInventoryAuditSummary(inventoryAuditSummary) ? (
-                <a
-                  data-testid={`import-center-inventory-audit-link-${job.id}`}
-                  href={inventoryAuditHref}
-                  className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
-                >
-                  在庫監査へ移動
-                </a>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <a
+                    data-testid={`import-center-inventory-audit-link-${job.id}`}
+                    href={inventoryAuditHref}
+                    className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+                  >
+                    在庫監査へ移動
+                  </a>
+                  <a
+                    data-testid={`import-center-inventory-status-link-${job.id}`}
+                    href={inventoryStatusHref}
+                    className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    在庫状況へ
+                  </a>
+                </div>
               ) : (
                 <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500">
                   対象なし

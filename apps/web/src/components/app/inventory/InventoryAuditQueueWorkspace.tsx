@@ -313,6 +313,12 @@ function buildQuery(params: Record<string, string>) {
   return raw ? `?${raw}` : "";
 }
 
+// Step114-B-3: reverse navigation from resolved audit drawer to Inventory Status.
+function buildInventoryStatusSkuHref(skuCode: unknown) {
+  const sku = asText(skuCode, "").trim();
+  return sku ? `/ja/app/inventory/status?sku=${encodeURIComponent(sku)}` : "/ja/app/inventory/status";
+}
+
 export default function InventoryAuditQueueWorkspace() {
   const searchParams = useSearchParams();
   const linkedImportJobId = searchParams.get("importJobId")?.trim() ?? "";
@@ -1310,6 +1316,21 @@ export default function InventoryAuditQueueWorkspace() {
                         <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
                           <div className="font-bold text-emerald-700">Resolved At</div>
                           <div className="mt-1">{formatDateTime(selected.audit.resolvedAt)}</div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <a
+                            href={buildInventoryStatusSkuHref(selected.audit.linkedSkuCode)}
+                            className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm hover:bg-slate-800"
+                          >
+                            在庫状況で確認
+                          </a>
+                          <a
+                            href={`/ja/app/data/import?importJobId=${encodeURIComponent(selected.importJobId)}`}
+                            className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700 shadow-sm hover:bg-emerald-50"
+                          >
+                            Import Center
+                          </a>
                         </div>
                       </div>
                     </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
 type StockStatus = "healthy" | "low" | "out" | "negative" | string;
@@ -327,7 +327,10 @@ function applyManualAdjustmentResult(row: InventoryRow, result?: ManualAdjustmen
 
 export default function Page() {
   const params = useParams<{ lang: string }>();
+  const searchParams = useSearchParams();
   const lang = normalizeLang(params?.lang) as Lang;
+  const initialSkuQuery = searchParams.get("sku")?.trim() ?? "";
+  const initialImportJobIdQuery = searchParams.get("importJobId")?.trim() ?? "";
 
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [movements, setMovements] = useState<InventoryMovementRow[]>([]);
@@ -341,7 +344,7 @@ export default function Page() {
   const [movementError, setMovementError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
-  const [keyword, setKeyword] = useState("");
+  const [keyword, setKeyword] = useState(initialSkuQuery);
   const [storeFilter, setStoreFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -609,6 +612,21 @@ export default function Page() {
           </div>
         </section>
 
+        {initialSkuQuery || initialImportJobIdQuery ? (
+          <section className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+            <div className="font-black">Inventory reverse navigation</div>
+            {initialSkuQuery ? (
+              <div className="mt-1 font-mono text-xs">sku={initialSkuQuery}</div>
+            ) : null}
+            {initialImportJobIdQuery ? (
+              <div className="mt-1 font-mono text-xs">importJobId={initialImportJobIdQuery}</div>
+            ) : null}
+            <div className="mt-2 text-xs font-semibold text-sky-700">
+              Import Center / Inventory Audit から在庫状況へ遷移しました。SKU指定がある場合は検索条件に反映されます。
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
             <label className="grid gap-1 text-sm font-bold text-slate-700">
@@ -617,6 +635,7 @@ export default function Page() {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="商品名 / SKU / ASIN / External SKU"
+                aria-label="Step114-B-3 SKU reverse navigation search"
                 className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
             </label>
