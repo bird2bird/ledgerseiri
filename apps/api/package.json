@@ -72,7 +72,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-controller-preflight": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-controller-preflight.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-readonly-controller-implementation.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-http-get-runtime": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-http-get-runtime.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-http-auth-boundary-preflight.js",
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-internal-auth-guard-design": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-internal-auth-guard-design.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
