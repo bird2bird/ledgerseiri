@@ -158,6 +158,10 @@ type StoreOrderInventoryDeductionResult = {
   quantityDelta?: number;
   movementId?: string;
   balanceId?: string;
+  matchStrategy?: 'DIRECT_PRODUCT_SKU' | 'PRODUCT_SKU_ALIAS';
+  aliasId?: string;
+  aliasSku?: string;
+  normalizedAliasSku?: string;
 };
 
 type StoreOrderInventoryDeductionSummary = {
@@ -882,6 +886,10 @@ export class ImportsService {
     return String(value ?? '').trim();
   }
 
+  private normalizeProductSkuAliasKey(value: unknown): string {
+    return String(value ?? '').trim().replace(/\s+/g, '').toUpperCase();
+  }
+
   private normalizeInventoryPayloadNumber(value: unknown): number {
     if (value === undefined || value === null || value === '') return 0;
 
@@ -983,7 +991,7 @@ export class ImportsService {
       };
     }
 
-    const productSku = await input.tx.productSku.findFirst({
+    let productSku = await input.tx.productSku.findFirst({
       where: {
         companyId: input.companyId,
         OR: [
@@ -996,6 +1004,57 @@ export class ImportsService {
         skuCode: true,
       },
     });
+
+    
+    // Step113-B-FIX1: ProductSkuAlias fallback after direct ProductSku matching fails.
+    let skuAliasMatch: {
+      id: string;
+      aliasSku: string;
+      normalizedAliasSku: string;
+      sourceType: string;
+    } | null = null;
+
+    if (!productSku) {
+      const normalizedAliasSku = this.normalizeProductSkuAliasKey(
+        input.payload.sku ??
+          input.payload.skuCode ??
+          input.payload.sellerSku ??
+          input.payload.externalSku,
+      );
+
+      if (normalizedAliasSku) {
+        const aliasRow = await input.tx.productSkuAlias.findFirst({
+          where: {
+            companyId: input.companyId,
+            sourceType: 'AMAZON_ORDER_IMPORT',
+            normalizedAliasSku,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            aliasSku: true,
+            normalizedAliasSku: true,
+            sourceType: true,
+            sku: {
+              include: {
+                product: true,
+                store: true,
+              },
+            },
+          },
+        });
+
+        if (aliasRow?.sku) {
+          skuAliasMatch = {
+            id: aliasRow.id,
+            aliasSku: aliasRow.aliasSku,
+            normalizedAliasSku: aliasRow.normalizedAliasSku,
+            sourceType: aliasRow.sourceType,
+          };
+          productSku = aliasRow.sku as unknown as typeof productSku;
+        }
+      }
+    }
 
     if (!productSku) {
       return {
@@ -1091,6 +1150,36 @@ export class ImportsService {
       },
     });
 
+    
+    if (input.importJobId && input.rowNo !== undefined && input.rowNo !== null) {
+      await input.tx.importStagingRow.updateMany({
+        where: {
+          importJobId: input.importJobId,
+          companyId: input.companyId,
+          rowNo: input.rowNo,
+        },
+        data: {
+          normalizedPayloadJson: {
+            ...input.payload,
+            inventoryDeduction: {
+              status: 'DEDUCTED',
+              sourceType: 'AMAZON_ORDER_IMPORT',
+              matchStrategy: skuAliasMatch ? 'PRODUCT_SKU_ALIAS' : 'DIRECT_PRODUCT_SKU',
+              skuId: productSku.id,
+              skuCode: productSku.skuCode,
+              aliasId: skuAliasMatch?.id ?? null,
+              aliasSku: skuAliasMatch?.aliasSku ?? null,
+              normalizedAliasSku: skuAliasMatch?.normalizedAliasSku ?? null,
+              movementId: movement.id,
+              balanceId: balance.id,
+              quantityDelta,
+              createdAt: new Date().toISOString(),
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
+
     return {
       deducted: true,
       skipped: false,
@@ -1102,6 +1191,10 @@ export class ImportsService {
       quantityDelta,
       movementId: movement.id,
       balanceId: balance.id,
+      matchStrategy: skuAliasMatch ? 'PRODUCT_SKU_ALIAS' : 'DIRECT_PRODUCT_SKU',
+      aliasId: skuAliasMatch?.id,
+      aliasSku: skuAliasMatch?.aliasSku,
+      normalizedAliasSku: skuAliasMatch?.normalizedAliasSku,
     };
   }
 
