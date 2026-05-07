@@ -354,6 +354,15 @@ export class ImportsService {
       `amazon-sp-api-sandbox-commit-${Date.now()}.json`;
 
     const dryRun = args.dryRun !== false;
+
+    // Step116-H: sandbox staging persistence is intentionally blocked until a later
+    // productized persistence strategy is designed. Only dryRun=true is allowed.
+    if (!dryRun) {
+      throw new BadRequestException(
+        'STEP116_H_SP_API_SANDBOX_NON_DRY_RUN_BLOCKED: Amazon SP-API sandbox staging commit currently requires dryRun=true.',
+      );
+    }
+
     const rollbackMessage = 'ROLLBACK_EXPECTED_STEP116_D_PREVIEW_COMMIT_SPLIT';
     let captured: AmazonSpApiSandboxBoundaryCommitResult | null = null;
 

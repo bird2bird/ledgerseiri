@@ -242,6 +242,18 @@ async function main() {
   );
   process.env.AMAZON_SP_API_TOKEN_PERSISTENCE_ENABLED = "false";
 
+  const nonDryRunReject = await expectReject(
+    "commit dryRun=false blocked by Step116-H guard",
+    () =>
+      service.commitAmazonSpApiSandboxOrdersToStaging({
+        companyId: company.id,
+        filename: `step116-g-non-dry-run-reject-${runId}.json`,
+        preview,
+        dryRun: false,
+      }),
+    "STEP116_H_SP_API_SANDBOX_NON_DRY_RUN_BLOCKED",
+  );
+
   const leakedJob = await prisma.importJob.findFirst({
     where: { filename },
     select: { id: true },
@@ -297,7 +309,15 @@ async function main() {
         runId,
         company,
         gate,
-        rejected: [defaultGateReject, defaultCommitReject, defaultWrapperReject, realReject, oauthReject, tokenReject],
+        rejected: [
+          defaultGateReject,
+          defaultCommitReject,
+          defaultWrapperReject,
+          realReject,
+          oauthReject,
+          tokenReject,
+          nonDryRunReject,
+        ],
         preview: {
           rows: preview.rows.length,
           businessMonths: preview.summary.businessMonths,
