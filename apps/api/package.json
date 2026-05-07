@@ -43,7 +43,8 @@
     "smoke:amazon-sp-api-sandbox-guarded-execution-readiness-matrix": "node scripts/smoke-amazon-sp-api-sandbox-guarded-execution-readiness-matrix.js",
     "smoke:amazon-sp-api-sandbox-planning-aggregate": "node scripts/smoke-amazon-sp-api-sandbox-planning-aggregate.js",
     "smoke:amazon-sp-api-sandbox-service-aggregate-dry-run": "node scripts/smoke-amazon-sp-api-sandbox-service-aggregate-dry-run.js",
-    "smoke:amazon-sp-api-sandbox-controller-disabled-service-contract-guard": "node scripts/smoke-amazon-sp-api-sandbox-controller-disabled-service-contract-guard.js"
+    "smoke:amazon-sp-api-sandbox-controller-disabled-service-contract-guard": "node scripts/smoke-amazon-sp-api-sandbox-controller-disabled-service-contract-guard.js",
+    "smoke:amazon-sp-api-sandbox-persisted-importjob-design-gate": "node scripts/smoke-amazon-sp-api-sandbox-persisted-importjob-design-gate.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
