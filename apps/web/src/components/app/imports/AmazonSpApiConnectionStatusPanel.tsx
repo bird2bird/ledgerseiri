@@ -2,15 +2,20 @@
 
 import React from "react";
 import {
+  readAmazonSpApiConnectionStatus,
   requestAmazonSpApiAuthorizationUrl,
   type AmazonSpApiAuthorizationUrlResponse,
+  type AmazonSpApiConnectionStatusResponse,
 } from "@/core/imports/api";
 
 type PanelStatus =
   | "not_connected"
+  | "checking"
   | "connecting"
   | "authorization_ready"
+  | "connected"
   | "connected_hint"
+  | "reconnect_required"
   | "error";
 
 type LastAuthorizationState = {
@@ -45,18 +50,22 @@ function getCallbackHintStatus(): PanelStatus {
 }
 
 function getStatusLabel(status: PanelStatus) {
+  if (status === "checking") return "接続状態を確認中";
   if (status === "connecting") return "接続URLを準備中";
   if (status === "authorization_ready") return "Amazon認可URLを発行済み";
+  if (status === "connected") return "接続済み";
   if (status === "connected_hint") return "接続完了の可能性あり";
-  if (status === "error") return "接続確認エラー";
+  if (status === "reconnect_required") return "再接続が必要";
+  if (status === "error") return "接続エラー";
   return "未接続";
 }
 
 function getStatusClass(status: PanelStatus) {
   if (status === "authorization_ready") return "border-sky-200 bg-sky-50 text-sky-700";
-  if (status === "connected_hint") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "connected" || status === "connected_hint") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "reconnect_required") return "border-amber-200 bg-amber-50 text-amber-700";
   if (status === "error") return "border-rose-200 bg-rose-50 text-rose-700";
-  if (status === "connecting") return "border-violet-200 bg-violet-50 text-violet-700";
+  if (status === "checking" || status === "connecting") return "border-violet-200 bg-violet-50 text-violet-700";
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
@@ -73,6 +82,46 @@ function summarizeAuthorization(data?: AmazonSpApiAuthorizationUrlResponse | nul
   };
 }
 
+// Step134-B-FRONTEND-AMAZON-SP-API-STATUS-READ:
+// Backend status has priority over callback URL hint once the endpoint responds.
+function normalizeBackendStatus(data?: AmazonSpApiConnectionStatusResponse | null): PanelStatus {
+  const rawStatus = String(
+    data?.status || data?.sanitizedResult?.status || ""
+  ).toUpperCase();
+
+  if (rawStatus === "CONNECTED" || data?.connected || data?.sanitizedResult?.connected) {
+    return "connected";
+  }
+
+  if (
+    rawStatus === "RECONNECT_REQUIRED" ||
+    data?.reconnectRequired ||
+    data?.sanitizedResult?.reconnectRequired
+  ) {
+    return "reconnect_required";
+  }
+
+  if (rawStatus === "ERROR") {
+    return "error";
+  }
+
+  return "not_connected";
+}
+
+function buildBackendStatusMessage(
+  data: AmazonSpApiConnectionStatusResponse | null,
+  panelStatus: PanelStatus
+) {
+  const backendMessage = data?.messageRedacted || data?.message;
+
+  if (backendMessage) return backendMessage;
+  if (panelStatus === "connected") return "Amazon SP-API の接続状態を確認しました。";
+  if (panelStatus === "reconnect_required") return "Amazon SP-API の再接続が必要です。";
+  if (panelStatus === "error") return "Amazon SP-API の接続状態を確認できませんでした。";
+  return "Amazon SP-API は未接続です。";
+}
+
+
 export function AmazonSpApiConnectionStatusPanel() {
   const [status, setStatus] = React.useState<PanelStatus>("not_connected");
   const [loading, setLoading] = React.useState(false);
@@ -80,7 +129,54 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [lastAuthorization, setLastAuthorization] = React.useState<LastAuthorizationState | null>(null);
 
   React.useEffect(() => {
-    setStatus(getCallbackHintStatus());
+    let cancelled = false;
+
+    async function initialReadConnectionStatus() {
+      const callbackHintStatus = getCallbackHintStatus();
+
+      if (callbackHintStatus === "connected_hint") {
+        setStatus("connected_hint");
+      }
+
+      setLoading(true);
+      setStatus(callbackHintStatus === "connected_hint" ? "connected_hint" : "checking");
+      setMessage("");
+
+      try {
+        const data = await readAmazonSpApiConnectionStatus({
+          storeId: "store-step130b-boundary",
+          marketplaceId: "A1VC38T7YXB528",
+          region: "JP",
+        });
+
+        if (cancelled) return;
+
+        const nextStatus = normalizeBackendStatus(data);
+        setStatus(nextStatus);
+        setMessage(buildBackendStatusMessage(data, nextStatus));
+      } catch (err) {
+        if (cancelled) return;
+
+        if (callbackHintStatus === "connected_hint") {
+          setStatus("connected_hint");
+          setMessage(
+            "callback URL から接続完了の可能性を検出しましたが、接続状態APIの確認に失敗しました。"
+          );
+          return;
+        }
+
+        setStatus("error");
+        setMessage(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void initialReadConnectionStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function requestAuthorization(forceReauthorize = false) {
@@ -121,11 +217,37 @@ export function AmazonSpApiConnectionStatusPanel() {
     }
   }
 
-  function refreshLocalStatus() {
-    setStatus(getCallbackHintStatus());
-    setMessage(
-      "現在の画面URLとローカル状態を更新しました。正式な接続状態APIの読取は次の実装ステップで接続します。"
-    );
+  async function refreshBackendStatus() {
+    setLoading(true);
+    setStatus("checking");
+    setMessage("");
+
+    try {
+      const data = await readAmazonSpApiConnectionStatus({
+        storeId: "store-step130b-boundary",
+        marketplaceId: "A1VC38T7YXB528",
+        region: "JP",
+      });
+
+      const nextStatus = normalizeBackendStatus(data);
+      setStatus(nextStatus);
+      setMessage(buildBackendStatusMessage(data, nextStatus));
+    } catch (err) {
+      const callbackHintStatus = getCallbackHintStatus();
+
+      if (callbackHintStatus === "connected_hint") {
+        setStatus("connected_hint");
+        setMessage(
+          "callback URL から接続完了の可能性を検出しましたが、接続状態APIの確認に失敗しました。"
+        );
+        return;
+      }
+
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -212,7 +334,7 @@ export function AmazonSpApiConnectionStatusPanel() {
           <button
             data-testid="amazon-sp-api-refresh-status-button"
             type="button"
-            onClick={refreshLocalStatus}
+            onClick={() => void refreshBackendStatus()}
             disabled={loading}
             className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >

@@ -483,3 +483,72 @@ export async function requestAmazonSpApiAuthorizationUrl(
 
   return readJson<AmazonSpApiAuthorizationUrlResponse>(res, url);
 }
+
+
+// Step134-B-FRONTEND-AMAZON-SP-API-STATUS-READ:
+// Read the backend connection status endpoint from the frontend panel.
+// This is a sanitized status read only. It does not expose raw tokens, does not call Amazon Reports API,
+// does not create ImportJob, and does not write transactions or inventory.
+export type AmazonSpApiConnectionBackendStatus =
+  | "NOT_CONNECTED"
+  | "CONNECTED"
+  | "RECONNECT_REQUIRED"
+  | "ERROR";
+
+export type AmazonSpApiConnectionStatusRequest = {
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+};
+
+export type AmazonSpApiConnectionStatusResponse = {
+  ok?: boolean;
+  source?: string;
+  status?: AmazonSpApiConnectionBackendStatus | string;
+  connected?: boolean;
+  reconnectRequired?: boolean;
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  tokenExpiresAt?: string | null;
+  lastConnectedAt?: string | null;
+  lastStatusCheckedAt?: string | null;
+  lastErrorCode?: string | null;
+  message?: string;
+  messageRedacted?: string;
+  realSpApiRequestNow?: boolean;
+  reportsApiCallNow?: boolean;
+  importJobWriteNow?: boolean;
+  transactionWriteNow?: boolean;
+  inventoryWriteNow?: boolean;
+  rawTokenReturnedNow?: boolean;
+  clientSecretReturnedNow?: boolean;
+  sanitizedResult?: {
+    companyId?: string;
+    storeId?: string;
+    marketplaceId?: string;
+    region?: string;
+    status?: AmazonSpApiConnectionBackendStatus | string;
+    connected?: boolean;
+    reconnectRequired?: boolean;
+  };
+};
+
+export async function readAmazonSpApiConnectionStatus(
+  args: AmazonSpApiConnectionStatusRequest = {}
+): Promise<AmazonSpApiConnectionStatusResponse> {
+  const params = new URLSearchParams();
+
+  params.set("storeId", args.storeId || "store-step130b-boundary");
+  params.set("marketplaceId", args.marketplaceId || "A1VC38T7YXB528");
+  params.set("region", args.region || "JP");
+
+  const url = `/api/imports/amazon-sp-api/connection/status?${params.toString()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return readJson<AmazonSpApiConnectionStatusResponse>(res, url);
+}

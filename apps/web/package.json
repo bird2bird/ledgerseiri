@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke:amazon-sp-api-frontend-status-read": "node scripts/smoke-amazon-sp-api-frontend-status-read-implementation.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
