@@ -102,7 +102,8 @@
     "smoke:amazon-sp-api-migration-file-creation-plan-deploy-safety-contract": "node scripts/smoke-amazon-sp-api-migration-file-creation-plan-deploy-safety-contract.js",
     "smoke:amazon-sp-api-create-only-prisma-migration-contract": "node scripts/smoke-amazon-sp-api-create-only-prisma-migration-contract.js",
     "smoke:amazon-sp-api-migration-deploy-readiness-production-gate-contract": "node scripts/smoke-amazon-sp-api-migration-deploy-readiness-production-gate-contract.js",
-    "smoke:amazon-sp-api-manual-migration-deploy-no-auto-execute-runbook-contract": "node scripts/smoke-amazon-sp-api-manual-migration-deploy-no-auto-execute-runbook-contract.js"
+    "smoke:amazon-sp-api-manual-migration-deploy-no-auto-execute-runbook-contract": "node scripts/smoke-amazon-sp-api-manual-migration-deploy-no-auto-execute-runbook-contract.js",
+    "smoke:amazon-sp-api-migration-deploy-execution-record-contract": "node scripts/smoke-amazon-sp-api-migration-deploy-execution-record-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
