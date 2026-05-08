@@ -81,7 +81,8 @@
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-panel-shell": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-panel-shell.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-client-implementation.js",
     "smoke:amazon-sp-api-sandbox-importjob-read-model-frontend-runtime-integration": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-frontend-runtime-integration.js",
-    "smoke:amazon-sp-api-sandbox-importjob-read-model-visual-runtime-qa": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-visual-runtime-qa.js"
+    "smoke:amazon-sp-api-sandbox-importjob-read-model-visual-runtime-qa": "node scripts/smoke-amazon-sp-api-sandbox-importjob-read-model-visual-runtime-qa.js",
+    "smoke:amazon-sp-api-real-connection-boundary-lwa-preparation-contract": "node scripts/smoke-amazon-sp-api-real-connection-boundary-lwa-preparation-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
