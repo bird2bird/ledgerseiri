@@ -38,6 +38,121 @@ type Step122SAuthenticatedRequest = {
 };
 
 
+
+
+type AmazonSpApiConnectionStatusEndpointResponse = {
+  source: 'amazon-sp-api-connection-status';
+  routeImplementedNow: true;
+  status: 'NOT_CONNECTED' | 'CONNECTED' | 'RECONNECT_REQUIRED' | 'ERROR';
+  connected: boolean;
+  needsReconnect: boolean;
+  marketplaceId: string;
+  region: string;
+  storeId: string;
+  sellingPartnerIdRedacted: string | null;
+  connectedAt: string | null;
+  revokedAt: string | null;
+  lastTokenRefreshAt: string | null;
+  lastHealthCheckAt: string | null;
+  lastSyncAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessageRedacted: string | null;
+  tokenExchangeHttpCallNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  realSpApiRequestNow: false;
+  importJobWriteNow: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+};
+
+function redactSellingPartnerIdForConnectionStatus(value: string | null | undefined): string | null {
+  const normalized = String(value || '').trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length <= 6) {
+    return `${normalized.slice(0, 1)}***${normalized.slice(-1)}`;
+  }
+
+  return `${normalized.slice(0, 3)}***${normalized.slice(-3)}`;
+}
+
+function mapAmazonSpApiConnectionStatusForEndpoint(
+  connection: {
+    sellingPartnerId?: string | null;
+    status?: string | null;
+    connectedAt?: Date | null;
+    revokedAt?: Date | null;
+    lastTokenRefreshAt?: Date | null;
+    lastHealthCheckAt?: Date | null;
+    lastSyncAt?: Date | null;
+    lastErrorCode?: string | null;
+    lastErrorMessageRedacted?: string | null;
+  } | null,
+  scope: { marketplaceId: string; region: string; storeId: string },
+): AmazonSpApiConnectionStatusEndpointResponse {
+  const base = {
+    source: 'amazon-sp-api-connection-status' as const,
+    routeImplementedNow: true as const,
+    marketplaceId: scope.marketplaceId,
+    region: scope.region,
+    storeId: scope.storeId,
+    tokenExchangeHttpCallNow: false as const,
+    tokenPersistenceDatabaseWriteNow: false as const,
+    realSpApiRequestNow: false as const,
+    importJobWriteNow: false as const,
+    transactionWriteNow: false as const,
+    inventoryWriteNow: false as const,
+  };
+
+  if (!connection) {
+    return {
+      ...base,
+      status: 'NOT_CONNECTED',
+      connected: false,
+      needsReconnect: false,
+      sellingPartnerIdRedacted: null,
+      connectedAt: null,
+      revokedAt: null,
+      lastTokenRefreshAt: null,
+      lastHealthCheckAt: null,
+      lastSyncAt: null,
+      lastErrorCode: null,
+      lastErrorMessageRedacted: null,
+    };
+  }
+
+  const rawStatus = String(connection.status || '').trim().toUpperCase();
+  const hasError = Boolean(connection.lastErrorCode || connection.lastErrorMessageRedacted);
+  const isRevoked = rawStatus === 'REVOKED' || Boolean(connection.revokedAt);
+  const isConnected = rawStatus === 'CONNECTED' && !isRevoked && !hasError;
+
+  const mappedStatus: AmazonSpApiConnectionStatusEndpointResponse['status'] = hasError
+    ? 'ERROR'
+    : isRevoked
+      ? 'RECONNECT_REQUIRED'
+      : isConnected
+        ? 'CONNECTED'
+        : 'RECONNECT_REQUIRED';
+
+  return {
+    ...base,
+    status: mappedStatus,
+    connected: mappedStatus === 'CONNECTED',
+    needsReconnect: mappedStatus === 'RECONNECT_REQUIRED' || mappedStatus === 'ERROR',
+    sellingPartnerIdRedacted: redactSellingPartnerIdForConnectionStatus(connection.sellingPartnerId),
+    connectedAt: connection.connectedAt?.toISOString?.() ?? null,
+    revokedAt: connection.revokedAt?.toISOString?.() ?? null,
+    lastTokenRefreshAt: connection.lastTokenRefreshAt?.toISOString?.() ?? null,
+    lastHealthCheckAt: connection.lastHealthCheckAt?.toISOString?.() ?? null,
+    lastSyncAt: connection.lastSyncAt?.toISOString?.() ?? null,
+    lastErrorCode: connection.lastErrorCode ?? null,
+    lastErrorMessageRedacted: connection.lastErrorMessageRedacted ?? null,
+  };
+}
+
 @Controller('api/imports')
 export class ImportsController {
   constructor(
@@ -151,6 +266,61 @@ export class ImportsController {
     }
 
     return result;
+  }
+
+
+  // Step133-B: Amazon SP-API connection status backend endpoint implementation.
+  // Read-only route for the frontend connection status panel.
+  // It does not call Amazon LWA, does not call real SP-API, and does not create ImportJob/ledger/inventory records.
+  @UseGuards(JwtAuthGuard)
+  @Get('amazon-sp-api/connection/status')
+  async amazonSpApiConnectionStatusBackendEndpoint(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Query('storeId') storeId?: string,
+    @Query('marketplaceId') marketplaceId?: string,
+    @Query('region') region?: string,
+  ): Promise<AmazonSpApiConnectionStatusEndpointResponse> {
+    const companyId = String(req.user?.companyId || '').trim();
+    const normalizedStoreId = String(storeId || '').trim();
+    const normalizedMarketplaceId = String(marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = String(region || 'JP').trim().toUpperCase();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP133_B_CONNECTION_STATUS_COMPANY_REQUIRED: authenticated user must belong to a company to read Amazon SP-API connection status.',
+      );
+    }
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException(
+        'STEP133_B_CONNECTION_STATUS_BAD_REQUEST: storeId is required.',
+      );
+    }
+
+    if (!normalizedMarketplaceId) {
+      throw new BadRequestException(
+        'STEP133_B_CONNECTION_STATUS_BAD_REQUEST: marketplaceId is required.',
+      );
+    }
+
+    if (!normalizedRegion) {
+      throw new BadRequestException(
+        'STEP133_B_CONNECTION_STATUS_BAD_REQUEST: region is required.',
+      );
+    }
+
+    const connection = await this.amazonSpApiTokenPersistenceService.readConnectionStatus({
+      companyId,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+    });
+
+    return mapAmazonSpApiConnectionStatusForEndpoint(connection, {
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+    });
   }
 
   // Step127-B: Amazon SP-API OAuth callback route implementation boundary.

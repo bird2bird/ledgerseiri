@@ -71,7 +71,15 @@ function main() {
   assert(controllerText.includes("amazon-sp-api/oauth/callback"), "callback route must remain available");
   assert(controllerText.includes("token_persistence_completed"), "callback token persistence must remain completed");
 
-  assert(!controllerText.includes("amazon-sp-api/connection/status"), "Step133-A must not implement connection status controller route yet");
+  const step133BPhaseActive =
+    controllerText.includes("@Get('amazon-sp-api/connection/status')") &&
+    controllerText.includes("amazonSpApiConnectionStatusBackendEndpoint");
+
+  if (!step133BPhaseActive) {
+    assert(!controllerText.includes("amazon-sp-api/connection/status"), "Step133-A must not implement connection status controller route before Step133-B");
+  } else {
+    assert(controllerText.includes("amazonSpApiTokenPersistenceService.readConnectionStatus"), "Step133-B phase must wire controller to readConnectionStatus");
+  }
   assert(tokenPersistenceServiceText.includes("readConnectionStatus"), "token persistence service must expose readConnectionStatus");
   assert(tokenPersistenceServiceText.includes("revokeConnection"), "token persistence service must still expose revokeConnection");
   assert(tokenPersistenceRepoText.includes("readConnectionStatus"), "token persistence repository should expose readConnectionStatus");
@@ -104,8 +112,12 @@ function main() {
 
   assert(contract.sourceStep132D.summary.readyForStep133AConnectionStatusBackendEndpointContract === true, "Step132-D must allow Step133-A");
   assert(contract.contractOnly === true, "Step133-A must remain contract-only");
-  assert(contract.backendImplementationNow === false, "Step133-A must not implement backend");
-  assert(contract.controllerMutationNow === false, "Step133-A must not mutate controller");
+  if (!step133BPhaseActive) {
+    assert(contract.backendImplementationNow === false, "Step133-A must not implement backend before Step133-B");
+  }
+  if (!step133BPhaseActive) {
+    assert(contract.controllerMutationNow === false, "Step133-A must not mutate controller before Step133-B");
+  }
   assert(contract.frontendMutationNow === false, "Step133-A must not mutate frontend");
   assert(contract.summary.readyForStep133BConnectionStatusBackendEndpointImplementation === true, "Step133-B readiness mismatch");
   assert(contract.summary.readyForStep135RealSpApiReports === false, "Step135 must remain blocked");
