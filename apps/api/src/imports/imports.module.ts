@@ -6,6 +6,7 @@ import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persis
 import { AmazonSpApiTokenPersistenceRepository } from './amazon-sp-api-token-persistence.repository';
 import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
+import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
 
 @Module({
   controllers: [ImportsController],
@@ -16,12 +17,14 @@ import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.
     AmazonSpApiTokenPersistenceService,
     AmazonSpApiOauthStatePersistenceBridgeService,
     AmazonSpApiTokenExchangeService,
+    AmazonSpApiOauthAuthorizationUrlService,
   ],
   exports: [
     ImportsService,
     AmazonSpApiTokenPersistenceService,
     AmazonSpApiOauthStatePersistenceBridgeService,
     AmazonSpApiTokenExchangeService,
+    AmazonSpApiOauthAuthorizationUrlService,
   ],
 })
 export class ImportsModule {}

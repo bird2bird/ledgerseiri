@@ -17,13 +17,29 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
-function assertNoPrematureRouteOrIntegration(controllerText, moduleText) {
-  assert(!/amazon-sp-api\/oauth\/authorization-url/.test(controllerText), "Step129-A must not implement authorization-url controller route");
-  assert(!/AuthorizationUrl/.test(controllerText), "Step129-A must not add authorization URL controller handler");
-  assert(!/buildAmazonSpApiOauthAuthorizationUrl/.test(controllerText), "Step129-A must not call authorization URL builder from controller");
-  assert(!/oauthState.*create|amazonSpApiConnection.*create|amazonSpApiCredential.*create/i.test(controllerText), "Step129-A must not write OAuth/token DB from controller");
-  assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step129-A must not wire callback/controller to token exchange service");
-  assert(!/AmazonSpApiOauthAuthorizationUrlService/.test(moduleText), "Step129-A must not register authorization URL service/provider");
+function assertNoPrematureRouteOrIntegration(controllerText, moduleText, packageJson, apiRoot) {
+  const step129BDtoFile = path.resolve(
+    apiRoot,
+    "src/imports/dto/amazon-sp-api-oauth-authorization-url-route-implementation-contract.dto.ts",
+  );
+  const step129BPhaseActive =
+    fs.existsSync(step129BDtoFile) &&
+    packageJson.scripts["smoke:amazon-sp-api-oauth-authorization-url-route-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-authorization-url-route-implementation-contract.js";
+
+  if (!step129BPhaseActive) {
+    assert(!/amazon-sp-api\/oauth\/authorization-url/.test(controllerText), "Step129-A must not implement authorization-url controller route before Step129-B");
+    assert(!/AuthorizationUrl/.test(controllerText), "Step129-A must not add authorization URL controller handler before Step129-B");
+    assert(!/AmazonSpApiOauthAuthorizationUrlService/.test(moduleText), "Step129-A must not register authorization URL service/provider before Step129-B");
+  } else {
+    assert(/@Get\('amazon-sp-api\/oauth\/authorization-url'\)/.test(controllerText), "Step129-B phase must expose authorization-url controller route");
+    assert(/AmazonSpApiOauthAuthorizationUrlService/.test(moduleText), "Step129-B phase must register authorization URL service/provider");
+    assert(/amazonSpApiOauthAuthorizationUrlService\.buildAuthorizationUrl/.test(controllerText), "Step129-B phase controller must call authorization URL service");
+    assert(!/Redirect\(|res\.redirect|response\.redirect/.test(controllerText), "Step129-B phase must not real-redirect to Amazon");
+  }
+
+  assert(!/oauthState.*create|amazonSpApiConnection.*create|amazonSpApiCredential.*create/i.test(controllerText), "Authorization URL route must not write OAuth/token DB from controller");
+  assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Authorization URL route must not wire callback/controller to token exchange service");
 }
 
 function main() {
@@ -57,7 +73,7 @@ function main() {
     assert(dtoText.includes(marker), `Step129-A DTO missing marker: ${marker}`);
   }
 
-  assertNoPrematureRouteOrIntegration(controllerText, moduleText);
+  assertNoPrematureRouteOrIntegration(controllerText, moduleText, packageJson, apiRoot);
 
   const contract = assertAmazonSpApiOauthAuthorizationUrlRouteContract(
     buildAmazonSpApiOauthAuthorizationUrlRouteContract(),

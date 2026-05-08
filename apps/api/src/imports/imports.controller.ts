@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ImportsService } from './imports.service';
 import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
+import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -40,6 +41,7 @@ export class ImportsController {
   constructor(
     private readonly service: ImportsService,
     private readonly amazonSpApiOauthStatePersistenceBridgeService: AmazonSpApiOauthStatePersistenceBridgeService,
+    private readonly amazonSpApiOauthAuthorizationUrlService: AmazonSpApiOauthAuthorizationUrlService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -108,6 +110,44 @@ export class ImportsController {
     });
   }
 
+
+
+  // Step129-B: Amazon SP-API OAuth authorization URL route implementation.
+  // This route returns a sanitized fake/sandbox authorization URL for the future frontend connect action.
+  // It does not persist OAuth state, does not call token exchange, does not write token DB, and does not redirect.
+  @UseGuards(JwtAuthGuard)
+  @Get('amazon-sp-api/oauth/authorization-url')
+  amazonSpApiOAuthAuthorizationUrlRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Query('storeId') storeId?: string,
+    @Query('marketplaceId') marketplaceId?: string,
+    @Query('region') region?: string,
+    @Query('returnTo') returnTo?: string,
+    @Query('sandbox') sandbox?: string,
+    @Query('forceReauthorize') forceReauthorize?: string,
+    @Query('locale') locale?: string,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    const result = this.amazonSpApiOauthAuthorizationUrlService.buildAuthorizationUrl({
+      companyId,
+      storeId: String(storeId || '').trim(),
+      marketplaceId: String(marketplaceId || '').trim(),
+      region: String(region || '').trim(),
+      returnTo: String(returnTo || '').trim(),
+      sandbox: String(sandbox || 'true').trim().toLowerCase() !== 'false',
+      forceReauthorize: String(forceReauthorize || '').trim().toLowerCase() === 'true',
+      locale: String(locale || 'ja-JP').trim(),
+    });
+
+    if (!result.ok) {
+      throw new BadRequestException(
+        `STEP129_B_AUTHORIZATION_URL_BAD_REQUEST: ${result.messageRedacted}`,
+      );
+    }
+
+    return result;
+  }
 
   // Step127-B: Amazon SP-API OAuth callback route implementation boundary.
   // This route intentionally validates and sanitizes callback input only.

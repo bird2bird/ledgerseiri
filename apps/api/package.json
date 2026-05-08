@@ -123,7 +123,8 @@
     "smoke:amazon-sp-api-token-exchange-service-fake-transport-implementation-contract": "node scripts/smoke-amazon-sp-api-token-exchange-service-fake-transport-implementation-contract.js",
     "smoke:amazon-sp-api-token-exchange-service-fake-transport-runtime-smoke-contract": "node scripts/smoke-amazon-sp-api-token-exchange-service-fake-transport-runtime-smoke-contract.js",
     "smoke:amazon-sp-api-token-exchange-service-fake-transport-runtime-record-handoff-contract": "node scripts/smoke-amazon-sp-api-token-exchange-service-fake-transport-runtime-record-handoff-contract.js",
-    "smoke:amazon-sp-api-oauth-authorization-url-route-contract": "node scripts/smoke-amazon-sp-api-oauth-authorization-url-route-contract.js"
+    "smoke:amazon-sp-api-oauth-authorization-url-route-contract": "node scripts/smoke-amazon-sp-api-oauth-authorization-url-route-contract.js",
+    "smoke:amazon-sp-api-oauth-authorization-url-route-implementation-contract": "node scripts/smoke-amazon-sp-api-oauth-authorization-url-route-implementation-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

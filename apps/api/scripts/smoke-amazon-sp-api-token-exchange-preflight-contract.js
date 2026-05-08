@@ -50,6 +50,7 @@ function isAllowedPostStep123EOauthBoundaryFile(rel) {
     "apps/api/src/imports/amazon-sp-api-token-persistence.repository.ts",
     "apps/api/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service.ts",
     "apps/api/src/imports/amazon-sp-api-token-exchange.service.ts",
+    "apps/api/src/imports/amazon-sp-api-oauth-authorization-url.service.ts",
     "apps/api/src/imports/imports.controller.ts",
   ].includes(rel);
 }
@@ -69,6 +70,7 @@ function assertNoDangerousStep123ERegression(repoRoot) {
   const allowedRouteFragments = [
     "internal/amazon-sp-api-sandbox/import-jobs/read-model",
     "amazon-sp-api/oauth/callback",
+    "amazon-sp-api/oauth/authorization-url",
   ];
 
   const routePatterns = [
