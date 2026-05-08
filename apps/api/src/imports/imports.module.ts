@@ -7,6 +7,7 @@ import { AmazonSpApiTokenPersistenceRepository } from './amazon-sp-api-token-per
 import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
 import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
+import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-env-config-validation.service';
 
 @Module({
   controllers: [ImportsController],
@@ -18,6 +19,7 @@ import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-a
     AmazonSpApiOauthStatePersistenceBridgeService,
     AmazonSpApiTokenExchangeService,
     AmazonSpApiOauthAuthorizationUrlService,
+    AmazonSpApiLwaEnvConfigValidationService,
   ],
   exports: [
     ImportsService,
@@ -25,6 +27,7 @@ import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-a
     AmazonSpApiOauthStatePersistenceBridgeService,
     AmazonSpApiTokenExchangeService,
     AmazonSpApiOauthAuthorizationUrlService,
+    AmazonSpApiLwaEnvConfigValidationService,
   ],
 })
 export class ImportsModule {}

@@ -146,7 +146,8 @@
     "smoke:frontend-amazon-sp-api-connection-status-panel-read-backend-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-read-backend-contract.js",
     "smoke:amazon-sp-api-oauth-token-exchange-boundary-contract": "node scripts/smoke-amazon-sp-api-oauth-token-exchange-boundary-contract.js",
     "smoke:amazon-sp-api-oauth-token-exchange-service-skeleton": "node scripts/smoke-amazon-sp-api-oauth-token-exchange-service-skeleton.js",
-    "smoke:amazon-sp-api-lwa-env-config-validation-contract": "node scripts/smoke-amazon-sp-api-lwa-env-config-validation-contract.js"
+    "smoke:amazon-sp-api-lwa-env-config-validation-contract": "node scripts/smoke-amazon-sp-api-lwa-env-config-validation-contract.js",
+    "smoke:amazon-sp-api-lwa-env-config-validation-service": "node scripts/smoke-amazon-sp-api-lwa-env-config-validation-service-skeleton.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
