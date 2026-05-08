@@ -98,7 +98,8 @@
     "smoke:amazon-sp-api-actual-prisma-schema-migration-plan-contract": "node scripts/smoke-amazon-sp-api-actual-prisma-schema-migration-plan-contract.js",
     "smoke:amazon-sp-api-prisma-schema-dry-run-diff": "node scripts/smoke-amazon-sp-api-prisma-schema-dry-run-diff-smoke.js",
     "smoke:amazon-sp-api-actual-prisma-schema-edit-contract": "node scripts/smoke-amazon-sp-api-actual-prisma-schema-edit-contract.js",
-    "smoke:amazon-sp-api-prisma-client-generation-model-availability": "node scripts/smoke-amazon-sp-api-prisma-client-generation-model-availability.js"
+    "smoke:amazon-sp-api-prisma-client-generation-model-availability": "node scripts/smoke-amazon-sp-api-prisma-client-generation-model-availability.js",
+    "smoke:amazon-sp-api-migration-file-creation-plan-deploy-safety-contract": "node scripts/smoke-amazon-sp-api-migration-file-creation-plan-deploy-safety-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
