@@ -142,7 +142,8 @@
     "smoke:amazon-sp-api-connection-status-backend-endpoint-contract": "node scripts/smoke-amazon-sp-api-connection-status-backend-endpoint-contract.js",
     "smoke:amazon-sp-api-connection-status-backend-endpoint-implementation-contract": "node scripts/smoke-amazon-sp-api-connection-status-backend-endpoint-implementation-contract.js",
     "smoke:amazon-sp-api-connection-status-backend-endpoint-runtime-smoke-contract": "node scripts/smoke-amazon-sp-api-connection-status-backend-endpoint-runtime-smoke-contract.js",
-    "smoke:amazon-sp-api-connection-status-backend-endpoint-runtime-record-handoff-contract": "node scripts/smoke-amazon-sp-api-connection-status-backend-endpoint-runtime-record-handoff-contract.js"
+    "smoke:amazon-sp-api-connection-status-backend-endpoint-runtime-record-handoff-contract": "node scripts/smoke-amazon-sp-api-connection-status-backend-endpoint-runtime-record-handoff-contract.js",
+    "smoke:frontend-amazon-sp-api-connection-status-panel-read-backend-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-read-backend-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
