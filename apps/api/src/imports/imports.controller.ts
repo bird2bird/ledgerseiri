@@ -4,6 +4,7 @@ import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-o
 import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
 import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
 import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persistence.service';
+import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-env-config-validation.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -161,6 +162,7 @@ export class ImportsController {
     private readonly amazonSpApiOauthAuthorizationUrlService: AmazonSpApiOauthAuthorizationUrlService,
     private readonly amazonSpApiTokenExchangeService: AmazonSpApiTokenExchangeService,
     private readonly amazonSpApiTokenPersistenceService: AmazonSpApiTokenPersistenceService,
+    private readonly amazonSpApiLwaEnvConfigValidationService: AmazonSpApiLwaEnvConfigValidationService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -268,6 +270,37 @@ export class ImportsController {
     return result;
   }
 
+
+  // Step135-G: Amazon SP-API LWA config diagnostic endpoint implementation.
+  // Internal read-only diagnostic endpoint for server-side LWA configuration.
+  // It returns only sanitized presence/status metadata and never returns raw client id, client secret, tokens, or authorization codes.
+  @UseGuards(JwtAuthGuard)
+  @Get('internal/amazon-sp-api/lwa-config/status')
+  amazonSpApiLwaConfigDiagnosticEndpoint(@Req() req: Step122SAuthenticatedRequest) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP135_G_LWA_CONFIG_DIAGNOSTIC_COMPANY_REQUIRED: authenticated user must belong to a company to read Amazon SP-API LWA config diagnostic status.',
+      );
+    }
+
+    const result = this.amazonSpApiLwaEnvConfigValidationService.validateFromProcessEnv();
+
+    return {
+      ...result,
+      endpointImplementedNow: true as const,
+      controllerRoute: '/api/imports/internal/amazon-sp-api/lwa-config/status',
+      guardedBy: 'JwtAuthGuard' as const,
+      companyScoped: true as const,
+      companyIdPresent: true as const,
+      frontendExposedNow: false as const,
+      rawSecretReturnedNow: false as const,
+      importJobWriteNow: false as const,
+      transactionWriteNow: false as const,
+      inventoryWriteNow: false as const,
+    };
+  }
 
   // Step133-B: Amazon SP-API connection status backend endpoint implementation.
   // Read-only route for the frontend connection status panel.
