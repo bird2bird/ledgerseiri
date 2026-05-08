@@ -118,7 +118,8 @@
     "smoke:amazon-sp-api-oauth-callback-route-implementation-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-route-implementation-contract.js",
     "smoke:amazon-sp-api-oauth-callback-route-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-route-runtime.js",
     "smoke:amazon-sp-api-oauth-callback-route-runtime-smoke-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-route-runtime-smoke-contract.js",
-    "smoke:amazon-sp-api-oauth-callback-route-runtime-smoke-record-handoff-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-route-runtime-smoke-record-handoff-contract.js"
+    "smoke:amazon-sp-api-oauth-callback-route-runtime-smoke-record-handoff-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-route-runtime-smoke-record-handoff-contract.js",
+    "smoke:amazon-sp-api-token-exchange-service-preimplementation-contract": "node scripts/smoke-amazon-sp-api-token-exchange-service-preimplementation-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

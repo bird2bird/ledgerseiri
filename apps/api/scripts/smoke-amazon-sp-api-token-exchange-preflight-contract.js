@@ -45,75 +45,34 @@ function isApiContractOrDto(file) {
   return file.includes(`${path.sep}src${path.sep}imports${path.sep}dto${path.sep}`) || file.endsWith(".dto.ts");
 }
 
-function assertNoStep123EImplementationLeak(repoRoot) {
+function isAllowedPostStep123EOauthBoundaryFile(rel) {
+  return [
+    "apps/api/src/imports/amazon-sp-api-token-persistence.repository.ts",
+    "apps/api/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service.ts",
+    "apps/api/src/imports/imports.controller.ts",
+  ].includes(rel);
+}
+
+function assertNoDangerousStep123ERegression(repoRoot) {
   const apiRoot = path.resolve(repoRoot, "apps/api");
   const apiSrcRoot = path.resolve(apiRoot, "src");
 
   const apiImplementationFiles = listFiles(apiSrcRoot, (p) => /\.(ts|tsx|js|jsx)$/.test(p))
     .filter((file) => !isApiContractOrDto(file));
 
-  const routeLeaks = [];
-  const tokenExchangeImplementationLeaks = [];
-  const persistenceLeaks = [];
+  const dangerousLwaHttpLeaks = [];
   const realSpApiLeaks = [];
   const writeLeaks = [];
+  const unauthorizedOauthRouteLeaks = [];
 
-  const allowedExistingAmazonSandboxRouteFragments = [
+  const allowedRouteFragments = [
     "internal/amazon-sp-api-sandbox/import-jobs/read-model",
+    "amazon-sp-api/oauth/callback",
   ];
 
   const routePatterns = [
     /@Get\s*\([^)]*(lwa|oauth|callback|connect|authorize|authorization|token)/i,
     /@Post\s*\([^)]*(lwa|oauth|callback|connect|authorize|authorization|token)/i,
-  ];
-
-  const amazonLwaContextFragments = [
-    "AmazonSpApiCredential",
-    "AmazonSpApiToken",
-    "AmazonSpApiConnection",
-    "AmazonSpApiOAuthState",
-    "AmazonSpApiLwaAuthorization",
-    "AmazonSpApiOAuthCallback",
-    "AmazonSpApiTokenExchange",
-    "amazon-sp-api-real",
-    "sellingpartnerapi",
-    "selling-partner-api",
-    "LoginWithAmazon",
-    "loginWithAmazon",
-    "lwa.amazon.com",
-    "api.amazon.com/auth/o2/token",
-    "spapi_oauth_code",
-    "selling_partner_id",
-  ];
-
-  const tokenExchangeImplementationFragments = [
-    "fetch(",
-    "axios.",
-    "httpService.",
-    "request(",
-    "api.amazon.com/auth/o2/token",
-    "lwa.amazon.com/auth/o2/token",
-    "application/x-www-form-urlencoded",
-    "grant_type",
-    "authorization_code",
-    "client_secret",
-    "client_id",
-    "refresh_token",
-    "access_token",
-  ];
-
-  const persistenceFragments = [
-    "AmazonSpApiOAuthState",
-    "AmazonSpApiCredential",
-    "AmazonSpApiToken",
-    "oauthState.create",
-    "oauthState.update",
-    "credential.create",
-    "credential.update",
-    "token.create",
-    "token.update",
-    "refreshToken",
-    "accessToken",
   ];
 
   const realSpApiFragments = [
@@ -140,71 +99,69 @@ function assertNoStep123EImplementationLeak(repoRoot) {
     "executeInventory: true",
   ];
 
-  const amazonRealWriteContextFragments = [
-    "AmazonSpApiReal",
-    "amazon-sp-api-real",
-    "sourceType: 'amazon-sp-api'",
-    'sourceType: "amazon-sp-api"',
-    "realSourceType: 'amazon-sp-api'",
-    'realSourceType: "amazon-sp-api"',
-    "lwa-oauth",
-    "LoginWithAmazon",
-    "loginWithAmazon",
-    "sellingpartnerapi",
-    "selling-partner-api",
-    "sp-api-report-readonly",
-  ];
-
   for (const file of apiImplementationFiles) {
     const text = read(file);
     const rel = path.relative(repoRoot, file).replaceAll(path.sep, "/");
 
-    const isAllowedExistingAmazonSandboxRoute = allowedExistingAmazonSandboxRouteFragments.some((fragment) =>
-      text.includes(fragment),
-    );
+    const allowedPostStep123E = isAllowedPostStep123EOauthBoundaryFile(rel);
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !isAllowedExistingAmazonSandboxRoute) {
-        routeLeaks.push(rel);
+      if (pattern.test(text)) {
+        const isAllowedRoute = allowedRouteFragments.some((fragment) => text.includes(fragment));
+        if (!isAllowedRoute) {
+          unauthorizedOauthRouteLeaks.push(rel);
+        }
       }
     }
 
-    const hasAmazonLwaContext = amazonLwaContextFragments.some((fragment) => text.includes(fragment));
-    const hasTokenExchangeImplementation = tokenExchangeImplementationFragments.some((fragment) => text.includes(fragment));
-    const hasPersistence = persistenceFragments.some((fragment) => text.includes(fragment));
+    const callsFetchOrAxiosOrHttpService =
+      /\bfetch\s*\(/.test(text) ||
+      /\baxios\s*\./.test(text) ||
+      /\bhttpService\s*\./.test(text) ||
+      /\brequest\s*\(/.test(text);
+
+    const referencesLwaTokenEndpoint =
+      text.includes("api.amazon.com/auth/o2/token") ||
+      text.includes("lwa.amazon.com/auth/o2/token");
+
+    const postsFormEncodedTokenExchange =
+      text.includes("application/x-www-form-urlencoded") &&
+      text.includes("grant_type") &&
+      text.includes("authorization_code") &&
+      (text.includes("client_secret") || text.includes("clientId") || text.includes("client_id"));
+
+    if ((referencesLwaTokenEndpoint && callsFetchOrAxiosOrHttpService) || (postsFormEncodedTokenExchange && callsFetchOrAxiosOrHttpService)) {
+      dangerousLwaHttpLeaks.push(rel);
+    }
+
     const hasRealSpApi = realSpApiFragments.some((fragment) => text.includes(fragment));
-
-    const isSandboxOnly =
-      text.includes("AmazonSpApiSandbox") ||
-      text.includes("amazon-sp-api-sandbox") ||
-      text.includes("AMAZON_ORDER_SP_API");
-
-    if (hasAmazonLwaContext && hasTokenExchangeImplementation && !isSandboxOnly) {
-      tokenExchangeImplementationLeaks.push(rel);
-    }
-
-    if (hasAmazonLwaContext && hasPersistence && !isSandboxOnly) {
-      persistenceLeaks.push(rel);
-    }
-
-    if (hasAmazonLwaContext && hasRealSpApi && !isSandboxOnly) {
+    if (hasRealSpApi && !text.includes("AmazonSpApiSandbox") && !text.includes("amazon-sp-api-sandbox")) {
       realSpApiLeaks.push(rel);
     }
 
-    const hasAmazonRealWriteContext = amazonRealWriteContextFragments.some((fragment) => text.includes(fragment));
     const hasDomainWrite = writeFragments.some((fragment) => text.includes(fragment));
+    const hasAmazonRealContext =
+      text.includes("amazon-sp-api-real") ||
+      text.includes("sourceType: 'amazon-sp-api'") ||
+      text.includes('sourceType: "amazon-sp-api"') ||
+      text.includes("realSourceType: 'amazon-sp-api'") ||
+      text.includes('realSourceType: "amazon-sp-api"') ||
+      text.includes("sp-api-report-readonly");
 
-    if (hasAmazonRealWriteContext && hasDomainWrite && !isSandboxOnly) {
+    if (hasDomainWrite && hasAmazonRealContext && !allowedPostStep123E) {
       writeLeaks.push(rel);
     }
   }
 
   const schema = read(path.resolve(apiRoot, "prisma/schema.prisma"));
+  // Phase-aware schema guard:
+  // Step124+ legitimately introduced AmazonSpApiConnection,
+  // AmazonSpApiCredential, AmazonSpApiAccessTokenCache and
+  // AmazonSpApiConnectionAudit. Keep guarding only legacy/incorrect
+  // schema names that should not appear in the current architecture.
   const forbiddenSchemaModels = [
-    "model AmazonSpApiCredential",
-    "model AmazonSpApiToken",
-    "model AmazonSpApiConnection",
     "model AmazonSpApiOAuthState",
+    "model AmazonSpApiToken",
     "model AmazonOAuthState",
     "model AmazonCredential",
     "model AmazonToken",
@@ -212,18 +169,21 @@ function assertNoStep123EImplementationLeak(repoRoot) {
 
   const schemaLeaks = forbiddenSchemaModels.filter((fragment) => schema.includes(fragment));
 
-  assert(routeLeaks.length === 0, `OAuth/LWA/token route leak detected: ${JSON.stringify(routeLeaks)}`);
-  assert(tokenExchangeImplementationLeaks.length === 0, `token exchange implementation leak detected: ${JSON.stringify(tokenExchangeImplementationLeaks)}`);
-  assert(persistenceLeaks.length === 0, `OAuth/token persistence leak detected: ${JSON.stringify(persistenceLeaks)}`);
+  assert(unauthorizedOauthRouteLeaks.length === 0, `unauthorized OAuth/LWA/token route leak detected: ${JSON.stringify(unauthorizedOauthRouteLeaks)}`);
+  assert(dangerousLwaHttpLeaks.length === 0, `dangerous LWA HTTP token exchange leak detected: ${JSON.stringify(dangerousLwaHttpLeaks)}`);
   assert(realSpApiLeaks.length === 0, `real SP-API implementation leak detected: ${JSON.stringify(realSpApiLeaks)}`);
   assert(writeLeaks.length === 0, `ImportJob/transaction/inventory write leak detected: ${JSON.stringify(writeLeaks)}`);
-  assert(schemaLeaks.length === 0, `Amazon OAuth/credential/token schema leak detected: ${JSON.stringify(schemaLeaks)}`);
+  assert(schemaLeaks.length === 0, `unexpected Amazon OAuth/credential/token schema leak detected: ${JSON.stringify(schemaLeaks)}`);
 
   return {
     scannedApiImplementationFiles: apiImplementationFiles.length,
-    routeLeaks,
-    tokenExchangeImplementationLeaks,
-    persistenceLeaks,
+    allowedPostStep123EOauthBoundaryFiles: [
+      "apps/api/src/imports/amazon-sp-api-token-persistence.repository.ts",
+      "apps/api/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service.ts",
+      "apps/api/src/imports/imports.controller.ts",
+    ],
+    unauthorizedOauthRouteLeaks,
+    dangerousLwaHttpLeaks,
     realSpApiLeaks,
     writeLeaks,
     schemaLeaks,
@@ -350,7 +310,7 @@ async function main() {
 
   assert(
     contract.summary.readyForTokenExchangeImplementation === false,
-    "Step123-E must not allow token exchange implementation",
+    "Step123-E original contract must still not directly allow token exchange implementation",
   );
   assert(
     contract.summary.readyForTokenPersistenceSchemaContract === true,
@@ -358,14 +318,14 @@ async function main() {
   );
   assert(
     contract.summary.readyForTokenPersistenceImplementation === false,
-    "Step123-E must not allow token persistence implementation",
+    "Step123-E original contract must still not directly allow token persistence implementation",
   );
   assert(
     contract.summary.readyForRealSpApiReportRequest === false,
     "Step123-E must not allow real SP-API report request",
   );
 
-  const implementationGuard = assertNoStep123EImplementationLeak(repoRoot);
+  const implementationGuard = assertNoDangerousStep123ERegression(repoRoot);
 
   console.log("[SMOKE_OK] amazon sp-api token exchange preflight contract smoke passed");
   console.log(
@@ -373,6 +333,7 @@ async function main() {
       {
         ok: true,
         step: "Step123-E",
+        phaseAwareRegression: true,
         contract: {
           version: contract.version,
           contractOnly: contract.contractOnly,
@@ -384,13 +345,6 @@ async function main() {
           realSpApiRequestNow: contract.realSpApiRequestNow,
           writesDatabase: contract.writesDatabase,
           tokenExchangeBoundary: contract.tokenExchangeBoundary,
-          tokenEndpointRequestContract: contract.tokenEndpointRequestContract,
-          tokenEndpointResponseContract: contract.tokenEndpointResponseContract,
-          secretHandlingPolicy: contract.secretHandlingPolicy,
-          futurePersistencePolicy: contract.futurePersistencePolicy,
-          errorResponseContract: contract.errorResponseContract,
-          linkageContract: contract.linkageContract,
-          forbiddenNow: contract.forbiddenNow,
           summary: contract.summary,
         },
         implementationGuard,
