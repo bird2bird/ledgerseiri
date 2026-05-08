@@ -17,20 +17,45 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
+function isStep131BPhaseActive(apiRoot) {
+  const packageJson = JSON.parse(read(path.resolve(apiRoot, "package.json")));
+  return (
+    packageJson.scripts["smoke:amazon-sp-api-oauth-callback-token-persistence-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-callback-token-persistence-implementation-contract.js" &&
+    fs.existsSync(path.resolve(apiRoot, "src/imports/dto/amazon-sp-api-oauth-callback-token-persistence-implementation-contract.dto.ts"))
+  );
+}
+
 function assertStaticBoundary(controllerText, tokenExchangeServiceText, authUrlServiceText) {
   assert(controllerText.includes("@Get('amazon-sp-api/oauth/callback')"), "callback route must still exist");
   assert(controllerText.includes("amazonSpApiTokenExchangeService.exchangeAuthorizationCodeDryRunnable"), "callback route must still call fake token exchange service");
-  assert(controllerText.includes("fake_token_exchange_completed"), "callback route must still return fake completion status");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(controllerText.includes("fake_token_exchange_completed"), "callback route must still return fake completion status before Step131-B");
+  } else {
+    assert(controllerText.includes("token_persistence_completed"), "Step131-B phase must return token persistence completion status");
+  }
   assert(controllerText.includes("sanitizedTokenEnvelope"), "callback route must still return sanitized token envelope");
-  assert(controllerText.includes("tokenPersistencePending: true"), "callback route must keep token persistence pending");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(controllerText.includes("tokenPersistencePending: true"), "callback route must keep token persistence pending before Step131-B");
+  } else {
+    assert(controllerText.includes("tokenPersistencePending: false"), "Step131-B phase must clear token persistence pending");
+  }
 
   const allText = controllerText + "\n" + tokenExchangeServiceText + "\n" + authUrlServiceText;
   assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(allText), "Step130-D must not reference real LWA token endpoint");
   assert(!/\bfetch\s*\(/.test(allText), "Step130-D must not call fetch");
   assert(!/\baxios\s*\./.test(allText), "Step130-D must not call axios");
   assert(!/\bhttpService\s*\./.test(allText), "Step130-D must not call httpService");
-  assert(!/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step130-D must not write refresh credential");
-  assert(!/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step130-D must not write access token cache");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(!/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step130-D must not write refresh credential before Step131-B");
+  } else {
+    assert(/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step131-B phase must persist refresh credential");
+  }
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(!/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step130-D must not write access token cache before Step131-B");
+  } else {
+    assert(/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step131-B phase must persist access token cache");
+  }
   assert(!/importJob\.create|transaction\.create|inventoryMovement\.create/.test(allText), "Step130-D must not write import/ledger/inventory domain");
 }
 

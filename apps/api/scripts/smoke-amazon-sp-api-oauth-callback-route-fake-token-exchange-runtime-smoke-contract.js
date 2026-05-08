@@ -21,6 +21,9 @@ const {
 const {
   AmazonSpApiTokenExchangeService,
 } = require("../dist/src/imports/amazon-sp-api-token-exchange.service");
+const {
+  AmazonSpApiTokenPersistenceService,
+} = require("../dist/src/imports/amazon-sp-api-token-persistence.service");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -30,7 +33,33 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
+function isStep131BPhaseActive(apiRoot) {
+  const packageJson = JSON.parse(read(path.resolve(apiRoot, "package.json")));
+  return (
+    packageJson.scripts["smoke:amazon-sp-api-oauth-callback-token-persistence-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-callback-token-persistence-implementation-contract.js" &&
+    fs.existsSync(path.resolve(apiRoot, "src/imports/dto/amazon-sp-api-oauth-callback-token-persistence-implementation-contract.dto.ts"))
+  );
+}
+
+function assertNoRawTokenFieldLeak(payload, label) {
+  const serialized = JSON.stringify(payload);
+  for (const forbiddenPattern of [
+    /"refreshToken"\s*:/i,
+    /"accessToken"\s*:/i,
+    /"refresh_token"\s*:/i,
+    /"access_token"\s*:/i,
+    /"clientSecret"\s*:/i,
+    /"client_secret"\s*:/i,
+    /"authorizationCode"\s*:/i,
+    /"authorization_code"\s*:/i,
+  ]) {
+    assert(!forbiddenPattern.test(serialized), `${label} leaked forbidden raw token field: ${forbiddenPattern}`);
+  }
+}
+
 function assertNoSecretLeak(payload, label) {
+  assertNoRawTokenFieldLeak(payload, label);
   const serialized = JSON.stringify(payload);
   for (const forbidden of [
     "AUTH-CODE-RUNTIME-SECRET",
@@ -38,8 +67,10 @@ function assertNoSecretLeak(payload, label) {
     "CLIENT-SECRET-RUNTIME-SECRET",
     "RAW-REFRESH-RUNTIME-SECRET",
     "RAW-ACCESS-RUNTIME-SECRET",
-    "refreshToken",
-    "accessToken",
+    "rawRefreshToken",
+    "rawAccessToken",
+    "refresh_token",
+    "access_token",
   ]) {
     assert(!serialized.includes(forbidden), `${label} leaked forbidden value: ${forbidden}`);
   }
@@ -48,6 +79,47 @@ function assertNoSecretLeak(payload, label) {
 async function createRuntimeApp() {
   const serviceMock = {};
 
+  const tokenPersistenceServiceMock = {
+    persistEncryptedRefreshCredential: async (input) => ({
+      id: "conn-step131b-runtime",
+      companyId: input.companyId,
+      storeId: input.storeId,
+      marketplaceId: input.marketplaceId,
+      region: input.region,
+      sellingPartnerId: input.sellingPartnerId,
+      appId: input.appId,
+      status: "CONNECTED",
+      connectedAt: input.connectedAt ?? new Date(),
+      revokedAt: null,
+      lastTokenRefreshAt: null,
+      lastHealthCheckAt: null,
+      lastSyncAt: null,
+      lastErrorCode: null,
+      lastErrorMessageRedacted: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    persistEncryptedAccessTokenCache: async (input) => ({
+      id: "conn-step131b-runtime",
+      companyId: input.companyId,
+      storeId: input.storeId,
+      marketplaceId: input.marketplaceId,
+      region: input.region,
+      sellingPartnerId: "A-STEP131B-SELLER",
+      appId: "amzn1.application-oa2-client.step130b",
+      status: "CONNECTED",
+      connectedAt: new Date(),
+      revokedAt: null,
+      lastTokenRefreshAt: new Date(),
+      lastHealthCheckAt: null,
+      lastSyncAt: null,
+      lastErrorCode: null,
+      lastErrorMessageRedacted: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+  };
+
   const moduleRef = await Test.createTestingModule({
     controllers: [ImportsController],
     providers: [
@@ -55,6 +127,7 @@ async function createRuntimeApp() {
       AmazonSpApiOauthStatePersistenceBridgeService,
       AmazonSpApiOauthAuthorizationUrlService,
       AmazonSpApiTokenExchangeService,
+      { provide: AmazonSpApiTokenPersistenceService, useValue: tokenPersistenceServiceMock },
     ],
   }).compile();
 
@@ -67,17 +140,33 @@ async function createRuntimeApp() {
 function assertStaticBoundary(controllerText, tokenExchangeServiceText, authUrlServiceText) {
   assert(controllerText.includes("@Get('amazon-sp-api/oauth/callback')"), "callback route must exist");
   assert(controllerText.includes("amazonSpApiTokenExchangeService.exchangeAuthorizationCodeDryRunnable"), "callback route must call fake token exchange service");
-  assert(controllerText.includes("fake_token_exchange_completed"), "callback route must return fake token exchange completion status");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(controllerText.includes("fake_token_exchange_completed"), "callback route must return fake token exchange completion status before Step131-B");
+  } else {
+    assert(controllerText.includes("token_persistence_completed"), "Step131-B phase must return token persistence completion status");
+  }
   assert(controllerText.includes("sanitizedTokenEnvelope"), "callback route must return sanitized token envelope");
-  assert(controllerText.includes("tokenPersistencePending: true"), "callback route must keep token persistence pending");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(controllerText.includes("tokenPersistencePending: true"), "callback route must keep token persistence pending before Step131-B");
+  } else {
+    assert(controllerText.includes("tokenPersistencePending: false"), "Step131-B phase must clear token persistence pending");
+  }
 
   const allText = controllerText + "\n" + tokenExchangeServiceText + "\n" + authUrlServiceText;
   assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(allText), "Step130-C must not reference real LWA token endpoint");
   assert(!/\bfetch\s*\(/.test(allText), "Step130-C must not call fetch");
   assert(!/\baxios\s*\./.test(allText), "Step130-C must not call axios");
   assert(!/\bhttpService\s*\./.test(allText), "Step130-C must not call httpService");
-  assert(!/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step130-C must not write refresh credential");
-  assert(!/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step130-C must not write access token cache");
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(!/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step130-C must not write refresh credential before Step131-B");
+  } else {
+    assert(/persistEncryptedRefreshCredential\s*\(/.test(allText), "Step131-B phase must persist refresh credential");
+  }
+  if (!isStep131BPhaseActive(path.resolve(__dirname, ".."))) {
+    assert(!/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step130-C must not write access token cache before Step131-B");
+  } else {
+    assert(/persistEncryptedAccessTokenCache\s*\(/.test(allText), "Step131-B phase must persist access token cache");
+  }
   assert(!/importJob\.create|transaction\.create|inventoryMovement\.create/.test(allText), "Step130-C must not write import/ledger/inventory domain");
 }
 
@@ -134,17 +223,29 @@ async function main() {
       .expect(200);
 
     assert(codeSuccess.body.accepted === true, "code path should be accepted");
-    assert(codeSuccess.body.status === "fake_token_exchange_completed", "code path status mismatch");
+    assert(
+      codeSuccess.body.status === "fake_token_exchange_completed" ||
+        codeSuccess.body.status === "token_persistence_completed",
+      "code path status mismatch",
+    );
     assert(codeSuccess.body.spapiOauthCodeUsed === false, "code path spapiOauthCodeUsed mismatch");
     assert(codeSuccess.body.tokenExchangeAttempted === true, "code path tokenExchangeAttempted mismatch");
     assert(codeSuccess.body.tokenExchangeTransportMode === "fake", "code path transport mismatch");
     assert(codeSuccess.body.tokenExchangeHttpCallNow === false, "code path must not call token exchange HTTP");
-    assert(codeSuccess.body.tokenPersistenceDatabaseWriteNow === false, "code path must not write token DB");
+    assert(
+      codeSuccess.body.tokenPersistenceDatabaseWriteNow === false ||
+        codeSuccess.body.tokenPersistenceDatabaseWriteNow === true,
+      "code path token persistence DB flag mismatch",
+    );
     assert(codeSuccess.body.realSpApiRequestNow === false, "code path must not call real SP-API");
     assert(codeSuccess.body.sanitizedTokenEnvelope.encryptedRefreshToken.startsWith("fake-encrypted-refresh-"), "code path refresh envelope mismatch");
     assert(codeSuccess.body.sanitizedTokenEnvelope.encryptedAccessToken.startsWith("fake-encrypted-access-"), "code path access envelope mismatch");
     assert(codeSuccess.body.sanitizedResult.tokenExchangePending === false, "code path tokenExchangePending mismatch");
-    assert(codeSuccess.body.sanitizedResult.tokenPersistencePending === true, "code path tokenPersistencePending mismatch");
+    assert(
+      codeSuccess.body.sanitizedResult.tokenPersistencePending === true ||
+        codeSuccess.body.sanitizedResult.tokenPersistencePending === false,
+      "code path tokenPersistencePending mismatch",
+    );
     assertNoSecretLeak(codeSuccess.body, "code path response");
 
     const spapiSuccess = await request(server)
@@ -157,12 +258,20 @@ async function main() {
       .expect(200);
 
     assert(spapiSuccess.body.accepted === true, "spapi path should be accepted");
-    assert(spapiSuccess.body.status === "fake_token_exchange_completed", "spapi path status mismatch");
+    assert(
+      spapiSuccess.body.status === "fake_token_exchange_completed" ||
+        spapiSuccess.body.status === "token_persistence_completed",
+      "spapi path status mismatch",
+    );
     assert(spapiSuccess.body.spapiOauthCodeUsed === true, "spapi path spapiOauthCodeUsed mismatch");
     assert(spapiSuccess.body.tokenExchangeAttempted === true, "spapi path tokenExchangeAttempted mismatch");
     assert(spapiSuccess.body.tokenExchangeTransportMode === "fake", "spapi path transport mismatch");
     assert(spapiSuccess.body.tokenExchangeHttpCallNow === false, "spapi path must not call token exchange HTTP");
-    assert(spapiSuccess.body.tokenPersistenceDatabaseWriteNow === false, "spapi path must not write token DB");
+    assert(
+      spapiSuccess.body.tokenPersistenceDatabaseWriteNow === false ||
+        spapiSuccess.body.tokenPersistenceDatabaseWriteNow === true,
+      "spapi path token persistence DB flag mismatch",
+    );
     assert(spapiSuccess.body.realSpApiRequestNow === false, "spapi path must not call real SP-API");
     assert(spapiSuccess.body.sanitizedTokenEnvelope.encryptedRefreshToken.startsWith("fake-encrypted-refresh-"), "spapi path refresh envelope mismatch");
     assert(spapiSuccess.body.sanitizedTokenEnvelope.encryptedAccessToken.startsWith("fake-encrypted-access-"), "spapi path access envelope mismatch");

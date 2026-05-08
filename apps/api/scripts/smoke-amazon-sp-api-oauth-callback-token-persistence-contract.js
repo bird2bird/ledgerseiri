@@ -18,14 +18,29 @@ function read(file) {
 }
 
 function assertNoPrematurePersistence(controllerText) {
+  const apiRoot = path.resolve(__dirname, "..");
+  const packageJson = JSON.parse(read(path.resolve(apiRoot, "package.json")));
+  const step131BPhaseActive =
+    packageJson.scripts["smoke:amazon-sp-api-oauth-callback-token-persistence-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-callback-token-persistence-implementation-contract.js" &&
+    fs.existsSync(path.resolve(apiRoot, "src/imports/dto/amazon-sp-api-oauth-callback-token-persistence-implementation-contract.dto.ts"));
+
   assert(controllerText.includes("amazonSpApiTokenExchangeService.exchangeAuthorizationCodeDryRunnable"), "callback must already call fake token exchange");
   assert(controllerText.includes("sanitizedTokenEnvelope"), "callback must already return sanitized token envelope");
-  assert(controllerText.includes("tokenPersistencePending: true"), "Step131-A must keep token persistence pending");
 
-  assert(!/buildPersistencePlan\s*\(/.test(controllerText), "Step131-A must not call buildPersistencePlan from controller yet");
-  assert(!/refreshCredentialInput/.test(controllerText), "Step131-A controller must not consume refreshCredentialInput yet");
-  assert(!/accessTokenCacheInput/.test(controllerText), "Step131-A controller must not consume accessTokenCacheInput yet");
-  assert(!/tokenPersistenceDatabaseWriteNow:\s*true/.test(controllerText), "Step131-A must not mark token persistence DB write true");
+  if (!step131BPhaseActive) {
+    assert(controllerText.includes("tokenPersistencePending: true"), "Step131-A must keep token persistence pending before Step131-B");
+    assert(!/buildPersistencePlan\s*\(/.test(controllerText), "Step131-A must not call buildPersistencePlan from controller before Step131-B");
+    assert(!/refreshCredentialInput/.test(controllerText), "Step131-A controller must not consume refreshCredentialInput before Step131-B");
+    assert(!/accessTokenCacheInput/.test(controllerText), "Step131-A controller must not consume accessTokenCacheInput before Step131-B");
+    assert(!/tokenPersistenceDatabaseWriteNow:\s*true/.test(controllerText), "Step131-A must not mark token persistence DB write true before Step131-B");
+  } else {
+    assert(/buildPersistencePlan\s*\(/.test(controllerText), "Step131-B phase must call buildPersistencePlan from controller");
+    assert(/persistEncryptedRefreshCredential\s*\(/.test(controllerText), "Step131-B phase must persist refresh credential");
+    assert(/persistEncryptedAccessTokenCache\s*\(/.test(controllerText), "Step131-B phase must persist access token cache");
+    assert(/tokenPersistenceDatabaseWriteNow:\s*true/.test(controllerText), "Step131-B phase must mark token persistence DB write true");
+    assert(/tokenPersistencePending:\s*false/.test(controllerText), "Step131-B phase must clear token persistence pending");
+  }
 }
 
 function assertPersistenceBridgeBoundary(bridgeText) {

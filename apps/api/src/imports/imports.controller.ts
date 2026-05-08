@@ -3,6 +3,7 @@ import { ImportsService } from './imports.service';
 import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
 import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
+import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persistence.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -44,6 +45,7 @@ export class ImportsController {
     private readonly amazonSpApiOauthStatePersistenceBridgeService: AmazonSpApiOauthStatePersistenceBridgeService,
     private readonly amazonSpApiOauthAuthorizationUrlService: AmazonSpApiOauthAuthorizationUrlService,
     private readonly amazonSpApiTokenExchangeService: AmazonSpApiTokenExchangeService,
+    private readonly amazonSpApiTokenPersistenceService: AmazonSpApiTokenPersistenceService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -155,7 +157,7 @@ export class ImportsController {
   // This route intentionally validates and sanitizes callback input only.
   // It does not call Amazon LWA, does not persist refresh/access tokens, and does not call real SP-API.
   @Get('amazon-sp-api/oauth/callback')
-  amazonSpApiOAuthCallbackBoundary(
+  async amazonSpApiOAuthCallbackBoundary(
     @Query('state') state?: string,
     @Query('code') code?: string,
     @Query('spapi_oauth_code') spapiOauthCode?: string,
@@ -257,10 +259,67 @@ export class ImportsController {
       };
     }
 
+    const persistencePlan = this.amazonSpApiOauthStatePersistenceBridgeService.buildPersistencePlan(
+      {
+        companyId: fakeExchangeResult.companyId,
+        storeId: fakeExchangeResult.storeId,
+        marketplaceId: fakeExchangeResult.marketplaceId,
+        region: fakeExchangeResult.region,
+        appId: 'amzn1.application-oa2-client.step130b',
+        nonce: normalizedState,
+        issuedAt: new Date(Date.now() - 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        returnTo: '/ja/app/data/import',
+        stateVersion: 'v1',
+      },
+      {
+        state: normalizedState,
+        code: normalizedCode || undefined,
+        spapi_oauth_code: normalizedSpapiOauthCode || undefined,
+        selling_partner_id: normalizedSellingPartnerId,
+      },
+      fakeExchangeResult.sanitizedTokenEnvelope,
+      {
+        expectedCompanyId: fakeExchangeResult.companyId,
+        expectedStoreId: fakeExchangeResult.storeId,
+        expectedMarketplaceId: fakeExchangeResult.marketplaceId,
+        expectedRegion: fakeExchangeResult.region,
+        expectedAppId: 'amzn1.application-oa2-client.step130b',
+      },
+    );
+
+    if (!persistencePlan.accepted) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: persistencePlan.reason,
+        messageRedacted: persistencePlan.messageRedacted,
+        statePresent: true,
+        authorizationCodePresent: true,
+        sellingPartnerId: normalizedSellingPartnerId,
+        bridgeServiceReady,
+        tokenExchangeAttempted: true,
+        tokenExchangeTransportMode: fakeExchangeResult.transportMode,
+        tokenExchangeHttpCallNow: fakeExchangeResult.tokenExchangeHttpCallNow,
+        tokenPersistenceDatabaseWriteNow: false,
+        realSpApiRequestNow: fakeExchangeResult.realSpApiRequestNow,
+      };
+    }
+
+    const persistedRefreshCredential = await this.amazonSpApiTokenPersistenceService.persistEncryptedRefreshCredential(
+      persistencePlan.refreshCredentialInput,
+    );
+
+    const persistedAccessTokenCache = persistencePlan.accessTokenCacheInput
+      ? await this.amazonSpApiTokenPersistenceService.persistEncryptedAccessTokenCache(
+          persistencePlan.accessTokenCacheInput,
+        )
+      : null;
+
     return {
       ...baseResponse,
       accepted: true,
-      status: 'fake_token_exchange_completed',
+      status: 'token_persistence_completed',
       statePresent: true,
       authorizationCodePresent: true,
       spapiOauthCodeUsed: Boolean(normalizedSpapiOauthCode && !normalizedCode),
@@ -269,14 +328,24 @@ export class ImportsController {
       tokenExchangeAttempted: true,
       tokenExchangeTransportMode: fakeExchangeResult.transportMode,
       tokenExchangeHttpCallNow: fakeExchangeResult.tokenExchangeHttpCallNow,
-      tokenPersistenceDatabaseWriteNow: fakeExchangeResult.tokenPersistenceDatabaseWriteNow,
+      tokenPersistenceDatabaseWriteNow: true,
+      refreshCredentialPersisted: true,
+      accessTokenCachePersisted: Boolean(persistencePlan.accessTokenCacheInput),
       realSpApiRequestNow: fakeExchangeResult.realSpApiRequestNow,
       sanitizedTokenEnvelope: fakeExchangeResult.sanitizedTokenEnvelope,
+      persistedConnection: {
+        id: persistedAccessTokenCache?.id ?? persistedRefreshCredential.id,
+        status: persistedAccessTokenCache?.status ?? persistedRefreshCredential.status,
+        connectedAt: (persistedAccessTokenCache?.connectedAt ?? persistedRefreshCredential.connectedAt)?.toISOString?.() ?? null,
+        lastTokenRefreshAt:
+          (persistedAccessTokenCache?.lastTokenRefreshAt ?? persistedRefreshCredential.lastTokenRefreshAt)?.toISOString?.() ?? null,
+      },
       sanitizedResult: {
         ...fakeExchangeResult.sanitizedResult,
+        ...persistencePlan.sanitizedResult,
         sellingPartnerId: normalizedSellingPartnerId,
         tokenExchangePending: false,
-        tokenPersistencePending: true,
+        tokenPersistencePending: false,
       },
     };
   }
