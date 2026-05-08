@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ImportsService } from './imports.service';
+import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -36,7 +37,10 @@ type Step122SAuthenticatedRequest = {
 
 @Controller('api/imports')
 export class ImportsController {
-  constructor(private readonly service: ImportsService) {}
+  constructor(
+    private readonly service: ImportsService,
+    private readonly amazonSpApiOauthStatePersistenceBridgeService: AmazonSpApiOauthStatePersistenceBridgeService,
+  ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
   // This shell intentionally has no Nest route decorator and must not call the read-model service.
@@ -102,6 +106,99 @@ export class ImportsController {
       companyId,
       dryRun: true,
     });
+  }
+
+
+  // Step127-B: Amazon SP-API OAuth callback route implementation boundary.
+  // This route intentionally validates and sanitizes callback input only.
+  // It does not call Amazon LWA, does not persist refresh/access tokens, and does not call real SP-API.
+  @Get('amazon-sp-api/oauth/callback')
+  amazonSpApiOAuthCallbackBoundary(
+    @Query('state') state?: string,
+    @Query('code') code?: string,
+    @Query('spapi_oauth_code') spapiOauthCode?: string,
+    @Query('selling_partner_id') sellingPartnerId?: string,
+    @Query('error') callbackError?: string,
+    @Query('error_description') callbackErrorDescription?: string,
+  ) {
+    const normalizedState = String(state || '').trim();
+    const normalizedCode = String(code || '').trim();
+    const normalizedSpapiOauthCode = String(spapiOauthCode || '').trim();
+    const normalizedSellingPartnerId = String(sellingPartnerId || '').trim();
+    const normalizedError = String(callbackError || '').trim();
+    const normalizedErrorDescription = String(callbackErrorDescription || '').trim();
+
+    const baseResponse = {
+      source: 'amazon-sp-api-oauth-callback',
+      routeImplementedNow: true,
+      tokenExchangeHttpCallNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      realSpApiRequestNow: false,
+      frontendAddedNow: false,
+    } as const;
+
+    if (normalizedError) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: 'callback_error',
+        messageRedacted: 'Amazon OAuth callback returned an error.',
+        error: normalizedError,
+        errorDescriptionPresent: normalizedErrorDescription.length > 0,
+      };
+    }
+
+    if (!normalizedState) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: 'missing_state',
+        messageRedacted: 'Amazon OAuth callback is missing required state.',
+      };
+    }
+
+    if (!normalizedCode && !normalizedSpapiOauthCode) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: 'missing_authorization_code',
+        messageRedacted: 'Amazon OAuth callback is missing authorization code.',
+        statePresent: true,
+      };
+    }
+
+    if (!normalizedSellingPartnerId) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: 'missing_selling_partner_id',
+        messageRedacted: 'Amazon OAuth callback is missing selling partner id.',
+        statePresent: true,
+        authorizationCodePresent: true,
+      };
+    }
+
+    // Keep a concrete bridge-service dependency in the route without executing DB or HTTP work.
+    // The full persistence plan requires encrypted token exchange output, which is intentionally unavailable in Step127-B.
+    const bridgeServiceReady =
+      typeof this.amazonSpApiOauthStatePersistenceBridgeService.buildPersistencePlan === 'function' &&
+      typeof this.amazonSpApiOauthStatePersistenceBridgeService.validateStatePayload === 'function';
+
+    return {
+      ...baseResponse,
+      accepted: true,
+      status: 'accepted_for_token_exchange_later',
+      statePresent: true,
+      authorizationCodePresent: true,
+      spapiOauthCodeUsed: Boolean(normalizedSpapiOauthCode && !normalizedCode),
+      sellingPartnerId: normalizedSellingPartnerId,
+      bridgeServiceReady,
+      sanitizedResult: {
+        sellingPartnerId: normalizedSellingPartnerId,
+        tokenExchangePending: true,
+        tokenPersistencePending: true,
+      },
+    };
   }
 
   @Post('detect-month-conflicts')
