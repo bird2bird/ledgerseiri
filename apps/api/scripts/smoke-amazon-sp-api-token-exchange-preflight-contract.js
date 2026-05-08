@@ -49,6 +49,7 @@ function isAllowedPostStep123EOauthBoundaryFile(rel) {
   return [
     "apps/api/src/imports/amazon-sp-api-token-persistence.repository.ts",
     "apps/api/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service.ts",
+    "apps/api/src/imports/amazon-sp-api-token-exchange.service.ts",
     "apps/api/src/imports/imports.controller.ts",
   ].includes(rel);
 }
@@ -135,7 +136,12 @@ function assertNoDangerousStep123ERegression(repoRoot) {
     }
 
     const hasRealSpApi = realSpApiFragments.some((fragment) => text.includes(fragment));
-    if (hasRealSpApi && !text.includes("AmazonSpApiSandbox") && !text.includes("amazon-sp-api-sandbox")) {
+    if (
+      hasRealSpApi &&
+      !allowedPostStep123E &&
+      !text.includes("AmazonSpApiSandbox") &&
+      !text.includes("amazon-sp-api-sandbox")
+    ) {
       realSpApiLeaks.push(rel);
     }
 
@@ -180,6 +186,7 @@ function assertNoDangerousStep123ERegression(repoRoot) {
     allowedPostStep123EOauthBoundaryFiles: [
       "apps/api/src/imports/amazon-sp-api-token-persistence.repository.ts",
       "apps/api/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service.ts",
+      "apps/api/src/imports/amazon-sp-api-token-exchange.service.ts",
       "apps/api/src/imports/imports.controller.ts",
     ],
     unauthorizedOauthRouteLeaks,

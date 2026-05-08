@@ -103,7 +103,41 @@ function main() {
   assertNoForbiddenImplementationSyntax(dtoText);
 
   const plannedServiceFile = path.resolve(apiRoot, "src/imports/amazon-sp-api-token-exchange.service.ts");
-  assert(!fs.existsSync(plannedServiceFile), "Step128-A must not add concrete token exchange service file");
+  const step128BDtoFile = path.resolve(
+    apiRoot,
+    "src/imports/dto/amazon-sp-api-token-exchange-service-fake-transport-implementation-contract.dto.ts",
+  );
+
+  const step128BPhaseActive =
+    fs.existsSync(step128BDtoFile) &&
+    packageJson.scripts["smoke:amazon-sp-api-token-exchange-service-fake-transport-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-token-exchange-service-fake-transport-implementation-contract.js";
+
+  if (!step128BPhaseActive) {
+    assert(!fs.existsSync(plannedServiceFile), "Step128-A must not add concrete token exchange service file before Step128-B");
+  } else {
+    assert(fs.existsSync(plannedServiceFile), "Step128-B phase requires concrete fake-transport token exchange service file");
+
+    const serviceText = read(plannedServiceFile);
+
+    for (const marker of [
+      "AmazonSpApiTokenExchangeService",
+      "exchangeAuthorizationCodeDryRunnable",
+      "transportMode: 'fake'",
+      "tokenExchangeHttpCallNow: false",
+      "tokenPersistenceDatabaseWriteNow: false",
+    ]) {
+      assert(serviceText.includes(marker), `Step128-B phase service missing marker while running Step128-A regression: ${marker}`);
+    }
+
+    assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(serviceText), "Step128-B phase service must not reference real LWA endpoint");
+    assert(!/\bfetch\s*\(/.test(serviceText), "Step128-B phase service must not call fetch");
+    assert(!/\baxios\s*\./.test(serviceText), "Step128-B phase service must not call axios");
+    assert(!/\bhttpService\s*\./.test(serviceText), "Step128-B phase service must not call httpService");
+    assert(!/PrismaClient/.test(serviceText), "Step128-B phase service must not access PrismaClient");
+    assert(!/persistEncryptedRefreshCredential\s*\(/.test(serviceText), "Step128-B phase service must not write refresh credential");
+    assert(!/persistEncryptedAccessTokenCache\s*\(/.test(serviceText), "Step128-B phase service must not write access token cache");
+  }
 
   const contract = assertAmazonSpApiTokenExchangeServicePreimplementationContract(
     buildAmazonSpApiTokenExchangeServicePreimplementationContract(),
