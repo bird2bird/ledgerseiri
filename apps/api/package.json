@@ -93,7 +93,8 @@
     "smoke:amazon-sp-api-authorization-url-builder-implementation-preflight": "node scripts/smoke-amazon-sp-api-authorization-url-builder-implementation-preflight.js",
     "smoke:amazon-sp-api-oauth-state-signing-implementation-preflight": "node scripts/smoke-amazon-sp-api-oauth-state-signing-implementation-preflight.js",
     "smoke:amazon-sp-api-callback-query-validator-implementation-preflight": "node scripts/smoke-amazon-sp-api-callback-query-validator-implementation-preflight.js",
-    "smoke:amazon-sp-api-token-exchange-implementation-preflight": "node scripts/smoke-amazon-sp-api-token-exchange-implementation-preflight.js"
+    "smoke:amazon-sp-api-token-exchange-implementation-preflight": "node scripts/smoke-amazon-sp-api-token-exchange-implementation-preflight.js",
+    "smoke:amazon-sp-api-token-persistence-implementation-preflight": "node scripts/smoke-amazon-sp-api-token-persistence-implementation-preflight.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
