@@ -88,7 +88,8 @@
     "smoke:amazon-sp-api-oauth-callback-preflight-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-preflight-contract.js",
     "smoke:amazon-sp-api-token-exchange-preflight-contract": "node scripts/smoke-amazon-sp-api-token-exchange-preflight-contract.js",
     "smoke:amazon-sp-api-token-persistence-schema-contract": "node scripts/smoke-amazon-sp-api-token-persistence-schema-contract.js",
-    "smoke:amazon-sp-api-connection-status-read-model-contract": "node scripts/smoke-amazon-sp-api-connection-status-read-model-contract.js"
+    "smoke:amazon-sp-api-connection-status-read-model-contract": "node scripts/smoke-amazon-sp-api-connection-status-read-model-contract.js",
+    "smoke:amazon-sp-api-frontend-connection-status-panel-contract": "node scripts/smoke-amazon-sp-api-frontend-connection-status-panel-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
