@@ -17,7 +17,7 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
-function assertServiceStaticBoundary(serviceText, controllerText) {
+function assertServiceStaticBoundary(serviceText, controllerText, packageJson, apiRoot) {
   assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(serviceText), "Step128-D service must not reference real LWA token endpoint");
   assert(!/\bfetch\s*\(/.test(serviceText), "Step128-D service must not call fetch");
   assert(!/\baxios\s*\./.test(serviceText), "Step128-D service must not call axios");
@@ -26,7 +26,32 @@ function assertServiceStaticBoundary(serviceText, controllerText) {
   assert(!/persistEncryptedRefreshCredential\s*\(/.test(serviceText), "Step128-D service must not write refresh credential");
   assert(!/persistEncryptedAccessTokenCache\s*\(/.test(serviceText), "Step128-D service must not write access token cache");
   assert(!/importJob\.create|transaction\.create|inventoryMovement\.create/.test(serviceText), "Step128-D service must not write ledger/import/inventory domain");
-  assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step128-D must not wire controller/callback to token exchange service");
+  const step130BPhaseActive =
+    packageJson.scripts["smoke:amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract.js" &&
+    fs.existsSync(
+      path.resolve(
+        apiRoot,
+        "src/imports/dto/amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract.dto.ts",
+      ),
+    );
+
+  if (!step130BPhaseActive) {
+    assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step128-D must not wire controller/callback to token exchange service before Step130-B");
+  } else {
+    assert(
+      /amazonSpApiTokenExchangeService\.exchangeAuthorizationCodeDryRunnable/.test(controllerText),
+      "Step130-B phase must wire callback route to fake token exchange service",
+    );
+    assert(
+      /fake_token_exchange_completed/.test(controllerText),
+      "Step130-B phase must expose fake token exchange completion status",
+    );
+    assert(
+      /tokenPersistencePending: true/.test(controllerText),
+      "Step130-B phase must keep token persistence pending",
+    );
+  }
 }
 
 function main() {
@@ -72,7 +97,7 @@ function main() {
     "Step128-C DTO must allow Step128-D",
   );
 
-  assertServiceStaticBoundary(serviceText, controllerText);
+  assertServiceStaticBoundary(serviceText, controllerText, packageJson, apiRoot);
 
   const contract = assertAmazonSpApiTokenExchangeServiceFakeTransportRuntimeRecordHandoffContract(
     buildAmazonSpApiTokenExchangeServiceFakeTransportRuntimeRecordHandoffContract(),

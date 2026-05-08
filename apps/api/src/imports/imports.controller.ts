@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, 
 import { ImportsService } from './imports.service';
 import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
+import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -42,6 +43,7 @@ export class ImportsController {
     private readonly service: ImportsService,
     private readonly amazonSpApiOauthStatePersistenceBridgeService: AmazonSpApiOauthStatePersistenceBridgeService,
     private readonly amazonSpApiOauthAuthorizationUrlService: AmazonSpApiOauthAuthorizationUrlService,
+    private readonly amazonSpApiTokenExchangeService: AmazonSpApiTokenExchangeService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -224,18 +226,56 @@ export class ImportsController {
       typeof this.amazonSpApiOauthStatePersistenceBridgeService.buildPersistencePlan === 'function' &&
       typeof this.amazonSpApiOauthStatePersistenceBridgeService.validateStatePayload === 'function';
 
+    const selectedAuthorizationCode = normalizedSpapiOauthCode || normalizedCode;
+
+    const fakeExchangeResult = this.amazonSpApiTokenExchangeService.exchangeAuthorizationCodeDryRunnable({
+      state: normalizedState,
+      authorizationCode: selectedAuthorizationCode,
+      sellingPartnerId: normalizedSellingPartnerId,
+      redirectUri: 'https://ledgerseiri.example/api/imports/amazon-sp-api/oauth/callback',
+      clientId: 'amzn1.application-oa2-client.step130b',
+      clientSecretConfigured: true,
+      marketplaceId: 'A1VC38T7YXB528',
+      region: 'JP',
+      companyId: 'company-step130b-boundary',
+      storeId: 'store-step130b-boundary',
+      dryRun: true,
+    });
+
+    if (!fakeExchangeResult.accepted) {
+      return {
+        ...baseResponse,
+        accepted: false,
+        status: fakeExchangeResult.reason,
+        messageRedacted: fakeExchangeResult.messageRedacted,
+        statePresent: true,
+        authorizationCodePresent: true,
+        sellingPartnerId: normalizedSellingPartnerId,
+        bridgeServiceReady,
+        tokenExchangeAttempted: true,
+        tokenExchangeTransportMode: 'fake',
+      };
+    }
+
     return {
       ...baseResponse,
       accepted: true,
-      status: 'accepted_for_token_exchange_later',
+      status: 'fake_token_exchange_completed',
       statePresent: true,
       authorizationCodePresent: true,
       spapiOauthCodeUsed: Boolean(normalizedSpapiOauthCode && !normalizedCode),
       sellingPartnerId: normalizedSellingPartnerId,
       bridgeServiceReady,
+      tokenExchangeAttempted: true,
+      tokenExchangeTransportMode: fakeExchangeResult.transportMode,
+      tokenExchangeHttpCallNow: fakeExchangeResult.tokenExchangeHttpCallNow,
+      tokenPersistenceDatabaseWriteNow: fakeExchangeResult.tokenPersistenceDatabaseWriteNow,
+      realSpApiRequestNow: fakeExchangeResult.realSpApiRequestNow,
+      sanitizedTokenEnvelope: fakeExchangeResult.sanitizedTokenEnvelope,
       sanitizedResult: {
+        ...fakeExchangeResult.sanitizedResult,
         sellingPartnerId: normalizedSellingPartnerId,
-        tokenExchangePending: true,
+        tokenExchangePending: false,
         tokenPersistencePending: true,
       },
     };

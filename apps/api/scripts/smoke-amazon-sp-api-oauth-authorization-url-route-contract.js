@@ -39,7 +39,11 @@ function assertNoPrematureRouteOrIntegration(controllerText, moduleText, package
   }
 
   assert(!/oauthState.*create|amazonSpApiConnection.*create|amazonSpApiCredential.*create/i.test(controllerText), "Authorization URL route must not write OAuth/token DB from controller");
-  assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Authorization URL route must not wire callback/controller to token exchange service");
+  assert(
+    !/exchangeAuthorizationCodeDryRunnable/.test(controllerText) ||
+      /fake_token_exchange_completed/.test(controllerText),
+    "Authorization URL phase regression allows Step130-B fake callback token exchange wiring only when fake completion status is present",
+  );
 }
 
 function main() {

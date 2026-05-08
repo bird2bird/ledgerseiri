@@ -30,7 +30,11 @@ function assertStaticBoundary(serviceText, controllerText, moduleText) {
   assert(!/PrismaClient/.test(serviceText), "Step129-D service must not use PrismaClient");
   assert(!/persistEncryptedRefreshCredential\s*\(/.test(controllerText + serviceText), "Step129-D must not write refresh credential");
   assert(!/persistEncryptedAccessTokenCache\s*\(/.test(controllerText + serviceText), "Step129-D must not write access token cache");
-  assert(!/exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step129-D must not wire controller to token exchange service");
+  assert(
+    !/exchangeAuthorizationCodeDryRunnable/.test(controllerText) ||
+      /fake_token_exchange_completed/.test(controllerText),
+    "Authorization URL phase regression allows Step130-B fake callback token exchange wiring only when fake completion status is present",
+  );
   assert(!/Redirect\(|res\.redirect|response\.redirect/.test(controllerText), "Step129-D must not redirect to Amazon");
 }
 

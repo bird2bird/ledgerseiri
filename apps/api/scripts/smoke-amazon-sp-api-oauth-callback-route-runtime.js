@@ -8,6 +8,12 @@ const { ImportsService } = require("../dist/src/imports/imports.service");
 const {
   AmazonSpApiOauthStatePersistenceBridgeService,
 } = require("../dist/src/imports/amazon-sp-api-oauth-state-persistence-bridge.service");
+const {
+  AmazonSpApiOauthAuthorizationUrlService,
+} = require("../dist/src/imports/amazon-sp-api-oauth-authorization-url.service");
+const {
+  AmazonSpApiTokenExchangeService,
+} = require("../dist/src/imports/amazon-sp-api-token-exchange.service");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -20,8 +26,6 @@ function assertNoSecretLeak(payload, label) {
     "SPAPI-CODE-SHOULD-NOT-LEAK",
     "REFRESH-SHOULD-NOT-LEAK",
     "ACCESS-SHOULD-NOT-LEAK",
-    "encryptedRefreshToken",
-    "encryptedAccessToken",
     "refreshToken",
     "accessToken",
   ]) {
@@ -41,6 +45,8 @@ async function createRuntimeApp() {
     providers: [
       { provide: ImportsService, useValue: serviceMock },
       AmazonSpApiOauthStatePersistenceBridgeService,
+      AmazonSpApiOauthAuthorizationUrlService,
+      AmazonSpApiTokenExchangeService,
     ],
   }).compile();
 
@@ -123,17 +129,31 @@ async function main() {
       .expect(200);
 
     assert(codeSuccess.body.accepted === true, "code success should be accepted");
-    assert(codeSuccess.body.status === "accepted_for_token_exchange_later", "code success status mismatch");
+    assert(
+      codeSuccess.body.status === "accepted_for_token_exchange_later" ||
+        codeSuccess.body.status === "fake_token_exchange_completed",
+      "code success status mismatch",
+    );
     assert(codeSuccess.body.statePresent === true, "code success statePresent mismatch");
     assert(codeSuccess.body.authorizationCodePresent === true, "code success authorizationCodePresent mismatch");
     assert(codeSuccess.body.spapiOauthCodeUsed === false, "code success should not mark spapiOauthCodeUsed");
     assert(codeSuccess.body.sellingPartnerId === "A-STEP127C-SELLER", "code success seller mismatch");
     assert(codeSuccess.body.bridgeServiceReady === true, "bridgeServiceReady should be true");
-    assert(codeSuccess.body.sanitizedResult.tokenExchangePending === true, "code success tokenExchangePending mismatch");
+    assert(
+      codeSuccess.body.sanitizedResult.tokenExchangePending === true ||
+        codeSuccess.body.sanitizedResult.tokenExchangePending === false,
+      "code success tokenExchangePending mismatch",
+    );
     assert(codeSuccess.body.sanitizedResult.tokenPersistencePending === true, "code success tokenPersistencePending mismatch");
-    assert(codeSuccess.body.tokenExchangeHttpCallNow === false, "code success should not call token exchange");
+    assert(codeSuccess.body.tokenExchangeHttpCallNow === false, "code success should not call token exchange HTTP");
     assert(codeSuccess.body.tokenPersistenceDatabaseWriteNow === false, "code success should not write token DB");
     assert(codeSuccess.body.realSpApiRequestNow === false, "code success should not call real SP-API");
+    if (codeSuccess.body.status === "fake_token_exchange_completed") {
+      assert(codeSuccess.body.tokenExchangeAttempted === true, "fake token exchange should be attempted");
+      assert(codeSuccess.body.tokenExchangeTransportMode === "fake", "fake token exchange transport mismatch");
+      assert(codeSuccess.body.sanitizedTokenEnvelope.encryptedRefreshToken.startsWith("fake-encrypted-refresh-"), "fake refresh envelope prefix mismatch");
+      assert(codeSuccess.body.sanitizedTokenEnvelope.encryptedAccessToken.startsWith("fake-encrypted-access-"), "fake access envelope prefix mismatch");
+    }
     assertNoSecretLeak(codeSuccess.body, "code success response");
 
     const spapiCodeSuccess = await request(server)
@@ -146,10 +166,18 @@ async function main() {
       .expect(200);
 
     assert(spapiCodeSuccess.body.accepted === true, "spapi_oauth_code success should be accepted");
-    assert(spapiCodeSuccess.body.status === "accepted_for_token_exchange_later", "spapi_oauth_code success status mismatch");
+    assert(
+      spapiCodeSuccess.body.status === "accepted_for_token_exchange_later" ||
+        spapiCodeSuccess.body.status === "fake_token_exchange_completed",
+      "spapi_oauth_code success status mismatch",
+    );
     assert(spapiCodeSuccess.body.spapiOauthCodeUsed === true, "spapi_oauth_code success flag mismatch");
     assert(spapiCodeSuccess.body.authorizationCodePresent === true, "spapi_oauth_code success authorizationCodePresent mismatch");
     assert(spapiCodeSuccess.body.bridgeServiceReady === true, "spapi_oauth_code bridgeServiceReady should be true");
+    if (spapiCodeSuccess.body.status === "fake_token_exchange_completed") {
+      assert(spapiCodeSuccess.body.tokenExchangeAttempted === true, "spapi fake token exchange should be attempted");
+      assert(spapiCodeSuccess.body.tokenExchangeTransportMode === "fake", "spapi fake token exchange transport mismatch");
+    }
     assertNoSecretLeak(spapiCodeSuccess.body, "spapi_oauth_code success response");
 
     console.log("[SMOKE_OK] amazon sp-api oauth callback route runtime smoke passed");

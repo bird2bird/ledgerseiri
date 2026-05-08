@@ -17,14 +17,30 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
-function assertNoPrematureCallbackIntegration(controllerText) {
+function assertNoPrematureCallbackIntegration(controllerText, packageJson, apiRoot) {
+  const step130BDtoFile = path.resolve(
+    apiRoot,
+    "src/imports/dto/amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract.dto.ts",
+  );
+  const step130BPhaseActive =
+    fs.existsSync(step130BDtoFile) &&
+    packageJson.scripts["smoke:amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract"] ===
+      "node scripts/smoke-amazon-sp-api-oauth-callback-route-fake-token-exchange-implementation-contract.js";
+
   assert(controllerText.includes("@Get('amazon-sp-api/oauth/callback')"), "callback route must exist before Step130");
   assert(controllerText.includes("spapi_oauth_code"), "callback route must still read spapi_oauth_code");
   assert(controllerText.includes("selling_partner_id"), "callback route must still read selling_partner_id");
-  assert(!/amazonSpApiTokenExchangeService\.exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step130-A must not wire callback route to token exchange service yet");
-  assert(!/persistEncryptedRefreshCredential\s*\(/.test(controllerText), "Step130-A must not persist refresh credential");
-  assert(!/persistEncryptedAccessTokenCache\s*\(/.test(controllerText), "Step130-A must not persist access token cache");
-  assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(controllerText), "Step130-A controller must not reference LWA token endpoint");
+
+  if (!step130BPhaseActive) {
+    assert(!/amazonSpApiTokenExchangeService\.exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step130-A must not wire callback route to token exchange service before Step130-B");
+  } else {
+    assert(/amazonSpApiTokenExchangeService\.exchangeAuthorizationCodeDryRunnable/.test(controllerText), "Step130-B phase must wire callback route to fake token exchange service");
+    assert(/fake_token_exchange_completed/.test(controllerText), "Step130-B phase must expose fake token exchange completion status");
+  }
+
+  assert(!/persistEncryptedRefreshCredential\s*\(/.test(controllerText), "Callback route must not persist refresh credential");
+  assert(!/persistEncryptedAccessTokenCache\s*\(/.test(controllerText), "Callback route must not persist access token cache");
+  assert(!/api\.amazon\.com\/auth\/o2\/token|lwa\.amazon\.com\/auth\/o2\/token/i.test(controllerText), "Callback controller must not reference LWA token endpoint");
 }
 
 function assertServiceBoundary(tokenExchangeServiceText) {
@@ -73,7 +89,7 @@ function main() {
   }
 
   assert(moduleText.includes("AmazonSpApiTokenExchangeService"), "ImportsModule must already register token exchange service");
-  assertNoPrematureCallbackIntegration(controllerText);
+  assertNoPrematureCallbackIntegration(controllerText, packageJson, apiRoot);
   assertServiceBoundary(tokenExchangeServiceText);
 
   const contract = assertAmazonSpApiOauthCallbackRouteFakeTokenExchangeIntegrationContract(
