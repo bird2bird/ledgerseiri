@@ -96,7 +96,8 @@
     "smoke:amazon-sp-api-token-exchange-implementation-preflight": "node scripts/smoke-amazon-sp-api-token-exchange-implementation-preflight.js",
     "smoke:amazon-sp-api-token-persistence-implementation-preflight": "node scripts/smoke-amazon-sp-api-token-persistence-implementation-preflight.js",
     "smoke:amazon-sp-api-actual-prisma-schema-migration-plan-contract": "node scripts/smoke-amazon-sp-api-actual-prisma-schema-migration-plan-contract.js",
-    "smoke:amazon-sp-api-prisma-schema-dry-run-diff": "node scripts/smoke-amazon-sp-api-prisma-schema-dry-run-diff-smoke.js"
+    "smoke:amazon-sp-api-prisma-schema-dry-run-diff": "node scripts/smoke-amazon-sp-api-prisma-schema-dry-run-diff-smoke.js",
+    "smoke:amazon-sp-api-actual-prisma-schema-edit-contract": "node scripts/smoke-amazon-sp-api-actual-prisma-schema-edit-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

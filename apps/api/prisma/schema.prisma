@@ -50,6 +50,10 @@ model Company {
   importStagingRows      ImportStagingRow[]
   exportJobs             ExportJob[]
   transactionAttachments TransactionAttachment[]
+
+  amazonSpApiConnections      AmazonSpApiConnection[]
+  amazonSpApiConnectionAudits AmazonSpApiConnectionAudit[]
+
 }
 
 model Store {
@@ -66,6 +70,9 @@ model Store {
   productSkus       ProductSku[]
   productSkuAliases ProductSkuAlias[]
   invoices          Invoice[]
+
+  amazonSpApiConnections      AmazonSpApiConnection[]
+  amazonSpApiConnectionAudits AmazonSpApiConnectionAudit[]
 
   @@index([companyId])
 }
@@ -800,4 +807,98 @@ model PlatformOperationItem {
   @@index([status, processedAt])
   @@index([targetId])
   @@index([companyId, processedAt])
+}
+
+enum AmazonSpApiConnectionStatus {
+  AUTHORIZATION_PENDING
+  CONNECTED
+  REVOKED
+  EXPIRED
+  ERROR
+}
+
+model AmazonSpApiConnection {
+  id                       String                      @id @default(cuid())
+  companyId                String
+  storeId                  String
+  marketplaceId            String
+  region                   String
+  sellingPartnerId         String
+  appId                    String
+  status                   AmazonSpApiConnectionStatus @default(AUTHORIZATION_PENDING)
+  connectedAt              DateTime?
+  revokedAt                DateTime?
+  lastTokenRefreshAt       DateTime?
+  lastHealthCheckAt        DateTime?
+  lastSyncAt               DateTime?
+  lastErrorCode            String?
+  lastErrorMessageRedacted String?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+
+  company                  Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  store                    Store                       @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  credential               AmazonSpApiCredential?
+  accessTokenCache         AmazonSpApiAccessTokenCache?
+  audits                   AmazonSpApiConnectionAudit[]
+
+  @@unique([companyId, storeId, marketplaceId, region])
+  @@unique([sellingPartnerId, marketplaceId, region])
+  @@index([companyId])
+  @@index([storeId])
+  @@index([marketplaceId])
+  @@index([region])
+  @@index([status])
+  @@index([lastSyncAt])
+}
+
+model AmazonSpApiCredential {
+  id                    String   @id @default(cuid())
+  connectionId          String   @unique
+  encryptedRefreshToken String
+  encryptionKeyId       String
+  encryptionAlgorithm   String
+  tokenVersion          Int
+  rotatedAt             DateTime
+  revokedAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  connection            AmazonSpApiConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+}
+
+model AmazonSpApiAccessTokenCache {
+  id                   String   @id @default(cuid())
+  connectionId         String   @unique
+  encryptedAccessToken String
+  tokenType            String
+  scope                String?
+  expiresAt            DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  connection           AmazonSpApiConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@index([expiresAt])
+}
+
+model AmazonSpApiConnectionAudit {
+  id              String   @id @default(cuid())
+  connectionId    String
+  companyId       String
+  storeId         String
+  eventType       String
+  messageRedacted String?
+  metadataJson    Json?
+  createdAt       DateTime @default(now())
+
+  connection      AmazonSpApiConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  company         Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  store           Store                 @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@index([storeId])
+  @@index([connectionId])
+  @@index([eventType])
+  @@index([createdAt])
 }
