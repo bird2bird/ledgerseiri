@@ -1,5 +1,6 @@
 "use client";
 
+import { AmazonSpApiConnectionStatusPanel } from "@/components/app/imports/AmazonSpApiConnectionStatusPanel";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
@@ -81,7 +82,9 @@ export default function DataImportPage() {
 
   return (
     <main className="space-y-6">
-      {/* Step122-W: Amazon SP-API sandbox read-model panel UI shell. No fetch / no endpoint call. */}
+      
+      <AmazonSpApiConnectionStatusPanel />
+{/* Step122-W: Amazon SP-API sandbox read-model panel UI shell. No fetch / no endpoint call. */}
       <AmazonSpApiSandboxReadModelPanelShell />
       <ImportJobsHero
         lang={lang}

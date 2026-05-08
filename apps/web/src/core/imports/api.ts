@@ -418,3 +418,68 @@ export async function listExpenseImportHistory(args: {
     total: Number(raw.total || 0),
   };
 }
+
+
+// Step132-B-FRONTEND-AMAZON-SP-API-CONNECTION-PANEL:
+// Frontend helper for the Amazon SP-API connection panel.
+// This only requests the existing sanitized OAuth authorization URL route.
+// It does not call real SP-API reports, does not create ImportJob, and never handles raw tokens.
+export type AmazonSpApiAuthorizationUrlRequest = {
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  returnTo?: string;
+  sandbox?: boolean;
+  forceReauthorize?: boolean;
+  locale?: string;
+};
+
+export type AmazonSpApiAuthorizationUrlResponse = {
+  ok?: boolean;
+  source?: string;
+  authorizationUrl?: string;
+  stateIssued?: boolean;
+  stateExpiresAt?: string;
+  redirectUri?: string;
+  marketplaceId?: string;
+  region?: string;
+  storeId?: string;
+  sandbox?: boolean;
+  realAmazonRedirectNow?: boolean;
+  tokenExchangeHttpCallNow?: boolean;
+  tokenPersistenceDatabaseWriteNow?: boolean;
+  realSpApiRequestNow?: boolean;
+  sanitizedResult?: {
+    companyId?: string;
+    storeId?: string;
+    marketplaceId?: string;
+    region?: string;
+    authorizationUrlReadyForFrontendLater?: boolean;
+    oauthStatePersistencePending?: boolean;
+  };
+  messageRedacted?: string;
+};
+
+export async function requestAmazonSpApiAuthorizationUrl(
+  args: AmazonSpApiAuthorizationUrlRequest = {}
+): Promise<AmazonSpApiAuthorizationUrlResponse> {
+  const params = new URLSearchParams();
+
+  params.set("storeId", args.storeId || "store-step130b-boundary");
+  params.set("marketplaceId", args.marketplaceId || "A1VC38T7YXB528");
+  params.set("region", args.region || "JP");
+  params.set("sandbox", args.sandbox === false ? "false" : "true");
+  params.set("locale", args.locale || "ja-JP");
+
+  if (args.returnTo) params.set("returnTo", args.returnTo);
+  if (args.forceReauthorize) params.set("forceReauthorize", "true");
+
+  const url = `/api/imports/amazon-sp-api/oauth/authorization-url?${params.toString()}`;
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return readJson<AmazonSpApiAuthorizationUrlResponse>(res, url);
+}
