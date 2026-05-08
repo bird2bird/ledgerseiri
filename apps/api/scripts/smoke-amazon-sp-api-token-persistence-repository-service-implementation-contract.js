@@ -17,6 +17,26 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
+function extractModuleArrayBlock(moduleText, key) {
+  const afterKey = moduleText.split(`${key}:`, 2)[1] || "";
+  const start = afterKey.indexOf("[");
+  if (start < 0) return "";
+
+  let depth = 0;
+  for (let i = start; i < afterKey.length; i += 1) {
+    const ch = afterKey[i];
+    if (ch === "[") depth += 1;
+    if (ch === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return afterKey.slice(start, i + 1);
+      }
+    }
+  }
+
+  return "";
+}
+
 function main() {
   const apiRoot = path.resolve(__dirname, "..");
   const repoRoot = path.resolve(apiRoot, "..", "..");
@@ -73,22 +93,41 @@ function main() {
     assert(serviceText.includes(marker), `Service missing marker: ${marker}`);
   }
 
-  for (const marker of [
-    "AmazonSpApiTokenPersistenceRepository",
-    "AmazonSpApiTokenPersistenceService",
-    "providers: [",
-    "exports: [ImportsService, AmazonSpApiTokenPersistenceService]",
-  ]) {
-    assert(moduleText.includes(marker), `ImportsModule missing marker: ${marker}`);
-  }
+  const providersBlock = extractModuleArrayBlock(moduleText, "providers");
+  const exportsBlock = extractModuleArrayBlock(moduleText, "exports");
+
+  assert(providersBlock.includes("ImportsService"), "ImportsModule providers must include ImportsService");
+  assert(providersBlock.includes("PrismaService"), "ImportsModule providers must include PrismaService");
+  assert(
+    providersBlock.includes("AmazonSpApiTokenPersistenceRepository"),
+    "ImportsModule providers must include AmazonSpApiTokenPersistenceRepository",
+  );
+  assert(
+    providersBlock.includes("AmazonSpApiTokenPersistenceService"),
+    "ImportsModule providers must include AmazonSpApiTokenPersistenceService",
+  );
+
+  assert(exportsBlock.includes("ImportsService"), "ImportsModule exports must include ImportsService");
+  assert(
+    exportsBlock.includes("AmazonSpApiTokenPersistenceService"),
+    "ImportsModule exports must include AmazonSpApiTokenPersistenceService",
+  );
+
+  // Step126-B and later may export additional services. That must not break Step125-B.
+  const bridgeExported = exportsBlock.includes("AmazonSpApiOauthStatePersistenceBridgeService");
 
   assert(!repoText.includes("lastAuthorizedAt"), "Repository must not use non-schema field lastAuthorizedAt");
   assert(!repoText.includes("disconnectedAt"), "Repository must not use non-schema field disconnectedAt");
   assert(!repoText.includes("scopeJson"), "Repository must not use non-schema field scopeJson");
+
   // Only reject real object-literal fields named `message:`.
-  // Do not reject harmless local variables or function parameters like
+  // Do not reject harmless function parameters such as
   // `redactSecretLikeText(message: string | undefined)`.
-  assert(!/(^|[,{\\n])\\s*message\\s*:/.test(repoText), "Repository must use messageRedacted object fields, not message object fields");
+  assert(
+    !/(^|[,{\\n])\\s*message\\s*:/.test(repoText),
+    "Repository must use messageRedacted object fields, not message object fields",
+  );
+
   assert(!/return\s+.*encryptedRefreshToken/.test(repoText), "Repository must not return encryptedRefreshToken");
   assert(!/return\s+.*encryptedAccessToken/.test(repoText), "Repository must not return encryptedAccessToken");
   assert(!/fetch\s*\(/.test(repoText + serviceText), "Step125-B must not perform HTTP token exchange");
@@ -111,6 +150,12 @@ function main() {
   console.log(JSON.stringify({
     ok: true,
     step: "Step125-B",
+    moduleGuard: {
+      providersIncludeTokenPersistenceRepository: true,
+      providersIncludeTokenPersistenceService: true,
+      exportsIncludeTokenPersistenceService: true,
+      acceptsAdditionalBridgeExport: bridgeExported,
+    },
     files: {
       repository: path.relative(repoRoot, repoFile).replaceAll(path.sep, "/"),
       service: path.relative(repoRoot, serviceFile).replaceAll(path.sep, "/"),

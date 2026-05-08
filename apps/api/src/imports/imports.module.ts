@@ -4,6 +4,7 @@ import { ImportsController } from './imports.controller';
 import { ImportsService } from './imports.service';
 import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persistence.service';
 import { AmazonSpApiTokenPersistenceRepository } from './amazon-sp-api-token-persistence.repository';
+import { AmazonSpApiOauthStatePersistenceBridgeService } from './amazon-sp-api-oauth-state-persistence-bridge.service';
 
 @Module({
   controllers: [ImportsController],
@@ -12,7 +13,12 @@ import { AmazonSpApiTokenPersistenceRepository } from './amazon-sp-api-token-per
     PrismaService,
     AmazonSpApiTokenPersistenceRepository,
     AmazonSpApiTokenPersistenceService,
+    AmazonSpApiOauthStatePersistenceBridgeService,
   ],
-  exports: [ImportsService, AmazonSpApiTokenPersistenceService],
+  exports: [
+    ImportsService,
+    AmazonSpApiTokenPersistenceService,
+    AmazonSpApiOauthStatePersistenceBridgeService,
+  ],
 })
 export class ImportsModule {}

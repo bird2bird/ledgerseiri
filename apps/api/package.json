@@ -109,7 +109,8 @@
     "smoke:amazon-sp-api-token-persistence-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-runtime.js",
     "smoke:amazon-sp-api-token-persistence-runtime-smoke-contract": "node scripts/smoke-amazon-sp-api-token-persistence-runtime-smoke-contract.js",
     "smoke:amazon-sp-api-token-persistence-runtime-smoke-record-handoff-contract": "node scripts/smoke-amazon-sp-api-token-persistence-runtime-smoke-record-handoff-contract.js",
-    "smoke:amazon-sp-api-oauth-state-persistence-bridge-preimplementation-contract": "node scripts/smoke-amazon-sp-api-oauth-state-persistence-bridge-preimplementation-contract.js"
+    "smoke:amazon-sp-api-oauth-state-persistence-bridge-preimplementation-contract": "node scripts/smoke-amazon-sp-api-oauth-state-persistence-bridge-preimplementation-contract.js",
+    "smoke:amazon-sp-api-oauth-state-persistence-bridge-implementation-contract": "node scripts/smoke-amazon-sp-api-oauth-state-persistence-bridge-implementation-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
