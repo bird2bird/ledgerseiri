@@ -2,8 +2,8 @@
 
 ## Current confirmed baseline
 
-- Latest confirmed main commit after Step134-C: `03409b1`
-- Step134-C completed: Amazon SP-API connection status frontend runtime smoke / browser verification
+- Latest confirmed main commit after Step134-C-FIX1: `4212f97`
+- Step134-C-FIX1 completed: production/web-origin `/api` route now proxies to the NestJS API service.
 - This handoff freezes the Step130–Step134 Amazon SP-API OAuth preparation chain before entering Step135 token exchange work.
 
 ## Product / system context
@@ -33,14 +33,14 @@ Do not do the following in Step134 closeout or status UI steps:
 - Do not create or update `Transaction`.
 - Do not create or update inventory / inventory movements.
 - Do not expose raw `refresh_token`, `access_token`, `client_secret`, `lwa_client_secret`, or `amazon_refresh_token` in frontend, DOM, logs, or Network response.
-- Do not store raw token or client secret in `localStorage`, `sessionStorage`, or cookies from frontend code.
+- Do not store raw token or client secret in `localStorage`, `sessionStorage`, or frontend cookies.
 
-Allowed status-level boolean flags:
+Allowed safety boundary flags:
 
 - `rawTokenReturnedNow?: boolean`
 - `clientSecretReturnedNow?: boolean`
 
-These are safety boundary flags, not raw secret values.
+These are boolean diagnostic/safety flags, not raw secret values.
 
 ## Completed milestone chain
 
@@ -67,30 +67,29 @@ Purpose:
 
 Important frontend files:
 
-- `apps/web/src/components/app/imports/AmazonSpApiConnectionStatusPanel.tsx`
-- `apps/web/src/core/imports/api.ts`
+```text
+apps/web/src/components/app/imports/AmazonSpApiConnectionStatusPanel.tsx
+apps/web/src/core/imports/api.ts
 
 Important helper:
 
-- `requestAmazonSpApiAuthorizationUrl()`
+requestAmazonSpApiAuthorizationUrl()
 
 Current connect/reconnect behavior:
 
-- `Amazonと接続` calls authorization URL helper.
-- `再接続` calls authorization URL helper with `forceReauthorize=true`.
-- `接続を解除` remains disabled until a dedicated revoke endpoint step.
-
-### Step133 series — Backend connection status endpoint
+Amazonと接続 calls authorization URL helper.
+再接続 calls authorization URL helper with forceReauthorize=true.
+接続を解除 remains disabled until a dedicated revoke endpoint step.
+Step133 series — Backend connection status endpoint
 
 Purpose:
 
-- Provide backend status endpoint for Amazon SP-API connection state.
-- Read sanitized status from backend/token persistence boundary.
-- Do not perform token exchange, report call, import, transaction, or inventory writes.
+Provide backend status endpoint for Amazon SP-API connection state.
+Read sanitized status from backend/token persistence boundary.
+Do not perform token exchange, report call, import, transaction, or inventory writes.
 
 Important route:
 
-```text
 GET /api/imports/amazon-sp-api/connection/status
 
 Expected query:
@@ -105,6 +104,14 @@ NOT_CONNECTED
 CONNECTED
 RECONNECT_REQUIRED
 ERROR
+
+Backend controller file:
+
+apps/api/src/imports/imports.controller.ts
+
+Runtime route mapping after FIX1-B must include:
+
+Mapped {/api/imports/amazon-sp-api/connection/status, GET}
 Step134-A — Frontend status read contract
 
 Commit:
@@ -201,6 +208,65 @@ Important runtime note:
 If smoke gets socket hang up immediately after Docker web restart, wait until web is ready and rerun.
 This happened once because ledgerseiri_web had just started.
 Rerun after web readiness wait passed.
+Step134-C-FIX1 — Production/web-origin /api proxy rewrite
+
+Commit:
+
+4212f97
+
+Problem found in real browser:
+
+https://ledgerseiri.com/api/imports/amazon-sp-api/connection/status?... -> 404
+
+Root cause:
+
+Frontend correctly called /api/imports/amazon-sp-api/connection/status.
+NestJS backend source had the route.
+But the web origin had no Next.js /api rewrite/proxy to the API service.
+Additionally, the running API container initially used an older image/process that did not include the new Amazon SP-API route mapping.
+
+Fix:
+
+apps/web/next.config.ts
+
+Added rewrite:
+
+/api/:path* -> ${INTERNAL_API_BASE_URL || "http://api:3001"}/api/:path*
+
+Important files:
+
+apps/web/next.config.ts
+apps/web/scripts/smoke-next-api-rewrite-config.js
+apps/web/package.json
+
+Verification after rebuild/restart:
+
+docker compose build api web
+docker compose up -d api web
+API runtime logs include:
+Mapped {/api/imports/amazon-sp-api/connection/status, GET}
+Direct API curl without browser cookie:
+http://localhost:3001/api/imports/amazon-sp-api/connection/status?... -> 401
+Web-origin rewrite curl without browser cookie:
+http://localhost:3000/api/imports/amazon-sp-api/connection/status?... -> 401
+
+This is correct because the endpoint is protected by JwtAuthGuard.
+
+Browser logged-in verification:
+
+Open:
+https://ledgerseiri.com/ja/app/data/import
+The panel no longer shows failed 404.
+Status badge shows 未接続.
+Message shows:
+Amazon SP-API は未接続です。
+DevTools Network shows status?... request as successful under logged-in browser session.
+
+Interpretation:
+
+401 from curl without cookies = expected.
+200 in logged-in browser = expected.
+404 = fixed and should not reappear after latest web/api deployment.
 Current frontend implementation summary
 apps/web/src/core/imports/api.ts
 
@@ -240,33 +306,60 @@ Current runtime verification checklist
 Manual browser verification:
 
 1. Open:
-   http://localhost:3000/ja/app/data/import
+   https://ledgerseiri.com/ja/app/data/import
 
 2. Open DevTools -> Network
 
 3. Confirm initial GET:
    /api/imports/amazon-sp-api/connection/status?storeId=store-step130b-boundary&marketplaceId=A1VC38T7YXB528&region=JP
 
-4. Click:
+4. Confirm response is not 404.
+
+5. In logged-in browser, expected result is 200 and UI shows:
+   未接続
+   Amazon SP-API は未接続です。
+
+6. Click:
    接続状態を更新
 
-5. Confirm the same GET fires again.
+7. Confirm the same GET fires again.
 
-6. Confirm badge mapping:
+8. Confirm badge mapping:
    NOT_CONNECTED        -> 未接続
    CONNECTED            -> 接続済み
    RECONNECT_REQUIRED   -> 再接続が必要
    ERROR                -> 接続エラー
 
-7. Confirm no raw token/client secret appears in DOM or Network response.
+9. Confirm no raw token/client secret appears in DOM or Network response.
+Current regression commands
+
+Recommended after any Step135 change:
+
+cd /opt/ledgerseiri/apps/web
+npm run smoke:next-api-rewrite-config
+npm run smoke:amazon-sp-api-frontend-status-read
+WEB_BASE=http://localhost:3000 API_BASE=http://localhost:3001 npm run smoke:amazon-sp-api-frontend-status-runtime
+npm run build
+
+Recommended API route check:
+
+cd /opt/ledgerseiri
+docker compose build api web
+docker compose up -d api web
+docker compose logs api --tail=500 | grep "Mapped {/api/imports/amazon-sp-api/connection/status, GET}"
+
+Expected unauthenticated curl results:
+
+curl -i "http://localhost:3001/api/imports/amazon-sp-api/connection/status?storeId=store-step130b-boundary&marketplaceId=A1VC38T7YXB528&region=JP"
+curl -i "http://localhost:3000/api/imports/amazon-sp-api/connection/status?storeId=store-step130b-boundary&marketplaceId=A1VC38T7YXB528&region=JP"
+
+Expected result:
+
+401 Unauthorized
+
+This means route and rewrite are working but request lacks logged-in browser JWT cookie.
+
 Recommended next roadmap
-Step134-D — Closeout / handoff
-
-Purpose:
-
-Commit this handoff.
-Keep no business logic changes.
-Treat Step130–134 as stable pre-token-exchange baseline.
 Step135-A — OAuth callback token exchange boundary contract
 
 Recommended next development step after Step134-D.
@@ -279,7 +372,7 @@ Specify exact security behavior before implementing real token exchange.
 
 Step135-A should define:
 
-Callback receives state, selling_partner_id, spapi_oauth_code.
+Callback receives state, selling_partner_id, and spapi_oauth_code.
 Backend validates OAuth state.
 Backend exchanges authorization code with LWA token endpoint later.
 Step135-A itself should not make real token HTTP calls unless explicitly scoped.
@@ -321,10 +414,10 @@ How to resume in a new window
 Start from:
 
 Current latest confirmed main commit:
-03409b1
+4212f97
 
-Current next step:
-Step134-D closeout handoff commit, then Step135-A OAuth callback token exchange boundary contract
+Current next step after this handoff:
+Step135-A OAuth callback token exchange boundary contract
 
 Before doing any new script:
 
@@ -336,11 +429,16 @@ git log --oneline -10
 Expected clean state before Step135:
 
 Working tree clean
-main contains 03409b1 or later
-Step134-B and Step134-C commits present
+main contains 4212f97 or later
+Step134-B, Step134-C, and Step134-C-FIX1 commits present
 
-Critical reminder:
+Critical reminders:
 
 Do not run Step134-A contract-only smoke after Step134-B.
 Step134-A smoke is intentionally incompatible with post-Step134-B code.
-Use Step134-B and Step134-C smokes for current frontend status-read regression.
+Use Step134-B, Step134-C, and Step134-C-FIX1 smokes for current frontend status-read regression.
+If /api/imports/amazon-sp-api/connection/status returns 401 via curl, that is expected without browser cookies.
+If it returns 404, check:
+apps/web/next.config.ts rewrite
+whether api container was rebuilt/restarted
+whether API runtime logs include the Amazon SP-API connection status route mapping
