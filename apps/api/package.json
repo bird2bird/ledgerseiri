@@ -137,7 +137,8 @@
     "smoke:amazon-sp-api-oauth-callback-token-persistence-runtime-record-handoff-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-token-persistence-runtime-record-handoff-contract.js",
     "smoke:frontend-amazon-sp-api-connection-status-panel-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-contract.js",
     "smoke:frontend-amazon-sp-api-connection-status-panel-implementation-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-implementation-contract.js",
-    "smoke:frontend-amazon-sp-api-connection-status-panel-runtime-smoke-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-runtime-smoke-contract.js"
+    "smoke:frontend-amazon-sp-api-connection-status-panel-runtime-smoke-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-runtime-smoke-contract.js",
+    "smoke:frontend-amazon-sp-api-connection-status-panel-runtime-record-handoff-contract": "node scripts/smoke-frontend-amazon-sp-api-connection-status-panel-runtime-record-handoff-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
