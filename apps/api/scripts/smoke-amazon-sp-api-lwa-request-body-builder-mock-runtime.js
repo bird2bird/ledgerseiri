@@ -123,7 +123,7 @@ function assertSafeDisabledResult(result, scenario) {
     `${scenario}: raw body unavailable outside builder`,
   );
   assert(
-    result.sanitizedRequestBodyShape.nextImplementationStep === 'Step136-F',
+    result.sanitizedRequestBodyShape.nextImplementationStep === 'Step136-I',
     `${scenario}: next implementation step`,
   );
 

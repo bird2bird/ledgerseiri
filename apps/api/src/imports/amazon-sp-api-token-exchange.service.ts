@@ -84,6 +84,75 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledInput = {
   enableRealLwaHttpTransport: false;
 };
 
+export type AmazonSpApiLwaHttpTransportDisabledInput = {
+  tokenEndpoint: string;
+  requestBodyPrepared: boolean;
+  requestBodyFingerprint: string;
+  requestBodyLength: number;
+  contentType: 'application/x-www-form-urlencoded';
+  method: 'POST';
+  configValidatorStatus: 'ready' | 'missing_required_env' | 'invalid_env';
+  requestBodyBuilderStatus: 'ready' | 'disabled' | 'invalid';
+  serverSideFeatureGateEnabled: false;
+  enableRealLwaHttpTransport: false;
+};
+
+export type AmazonSpApiLwaHttpTransportDisabledResult = {
+  accepted: false;
+  source: 'amazon-sp-api-lwa-http-transport-disabled';
+  reason:
+    | 'http_transport_disabled'
+    | 'server_side_feature_gate_disabled'
+    | 'config_validator_not_ready'
+    | 'request_body_builder_not_ready'
+    | 'missing_token_endpoint'
+    | 'invalid_token_endpoint'
+    | 'missing_request_body_fingerprint'
+    | 'invalid_request_body_length'
+    | 'invalid_content_type'
+    | 'invalid_method';
+  messageRedacted: string;
+  httpTransportPreparedNow: true;
+  httpTransportImplementedNow: true;
+  httpExecutedNow: false;
+  requestBodyConstructedNow: false;
+  requestBodyLoggedNow: false;
+  rawRequestBodyReturnedNow: false;
+  rawLwaResponseParsedNow: false;
+  rawLwaResponseLoggedNow: false;
+  rawLwaResponseReturnedNow: false;
+  tokenExchangeHttpCallNow: false;
+  lwaHttpCallNow: false;
+  realSpApiRequestNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  rawAuthorizationCodeReturnedNow: false;
+  rawClientIdReturnedNow: false;
+  rawClientSecretReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  sanitizedHttpTransportShape: {
+    method: 'POST';
+    tokenEndpointHost: string | null;
+    tokenEndpointPath: string | null;
+    contentType: 'application/x-www-form-urlencoded';
+    timeoutMs: 10000;
+    maxAttempts: 1;
+    executableClientUsedNow: false;
+    requestBodyPrepared: boolean;
+    requestBodyFingerprintPresent: boolean;
+    requestBodyLength: number;
+    responseBodyParsedNow: false;
+    nextImplementationStep: 'Step136-I';
+  };
+  sanitizedEnablementGate: {
+    configValidatorReady: boolean;
+    requestBodyBuilderReady: boolean;
+    serverSideFeatureGateEnabled: false;
+    envFlagAloneAccepted: false;
+    realLwaHttpTransportEnabled: false;
+  };
+};
+
 export type AmazonSpApiLwaRequestBodyBuilderDisabledInput = {
   authorizationCode: string;
   redirectUri: string;
@@ -150,7 +219,7 @@ export type AmazonSpApiLwaRequestBodyBuilderDisabledResult = {
     encodedBodyLength: number;
     encodedBodySha256: string | null;
     rawBodyAvailableOnlyInsideBuilder: false;
-    nextImplementationStep: 'Step136-F';
+    nextImplementationStep: 'Step136-I';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -224,7 +293,7 @@ export type AmazonSpApiRealLwaHttpClientDisabledResult = {
     requestBodyConstructedNow: false;
     requestBodyLoggedNow: false;
     responseBodyParsedNow: false;
-    nextImplementationStep: 'Step136-F';
+    nextImplementationStep: 'Step136-I';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -270,7 +339,7 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledResult = {
     companyIdPresent: boolean;
     storeIdPresent: boolean;
     realLwaHttpTransportEnabled: false;
-    nextImplementationStep: 'Step136-F';
+    nextImplementationStep: 'Step136-I';
   };
 };
 
@@ -330,6 +399,133 @@ function sanitizedBodyFingerprint(value: string): string {
 
 @Injectable()
 export class AmazonSpApiTokenExchangeService {
+  executeRealLwaTokenExchangeHttpLater(
+    input: AmazonSpApiLwaHttpTransportDisabledInput,
+  ): AmazonSpApiLwaHttpTransportDisabledResult {
+    const tokenEndpoint = normalize(input.tokenEndpoint);
+    const requestBodyFingerprint = normalize(input.requestBodyFingerprint);
+    const endpointShape = parseHttpsEndpointShape(tokenEndpoint);
+
+    const sanitizedHttpTransportShape: AmazonSpApiLwaHttpTransportDisabledResult['sanitizedHttpTransportShape'] =
+      {
+        method: 'POST',
+        tokenEndpointHost: endpointShape.host,
+        tokenEndpointPath: endpointShape.path,
+        contentType: 'application/x-www-form-urlencoded',
+        timeoutMs: 10000,
+        maxAttempts: 1,
+        executableClientUsedNow: false,
+        requestBodyPrepared: input.requestBodyPrepared === true,
+        requestBodyFingerprintPresent: requestBodyFingerprint.length > 0,
+        requestBodyLength: Number.isFinite(input.requestBodyLength)
+          ? Math.max(0, Math.floor(input.requestBodyLength))
+          : 0,
+        responseBodyParsedNow: false,
+        nextImplementationStep: 'Step136-I',
+      };
+
+    const sanitizedEnablementGate: AmazonSpApiLwaHttpTransportDisabledResult['sanitizedEnablementGate'] =
+      {
+        configValidatorReady: input.configValidatorStatus === 'ready',
+        requestBodyBuilderReady: input.requestBodyBuilderStatus === 'ready',
+        serverSideFeatureGateEnabled: false,
+        envFlagAloneAccepted: false,
+        realLwaHttpTransportEnabled: false,
+      };
+
+    const disabled = (
+      reason: AmazonSpApiLwaHttpTransportDisabledResult['reason'],
+      messageRedacted: string,
+    ): AmazonSpApiLwaHttpTransportDisabledResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-lwa-http-transport-disabled',
+      reason,
+      messageRedacted,
+      httpTransportPreparedNow: true,
+      httpTransportImplementedNow: true,
+      httpExecutedNow: false,
+      requestBodyConstructedNow: false,
+      requestBodyLoggedNow: false,
+      rawRequestBodyReturnedNow: false,
+      rawLwaResponseParsedNow: false,
+      rawLwaResponseLoggedNow: false,
+      rawLwaResponseReturnedNow: false,
+      tokenExchangeHttpCallNow: false,
+      lwaHttpCallNow: false,
+      realSpApiRequestNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      rawAuthorizationCodeReturnedNow: false,
+      rawClientIdReturnedNow: false,
+      rawClientSecretReturnedNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+      sanitizedHttpTransportShape,
+      sanitizedEnablementGate,
+    });
+
+    if (input.configValidatorStatus !== 'ready') {
+      return disabled(
+        'config_validator_not_ready',
+        'LWA config validator must report ready before HTTP transport can be enabled.',
+      );
+    }
+
+    if (input.requestBodyBuilderStatus !== 'ready' || input.requestBodyPrepared !== true) {
+      return disabled(
+        'request_body_builder_not_ready',
+        'LWA request body builder must be ready before HTTP transport can be enabled.',
+      );
+    }
+
+    if (input.serverSideFeatureGateEnabled !== false || input.enableRealLwaHttpTransport !== false) {
+      return disabled(
+        'http_transport_disabled',
+        'Real LWA HTTP transport remains disabled by default in Step136-H.',
+      );
+    }
+
+    if (!tokenEndpoint) {
+      return disabled('missing_token_endpoint', 'LWA token endpoint is required before HTTP transport.');
+    }
+
+    if (!endpointShape.valid) {
+      return disabled(
+        'invalid_token_endpoint',
+        'LWA token endpoint must be HTTPS before HTTP transport.',
+      );
+    }
+
+    if (!requestBodyFingerprint) {
+      return disabled(
+        'missing_request_body_fingerprint',
+        'Sanitized request body fingerprint is required before HTTP transport.',
+      );
+    }
+
+    if (!Number.isFinite(input.requestBodyLength) || input.requestBodyLength <= 0) {
+      return disabled(
+        'invalid_request_body_length',
+        'Sanitized request body length must be positive before HTTP transport.',
+      );
+    }
+
+    if (input.contentType !== 'application/x-www-form-urlencoded') {
+      return disabled(
+        'invalid_content_type',
+        'LWA HTTP transport requires application/x-www-form-urlencoded content type.',
+      );
+    }
+
+    if (input.method !== 'POST') {
+      return disabled('invalid_method', 'LWA HTTP transport requires POST method.');
+    }
+
+    return disabled(
+      'server_side_feature_gate_disabled',
+      'Server-side real LWA HTTP transport feature gate is disabled in Step136-H.',
+    );
+  }
+
   buildRealLwaTokenExchangeRequestBodyLater(
     input: AmazonSpApiLwaRequestBodyBuilderDisabledInput,
   ): AmazonSpApiLwaRequestBodyBuilderDisabledResult {
@@ -377,7 +573,7 @@ export class AmazonSpApiTokenExchangeService {
         encodedBodyLength: bodyShapeSeed.length,
         encodedBodySha256: sanitizedBodyFingerprint(bodyShapeSeed),
         rawBodyAvailableOnlyInsideBuilder: false,
-        nextImplementationStep: 'Step136-F',
+        nextImplementationStep: 'Step136-I',
       };
 
     const sanitizedEnablementGate: AmazonSpApiLwaRequestBodyBuilderDisabledResult['sanitizedEnablementGate'] =
@@ -521,7 +717,7 @@ export class AmazonSpApiTokenExchangeService {
         requestBodyConstructedNow: false,
         requestBodyLoggedNow: false,
         responseBodyParsedNow: false,
-        nextImplementationStep: 'Step136-F',
+        nextImplementationStep: 'Step136-I',
       };
 
     const sanitizedEnablementGate: AmazonSpApiRealLwaHttpClientDisabledResult['sanitizedEnablementGate'] =
@@ -669,7 +865,7 @@ export class AmazonSpApiTokenExchangeService {
       companyIdPresent: companyId.length > 0,
       storeIdPresent: storeId.length > 0,
       realLwaHttpTransportEnabled: false as const,
-      nextImplementationStep: 'Step136-F' as const,
+      nextImplementationStep: 'Step136-I' as const,
     };
 
     const disabled = (
@@ -745,7 +941,7 @@ export class AmazonSpApiTokenExchangeService {
 
     return disabled(
       'real_lwa_transport_disabled',
-      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-F.',
+      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-I.',
     );
   }
 
