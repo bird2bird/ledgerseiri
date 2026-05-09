@@ -152,7 +152,8 @@
     "smoke:amazon-sp-api-lwa-config-diagnostic-endpoint-contract": "node scripts/smoke-amazon-sp-api-lwa-config-diagnostic-endpoint-contract.js",
     "smoke:amazon-sp-api-lwa-config-diagnostic-endpoint": "node scripts/smoke-amazon-sp-api-lwa-config-diagnostic-endpoint-implementation.js",
     "smoke:amazon-sp-api-lwa-config-diagnostic-endpoint-runtime": "node scripts/smoke-amazon-sp-api-lwa-config-diagnostic-endpoint-runtime.js",
-    "smoke:amazon-sp-api-real-lwa-token-exchange-enablement-boundary-contract": "node scripts/smoke-amazon-sp-api-real-lwa-token-exchange-enablement-boundary-contract.js"
+    "smoke:amazon-sp-api-real-lwa-token-exchange-enablement-boundary-contract": "node scripts/smoke-amazon-sp-api-real-lwa-token-exchange-enablement-boundary-contract.js",
+    "smoke:amazon-sp-api-real-lwa-http-client-disabled-by-default": "node scripts/smoke-amazon-sp-api-real-lwa-http-client-disabled-by-default.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

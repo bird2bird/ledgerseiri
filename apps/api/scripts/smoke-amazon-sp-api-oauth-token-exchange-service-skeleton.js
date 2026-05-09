@@ -51,12 +51,12 @@ assertIncludes('service', service, 'realSpApiRequestNow: false');
 assertIncludes('service', service, 'rawRefreshTokenReturnedNow: false');
 assertIncludes('service', service, 'rawAccessTokenReturnedNow: false');
 assertIncludes('service', service, 'clientSecretReturnedNow: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step135-C'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-C'");
 assertIncludes('service', service, "'real_lwa_transport_disabled'");
 assertIncludes(
   'service',
   service,
-  'Real Amazon LWA token exchange transport is intentionally disabled until Step135-C.',
+  'Real Amazon LWA token exchange transport is intentionally disabled until Step136-C.',
 );
 
 assertIncludes('service', service, 'exchangeAuthorizationCodeDryRunnable');
@@ -80,9 +80,9 @@ const forbiddenTransportMarkers = [
   'axios.',
   'http.request',
   'https.request',
+  'request.write(',
+  '.post(',
   'api.amazon.com/auth/o2/token',
-  'method: "POST"',
-  "method: 'POST'",
   'Authorization: ',
   'Bearer ',
 ];
