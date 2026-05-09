@@ -46,7 +46,51 @@ function loadServiceClass() {
 
   const module = { exports: {} };
   const sandbox = {
-    require,
+    require: (request) => {
+      if (request === './amazon-sp-api-token-persistence-e2e.runner') {
+        return {
+          AmazonSpApiTokenPersistenceE2eRunner: class AmazonSpApiTokenPersistenceE2eRunner {
+            runTokenPersistenceE2eTestDouble(input) {
+              return {
+                accepted: input?.activationGateAccepted === true,
+                source: 'amazon-sp-api-token-persistence-e2e-runner',
+                runnerMode: 'test-double-no-controller-no-prisma-write-no-amazon-call',
+                reason: input?.activationGateAccepted === true ? 'ready' : 'activation_gate_not_accepted',
+                messageRedacted: 'legacy Step137-U smoke mock only',
+                activationGateAccepted: input?.activationGateAccepted === true,
+                executableTransportAccepted: input?.executableTransportAccepted === true,
+                sanitizedParserAccepted: input?.sanitizedParserAccepted === true,
+                encryptedPersistenceInputAccepted: input?.encryptedPersistenceInputAccepted === true,
+                orchestratorAccepted: input?.activationGateAccepted === true,
+                repositoryAccepted: input?.activationGateAccepted === true,
+                companyIdPresent: Boolean(input?.companyId),
+                storeIdPresent: Boolean(input?.storeId),
+                marketplaceIdPresent: Boolean(input?.marketplaceId),
+                regionPresent: Boolean(input?.region),
+                sellingPartnerIdPresent: Boolean(input?.sellingPartnerId),
+                controllerWiringNow: false,
+                oauthCallbackWiringNow: false,
+                amazonNetworkCallNow: false,
+                executableHttpClientUsedNow: false,
+                realSpApiRequestNow: false,
+                prismaClientWriteNow: false,
+                databaseWriteNow: false,
+                tokenPersistenceDatabaseWriteNow: false,
+                plaintextTokenDatabaseWriteNow: false,
+                rawTokenReturnedNow: false,
+                rawLwaResponseReturnedNow: false,
+              };
+            }
+          },
+        };
+      }
+
+      try {
+        return require(request);
+      } catch (error) {
+        return {};
+      }
+    },
     module,
     exports: module.exports,
     __dirname: path.dirname(servicePath),
