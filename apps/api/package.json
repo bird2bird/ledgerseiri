@@ -163,7 +163,8 @@
     "smoke:amazon-sp-api-lwa-http-transport-mock-runtime": "node scripts/smoke-amazon-sp-api-lwa-http-transport-mock-runtime.js",
     "smoke:amazon-sp-api-real-lwa-exchange-chain-boundary-contract": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-boundary-contract.js",
     "smoke:amazon-sp-api-real-lwa-exchange-chain-disabled": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-disabled-orchestration.js",
-    "smoke:amazon-sp-api-real-lwa-exchange-chain-mock-runtime": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-mock-runtime.js"
+    "smoke:amazon-sp-api-real-lwa-exchange-chain-mock-runtime": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-mock-runtime.js",
+    "smoke:amazon-sp-api-real-lwa-activation-feature-gate-contract": "node scripts/smoke-amazon-sp-api-real-lwa-activation-feature-gate-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
