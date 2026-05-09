@@ -150,7 +150,27 @@ assertIncludes('repository', repository, 'upsertEncryptedCredentialTestDouble');
 assertIncludes('repository', repository, "repositoryMode: 'test-double-no-prisma-write'");
 assertIncludes('repository', repository, 'prismaClientWriteNow: false');
 
-assert(orchestrator.length === 0, 'orchestrator implementation file is not created in Step138-A');
+// Step138-B intentionally creates the orchestrator test-double file.
+// This legacy Step138-A contract smoke now allows that file to exist,
+// but only as a no-controller / no-Prisma-write test double.
+assertIncludes('orchestrator', orchestrator, 'export class AmazonSpApiTokenPersistenceOrchestrator');
+assertIncludes('orchestrator', orchestrator, 'persistTokenExchangeResultTestDouble');
+assertIncludes('orchestrator', orchestrator, "orchestrationMode: 'test-double-no-controller-no-prisma-write'");
+assertIncludes('orchestrator', orchestrator, 'rawTokenReturnedNow: false');
+assertIncludes('orchestrator', orchestrator, 'rawLwaResponseReturnedNow: false');
+assertIncludes('orchestrator', orchestrator, 'controllerWiringNow: false');
+assertIncludes('orchestrator', orchestrator, 'oauthCallbackWiringNow: false');
+assertIncludes('orchestrator', orchestrator, 'amazonNetworkCallNow: false');
+assertIncludes('orchestrator', orchestrator, 'prismaClientWriteNow: false');
+assertIncludes('orchestrator', orchestrator, 'databaseWriteNow: false');
+assertIncludes('orchestrator', orchestrator, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('orchestrator', orchestrator, 'plaintextTokenDatabaseWriteNow: false');
+assertNotIncludes('orchestrator', orchestrator, 'prisma.');
+assertNotIncludes('orchestrator', orchestrator, 'amazonSpApiCredential.');
+assertNotIncludes('orchestrator', orchestrator, 'fetch(');
+assertNotIncludes('orchestrator', orchestrator, 'axios.');
+assertNotIncludes('orchestrator', orchestrator, 'http.request');
+assertNotIncludes('orchestrator', orchestrator, 'https.request');
 
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiTokenPersistenceOrchestrator');
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiCredentialRepository');
