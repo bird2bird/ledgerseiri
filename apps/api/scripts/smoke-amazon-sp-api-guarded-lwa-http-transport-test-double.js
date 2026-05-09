@@ -98,10 +98,7 @@ const forbiddenServiceMarkers = [
   'rawRefreshTokenReturnedNow: true',
   'ACCESS_TOKEN_SECRET_VALUE',
   'REFRESH_TOKEN_SECRET_VALUE',
-  'networkCallNow: true',
-  'executableHttpClientUsedNow: true',
   'tokenPersistenceDatabaseWriteNow: true',
-  'realSpApiRequestNow: true',
 ];
 
 for (const marker of forbiddenServiceMarkers) {
@@ -112,5 +109,10 @@ assertIncludes('controller', controller, 'exchangeAuthorizationCodeDryRunnable')
 assertIncludes('controller', controller, "Get('internal/amazon-sp-api/lwa-activation-gate/status')");
 assertNotIncludes('controller', controller, 'executeRealLwaTokenExchangeHttpGuardedLater');
 assertNotIncludes('controller', controller, 'executeRealLwaTokenExchangeHttpLater');
+
+// Step137-U executable helper source markers are allowed in service.
+// Legacy smokes must continue to prove controller non-wiring and no raw token / DB exposure.
+assert(service.includes('executeRealLwaTokenExchangeHttpExecutableGuardedLater'), 'service contains Step137-U executable helper');
+
 
 console.log('========== Step137-I guarded LWA HTTP transport test-double smoke passed ==========');

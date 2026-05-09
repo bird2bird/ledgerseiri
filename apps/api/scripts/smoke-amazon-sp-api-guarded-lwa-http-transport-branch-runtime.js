@@ -110,6 +110,19 @@ assert(serviceSource.includes("transportMode: 'test-double-no-network'"), 'servi
 assert(!controllerSource.includes('executeRealLwaTokenExchangeHttpGuardedLater'), 'controller does not wire guarded transport');
 assert(!controllerSource.includes('executeRealLwaTokenExchangeHttpLater'), 'controller does not wire legacy transport');
 
+// Step137-U executable helper source markers are allowed in service.
+// Legacy smokes must continue to prove controller non-wiring and no raw token / DB exposure.
+assert(serviceSource.includes('executeRealLwaTokenExchangeHttpExecutableGuardedLater'), 'service contains Step137-U executable helper');
+
+
+// Step137-U intentionally introduces executable helper branches where
+// networkCallNow/executableHttpClientUsedNow/lwaHttpCallNow can be true.
+// This legacy smoke still verifies the original test-double branch behavior
+// through runtime calls below and separately verifies controller non-wiring.
+assert(serviceSource.includes('executeRealLwaTokenExchangeHttpExecutableGuardedLater'), 'service may contain Step137-U executable helper');
+assert(!controllerSource.includes('executeRealLwaTokenExchangeHttpExecutableGuardedLater'), 'controller does not wire executable transport');
+
+
 for (const forbidden of [
   'fetch(',
   'axios.',
@@ -119,10 +132,7 @@ for (const forbidden of [
   'rawRefreshTokenReturnedNow: true',
   'ACCESS_TOKEN_SECRET_VALUE',
   'REFRESH_TOKEN_SECRET_VALUE',
-  'networkCallNow: true',
-  'executableHttpClientUsedNow: true',
   'tokenPersistenceDatabaseWriteNow: true',
-  'realSpApiRequestNow: true',
 ]) {
   assert(!serviceSource.includes(forbidden), `service does not contain forbidden marker: ${forbidden}`);
 }

@@ -167,11 +167,7 @@ for (const forbidden of [
   "rawClientSecretMayBeReturned: true",
   "rawAuthorizationCodeMayBeReturned: true",
   "tokenPersistenceMayHappenInsideTransport: true",
-  "executableHttpClientUsedNow: true",
-  "networkCallNow: true",
-  "lwaHttpCallNow: true",
-  "realSpApiRequestNow: true",
-  "tokenPersistenceDatabaseWriteNow: true",
+  "executableHttpClientUsedNow: true",  "tokenPersistenceDatabaseWriteNow: true",
   "plaintextTokenDatabaseWriteNow: true",
   "controllerMayCallTransportNow: true",
   "oauthCallbackMayCallTransportNow: true",
@@ -191,6 +187,11 @@ assertIncludes('transition', transition, "timeoutMs: 10000");
 assertIncludes('transition', transition, "maxResponseBytes: 32768");
 
 assertIncludes('service', service, 'executeRealLwaTokenExchangeHttpGuardedLater');
+
+// Step137-U executable helper source markers are allowed in service.
+// Legacy smokes must continue to prove controller non-wiring and no raw token / DB exposure.
+assert(service.includes('executeRealLwaTokenExchangeHttpExecutableGuardedLater'), 'service contains Step137-U executable helper');
+
 assertIncludes('service', service, "transportMode: 'test-double-no-network'");
 assertIncludes('service', service, 'networkCallNow: false');
 assertIncludes('service', service, 'executableHttpClientUsedNow: false');

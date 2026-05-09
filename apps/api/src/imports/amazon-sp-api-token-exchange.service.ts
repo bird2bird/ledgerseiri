@@ -416,6 +416,80 @@ export type AmazonSpApiEncryptedTokenPersistenceInputBuilderResult = {
   migrationRequiredNow: false;
 };
 
+
+export type AmazonSpApiExecutableLwaHttpExecutorInput = {
+  method: 'POST';
+  tokenEndpoint: string;
+  contentType: 'application/x-www-form-urlencoded';
+  requestBodyFingerprint: string;
+  requestBodyLength: number;
+  timeoutMs: number;
+  maxResponseBytes: number;
+};
+
+export type AmazonSpApiExecutableLwaHttpExecutorResult = {
+  httpStatus: number;
+  responseBody: string;
+  responseHeaders?: Record<string, string | undefined>;
+};
+
+export type AmazonSpApiExecutableLwaHttpExecutor = (
+  input: AmazonSpApiExecutableLwaHttpExecutorInput,
+) => Promise<AmazonSpApiExecutableLwaHttpExecutorResult>;
+
+export type AmazonSpApiExecutableRealLwaHttpTransportInput = Omit<
+  AmazonSpApiGuardedLwaHttpTransportInput,
+  'dryRun'
+> & {
+  dryRun: false;
+  timeoutMs: number;
+  maxResponseBytes: number;
+  executor?: AmazonSpApiExecutableLwaHttpExecutor;
+};
+
+export type AmazonSpApiExecutableRealLwaHttpTransportResult = {
+  accepted: boolean;
+  source:
+    | 'amazon-sp-api-executable-real-lwa-http-transport-guarded'
+    | 'amazon-sp-api-sanitized-lwa-http-response-parser';
+  transportMode: 'server-gated-real-lwa-http';
+  reason:
+    | 'missing_executor'
+    | 'activation_gate_not_allowed'
+    | 'config_not_ready'
+    | 'token_endpoint_not_https'
+    | 'request_body_builder_not_ready'
+    | 'missing_request_body_fingerprint'
+    | 'invalid_request_body_length'
+    | 'invalid_content_type'
+    | 'invalid_method'
+    | 'callback_state_not_trusted'
+    | 'company_id_not_resolved'
+    | 'store_id_not_resolved'
+    | 'missing_marketplace_id'
+    | 'missing_region'
+    | 'environment_not_allowed'
+    | 'company_store_not_allowlisted'
+    | 'operator_confirmation_missing'
+    | 'dry_run_must_be_false_for_executable_transport'
+    | 'invalid_timeout'
+    | 'invalid_max_response_bytes'
+    | 'executor_exception'
+    | AmazonSpApiSanitizedLwaHttpResponseParserResult['reason'];
+  messageRedacted: string;
+  executableHttpClientUsedNow: boolean;
+  networkCallNow: boolean;
+  lwaHttpCallNow: boolean;
+  realSpApiRequestNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  plaintextTokenDatabaseWriteNow: false;
+  rawRequestBodyReturnedNow: false;
+  rawLwaResponseReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  sanitizedParserAccepted?: boolean;
+};
+
 export type AmazonSpApiLwaHttpTransportDisabledInput = {
   tokenEndpoint: string;
   requestBodyPrepared: boolean;
@@ -1312,6 +1386,206 @@ export class AmazonSpApiTokenExchangeService {
       return failure(
         'unexpected_parser_exception',
         'Unexpected LWA parser exception was converted into a sanitized failure envelope.',
+      );
+    }
+  }
+
+  async executeRealLwaTokenExchangeHttpExecutableGuardedLater(
+    input: AmazonSpApiExecutableRealLwaHttpTransportInput,
+  ): Promise<AmazonSpApiExecutableRealLwaHttpTransportResult> {
+    const fail = (
+      reason: AmazonSpApiExecutableRealLwaHttpTransportResult['reason'],
+      messageRedacted: string,
+      executableHttpClientUsedNow = false,
+      networkCallNow = false,
+      lwaHttpCallNow = false,
+    ): AmazonSpApiExecutableRealLwaHttpTransportResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-executable-real-lwa-http-transport-guarded',
+      transportMode: 'server-gated-real-lwa-http',
+      reason,
+      messageRedacted,
+      executableHttpClientUsedNow,
+      networkCallNow,
+      lwaHttpCallNow,
+      realSpApiRequestNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      plaintextTokenDatabaseWriteNow: false,
+      rawRequestBodyReturnedNow: false,
+      rawLwaResponseReturnedNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+    });
+
+    const tokenEndpoint = normalize(input.tokenEndpoint);
+    const requestBodyFingerprint = normalize(input.requestBodyFingerprint);
+    const marketplaceId = normalize(input.marketplaceId);
+    const region = normalize(input.region);
+    const endpointShape = parseHttpsEndpointShape(tokenEndpoint);
+    const requestBodyLength = Number.isFinite(input.requestBodyLength)
+      ? Math.max(0, Math.floor(input.requestBodyLength))
+      : 0;
+    const timeoutMs = Number.isFinite(input.timeoutMs) ? Math.floor(input.timeoutMs) : 0;
+    const maxResponseBytes = Number.isFinite(input.maxResponseBytes)
+      ? Math.floor(input.maxResponseBytes)
+      : 0;
+
+    if (
+      input.activationGateDecision !== 'eligible-later' ||
+      input.realHttpAllowedNow !== true
+    ) {
+      return fail(
+        'activation_gate_not_allowed',
+        'Activation gate must explicitly allow guarded real LWA HTTP before executable transport.',
+      );
+    }
+
+    if (input.configValidatorStatus !== 'ready') {
+      return fail('config_not_ready', 'LWA config validator must be ready.');
+    }
+
+    if (!endpointShape.valid || input.tokenEndpointHttps !== true) {
+      return fail('token_endpoint_not_https', 'LWA token endpoint must be HTTPS.');
+    }
+
+    if (input.requestBodyBuilderReady !== true) {
+      return fail(
+        'request_body_builder_not_ready',
+        'Sanitized request body builder must be ready before executable transport.',
+      );
+    }
+
+    if (!requestBodyFingerprint) {
+      return fail(
+        'missing_request_body_fingerprint',
+        'Sanitized request body fingerprint is required before executable transport.',
+      );
+    }
+
+    if (requestBodyLength <= 0) {
+      return fail(
+        'invalid_request_body_length',
+        'Sanitized request body length must be positive before executable transport.',
+      );
+    }
+
+    if (input.contentType !== 'application/x-www-form-urlencoded') {
+      return fail(
+        'invalid_content_type',
+        'Executable LWA HTTP transport requires application/x-www-form-urlencoded content type.',
+      );
+    }
+
+    if (input.method !== 'POST') {
+      return fail('invalid_method', 'Executable LWA HTTP transport requires POST method.');
+    }
+
+    if (input.callbackStateTrusted !== true) {
+      return fail('callback_state_not_trusted', 'Callback state must be trusted.');
+    }
+
+    if (input.companyIdResolvedFromTrustedState !== true) {
+      return fail(
+        'company_id_not_resolved',
+        'Company id must be resolved from trusted state.',
+      );
+    }
+
+    if (input.storeIdResolvedFromTrustedState !== true) {
+      return fail('store_id_not_resolved', 'Store id must be resolved from trusted state.');
+    }
+
+    if (!marketplaceId) {
+      return fail('missing_marketplace_id', 'Marketplace id must be present.');
+    }
+
+    if (!region) {
+      return fail('missing_region', 'Region must be present.');
+    }
+
+    if (input.environmentAllowsRealLwaHttp !== true) {
+      return fail(
+        'environment_not_allowed',
+        'Runtime environment must allow real LWA HTTP.',
+      );
+    }
+
+    if (input.companyStoreAllowlisted !== true) {
+      return fail('company_store_not_allowlisted', 'Company/store allowlist is required.');
+    }
+
+    if (input.explicitOperatorConfirmed !== true) {
+      return fail(
+        'operator_confirmation_missing',
+        'Explicit operator confirmation is required before executable transport.',
+      );
+    }
+
+    if (input.dryRun !== false) {
+      return fail(
+        'dry_run_must_be_false_for_executable_transport',
+        'Executable transport requires dryRun=false after all server-side gates pass.',
+      );
+    }
+
+    if (timeoutMs <= 0 || timeoutMs > 10000) {
+      return fail('invalid_timeout', 'Executable transport timeout must be between 1 and 10000 ms.');
+    }
+
+    if (maxResponseBytes <= 0 || maxResponseBytes > 32768) {
+      return fail(
+        'invalid_max_response_bytes',
+        'Executable transport maxResponseBytes must be between 1 and 32768.',
+      );
+    }
+
+    if (!input.executor) {
+      return fail(
+        'missing_executor',
+        'No executable HTTP executor was provided; no network call was attempted.',
+      );
+    }
+
+    try {
+      const httpResult = await input.executor({
+        method: 'POST',
+        tokenEndpoint,
+        contentType: 'application/x-www-form-urlencoded',
+        requestBodyFingerprint,
+        requestBodyLength,
+        timeoutMs,
+        maxResponseBytes,
+      });
+
+      const parsed = this.parseRealLwaHttpResponseSanitizedLater({
+        httpStatus: httpResult.httpStatus,
+        responseBody: httpResult.responseBody,
+        responseHeaders: httpResult.responseHeaders,
+        maxResponseBytes,
+      });
+
+      return {
+        ...parsed,
+        transportMode: 'server-gated-real-lwa-http',
+        executableHttpClientUsedNow: true,
+        networkCallNow: true,
+        lwaHttpCallNow: true,
+        realSpApiRequestNow: false,
+        tokenPersistenceDatabaseWriteNow: false,
+        plaintextTokenDatabaseWriteNow: false,
+        rawRequestBodyReturnedNow: false,
+        rawLwaResponseReturnedNow: false,
+        rawAccessTokenReturnedNow: false,
+        rawRefreshTokenReturnedNow: false,
+        sanitizedParserAccepted: parsed.accepted,
+      };
+    } catch {
+      return fail(
+        'executor_exception',
+        'Executable LWA HTTP executor threw an exception; sanitized failure returned.',
+        true,
+        true,
+        true,
       );
     }
   }
