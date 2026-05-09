@@ -186,6 +186,24 @@ assertNotIncludes('controller', controller, 'amazonSpApiCredential');
 assertNotIncludes('controller', controller, 'prepareEncryptedTokenPersistenceInputLater');
 assertNotIncludes('controller', controller, 'executeRealLwaTokenExchangeHttpExecutableGuardedLater');
 
-assert(repositoryFile.length === 0, 'repository implementation file is not created in Step137-X');
+// Step137-Y intentionally creates the repository test-double file.
+// This legacy Step137-X contract smoke now allows that file to exist,
+// but only as a no-Prisma-write / no-controller-wiring test double.
+assertIncludes('repositoryFile', repositoryFile, 'export class AmazonSpApiCredentialRepository');
+assertIncludes('repositoryFile', repositoryFile, "repositoryMode: 'test-double-no-prisma-write'");
+assertIncludes('repositoryFile', repositoryFile, 'prismaClientWriteNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'databaseWriteNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'plaintextTokenDatabaseWriteNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'repositoryMayCallAmazonNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'repositoryMayParseLwaResponseNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'repositoryMayOwnEncryptionNow: false');
+assertIncludes('repositoryFile', repositoryFile, 'rawTokenReturnedNow: false');
+assertNotIncludes('repositoryFile', repositoryFile, 'prisma.');
+assertNotIncludes('repositoryFile', repositoryFile, 'amazonSpApiCredential.');
+assertNotIncludes('repositoryFile', repositoryFile, 'fetch(');
+assertNotIncludes('repositoryFile', repositoryFile, 'axios.');
+assertNotIncludes('repositoryFile', repositoryFile, 'http.request');
+assertNotIncludes('repositoryFile', repositoryFile, 'https.request');
 
 console.log('========== Step137-X encrypted token persistence repository contract smoke passed ==========');

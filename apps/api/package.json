@@ -186,7 +186,8 @@
     "smoke:amazon-sp-api-executable-real-lwa-http-transport-guarded-impl": "node scripts/smoke-amazon-sp-api-executable-real-lwa-http-transport-guarded-impl.js",
     "smoke:amazon-sp-api-executable-lwa-http-transport-branch-runtime": "node scripts/smoke-amazon-sp-api-executable-lwa-http-transport-branch-runtime.js",
     "smoke:amazon-sp-api-encrypted-token-persistence-schema-contract": "node scripts/smoke-amazon-sp-api-encrypted-token-persistence-schema-contract.js",
-    "smoke:amazon-sp-api-encrypted-token-persistence-repository-contract": "node scripts/smoke-amazon-sp-api-encrypted-token-persistence-repository-contract.js"
+    "smoke:amazon-sp-api-encrypted-token-persistence-repository-contract": "node scripts/smoke-amazon-sp-api-encrypted-token-persistence-repository-contract.js",
+    "smoke:amazon-sp-api-encrypted-token-repository-test-double": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-test-double.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
