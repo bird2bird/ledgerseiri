@@ -167,7 +167,8 @@
     "smoke:amazon-sp-api-real-lwa-activation-feature-gate-contract": "node scripts/smoke-amazon-sp-api-real-lwa-activation-feature-gate-contract.js",
     "smoke:amazon-sp-api-real-lwa-activation-gate-service": "node scripts/smoke-amazon-sp-api-real-lwa-activation-gate-service-skeleton.js",
     "smoke:amazon-sp-api-real-lwa-activation-gate-mock-runtime": "node scripts/smoke-amazon-sp-api-real-lwa-activation-gate-mock-runtime.js",
-    "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract.js"
+    "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract.js",
+    "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-implementation.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

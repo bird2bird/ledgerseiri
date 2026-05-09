@@ -5,6 +5,7 @@ import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-a
 import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.service';
 import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persistence.service';
 import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-env-config-validation.service';
+import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lwa-activation-gate.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -163,6 +164,7 @@ export class ImportsController {
     private readonly amazonSpApiTokenExchangeService: AmazonSpApiTokenExchangeService,
     private readonly amazonSpApiTokenPersistenceService: AmazonSpApiTokenPersistenceService,
     private readonly amazonSpApiLwaEnvConfigValidationService: AmazonSpApiLwaEnvConfigValidationService,
+    private readonly amazonSpApiRealLwaActivationGateService: AmazonSpApiRealLwaActivationGateService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -299,6 +301,134 @@ export class ImportsController {
       importJobWriteNow: false as const,
       transactionWriteNow: false as const,
       inventoryWriteNow: false as const,
+    };
+  }
+
+  // Step137-E: Amazon SP-API real LWA activation gate diagnostic endpoint implementation.
+  // Internal read-only endpoint. It evaluates sanitized activation-gate readiness only.
+  // It does not wire OAuth callback, does not enable real HTTP, does not persist tokens,
+  // and does not call Amazon Reports API or create import/ledger/inventory records.
+  @UseGuards(JwtAuthGuard)
+  @Get('internal/amazon-sp-api/lwa-activation-gate/status')
+  amazonSpApiLwaActivationGateDiagnosticEndpoint(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Query('storeId') storeId?: string,
+    @Query('marketplaceId') marketplaceId?: string,
+    @Query('region') region?: string,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+    const normalizedStoreId = String(storeId || '').trim();
+    const normalizedMarketplaceId = String(marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = String(region || 'JP').trim().toUpperCase();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP137_E_LWA_ACTIVATION_GATE_COMPANY_REQUIRED: authenticated user must belong to a company to read Amazon SP-API LWA activation gate status.',
+      );
+    }
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException(
+        'STEP137_E_LWA_ACTIVATION_GATE_BAD_REQUEST: storeId is required.',
+      );
+    }
+
+    if (!normalizedMarketplaceId) {
+      throw new BadRequestException(
+        'STEP137_E_LWA_ACTIVATION_GATE_BAD_REQUEST: marketplaceId is required.',
+      );
+    }
+
+    if (!normalizedRegion) {
+      throw new BadRequestException(
+        'STEP137_E_LWA_ACTIVATION_GATE_BAD_REQUEST: region is required.',
+      );
+    }
+
+    const configStatus = this.amazonSpApiLwaEnvConfigValidationService.validateFromProcessEnv();
+
+    const gateResult = this.amazonSpApiRealLwaActivationGateService.evaluateRealLwaActivationLater({
+      configValidatorStatus: configStatus.status,
+      clientIdPresent: configStatus.clientIdPresent,
+      clientSecretPresent: configStatus.clientSecretPresent,
+      redirectUriPresent: configStatus.redirectUriPresent,
+      marketplaceIdPresent: normalizedMarketplaceId.length > 0,
+      regionPresent: normalizedRegion.length > 0,
+      tokenEndpointHttps: configStatus.tokenEndpointHost !== null,
+      callbackStateTrusted: false,
+      companyIdResolvedFromTrustedState: true,
+      storeIdResolvedFromTrustedState: normalizedStoreId.length > 0,
+      sellingPartnerIdPresent: false,
+      authorizationCodePresent: false,
+      redirectUriMatchesAuthorizationRequest: false,
+      serverSideRuntimeGateEnabled: false,
+      environmentAllowsRealLwaHttp: false,
+      companyStoreAllowlisted: false,
+      explicitOperatorConfirmed: false,
+    });
+
+    return {
+      source: 'amazon-sp-api-lwa-activation-gate-diagnostic' as const,
+      endpointImplementedNow: true as const,
+      controllerRoute: '/api/imports/internal/amazon-sp-api/lwa-activation-gate/status',
+      guardedBy: 'JwtAuthGuard' as const,
+      companyScoped: true as const,
+      companyIdPresent: true as const,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      frontendExposedNow: false as const,
+      callbackRuntimeChangedNow: false as const,
+      oauthCallbackRouteChangedNow: false as const,
+      rawSecretReturnedNow: false as const,
+      rawAuthorizationCodeReturnedNow: false as const,
+      rawClientIdReturnedNow: false as const,
+      rawClientSecretReturnedNow: false as const,
+      rawRequestBodyReturnedNow: false as const,
+      rawLwaResponseReturnedNow: false as const,
+      rawAccessTokenReturnedNow: false as const,
+      rawRefreshTokenReturnedNow: false as const,
+      realHttpAllowedNow: false as const,
+      realHttpEnabledNow: false as const,
+      tokenExchangeHttpCallNow: false as const,
+      lwaHttpCallNow: false as const,
+      realSpApiRequestNow: false as const,
+      tokenPersistenceDatabaseWriteNow: false as const,
+      reportsApiCallNow: false as const,
+      importJobWriteNow: false as const,
+      importStagingRowWriteNow: false as const,
+      transactionWriteNow: false as const,
+      inventoryWriteNow: false as const,
+      configStatus: {
+        source: configStatus.source,
+        status: configStatus.status,
+        readyForRealLwaHttpTransport: configStatus.readyForRealLwaHttpTransport,
+        clientIdPresent: configStatus.clientIdPresent,
+        clientSecretPresent: configStatus.clientSecretPresent,
+        redirectUriPresent: configStatus.redirectUriPresent,
+        marketplaceId: configStatus.marketplaceId,
+        region: configStatus.region,
+        tokenEndpointHost: configStatus.tokenEndpointHost,
+        environment: configStatus.environment,
+        realHttpEnabled: configStatus.realHttpEnabled,
+        missingRequiredEnv: configStatus.missingRequiredEnv,
+        invalidEnv: configStatus.invalidEnv,
+        rawClientSecretReturnedNow: configStatus.rawClientSecretReturnedNow,
+        rawClientIdReturnedNow: configStatus.rawClientIdReturnedNow,
+        rawRefreshTokenReturnedNow: configStatus.rawRefreshTokenReturnedNow,
+        rawAccessTokenReturnedNow: configStatus.rawAccessTokenReturnedNow,
+      },
+      gateStatus: {
+        source: gateResult.source,
+        gateDecision: gateResult.gateDecision,
+        reason: gateResult.reason,
+        messageRedacted: gateResult.messageRedacted,
+        activationGatePreparedNow: gateResult.activationGatePreparedNow,
+        activationGateImplementedNow: gateResult.activationGateImplementedNow,
+        realHttpAllowedNow: gateResult.realHttpAllowedNow,
+        realHttpEnabledNow: gateResult.realHttpEnabledNow,
+        sanitizedDecision: gateResult.sanitizedDecision,
+      },
     };
   }
 
