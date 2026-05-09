@@ -179,7 +179,8 @@
     "smoke:amazon-sp-api-sanitized-lwa-http-response-parser-test-double": "node scripts/smoke-amazon-sp-api-sanitized-lwa-http-response-parser-test-double.js",
     "smoke:amazon-sp-api-sanitized-lwa-parser-branch-runtime": "node scripts/smoke-amazon-sp-api-sanitized-lwa-parser-branch-runtime.js",
     "smoke:amazon-sp-api-token-persistence-encrypted-boundary-contract": "node scripts/smoke-amazon-sp-api-token-persistence-encrypted-boundary-contract.js",
-    "smoke:amazon-sp-api-token-persistence-input-builder-test-double": "node scripts/smoke-amazon-sp-api-token-persistence-input-builder-test-double.js"
+    "smoke:amazon-sp-api-token-persistence-input-builder-test-double": "node scripts/smoke-amazon-sp-api-token-persistence-input-builder-test-double.js",
+    "smoke:amazon-sp-api-token-persistence-builder-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-builder-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
