@@ -84,6 +84,82 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledInput = {
   enableRealLwaHttpTransport: false;
 };
 
+export type AmazonSpApiLwaRequestBodyBuilderDisabledInput = {
+  authorizationCode: string;
+  redirectUri: string;
+  clientId: string;
+  clientSecretConfigured: boolean;
+  clientSecretFingerprint: string;
+  tokenEndpoint: string;
+  expectedRedirectUri: string;
+  configValidatorStatus: 'ready' | 'missing_required_env' | 'invalid_env';
+  serverSideFeatureGateEnabled: false;
+  enableRealLwaHttpTransport: false;
+};
+
+export type AmazonSpApiLwaRequestBodyBuilderDisabledResult = {
+  accepted: false;
+  source: 'amazon-sp-api-lwa-request-body-builder-disabled';
+  reason:
+    | 'request_body_builder_disabled'
+    | 'server_side_feature_gate_disabled'
+    | 'config_validator_not_ready'
+    | 'missing_authorization_code'
+    | 'missing_redirect_uri'
+    | 'mismatched_redirect_uri'
+    | 'missing_client_id'
+    | 'client_secret_not_configured'
+    | 'missing_client_secret_fingerprint'
+    | 'missing_token_endpoint'
+    | 'invalid_token_endpoint';
+  messageRedacted: string;
+  requestBodyBuilderPreparedNow: true;
+  requestBodyConstructedNow: false;
+  requestBodyLoggedNow: false;
+  requestBodyReturnedToControllerNow: false;
+  requestBodyReturnedToFrontendNow: false;
+  tokenExchangeHttpCallNow: false;
+  lwaHttpCallNow: false;
+  realSpApiRequestNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  rawAuthorizationCodeReturnedNow: false;
+  rawClientIdReturnedNow: false;
+  rawClientSecretReturnedNow: false;
+  rawRequestBodyReturnedNow: false;
+  sanitizedRequestBodyShape: {
+    contentType: 'application/x-www-form-urlencoded';
+    encodingApi: 'URLSearchParams';
+    method: 'POST';
+    tokenEndpointHost: string | null;
+    tokenEndpointPath: string | null;
+    sortedFieldOrder: readonly [
+      'grant_type',
+      'code',
+      'redirect_uri',
+      'client_id',
+      'client_secret',
+    ];
+    grantType: 'authorization_code';
+    fieldPresence: {
+      grantType: true;
+      code: boolean;
+      redirectUri: boolean;
+      clientId: boolean;
+      clientSecret: boolean;
+    };
+    encodedBodyLength: number;
+    encodedBodySha256: string | null;
+    rawBodyAvailableOnlyInsideBuilder: false;
+    nextImplementationStep: 'Step136-F';
+  };
+  sanitizedEnablementGate: {
+    configValidatorReady: boolean;
+    serverSideFeatureGateEnabled: false;
+    envFlagAloneAccepted: false;
+    realLwaHttpTransportEnabled: false;
+  };
+};
+
 export type AmazonSpApiRealLwaHttpClientDisabledInput = {
   state: string;
   authorizationCode: string;
@@ -148,7 +224,7 @@ export type AmazonSpApiRealLwaHttpClientDisabledResult = {
     requestBodyConstructedNow: false;
     requestBodyLoggedNow: false;
     responseBodyParsedNow: false;
-    nextImplementationStep: 'Step136-C';
+    nextImplementationStep: 'Step136-F';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -194,7 +270,7 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledResult = {
     companyIdPresent: boolean;
     storeIdPresent: boolean;
     realLwaHttpTransportEnabled: false;
-    nextImplementationStep: 'Step136-C';
+    nextImplementationStep: 'Step136-F';
   };
 };
 
@@ -241,8 +317,178 @@ function parseHttpsEndpointShape(value: string): { host: string | null; path: st
   }
 }
 
+function sanitizedBodyFingerprint(value: string): string {
+  let hash = 2166136261;
+
+  for (const char of value) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 @Injectable()
 export class AmazonSpApiTokenExchangeService {
+  buildRealLwaTokenExchangeRequestBodyLater(
+    input: AmazonSpApiLwaRequestBodyBuilderDisabledInput,
+  ): AmazonSpApiLwaRequestBodyBuilderDisabledResult {
+    const authorizationCode = normalize(input.authorizationCode);
+    const redirectUri = normalize(input.redirectUri);
+    const expectedRedirectUri = normalize(input.expectedRedirectUri);
+    const clientId = normalize(input.clientId);
+    const clientSecretFingerprint = normalize(input.clientSecretFingerprint);
+    const tokenEndpoint = normalize(input.tokenEndpoint);
+    const endpointShape = parseHttpsEndpointShape(tokenEndpoint);
+
+    const sortedFieldOrder = [
+      'grant_type',
+      'code',
+      'redirect_uri',
+      'client_id',
+      'client_secret',
+    ] as const;
+
+    const bodyShapeSeed = [
+      'grant_type=authorization_code',
+      `code_present=${authorizationCode.length > 0}`,
+      `redirect_uri_present=${redirectUri.length > 0}`,
+      `client_id_present=${clientId.length > 0}`,
+      `client_secret_present=${input.clientSecretConfigured === true}`,
+      `client_secret_fingerprint_present=${clientSecretFingerprint.length > 0}`,
+    ].join('&');
+
+    const sanitizedRequestBodyShape: AmazonSpApiLwaRequestBodyBuilderDisabledResult['sanitizedRequestBodyShape'] =
+      {
+        contentType: 'application/x-www-form-urlencoded',
+        encodingApi: 'URLSearchParams',
+        method: 'POST',
+        tokenEndpointHost: endpointShape.host,
+        tokenEndpointPath: endpointShape.path,
+        sortedFieldOrder,
+        grantType: 'authorization_code',
+        fieldPresence: {
+          grantType: true,
+          code: authorizationCode.length > 0,
+          redirectUri: redirectUri.length > 0,
+          clientId: clientId.length > 0,
+          clientSecret: input.clientSecretConfigured === true,
+        },
+        encodedBodyLength: bodyShapeSeed.length,
+        encodedBodySha256: sanitizedBodyFingerprint(bodyShapeSeed),
+        rawBodyAvailableOnlyInsideBuilder: false,
+        nextImplementationStep: 'Step136-F',
+      };
+
+    const sanitizedEnablementGate: AmazonSpApiLwaRequestBodyBuilderDisabledResult['sanitizedEnablementGate'] =
+      {
+        configValidatorReady: input.configValidatorStatus === 'ready',
+        serverSideFeatureGateEnabled: false,
+        envFlagAloneAccepted: false,
+        realLwaHttpTransportEnabled: false,
+      };
+
+    const disabled = (
+      reason: AmazonSpApiLwaRequestBodyBuilderDisabledResult['reason'],
+      messageRedacted: string,
+    ): AmazonSpApiLwaRequestBodyBuilderDisabledResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-lwa-request-body-builder-disabled',
+      reason,
+      messageRedacted,
+      requestBodyBuilderPreparedNow: true,
+      requestBodyConstructedNow: false,
+      requestBodyLoggedNow: false,
+      requestBodyReturnedToControllerNow: false,
+      requestBodyReturnedToFrontendNow: false,
+      tokenExchangeHttpCallNow: false,
+      lwaHttpCallNow: false,
+      realSpApiRequestNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      rawAuthorizationCodeReturnedNow: false,
+      rawClientIdReturnedNow: false,
+      rawClientSecretReturnedNow: false,
+      rawRequestBodyReturnedNow: false,
+      sanitizedRequestBodyShape,
+      sanitizedEnablementGate,
+    });
+
+    if (input.configValidatorStatus !== 'ready') {
+      return disabled(
+        'config_validator_not_ready',
+        'LWA config validator must report ready before request body builder can be enabled.',
+      );
+    }
+
+    if (input.serverSideFeatureGateEnabled !== false || input.enableRealLwaHttpTransport !== false) {
+      return disabled(
+        'request_body_builder_disabled',
+        'LWA request body builder remains disabled by default in Step136-E.',
+      );
+    }
+
+    if (!authorizationCode) {
+      return disabled(
+        'missing_authorization_code',
+        'Authorization code presence is required before LWA request body building.',
+      );
+    }
+
+    if (!redirectUri) {
+      return disabled(
+        'missing_redirect_uri',
+        'Redirect URI is required before LWA request body building.',
+      );
+    }
+
+    if (expectedRedirectUri && redirectUri !== expectedRedirectUri) {
+      return disabled(
+        'mismatched_redirect_uri',
+        'Redirect URI must match the authorization URL redirect URI before LWA request body building.',
+      );
+    }
+
+    if (!clientId) {
+      return disabled(
+        'missing_client_id',
+        'Client id presence is required before LWA request body building.',
+      );
+    }
+
+    if (input.clientSecretConfigured !== true) {
+      return disabled(
+        'client_secret_not_configured',
+        'Client secret presence is required before LWA request body building.',
+      );
+    }
+
+    if (!clientSecretFingerprint) {
+      return disabled(
+        'missing_client_secret_fingerprint',
+        'Client secret fingerprint is required for sanitized request body builder diagnostics.',
+      );
+    }
+
+    if (!tokenEndpoint) {
+      return disabled(
+        'missing_token_endpoint',
+        'LWA token endpoint is required before LWA request body building.',
+      );
+    }
+
+    if (!endpointShape.valid) {
+      return disabled(
+        'invalid_token_endpoint',
+        'LWA token endpoint must be HTTPS before LWA request body building.',
+      );
+    }
+
+    return disabled(
+      'server_side_feature_gate_disabled',
+      'Server-side real LWA request body builder feature gate is disabled in Step136-E.',
+    );
+  }
+
   prepareRealLwaHttpExchangeRequestDisabled(
     input: AmazonSpApiRealLwaHttpClientDisabledInput,
   ): AmazonSpApiRealLwaHttpClientDisabledResult {
@@ -275,7 +521,7 @@ export class AmazonSpApiTokenExchangeService {
         requestBodyConstructedNow: false,
         requestBodyLoggedNow: false,
         responseBodyParsedNow: false,
-        nextImplementationStep: 'Step136-C',
+        nextImplementationStep: 'Step136-F',
       };
 
     const sanitizedEnablementGate: AmazonSpApiRealLwaHttpClientDisabledResult['sanitizedEnablementGate'] =
@@ -423,7 +669,7 @@ export class AmazonSpApiTokenExchangeService {
       companyIdPresent: companyId.length > 0,
       storeIdPresent: storeId.length > 0,
       realLwaHttpTransportEnabled: false as const,
-      nextImplementationStep: 'Step136-C' as const,
+      nextImplementationStep: 'Step136-F' as const,
     };
 
     const disabled = (
@@ -499,7 +745,7 @@ export class AmazonSpApiTokenExchangeService {
 
     return disabled(
       'real_lwa_transport_disabled',
-      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-C.',
+      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-F.',
     );
   }
 

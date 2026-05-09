@@ -52,7 +52,7 @@ assertIncludes('service', service, "grantType: 'authorization_code'");
 assertIncludes('service', service, 'requestBodyConstructedNow: false');
 assertIncludes('service', service, 'requestBodyLoggedNow: false');
 assertIncludes('service', service, 'responseBodyParsedNow: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step136-C'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-F'");
 assertIncludes('service', service, 'tokenExchangeHttpCallNow: false');
 assertIncludes('service', service, 'lwaHttpCallNow: false');
 assertIncludes('service', service, 'tokenPersistenceDatabaseWriteNow: false');
