@@ -170,7 +170,8 @@
     "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-contract.js",
     "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-implementation.js",
     "smoke:amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-runtime": "node scripts/smoke-amazon-sp-api-lwa-activation-gate-diagnostic-endpoint-runtime.js",
-    "smoke:amazon-sp-api-real-lwa-guarded-http-activation-contract": "node scripts/smoke-amazon-sp-api-real-lwa-guarded-http-transport-activation-contract.js"
+    "smoke:amazon-sp-api-real-lwa-guarded-http-activation-contract": "node scripts/smoke-amazon-sp-api-real-lwa-guarded-http-transport-activation-contract.js",
+    "smoke:amazon-sp-api-guarded-lwa-http-transport-test-double": "node scripts/smoke-amazon-sp-api-guarded-lwa-http-transport-test-double.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

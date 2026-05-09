@@ -193,6 +193,90 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledInput = {
   enableRealLwaHttpTransport: false;
 };
 
+
+export type AmazonSpApiGuardedLwaHttpTransportInput = {
+  activationGateDecision: 'blocked' | 'eligible-later';
+  realHttpAllowedNow: boolean;
+  configValidatorStatus: 'ready' | 'missing_required_env' | 'invalid_env';
+  tokenEndpoint: string;
+  tokenEndpointHttps: boolean;
+  method: 'POST';
+  contentType: 'application/x-www-form-urlencoded';
+  requestBodyFingerprint: string;
+  requestBodyLength: number;
+  requestBodyBuilderReady: boolean;
+  callbackStateTrusted: boolean;
+  companyIdResolvedFromTrustedState: boolean;
+  storeIdResolvedFromTrustedState: boolean;
+  marketplaceId: string;
+  region: string;
+  environmentAllowsRealLwaHttp: boolean;
+  companyStoreAllowlisted: boolean;
+  explicitOperatorConfirmed: boolean;
+  dryRun: true;
+};
+
+export type AmazonSpApiGuardedLwaHttpTransportResult = {
+  accepted: false;
+  source: 'amazon-sp-api-real-lwa-guarded-http-transport-test-double';
+  transportMode: 'test-double-no-network';
+  gateDecision: 'blocked';
+  reason:
+    | 'activation_gate_not_allowed'
+    | 'config_not_ready'
+    | 'token_endpoint_not_https'
+    | 'request_body_builder_not_ready'
+    | 'missing_request_body_fingerprint'
+    | 'invalid_request_body_length'
+    | 'invalid_content_type'
+    | 'invalid_method'
+    | 'callback_state_not_trusted'
+    | 'company_id_not_resolved'
+    | 'store_id_not_resolved'
+    | 'missing_marketplace_id'
+    | 'missing_region'
+    | 'environment_not_allowed'
+    | 'company_store_not_allowlisted'
+    | 'operator_confirmation_missing'
+    | 'dry_run_required'
+    | 'guarded_http_test_double';
+  messageRedacted: string;
+  guardedHttpTransportPreparedNow: true;
+  guardedHttpTransportImplementedNow: true;
+  realHttpAllowedNow: false;
+  realHttpEnabledNow: false;
+  executableHttpClientUsedNow: false;
+  networkCallNow: false;
+  tokenExchangeHttpCallNow: false;
+  lwaHttpCallNow: false;
+  realSpApiRequestNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  rawRequestBodyReturnedNow: false;
+  rawLwaResponseReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  sanitizedGuardedHttpTransportShape: {
+    method: 'POST';
+    tokenEndpointHost: string | null;
+    tokenEndpointPath: string | null;
+    tokenEndpointHttps: boolean;
+    contentType: 'application/x-www-form-urlencoded';
+    requestBodyBuilderReady: boolean;
+    requestBodyFingerprintPresent: boolean;
+    requestBodyLength: number;
+    callbackStateTrusted: boolean;
+    companyIdResolvedFromTrustedState: boolean;
+    storeIdResolvedFromTrustedState: boolean;
+    marketplaceIdPresent: boolean;
+    regionPresent: boolean;
+    environmentAllowsRealLwaHttp: boolean;
+    companyStoreAllowlisted: boolean;
+    explicitOperatorConfirmed: boolean;
+    dryRun: true;
+    nextImplementationStep: 'Step137-J';
+  };
+};
+
 export type AmazonSpApiLwaHttpTransportDisabledInput = {
   tokenEndpoint: string;
   requestBodyPrepared: boolean;
@@ -797,6 +881,187 @@ export class AmazonSpApiTokenExchangeService {
       ['validate-config', 'validate-callback-state', 'build-request-body', 'execute-http-transport'],
       requestBodyBuilderResult,
       httpTransportResult,
+    );
+  }
+
+  executeRealLwaTokenExchangeHttpGuardedLater(
+    input: AmazonSpApiGuardedLwaHttpTransportInput,
+  ): AmazonSpApiGuardedLwaHttpTransportResult {
+    const tokenEndpoint = normalize(input.tokenEndpoint);
+    const requestBodyFingerprint = normalize(input.requestBodyFingerprint);
+    const marketplaceId = normalize(input.marketplaceId);
+    const region = normalize(input.region);
+    const endpointShape = parseHttpsEndpointShape(tokenEndpoint);
+
+    const safeRequestBodyLength = Number.isFinite(input.requestBodyLength)
+      ? Math.max(0, Math.floor(input.requestBodyLength))
+      : 0;
+
+    const makeResult = (
+      reason: AmazonSpApiGuardedLwaHttpTransportResult['reason'],
+      messageRedacted: string,
+    ): AmazonSpApiGuardedLwaHttpTransportResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-real-lwa-guarded-http-transport-test-double',
+      transportMode: 'test-double-no-network',
+      gateDecision: 'blocked',
+      reason,
+      messageRedacted,
+      guardedHttpTransportPreparedNow: true,
+      guardedHttpTransportImplementedNow: true,
+      realHttpAllowedNow: false,
+      realHttpEnabledNow: false,
+      executableHttpClientUsedNow: false,
+      networkCallNow: false,
+      tokenExchangeHttpCallNow: false,
+      lwaHttpCallNow: false,
+      realSpApiRequestNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      rawRequestBodyReturnedNow: false,
+      rawLwaResponseReturnedNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+      sanitizedGuardedHttpTransportShape: {
+        method: 'POST',
+        tokenEndpointHost: endpointShape.host,
+        tokenEndpointPath: endpointShape.path,
+        tokenEndpointHttps: endpointShape.valid && input.tokenEndpointHttps === true,
+        contentType: 'application/x-www-form-urlencoded',
+        requestBodyBuilderReady: input.requestBodyBuilderReady === true,
+        requestBodyFingerprintPresent: requestBodyFingerprint.length > 0,
+        requestBodyLength: safeRequestBodyLength,
+        callbackStateTrusted: input.callbackStateTrusted === true,
+        companyIdResolvedFromTrustedState: input.companyIdResolvedFromTrustedState === true,
+        storeIdResolvedFromTrustedState: input.storeIdResolvedFromTrustedState === true,
+        marketplaceIdPresent: marketplaceId.length > 0,
+        regionPresent: region.length > 0,
+        environmentAllowsRealLwaHttp: input.environmentAllowsRealLwaHttp === true,
+        companyStoreAllowlisted: input.companyStoreAllowlisted === true,
+        explicitOperatorConfirmed: input.explicitOperatorConfirmed === true,
+        dryRun: true,
+        nextImplementationStep: 'Step137-J',
+      },
+    });
+
+    if (
+      input.activationGateDecision !== 'eligible-later' ||
+      input.realHttpAllowedNow !== true
+    ) {
+      return makeResult(
+        'activation_gate_not_allowed',
+        'Activation gate must explicitly allow guarded real LWA HTTP before transport can leave the test double.',
+      );
+    }
+
+    if (input.configValidatorStatus !== 'ready') {
+      return makeResult(
+        'config_not_ready',
+        'LWA config validator must report ready before guarded HTTP transport.',
+      );
+    }
+
+    if (!endpointShape.valid || input.tokenEndpointHttps !== true) {
+      return makeResult(
+        'token_endpoint_not_https',
+        'LWA token endpoint must be HTTPS before guarded HTTP transport.',
+      );
+    }
+
+    if (input.requestBodyBuilderReady !== true) {
+      return makeResult(
+        'request_body_builder_not_ready',
+        'Sanitized request body builder must be ready before guarded HTTP transport.',
+      );
+    }
+
+    if (!requestBodyFingerprint) {
+      return makeResult(
+        'missing_request_body_fingerprint',
+        'Sanitized request body fingerprint is required before guarded HTTP transport.',
+      );
+    }
+
+    if (safeRequestBodyLength <= 0) {
+      return makeResult(
+        'invalid_request_body_length',
+        'Sanitized request body length must be positive before guarded HTTP transport.',
+      );
+    }
+
+    if (input.contentType !== 'application/x-www-form-urlencoded') {
+      return makeResult(
+        'invalid_content_type',
+        'Guarded LWA HTTP transport requires application/x-www-form-urlencoded content type.',
+      );
+    }
+
+    if (input.method !== 'POST') {
+      return makeResult('invalid_method', 'Guarded LWA HTTP transport requires POST method.');
+    }
+
+    if (input.callbackStateTrusted !== true) {
+      return makeResult(
+        'callback_state_not_trusted',
+        'Callback state must be trusted before guarded HTTP transport.',
+      );
+    }
+
+    if (input.companyIdResolvedFromTrustedState !== true) {
+      return makeResult(
+        'company_id_not_resolved',
+        'Company id must be resolved from trusted state before guarded HTTP transport.',
+      );
+    }
+
+    if (input.storeIdResolvedFromTrustedState !== true) {
+      return makeResult(
+        'store_id_not_resolved',
+        'Store id must be resolved from trusted state before guarded HTTP transport.',
+      );
+    }
+
+    if (!marketplaceId) {
+      return makeResult(
+        'missing_marketplace_id',
+        'Marketplace id must be resolved before guarded HTTP transport.',
+      );
+    }
+
+    if (!region) {
+      return makeResult('missing_region', 'Region must be resolved before guarded HTTP transport.');
+    }
+
+    if (input.environmentAllowsRealLwaHttp !== true) {
+      return makeResult(
+        'environment_not_allowed',
+        'Runtime environment must allow real LWA HTTP before guarded transport.',
+      );
+    }
+
+    if (input.companyStoreAllowlisted !== true) {
+      return makeResult(
+        'company_store_not_allowlisted',
+        'Company/store allowlist is required before guarded HTTP transport.',
+      );
+    }
+
+    if (input.explicitOperatorConfirmed !== true) {
+      return makeResult(
+        'operator_confirmation_missing',
+        'Explicit operator confirmation is required before guarded HTTP transport.',
+      );
+    }
+
+    if (input.dryRun !== true) {
+      return makeResult(
+        'dry_run_required',
+        'Step137-I remains a test double and requires dryRun=true.',
+      );
+    }
+
+    return makeResult(
+      'guarded_http_test_double',
+      'Guarded LWA HTTP transport test double is implemented, but no network call is executed in Step137-I.',
     );
   }
 

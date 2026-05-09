@@ -197,7 +197,17 @@ for (const forbidden of [
 assertIncludes('tokenService', tokenService, 'executeRealLwaTokenExchangeHttpLater');
 assertIncludes('tokenService', tokenService, 'tokenExchangeHttpCallNow: false');
 assertIncludes('tokenService', tokenService, 'lwaHttpCallNow: false');
-assertNotIncludes('tokenService', tokenService, 'executeRealLwaTokenExchangeHttpGuardedLater');
+// Step137-I intentionally implements the planned guarded transport method.
+// Keep this legacy Step137-H contract smoke focused on the contract DTO and
+// the still-forbidden controller wiring / real HTTP activation boundaries.
+assertIncludes('tokenService', tokenService, 'executeRealLwaTokenExchangeHttpGuardedLater');
+assertIncludes('tokenService', tokenService, "source: 'amazon-sp-api-real-lwa-guarded-http-transport-test-double'");
+assertIncludes('tokenService', tokenService, "transportMode: 'test-double-no-network'");
+assertIncludes('tokenService', tokenService, 'networkCallNow: false');
+assertIncludes('tokenService', tokenService, 'executableHttpClientUsedNow: false');
+assertIncludes('tokenService', tokenService, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('tokenService', tokenService, 'rawAccessTokenReturnedNow: false');
+assertIncludes('tokenService', tokenService, 'rawRefreshTokenReturnedNow: false');
 
 assertIncludes('gateService', gateService, 'evaluateRealLwaActivationLater');
 assertIncludes('gateService', gateService, 'realHttpAllowedNow: false');
