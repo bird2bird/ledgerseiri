@@ -157,7 +157,8 @@
     "smoke:amazon-sp-api-real-lwa-http-client-mock-runtime": "node scripts/smoke-amazon-sp-api-real-lwa-http-client-mock-runtime.js",
     "smoke:amazon-sp-api-lwa-request-body-builder-boundary-contract": "node scripts/smoke-amazon-sp-api-lwa-request-body-builder-boundary-contract.js",
     "smoke:amazon-sp-api-lwa-request-body-builder-disabled": "node scripts/smoke-amazon-sp-api-lwa-request-body-builder-disabled-implementation.js",
-    "smoke:amazon-sp-api-lwa-request-body-builder-mock-runtime": "node scripts/smoke-amazon-sp-api-lwa-request-body-builder-mock-runtime.js"
+    "smoke:amazon-sp-api-lwa-request-body-builder-mock-runtime": "node scripts/smoke-amazon-sp-api-lwa-request-body-builder-mock-runtime.js",
+    "smoke:amazon-sp-api-lwa-http-execution-boundary-contract": "node scripts/smoke-amazon-sp-api-lwa-http-execution-boundary-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
