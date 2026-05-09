@@ -176,7 +176,8 @@
     "smoke:amazon-sp-api-guarded-lwa-http-activation-handoff-contract": "node scripts/smoke-amazon-sp-api-guarded-lwa-http-activation-handoff-contract.js",
     "smoke:amazon-sp-api-real-http-activation-transition-contract": "node scripts/smoke-amazon-sp-api-real-http-activation-transition-contract.js",
     "smoke:amazon-sp-api-sanitized-lwa-http-response-parser-contract": "node scripts/smoke-amazon-sp-api-sanitized-lwa-http-response-parser-contract.js",
-    "smoke:amazon-sp-api-sanitized-lwa-http-response-parser-test-double": "node scripts/smoke-amazon-sp-api-sanitized-lwa-http-response-parser-test-double.js"
+    "smoke:amazon-sp-api-sanitized-lwa-http-response-parser-test-double": "node scripts/smoke-amazon-sp-api-sanitized-lwa-http-response-parser-test-double.js",
+    "smoke:amazon-sp-api-sanitized-lwa-parser-branch-runtime": "node scripts/smoke-amazon-sp-api-sanitized-lwa-parser-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
