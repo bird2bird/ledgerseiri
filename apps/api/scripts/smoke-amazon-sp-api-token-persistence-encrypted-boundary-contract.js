@@ -186,7 +186,20 @@ assertIncludes('transitionContract', transitionContract, "plaintextTokenDatabase
 
 assertIncludes('service', service, 'parseRealLwaHttpResponseSanitizedLater');
 assertIncludes('service', service, 'tokenPersistenceDatabaseWriteNow: false');
-assertNotIncludes('service', service, 'prepareEncryptedTokenPersistenceInputLater');
+// Step137-Q intentionally implements the planned encrypted-input builder test double.
+// Keep this legacy Step137-P boundary smoke focused on persistence safety:
+// builder exists, but DB writes/controller wiring/Prisma/migration/plaintext token exposure remain forbidden.
+assertIncludes('service', service, 'prepareEncryptedTokenPersistenceInputLater');
+assertIncludes('service', service, "source: 'amazon-sp-api-token-persistence-encrypted-input-builder-test-double'");
+assertIncludes('service', service, "persistenceMode: 'encrypted-input-test-double-no-db-write'");
+assertIncludes('service', service, 'encryptedRefreshTokenPreparedNow: false');
+assertIncludes('service', service, 'encryptedAccessTokenCachePreparedNow: false');
+assertIncludes('service', service, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('service', service, 'plaintextTokenDatabaseWriteNow: false');
+assertIncludes('service', service, 'rawAccessTokenReturnedNow: false');
+assertIncludes('service', service, 'rawRefreshTokenReturnedNow: false');
+assertIncludes('service', service, 'prismaWriteNow: false');
+assertIncludes('service', service, 'migrationRequiredNow: false');
 
 assertIncludes('controller', controller, 'exchangeAuthorizationCodeDryRunnable');
 assertNotIncludes('controller', controller, 'prepareEncryptedTokenPersistenceInputLater');

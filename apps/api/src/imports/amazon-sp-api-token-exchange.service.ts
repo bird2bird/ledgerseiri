@@ -347,6 +347,75 @@ export type AmazonSpApiSanitizedLwaHttpResponseParserResult =
   | AmazonSpApiSanitizedLwaHttpResponseParserSuccessResult
   | AmazonSpApiSanitizedLwaHttpResponseParserFailureResult;
 
+
+export type AmazonSpApiEncryptedTokenPersistenceInputBuilderInput = {
+  companyId: string;
+  storeId: string;
+  marketplaceId: string;
+  region: string;
+  sellingPartnerId: string;
+  tokenType: 'bearer';
+  expiresInSeconds: number;
+  scope?: string | null;
+  accessTokenFingerprint: string;
+  refreshTokenFingerprint: string;
+  accessTokenLength: number;
+  refreshTokenLength: number;
+  encryptionKeyId: string;
+  encryptionAlgorithm: 'test-double-envelope-v1';
+  tokenVersion: number;
+  operatorApprovedPersistenceBoundary: boolean;
+};
+
+export type AmazonSpApiEncryptedTokenPersistenceInputBuilderResult = {
+  accepted: boolean;
+  source: 'amazon-sp-api-token-persistence-encrypted-input-builder-test-double';
+  persistenceMode: 'encrypted-input-test-double-no-db-write';
+  reason:
+    | 'ready'
+    | 'missing_company_id'
+    | 'missing_store_id'
+    | 'missing_marketplace_id'
+    | 'missing_region'
+    | 'missing_selling_partner_id'
+    | 'invalid_token_type'
+    | 'invalid_expires_in'
+    | 'missing_access_token_fingerprint'
+    | 'missing_refresh_token_fingerprint'
+    | 'invalid_access_token_length'
+    | 'invalid_refresh_token_length'
+    | 'missing_encryption_key_id'
+    | 'invalid_encryption_algorithm'
+    | 'invalid_token_version'
+    | 'operator_boundary_not_approved';
+  messageRedacted: string;
+  sanitizedPersistenceInputReady: boolean;
+  companyIdPresent: boolean;
+  storeIdPresent: boolean;
+  marketplaceIdPresent: boolean;
+  regionPresent: boolean;
+  sellingPartnerIdPresent: boolean;
+  tokenType: 'bearer' | null;
+  expiresInSeconds: number;
+  scope: string | null;
+  accessTokenFingerprintPresent: boolean;
+  refreshTokenFingerprintPresent: boolean;
+  accessTokenLength: number;
+  refreshTokenLength: number;
+  encryptionKeyIdPresent: boolean;
+  encryptionAlgorithm: 'test-double-envelope-v1' | null;
+  tokenVersion: number;
+  operatorApprovedPersistenceBoundary: boolean;
+  encryptedRefreshTokenPreparedNow: false;
+  encryptedAccessTokenCachePreparedNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  plaintextTokenDatabaseWriteNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  prismaWriteNow: false;
+  migrationRequiredNow: false;
+};
+
 export type AmazonSpApiLwaHttpTransportDisabledInput = {
   tokenEndpoint: string;
   requestBodyPrepared: boolean;
@@ -951,6 +1020,139 @@ export class AmazonSpApiTokenExchangeService {
       ['validate-config', 'validate-callback-state', 'build-request-body', 'execute-http-transport'],
       requestBodyBuilderResult,
       httpTransportResult,
+    );
+  }
+
+  prepareEncryptedTokenPersistenceInputLater(
+    input: AmazonSpApiEncryptedTokenPersistenceInputBuilderInput,
+  ): AmazonSpApiEncryptedTokenPersistenceInputBuilderResult {
+    const companyId = normalize(input.companyId);
+    const storeId = normalize(input.storeId);
+    const marketplaceId = normalize(input.marketplaceId);
+    const region = normalize(input.region);
+    const sellingPartnerId = normalize(input.sellingPartnerId);
+    const accessTokenFingerprint = normalize(input.accessTokenFingerprint);
+    const refreshTokenFingerprint = normalize(input.refreshTokenFingerprint);
+    const encryptionKeyId = normalize(input.encryptionKeyId);
+    const tokenVersion = Number.isFinite(input.tokenVersion)
+      ? Math.floor(input.tokenVersion)
+      : 0;
+    const expiresInSeconds = Number.isFinite(input.expiresInSeconds)
+      ? Math.floor(input.expiresInSeconds)
+      : 0;
+    const accessTokenLength = Number.isFinite(input.accessTokenLength)
+      ? Math.max(0, Math.floor(input.accessTokenLength))
+      : 0;
+    const refreshTokenLength = Number.isFinite(input.refreshTokenLength)
+      ? Math.max(0, Math.floor(input.refreshTokenLength))
+      : 0;
+    const scope = normalize(input.scope || '') || null;
+
+    const result = (
+      accepted: boolean,
+      reason: AmazonSpApiEncryptedTokenPersistenceInputBuilderResult['reason'],
+      messageRedacted: string,
+    ): AmazonSpApiEncryptedTokenPersistenceInputBuilderResult => ({
+      accepted,
+      source: 'amazon-sp-api-token-persistence-encrypted-input-builder-test-double',
+      persistenceMode: 'encrypted-input-test-double-no-db-write',
+      reason,
+      messageRedacted,
+      sanitizedPersistenceInputReady: accepted,
+      companyIdPresent: companyId.length > 0,
+      storeIdPresent: storeId.length > 0,
+      marketplaceIdPresent: marketplaceId.length > 0,
+      regionPresent: region.length > 0,
+      sellingPartnerIdPresent: sellingPartnerId.length > 0,
+      tokenType: input.tokenType === 'bearer' ? 'bearer' : null,
+      expiresInSeconds,
+      scope,
+      accessTokenFingerprintPresent: accessTokenFingerprint.length > 0,
+      refreshTokenFingerprintPresent: refreshTokenFingerprint.length > 0,
+      accessTokenLength,
+      refreshTokenLength,
+      encryptionKeyIdPresent: encryptionKeyId.length > 0,
+      encryptionAlgorithm:
+        input.encryptionAlgorithm === 'test-double-envelope-v1'
+          ? 'test-double-envelope-v1'
+          : null,
+      tokenVersion,
+      operatorApprovedPersistenceBoundary:
+        input.operatorApprovedPersistenceBoundary === true,
+      encryptedRefreshTokenPreparedNow: false,
+      encryptedAccessTokenCachePreparedNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      plaintextTokenDatabaseWriteNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+      prismaWriteNow: false,
+      migrationRequiredNow: false,
+    });
+
+    if (!companyId) {
+      return result(false, 'missing_company_id', 'Trusted company id is required before token persistence input preparation.');
+    }
+
+    if (!storeId) {
+      return result(false, 'missing_store_id', 'Trusted store id is required before token persistence input preparation.');
+    }
+
+    if (!marketplaceId) {
+      return result(false, 'missing_marketplace_id', 'Marketplace id is required before token persistence input preparation.');
+    }
+
+    if (!region) {
+      return result(false, 'missing_region', 'Region is required before token persistence input preparation.');
+    }
+
+    if (!sellingPartnerId) {
+      return result(false, 'missing_selling_partner_id', 'Selling partner id is required before token persistence input preparation.');
+    }
+
+    if (input.tokenType !== 'bearer') {
+      return result(false, 'invalid_token_type', 'Token type must be bearer before token persistence input preparation.');
+    }
+
+    if (expiresInSeconds <= 0) {
+      return result(false, 'invalid_expires_in', 'Positive expiresInSeconds is required before token persistence input preparation.');
+    }
+
+    if (!accessTokenFingerprint) {
+      return result(false, 'missing_access_token_fingerprint', 'Access token fingerprint is required before token persistence input preparation.');
+    }
+
+    if (!refreshTokenFingerprint) {
+      return result(false, 'missing_refresh_token_fingerprint', 'Refresh token fingerprint is required before token persistence input preparation.');
+    }
+
+    if (accessTokenLength <= 0) {
+      return result(false, 'invalid_access_token_length', 'Positive access token length is required before token persistence input preparation.');
+    }
+
+    if (refreshTokenLength <= 0) {
+      return result(false, 'invalid_refresh_token_length', 'Positive refresh token length is required before token persistence input preparation.');
+    }
+
+    if (!encryptionKeyId) {
+      return result(false, 'missing_encryption_key_id', 'Encryption key id is required before token persistence input preparation.');
+    }
+
+    if (input.encryptionAlgorithm !== 'test-double-envelope-v1') {
+      return result(false, 'invalid_encryption_algorithm', 'Expected test-double-envelope-v1 encryption algorithm marker.');
+    }
+
+    if (tokenVersion <= 0) {
+      return result(false, 'invalid_token_version', 'Positive token version is required before token persistence input preparation.');
+    }
+
+    if (input.operatorApprovedPersistenceBoundary !== true) {
+      return result(false, 'operator_boundary_not_approved', 'Operator-approved persistence boundary is required before token persistence input preparation.');
+    }
+
+    return result(
+      true,
+      'ready',
+      'Sanitized token persistence input is ready for a future encrypted persistence boundary, without database writes.',
     );
   }
 
