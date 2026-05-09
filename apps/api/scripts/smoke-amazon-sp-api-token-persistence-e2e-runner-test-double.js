@@ -220,7 +220,13 @@ assert(repositorySource.includes('export class AmazonSpApiCredentialRepository')
 assert(repositorySource.includes('upsertEncryptedCredentialTestDouble'), 'repository test-double method exists');
 assert(e2eHandoffContract.includes("nextSuggestedStep: 'Step138-E'"), 'E2E handoff contract points to Step138-E');
 
-assert(!tokenService.includes('AmazonSpApiTokenPersistenceE2eRunner'), 'token service does not wire E2E runner');
+assert(tokenService.includes('AmazonSpApiTokenPersistenceE2eRunner'), 'token service wires E2E runner only in Step139-A service-only method');
+assert(tokenService.includes('runTokenPersistenceE2eServiceOnlyTestDouble'), 'token service exposes Step139-A service-only E2E runner method');
+assert(tokenService.includes("serviceWiringMode: 'internal-service-only-no-controller-no-oauth-callback'"), 'token service marks service-only wiring mode');
+assert(tokenService.includes('controllerWiringNow: false'), 'token service keeps controller wiring disabled');
+assert(tokenService.includes('oauthCallbackWiringNow: false'), 'token service keeps OAuth callback wiring disabled');
+assert(tokenService.includes('amazonNetworkCallNow: false'), 'token service keeps Amazon network disabled');
+assert(tokenService.includes('prismaClientWriteNow: false'), 'token service keeps Prisma write disabled');
 assert(!controller.includes('AmazonSpApiTokenPersistenceE2eRunner'), 'controller does not wire E2E runner');
 assert(!controller.includes('AmazonSpApiTokenPersistenceOrchestrator'), 'controller does not wire orchestrator');
 assert(!controller.includes('AmazonSpApiCredentialRepository'), 'controller does not wire repository');

@@ -1,4 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import {
+  AmazonSpApiTokenPersistenceE2eRunner,
+  type AmazonSpApiTokenPersistenceE2eRunnerInput,
+  type AmazonSpApiTokenPersistenceE2eRunnerResult,
+} from './amazon-sp-api-token-persistence-e2e.runner';
 
 export type AmazonSpApiTokenExchangeDryRunInput = {
   state: string;
@@ -2421,4 +2426,37 @@ export class AmazonSpApiTokenExchangeService {
       },
     };
   }
+
+  runTokenPersistenceE2eServiceOnlyTestDouble(
+    input: AmazonSpApiTokenPersistenceE2eRunnerInput,
+  ): AmazonSpApiTokenPersistenceE2eRunnerResult & {
+    readonly serviceSource: 'amazon-sp-api-token-exchange-service-e2e-runner-wiring-test-double';
+    readonly serviceWiringMode: 'internal-service-only-no-controller-no-oauth-callback';
+    readonly tokenExchangeServiceWiringNow: true;
+    readonly controllerWiringNow: false;
+    readonly oauthCallbackWiringNow: false;
+    readonly amazonNetworkCallNow: false;
+    readonly prismaClientWriteNow: false;
+    readonly databaseWriteNow: false;
+    readonly tokenPersistenceDatabaseWriteNow: false;
+    readonly plaintextTokenDatabaseWriteNow: false;
+  } {
+    const runner = new AmazonSpApiTokenPersistenceE2eRunner();
+    const result = runner.runTokenPersistenceE2eTestDouble(input);
+
+    return {
+      ...result,
+      serviceSource: 'amazon-sp-api-token-exchange-service-e2e-runner-wiring-test-double',
+      serviceWiringMode: 'internal-service-only-no-controller-no-oauth-callback',
+      tokenExchangeServiceWiringNow: true,
+      controllerWiringNow: false,
+      oauthCallbackWiringNow: false,
+      amazonNetworkCallNow: false,
+      prismaClientWriteNow: false,
+      databaseWriteNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      plaintextTokenDatabaseWriteNow: false,
+    };
+  }
+
 }

@@ -165,7 +165,13 @@ assertIncludes('e2eRunner', e2eRunner, 'export class AmazonSpApiTokenPersistence
 assertIncludes('e2eRunner', e2eRunner, 'runTokenPersistenceE2eTestDouble');
 assertIncludes('e2eRunner', e2eRunner, "runnerMode: 'test-double-no-controller-no-prisma-write-no-amazon-call'");
 
-assertNotIncludes('tokenService', tokenService, 'AmazonSpApiTokenPersistenceE2eRunner');
+assertIncludes('tokenService', tokenService, 'AmazonSpApiTokenPersistenceE2eRunner');
+assertIncludes('tokenService', tokenService, 'runTokenPersistenceE2eServiceOnlyTestDouble');
+assertIncludes('tokenService', tokenService, "serviceWiringMode: 'internal-service-only-no-controller-no-oauth-callback'");
+assertIncludes('tokenService', tokenService, 'controllerWiringNow: false');
+assertIncludes('tokenService', tokenService, 'oauthCallbackWiringNow: false');
+assertIncludes('tokenService', tokenService, 'amazonNetworkCallNow: false');
+assertIncludes('tokenService', tokenService, 'prismaClientWriteNow: false');
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiTokenPersistenceOrchestrator');
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiCredentialRepository');
 

@@ -195,7 +195,8 @@
     "smoke:amazon-sp-api-token-persistence-e2e-handoff-contract": "node scripts/smoke-amazon-sp-api-token-persistence-e2e-handoff-contract.js",
     "smoke:amazon-sp-api-token-persistence-e2e-runner-test-double": "node scripts/smoke-amazon-sp-api-token-persistence-e2e-runner-test-double.js",
     "smoke:amazon-sp-api-token-persistence-e2e-runner-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-e2e-runner-branch-runtime.js",
-    "smoke:amazon-sp-api-token-persistence-pre-wiring-final-handoff-contract": "node scripts/smoke-amazon-sp-api-token-persistence-pre-wiring-final-handoff-contract.js"
+    "smoke:amazon-sp-api-token-persistence-pre-wiring-final-handoff-contract": "node scripts/smoke-amazon-sp-api-token-persistence-pre-wiring-final-handoff-contract.js",
+    "smoke:amazon-sp-api-token-persistence-service-only-e2e-runner-wiring": "node scripts/smoke-amazon-sp-api-token-persistence-service-only-e2e-runner-wiring.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
