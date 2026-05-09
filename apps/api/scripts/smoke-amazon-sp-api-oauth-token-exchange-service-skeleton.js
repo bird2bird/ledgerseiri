@@ -51,12 +51,12 @@ assertIncludes('service', service, 'realSpApiRequestNow: false');
 assertIncludes('service', service, 'rawRefreshTokenReturnedNow: false');
 assertIncludes('service', service, 'rawAccessTokenReturnedNow: false');
 assertIncludes('service', service, 'clientSecretReturnedNow: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step136-I'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-L'");
 assertIncludes('service', service, "'real_lwa_transport_disabled'");
 assertIncludes(
   'service',
   service,
-  'Real Amazon LWA token exchange transport is intentionally disabled until Step136-I.',
+  'Real Amazon LWA token exchange transport is intentionally disabled until Step136-L.',
 );
 
 assertIncludes('service', service, 'exchangeAuthorizationCodeDryRunnable');

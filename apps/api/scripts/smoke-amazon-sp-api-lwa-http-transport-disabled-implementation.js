@@ -61,7 +61,7 @@ assertIncludes('service', service, 'timeoutMs: 10000');
 assertIncludes('service', service, 'maxAttempts: 1');
 assertIncludes('service', service, 'executableClientUsedNow: false');
 assertIncludes('service', service, 'responseBodyParsedNow: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step136-I'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-L'");
 assertIncludes('service', service, "'http_transport_disabled'");
 assertIncludes('service', service, "'server_side_feature_gate_disabled'");
 assertIncludes('service', service, "'request_body_builder_not_ready'");

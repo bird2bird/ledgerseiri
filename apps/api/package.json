@@ -161,7 +161,8 @@
     "smoke:amazon-sp-api-lwa-http-execution-boundary-contract": "node scripts/smoke-amazon-sp-api-lwa-http-execution-boundary-contract.js",
     "smoke:amazon-sp-api-lwa-http-transport-disabled": "node scripts/smoke-amazon-sp-api-lwa-http-transport-disabled-implementation.js",
     "smoke:amazon-sp-api-lwa-http-transport-mock-runtime": "node scripts/smoke-amazon-sp-api-lwa-http-transport-mock-runtime.js",
-    "smoke:amazon-sp-api-real-lwa-exchange-chain-boundary-contract": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-boundary-contract.js"
+    "smoke:amazon-sp-api-real-lwa-exchange-chain-boundary-contract": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-boundary-contract.js",
+    "smoke:amazon-sp-api-real-lwa-exchange-chain-disabled": "node scripts/smoke-amazon-sp-api-real-lwa-exchange-chain-disabled-orchestration.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

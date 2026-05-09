@@ -70,6 +70,115 @@ export type AmazonSpApiTokenExchangeDryRunResult =
   | AmazonSpApiTokenExchangeDryRunAcceptedResult
   | AmazonSpApiTokenExchangeRejectedResult;
 
+export type AmazonSpApiRealLwaExchangeChainDisabledInput = {
+  state: string;
+  authorizationCode: string;
+  sellingPartnerId: string;
+  redirectUri: string;
+  expectedRedirectUri: string;
+  clientId: string;
+  clientSecretConfigured: boolean;
+  clientSecretFingerprint: string;
+  tokenEndpoint: string;
+  marketplaceId: string;
+  region: string;
+  companyId: string;
+  storeId: string;
+  configValidatorStatus: 'ready' | 'missing_required_env' | 'invalid_env';
+  serverSideFeatureGateEnabled: false;
+  enableRealLwaHttpTransport: false;
+};
+
+export type AmazonSpApiRealLwaExchangeChainDisabledResult = {
+  accepted: false;
+  source: 'amazon-sp-api-real-lwa-exchange-chain-disabled';
+  reason:
+    | 'exchange_chain_disabled'
+    | 'server_side_feature_gate_disabled'
+    | 'config_validator_not_ready'
+    | 'missing_state'
+    | 'missing_authorization_code'
+    | 'missing_selling_partner_id'
+    | 'missing_redirect_uri'
+    | 'mismatched_redirect_uri'
+    | 'missing_client_id'
+    | 'client_secret_not_configured'
+    | 'missing_client_secret_fingerprint'
+    | 'missing_token_endpoint'
+    | 'invalid_token_endpoint'
+    | 'missing_marketplace_id'
+    | 'missing_region'
+    | 'missing_company_id'
+    | 'missing_store_id'
+    | 'request_body_builder_not_ready'
+    | 'http_transport_not_ready';
+  messageRedacted: string;
+  orchestratorPreparedNow: true;
+  orchestratorImplementedNow: true;
+  callbackRuntimeChangedNow: false;
+  controllerRouteChangedNow: false;
+  realHttpEnabledNow: false;
+  tokenExchangeHttpCallNow: false;
+  lwaHttpCallNow: false;
+  realSpApiRequestNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+  requestBodyConstructedNow: false;
+  requestBodyLoggedNow: false;
+  rawAuthorizationCodeReturnedNow: false;
+  rawClientIdReturnedNow: false;
+  rawClientSecretReturnedNow: false;
+  rawRequestBodyReturnedNow: false;
+  rawLwaResponseReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  sanitizedChain: {
+    stageOrder: readonly [
+      'validate-config',
+      'validate-callback-state',
+      'build-request-body',
+      'execute-http-transport',
+      'prepare-token-persistence-input',
+    ];
+    completedStages: readonly string[];
+    blockedAtStage:
+      | 'validate-config'
+      | 'validate-callback-state'
+      | 'build-request-body'
+      | 'execute-http-transport'
+      | 'feature-gate';
+    configValidatorReady: boolean;
+    callbackStateTrustedNow: true;
+    requestBodyBuilderPrepared: boolean;
+    httpTransportPrepared: boolean;
+    tokenPersistencePreparedNow: false;
+    nextImplementationStep: 'Step136-L';
+  };
+  sanitizedInputs: {
+    statePresent: boolean;
+    authorizationCodePresent: boolean;
+    sellingPartnerIdPresent: boolean;
+    redirectUriPresent: boolean;
+    expectedRedirectUriPresent: boolean;
+    redirectUriMatchesExpected: boolean;
+    clientIdPresent: boolean;
+    clientSecretConfigured: boolean;
+    clientSecretFingerprintPresent: boolean;
+    tokenEndpointHost: string | null;
+    tokenEndpointPath: string | null;
+    tokenEndpointHttps: boolean;
+    marketplaceIdPresent: boolean;
+    regionPresent: boolean;
+    companyIdPresent: boolean;
+    storeIdPresent: boolean;
+  };
+  sanitizedDownstreamResults: {
+    requestBodyBuilderSource: 'amazon-sp-api-lwa-request-body-builder-disabled' | null;
+    httpTransportSource: 'amazon-sp-api-lwa-http-transport-disabled' | null;
+    requestBodyBuilderReason: string | null;
+    httpTransportReason: string | null;
+  };
+};
+
 export type AmazonSpApiRealLwaTokenExchangeDisabledInput = {
   state: string;
   authorizationCode: string;
@@ -142,7 +251,7 @@ export type AmazonSpApiLwaHttpTransportDisabledResult = {
     requestBodyFingerprintPresent: boolean;
     requestBodyLength: number;
     responseBodyParsedNow: false;
-    nextImplementationStep: 'Step136-I';
+    nextImplementationStep: 'Step136-L';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -219,7 +328,7 @@ export type AmazonSpApiLwaRequestBodyBuilderDisabledResult = {
     encodedBodyLength: number;
     encodedBodySha256: string | null;
     rawBodyAvailableOnlyInsideBuilder: false;
-    nextImplementationStep: 'Step136-I';
+    nextImplementationStep: 'Step136-L';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -293,7 +402,7 @@ export type AmazonSpApiRealLwaHttpClientDisabledResult = {
     requestBodyConstructedNow: false;
     requestBodyLoggedNow: false;
     responseBodyParsedNow: false;
-    nextImplementationStep: 'Step136-I';
+    nextImplementationStep: 'Step136-L';
   };
   sanitizedEnablementGate: {
     configValidatorReady: boolean;
@@ -339,7 +448,7 @@ export type AmazonSpApiRealLwaTokenExchangeDisabledResult = {
     companyIdPresent: boolean;
     storeIdPresent: boolean;
     realLwaHttpTransportEnabled: false;
-    nextImplementationStep: 'Step136-I';
+    nextImplementationStep: 'Step136-L';
   };
 };
 
@@ -399,6 +508,298 @@ function sanitizedBodyFingerprint(value: string): string {
 
 @Injectable()
 export class AmazonSpApiTokenExchangeService {
+  orchestrateRealLwaExchangeChainDisabledLater(
+    input: AmazonSpApiRealLwaExchangeChainDisabledInput,
+  ): AmazonSpApiRealLwaExchangeChainDisabledResult {
+    const state = normalize(input.state);
+    const authorizationCode = normalize(input.authorizationCode);
+    const sellingPartnerId = normalize(input.sellingPartnerId);
+    const redirectUri = normalize(input.redirectUri);
+    const expectedRedirectUri = normalize(input.expectedRedirectUri);
+    const clientId = normalize(input.clientId);
+    const clientSecretFingerprint = normalize(input.clientSecretFingerprint);
+    const tokenEndpoint = normalize(input.tokenEndpoint);
+    const marketplaceId = normalize(input.marketplaceId);
+    const region = normalize(input.region);
+    const companyId = normalize(input.companyId);
+    const storeId = normalize(input.storeId);
+    const endpointShape = parseHttpsEndpointShape(tokenEndpoint);
+
+    const stageOrder = [
+      'validate-config',
+      'validate-callback-state',
+      'build-request-body',
+      'execute-http-transport',
+      'prepare-token-persistence-input',
+    ] as const;
+
+    const makeResult = (
+      reason: AmazonSpApiRealLwaExchangeChainDisabledResult['reason'],
+      messageRedacted: string,
+      blockedAtStage: AmazonSpApiRealLwaExchangeChainDisabledResult['sanitizedChain']['blockedAtStage'],
+      completedStages: readonly string[],
+      requestBodyBuilderResult: AmazonSpApiLwaRequestBodyBuilderDisabledResult | null = null,
+      httpTransportResult: AmazonSpApiLwaHttpTransportDisabledResult | null = null,
+    ): AmazonSpApiRealLwaExchangeChainDisabledResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-real-lwa-exchange-chain-disabled',
+      reason,
+      messageRedacted,
+      orchestratorPreparedNow: true,
+      orchestratorImplementedNow: true,
+      callbackRuntimeChangedNow: false,
+      controllerRouteChangedNow: false,
+      realHttpEnabledNow: false,
+      tokenExchangeHttpCallNow: false,
+      lwaHttpCallNow: false,
+      realSpApiRequestNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+      requestBodyConstructedNow: false,
+      requestBodyLoggedNow: false,
+      rawAuthorizationCodeReturnedNow: false,
+      rawClientIdReturnedNow: false,
+      rawClientSecretReturnedNow: false,
+      rawRequestBodyReturnedNow: false,
+      rawLwaResponseReturnedNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+      sanitizedChain: {
+        stageOrder,
+        completedStages,
+        blockedAtStage,
+        configValidatorReady: input.configValidatorStatus === 'ready',
+        callbackStateTrustedNow: true,
+        requestBodyBuilderPrepared:
+          requestBodyBuilderResult?.requestBodyBuilderPreparedNow === true,
+        httpTransportPrepared: httpTransportResult?.httpTransportPreparedNow === true,
+        tokenPersistencePreparedNow: false,
+        nextImplementationStep: 'Step136-L',
+      },
+      sanitizedInputs: {
+        statePresent: state.length > 0,
+        authorizationCodePresent: authorizationCode.length > 0,
+        sellingPartnerIdPresent: sellingPartnerId.length > 0,
+        redirectUriPresent: redirectUri.length > 0,
+        expectedRedirectUriPresent: expectedRedirectUri.length > 0,
+        redirectUriMatchesExpected: expectedRedirectUri.length > 0 && redirectUri === expectedRedirectUri,
+        clientIdPresent: clientId.length > 0,
+        clientSecretConfigured: input.clientSecretConfigured === true,
+        clientSecretFingerprintPresent: clientSecretFingerprint.length > 0,
+        tokenEndpointHost: endpointShape.host,
+        tokenEndpointPath: endpointShape.path,
+        tokenEndpointHttps: endpointShape.valid,
+        marketplaceIdPresent: marketplaceId.length > 0,
+        regionPresent: region.length > 0,
+        companyIdPresent: companyId.length > 0,
+        storeIdPresent: storeId.length > 0,
+      },
+      sanitizedDownstreamResults: {
+        requestBodyBuilderSource: requestBodyBuilderResult?.source || null,
+        httpTransportSource: httpTransportResult?.source || null,
+        requestBodyBuilderReason: requestBodyBuilderResult?.reason || null,
+        httpTransportReason: httpTransportResult?.reason || null,
+      },
+    });
+
+    if (input.configValidatorStatus !== 'ready') {
+      return makeResult(
+        'config_validator_not_ready',
+        'LWA config validator must report ready before exchange chain orchestration.',
+        'validate-config',
+        [],
+      );
+    }
+
+    if (!state) {
+      return makeResult('missing_state', 'OAuth state is required before exchange chain orchestration.', 'validate-callback-state', ['validate-config']);
+    }
+
+    if (!authorizationCode) {
+      return makeResult(
+        'missing_authorization_code',
+        'Authorization code is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!sellingPartnerId) {
+      return makeResult(
+        'missing_selling_partner_id',
+        'Selling partner id is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!redirectUri) {
+      return makeResult(
+        'missing_redirect_uri',
+        'Redirect URI is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (expectedRedirectUri && redirectUri !== expectedRedirectUri) {
+      return makeResult(
+        'mismatched_redirect_uri',
+        'Redirect URI must match the authorization URL redirect URI before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!clientId) {
+      return makeResult(
+        'missing_client_id',
+        'Client id is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (input.clientSecretConfigured !== true) {
+      return makeResult(
+        'client_secret_not_configured',
+        'Client secret must be configured before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!clientSecretFingerprint) {
+      return makeResult(
+        'missing_client_secret_fingerprint',
+        'Client secret fingerprint is required for sanitized exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!tokenEndpoint) {
+      return makeResult(
+        'missing_token_endpoint',
+        'LWA token endpoint is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!endpointShape.valid) {
+      return makeResult(
+        'invalid_token_endpoint',
+        'LWA token endpoint must be HTTPS before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!marketplaceId) {
+      return makeResult(
+        'missing_marketplace_id',
+        'Marketplace id is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!region) {
+      return makeResult(
+        'missing_region',
+        'Region is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!companyId) {
+      return makeResult(
+        'missing_company_id',
+        'Company id is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    if (!storeId) {
+      return makeResult(
+        'missing_store_id',
+        'Store id is required before exchange chain orchestration.',
+        'validate-callback-state',
+        ['validate-config'],
+      );
+    }
+
+    const requestBodyBuilderResult = this.buildRealLwaTokenExchangeRequestBodyLater({
+      authorizationCode,
+      redirectUri,
+      expectedRedirectUri,
+      clientId,
+      clientSecretConfigured: input.clientSecretConfigured,
+      clientSecretFingerprint,
+      tokenEndpoint,
+      configValidatorStatus: input.configValidatorStatus,
+      serverSideFeatureGateEnabled: false,
+      enableRealLwaHttpTransport: false,
+    });
+
+    if (requestBodyBuilderResult.source !== 'amazon-sp-api-lwa-request-body-builder-disabled') {
+      return makeResult(
+        'request_body_builder_not_ready',
+        'LWA request body builder did not return the expected sanitized disabled result.',
+        'build-request-body',
+        ['validate-config', 'validate-callback-state'],
+        requestBodyBuilderResult,
+      );
+    }
+
+    const httpTransportResult = this.executeRealLwaTokenExchangeHttpLater({
+      tokenEndpoint,
+      requestBodyPrepared: requestBodyBuilderResult.requestBodyBuilderPreparedNow,
+      requestBodyFingerprint:
+        requestBodyBuilderResult.sanitizedRequestBodyShape.encodedBodySha256 || '',
+      requestBodyLength: requestBodyBuilderResult.sanitizedRequestBodyShape.encodedBodyLength,
+      contentType: requestBodyBuilderResult.sanitizedRequestBodyShape.contentType,
+      method: requestBodyBuilderResult.sanitizedRequestBodyShape.method,
+      configValidatorStatus: input.configValidatorStatus,
+      requestBodyBuilderStatus: 'ready',
+      serverSideFeatureGateEnabled: false,
+      enableRealLwaHttpTransport: false,
+    });
+
+    if (httpTransportResult.source !== 'amazon-sp-api-lwa-http-transport-disabled') {
+      return makeResult(
+        'http_transport_not_ready',
+        'LWA HTTP transport did not return the expected sanitized disabled result.',
+        'execute-http-transport',
+        ['validate-config', 'validate-callback-state', 'build-request-body'],
+        requestBodyBuilderResult,
+        httpTransportResult,
+      );
+    }
+
+    if (input.serverSideFeatureGateEnabled !== false || input.enableRealLwaHttpTransport !== false) {
+      return makeResult(
+        'exchange_chain_disabled',
+        'Real LWA exchange chain remains disabled by default in Step136-K.',
+        'feature-gate',
+        ['validate-config', 'validate-callback-state', 'build-request-body', 'execute-http-transport'],
+        requestBodyBuilderResult,
+        httpTransportResult,
+      );
+    }
+
+    return makeResult(
+      'server_side_feature_gate_disabled',
+      'Server-side real LWA exchange chain feature gate is disabled in Step136-K.',
+      'feature-gate',
+      ['validate-config', 'validate-callback-state', 'build-request-body', 'execute-http-transport'],
+      requestBodyBuilderResult,
+      httpTransportResult,
+    );
+  }
+
   executeRealLwaTokenExchangeHttpLater(
     input: AmazonSpApiLwaHttpTransportDisabledInput,
   ): AmazonSpApiLwaHttpTransportDisabledResult {
@@ -421,7 +822,7 @@ export class AmazonSpApiTokenExchangeService {
           ? Math.max(0, Math.floor(input.requestBodyLength))
           : 0,
         responseBodyParsedNow: false,
-        nextImplementationStep: 'Step136-I',
+        nextImplementationStep: 'Step136-L',
       };
 
     const sanitizedEnablementGate: AmazonSpApiLwaHttpTransportDisabledResult['sanitizedEnablementGate'] =
@@ -573,7 +974,7 @@ export class AmazonSpApiTokenExchangeService {
         encodedBodyLength: bodyShapeSeed.length,
         encodedBodySha256: sanitizedBodyFingerprint(bodyShapeSeed),
         rawBodyAvailableOnlyInsideBuilder: false,
-        nextImplementationStep: 'Step136-I',
+        nextImplementationStep: 'Step136-L',
       };
 
     const sanitizedEnablementGate: AmazonSpApiLwaRequestBodyBuilderDisabledResult['sanitizedEnablementGate'] =
@@ -717,7 +1118,7 @@ export class AmazonSpApiTokenExchangeService {
         requestBodyConstructedNow: false,
         requestBodyLoggedNow: false,
         responseBodyParsedNow: false,
-        nextImplementationStep: 'Step136-I',
+        nextImplementationStep: 'Step136-L',
       };
 
     const sanitizedEnablementGate: AmazonSpApiRealLwaHttpClientDisabledResult['sanitizedEnablementGate'] =
@@ -865,7 +1266,7 @@ export class AmazonSpApiTokenExchangeService {
       companyIdPresent: companyId.length > 0,
       storeIdPresent: storeId.length > 0,
       realLwaHttpTransportEnabled: false as const,
-      nextImplementationStep: 'Step136-I' as const,
+      nextImplementationStep: 'Step136-L' as const,
     };
 
     const disabled = (
@@ -941,7 +1342,7 @@ export class AmazonSpApiTokenExchangeService {
 
     return disabled(
       'real_lwa_transport_disabled',
-      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-I.',
+      'Real Amazon LWA token exchange transport is intentionally disabled until Step136-L.',
     );
   }
 

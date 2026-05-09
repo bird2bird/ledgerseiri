@@ -106,7 +106,7 @@ function assertSafeDisabledResult(result, scenario) {
     `${scenario}: response body not parsed`,
   );
   assert(
-    result.sanitizedHttpTransportShape.nextImplementationStep === 'Step136-I',
+    result.sanitizedHttpTransportShape.nextImplementationStep === 'Step136-L',
     `${scenario}: next implementation step`,
   );
 

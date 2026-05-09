@@ -86,7 +86,7 @@ assertIncludes('contract', contract, 'createsInventoryMovementNow: false');
 
 assertIncludes('service', service, 'exchangeAuthorizationCodeWithLwaLater');
 assertIncludes('service', service, 'enableRealLwaHttpTransport: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step136-I'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-L'");
 assertIncludes('service', service, 'lwaHttpCallNow: false');
 
 assertIncludes('controller', controller, 'exchangeAuthorizationCodeDryRunnable');

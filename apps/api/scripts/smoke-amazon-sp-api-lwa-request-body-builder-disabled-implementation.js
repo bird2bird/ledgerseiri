@@ -61,7 +61,7 @@ assertIncludes('service', service, "grantType: 'authorization_code'");
 assertIncludes('service', service, 'encodedBodyLength: bodyShapeSeed.length');
 assertIncludes('service', service, 'encodedBodySha256: sanitizedBodyFingerprint(bodyShapeSeed)');
 assertIncludes('service', service, 'rawBodyAvailableOnlyInsideBuilder: false');
-assertIncludes('service', service, "nextImplementationStep: 'Step136-I'");
+assertIncludes('service', service, "nextImplementationStep: 'Step136-L'");
 assertIncludes('service', service, "'request_body_builder_disabled'");
 assertIncludes('service', service, "'server_side_feature_gate_disabled'");
 assertIncludes('service', service, "'mismatched_redirect_uri'");
