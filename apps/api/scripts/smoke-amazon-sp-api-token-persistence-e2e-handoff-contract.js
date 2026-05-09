@@ -154,7 +154,29 @@ assertIncludes('orchestrator', orchestrator, 'export class AmazonSpApiTokenPersi
 assertIncludes('orchestrator', orchestrator, 'persistTokenExchangeResultTestDouble');
 assertIncludes('orchestrator', orchestrator, "orchestrationMode: 'test-double-no-controller-no-prisma-write'");
 
-assert(e2eRunner.length === 0, 'E2E runner implementation file is not created in Step138-D');
+// Step138-E intentionally creates the E2E runner test-double file.
+// This legacy Step138-D contract smoke now allows that file to exist,
+// but only as a no-controller / no-Prisma-write / no-Amazon-call test double.
+assertIncludes('e2eRunner', e2eRunner, 'export class AmazonSpApiTokenPersistenceE2eRunner');
+assertIncludes('e2eRunner', e2eRunner, 'runTokenPersistenceE2eTestDouble');
+assertIncludes('e2eRunner', e2eRunner, "runnerMode: 'test-double-no-controller-no-prisma-write-no-amazon-call'");
+assertIncludes('e2eRunner', e2eRunner, 'controllerWiringNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'oauthCallbackWiringNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'amazonNetworkCallNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'executableHttpClientUsedNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'realSpApiRequestNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'prismaClientWriteNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'databaseWriteNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'plaintextTokenDatabaseWriteNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'rawTokenReturnedNow: false');
+assertIncludes('e2eRunner', e2eRunner, 'rawLwaResponseReturnedNow: false');
+assertNotIncludes('e2eRunner', e2eRunner, 'prisma.');
+assertNotIncludes('e2eRunner', e2eRunner, 'amazonSpApiCredential.');
+assertNotIncludes('e2eRunner', e2eRunner, 'fetch(');
+assertNotIncludes('e2eRunner', e2eRunner, 'axios.');
+assertNotIncludes('e2eRunner', e2eRunner, 'http.request');
+assertNotIncludes('e2eRunner', e2eRunner, 'https.request');
 
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiTokenPersistenceOrchestrator');
 assertNotIncludes('tokenService', tokenService, 'AmazonSpApiCredentialRepository');
