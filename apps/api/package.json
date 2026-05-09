@@ -183,7 +183,8 @@
     "smoke:amazon-sp-api-token-persistence-builder-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-builder-branch-runtime.js",
     "smoke:amazon-sp-api-real-lwa-integration-pre-activation-handoff-contract": "node scripts/smoke-amazon-sp-api-real-lwa-integration-pre-activation-handoff-contract.js",
     "smoke:amazon-sp-api-executable-real-lwa-http-transport-replacement-contract": "node scripts/smoke-amazon-sp-api-executable-real-lwa-http-transport-replacement-contract.js",
-    "smoke:amazon-sp-api-executable-real-lwa-http-transport-guarded-impl": "node scripts/smoke-amazon-sp-api-executable-real-lwa-http-transport-guarded-impl.js"
+    "smoke:amazon-sp-api-executable-real-lwa-http-transport-guarded-impl": "node scripts/smoke-amazon-sp-api-executable-real-lwa-http-transport-guarded-impl.js",
+    "smoke:amazon-sp-api-executable-lwa-http-transport-branch-runtime": "node scripts/smoke-amazon-sp-api-executable-lwa-http-transport-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
