@@ -277,6 +277,76 @@ export type AmazonSpApiGuardedLwaHttpTransportResult = {
   };
 };
 
+
+export type AmazonSpApiSanitizedLwaHttpResponseParserInput = {
+  httpStatus: number;
+  responseBody: string;
+  responseHeaders?: Record<string, string | undefined>;
+  maxResponseBytes: number;
+};
+
+export type AmazonSpApiSanitizedLwaHttpResponseParserSuccessResult = {
+  accepted: true;
+  source: 'amazon-sp-api-sanitized-lwa-http-response-parser';
+  parserMode: 'sanitized-only';
+  reason: 'parsed';
+  messageRedacted: string;
+  httpStatus: number;
+  responseBodyLength: number;
+  responseBodyFingerprint: string;
+  tokenType: 'bearer';
+  expiresInSeconds: number;
+  scope: string | null;
+  accessTokenPresent: true;
+  refreshTokenPresent: true;
+  accessTokenLength: number;
+  refreshTokenLength: number;
+  accessTokenFingerprint: string;
+  refreshTokenFingerprint: string;
+  rawLwaResponseReturnedNow: false;
+  rawResponseBodyReturnedNow: false;
+  rawResponseHeadersReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+};
+
+export type AmazonSpApiSanitizedLwaHttpResponseParserFailureReason =
+  | 'http_status_not_success'
+  | 'missing_response_body'
+  | 'malformed_json'
+  | 'missing_access_token'
+  | 'missing_refresh_token'
+  | 'missing_token_type'
+  | 'invalid_token_type'
+  | 'missing_expires_in'
+  | 'invalid_expires_in'
+  | 'response_body_too_large'
+  | 'unexpected_parser_exception';
+
+export type AmazonSpApiSanitizedLwaHttpResponseParserFailureResult = {
+  accepted: false;
+  source: 'amazon-sp-api-sanitized-lwa-http-response-parser';
+  parserMode: 'sanitized-only';
+  reason: AmazonSpApiSanitizedLwaHttpResponseParserFailureReason;
+  messageRedacted: string;
+  httpStatus: number;
+  responseBodyLength: number;
+  responseBodyFingerprint: string | null;
+  amazonErrorCode: string | null;
+  amazonErrorDescriptionRedacted: string | null;
+  rawLwaResponseReturnedNow: false;
+  rawResponseBodyReturnedNow: false;
+  rawResponseHeadersReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  tokenPersistenceDatabaseWriteNow: false;
+};
+
+export type AmazonSpApiSanitizedLwaHttpResponseParserResult =
+  | AmazonSpApiSanitizedLwaHttpResponseParserSuccessResult
+  | AmazonSpApiSanitizedLwaHttpResponseParserFailureResult;
+
 export type AmazonSpApiLwaHttpTransportDisabledInput = {
   tokenEndpoint: string;
   requestBodyPrepared: boolean;
@@ -882,6 +952,166 @@ export class AmazonSpApiTokenExchangeService {
       requestBodyBuilderResult,
       httpTransportResult,
     );
+  }
+
+  parseRealLwaHttpResponseSanitizedLater(
+    input: AmazonSpApiSanitizedLwaHttpResponseParserInput,
+  ): AmazonSpApiSanitizedLwaHttpResponseParserResult {
+    const httpStatus = Number.isFinite(input.httpStatus) ? Math.floor(input.httpStatus) : 0;
+    const responseBody = typeof input.responseBody === 'string' ? input.responseBody : '';
+    const maxResponseBytes = Number.isFinite(input.maxResponseBytes)
+      ? Math.max(0, Math.floor(input.maxResponseBytes))
+      : 0;
+
+    const responseBodyLength = Buffer.byteLength(responseBody, 'utf8');
+    const responseBodyFingerprint =
+      responseBodyLength > 0 ? sanitizedBodyFingerprint(responseBody) : null;
+
+    const failure = (
+      reason: AmazonSpApiSanitizedLwaHttpResponseParserFailureReason,
+      messageRedacted: string,
+      amazonErrorCode: string | null = null,
+      amazonErrorDescriptionRedacted: string | null = null,
+    ): AmazonSpApiSanitizedLwaHttpResponseParserFailureResult => ({
+      accepted: false,
+      source: 'amazon-sp-api-sanitized-lwa-http-response-parser',
+      parserMode: 'sanitized-only',
+      reason,
+      messageRedacted,
+      httpStatus,
+      responseBodyLength,
+      responseBodyFingerprint,
+      amazonErrorCode,
+      amazonErrorDescriptionRedacted,
+      rawLwaResponseReturnedNow: false,
+      rawResponseBodyReturnedNow: false,
+      rawResponseHeadersReturnedNow: false,
+      rawAccessTokenReturnedNow: false,
+      rawRefreshTokenReturnedNow: false,
+      tokenPersistenceDatabaseWriteNow: false,
+    });
+
+    try {
+      if (maxResponseBytes > 0 && responseBodyLength > maxResponseBytes) {
+        return failure(
+          'response_body_too_large',
+          'LWA response body exceeded the configured sanitized parser size limit.',
+        );
+      }
+
+      if (httpStatus < 200 || httpStatus > 299) {
+        let amazonErrorCode: string | null = null;
+        let amazonErrorDescriptionRedacted: string | null = null;
+
+        try {
+          const parsedError = responseBody ? JSON.parse(responseBody) : null;
+          if (parsedError && typeof parsedError === 'object') {
+            amazonErrorCode =
+              typeof parsedError.error === 'string' ? parsedError.error : null;
+            amazonErrorDescriptionRedacted =
+              typeof parsedError.error_description === 'string'
+                ? '[redacted-amazon-error-description]'
+                : null;
+          }
+        } catch {
+          amazonErrorCode = null;
+          amazonErrorDescriptionRedacted = null;
+        }
+
+        return failure(
+          'http_status_not_success',
+          'LWA HTTP status was not successful.',
+          amazonErrorCode,
+          amazonErrorDescriptionRedacted,
+        );
+      }
+
+      if (!responseBody) {
+        return failure('missing_response_body', 'LWA response body is required for sanitized parsing.');
+      }
+
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(responseBody);
+      } catch {
+        return failure('malformed_json', 'LWA response body must be valid JSON.');
+      }
+
+      if (!parsed || typeof parsed !== 'object') {
+        return failure('malformed_json', 'LWA response body must be a JSON object.');
+      }
+
+      const record = parsed as Record<string, unknown>;
+
+      const accessToken = typeof record.access_token === 'string' ? record.access_token : '';
+      const refreshToken = typeof record.refresh_token === 'string' ? record.refresh_token : '';
+      const tokenType = typeof record.token_type === 'string' ? record.token_type : '';
+      const expiresIn = record.expires_in;
+      const scope = typeof record.scope === 'string' ? record.scope : null;
+
+      if (!accessToken) {
+        return failure('missing_access_token', 'LWA access token is missing from sanitized parser input.');
+      }
+
+      if (!refreshToken) {
+        return failure('missing_refresh_token', 'LWA refresh token is missing from sanitized parser input.');
+      }
+
+      if (!tokenType) {
+        return failure('missing_token_type', 'LWA token type is missing from sanitized parser input.');
+      }
+
+      if (tokenType.toLowerCase() !== 'bearer') {
+        return failure('invalid_token_type', 'LWA token type must be bearer.');
+      }
+
+      if (expiresIn === undefined || expiresIn === null) {
+        return failure('missing_expires_in', 'LWA expires_in is missing from sanitized parser input.');
+      }
+
+      const expiresInSeconds =
+        typeof expiresIn === 'number'
+          ? Math.floor(expiresIn)
+          : typeof expiresIn === 'string' && expiresIn.trim()
+            ? Math.floor(Number(expiresIn))
+            : 0;
+
+      if (!Number.isFinite(expiresInSeconds) || expiresInSeconds <= 0) {
+        return failure('invalid_expires_in', 'LWA expires_in must be a positive number.');
+      }
+
+      return {
+        accepted: true,
+        source: 'amazon-sp-api-sanitized-lwa-http-response-parser',
+        parserMode: 'sanitized-only',
+        reason: 'parsed',
+        messageRedacted: 'LWA response parsed into sanitized token envelope metadata.',
+        httpStatus,
+        responseBodyLength,
+        responseBodyFingerprint: responseBodyFingerprint || sanitizedBodyFingerprint(responseBody),
+        tokenType: 'bearer',
+        expiresInSeconds,
+        scope,
+        accessTokenPresent: true,
+        refreshTokenPresent: true,
+        accessTokenLength: accessToken.length,
+        refreshTokenLength: refreshToken.length,
+        accessTokenFingerprint: sanitizedBodyFingerprint(accessToken),
+        refreshTokenFingerprint: sanitizedBodyFingerprint(refreshToken),
+        rawLwaResponseReturnedNow: false,
+        rawResponseBodyReturnedNow: false,
+        rawResponseHeadersReturnedNow: false,
+        rawAccessTokenReturnedNow: false,
+        rawRefreshTokenReturnedNow: false,
+        tokenPersistenceDatabaseWriteNow: false,
+      };
+    } catch {
+      return failure(
+        'unexpected_parser_exception',
+        'Unexpected LWA parser exception was converted into a sanitized failure envelope.',
+      );
+    }
   }
 
   executeRealLwaTokenExchangeHttpGuardedLater(

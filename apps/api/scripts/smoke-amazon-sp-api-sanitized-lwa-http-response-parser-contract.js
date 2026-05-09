@@ -185,7 +185,18 @@ assertIncludes('service', service, 'executableHttpClientUsedNow: false');
 assertIncludes('service', service, 'tokenPersistenceDatabaseWriteNow: false');
 assertIncludes('service', service, 'rawAccessTokenReturnedNow: false');
 assertIncludes('service', service, 'rawRefreshTokenReturnedNow: false');
-assertNotIncludes('service', service, 'parseRealLwaHttpResponseSanitizedLater');
+// Step137-N intentionally implements the planned sanitized parser test double.
+// Keep this legacy Step137-M contract smoke focused on parser safety boundaries:
+// parser exists, but controller/HTTP/persistence/raw-token exposure remain forbidden.
+assertIncludes('service', service, 'parseRealLwaHttpResponseSanitizedLater');
+assertIncludes('service', service, "source: 'amazon-sp-api-sanitized-lwa-http-response-parser'");
+assertIncludes('service', service, "parserMode: 'sanitized-only'");
+assertIncludes('service', service, 'rawLwaResponseReturnedNow: false');
+assertIncludes('service', service, 'rawResponseBodyReturnedNow: false');
+assertIncludes('service', service, 'rawResponseHeadersReturnedNow: false');
+assertIncludes('service', service, 'rawAccessTokenReturnedNow: false');
+assertIncludes('service', service, 'rawRefreshTokenReturnedNow: false');
+assertIncludes('service', service, 'tokenPersistenceDatabaseWriteNow: false');
 
 assertIncludes('controller', controller, 'exchangeAuthorizationCodeDryRunnable');
 assertIncludes('controller', controller, "Get('internal/amazon-sp-api/lwa-activation-gate/status')");
