@@ -217,15 +217,56 @@ for (const forbidden of [
 
 assert(repositorySource.includes('upsertEncryptedCredentialRealWrite'), 'repository real-write method exists');
 
-for (const forbidden of [
-  'AmazonSpApiCredentialRepository',
-  'persistEncryptedTokensRealWrite',
-  'upsertEncryptedCredentialRealWrite',
-  'tokenPersistenceDatabaseWriteNow: true',
-  'databaseWriteNow: true',
-  'prismaClientWriteNow: true',
-]) {
-  assert(!controllerSource.includes(forbidden), `controller still does not contain forbidden marker: ${forbidden}`);
+const controllerHasStep139TGuardedRealWriteBranch =
+  controllerSource.includes(
+    'Step139-T: guarded OAuth callback controller real-write branch implementation.',
+  ) ||
+  controllerSource.includes('controller-commit-gate-to-orchestrator-real-write');
+
+if (controllerHasStep139TGuardedRealWriteBranch) {
+  for (const marker of [
+    'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
+    'controller-commit-gate-to-orchestrator-real-write',
+    'controllerCallsRepositoryDirectlyNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+    'rawAccessTokenReturnedNow: false',
+    'rawRefreshTokenReturnedNow: false',
+    'plaintextTokenDatabaseWriteNow: false',
+  ]) {
+    assert(
+      controllerSource.includes(marker),
+      `controller has guarded Step139-T marker: ${marker}`,
+    );
+  }
+
+  for (const forbidden of [
+    'AmazonSpApiCredentialRepository',
+    'upsertEncryptedCredentialRealWrite',
+    'rawAuthorizationCodeReturnedNow: true',
+    'rawLwaResponseReturnedNow: true',
+    'rawAccessTokenReturnedNow: true',
+    'rawRefreshTokenReturnedNow: true',
+    'plaintextTokenDatabaseWriteNow: true',
+    'controllerCallsRepositoryDirectlyNow: true',
+  ]) {
+    assert(
+      !controllerSource.includes(forbidden),
+      `controller Step139-T still forbids marker: ${forbidden}`,
+    );
+  }
+} else {
+  for (const forbidden of [
+    'AmazonSpApiCredentialRepository',
+    'persistEncryptedTokensRealWrite',
+    'upsertEncryptedCredentialRealWrite',
+    'tokenPersistenceDatabaseWriteNow: true',
+    'databaseWriteNow: true',
+    'prismaClientWriteNow: true',
+  ]) {
+    assert(!controllerSource.includes(forbidden), `controller still does not contain forbidden marker: ${forbidden}`);
+  }
 }
 
 const OrchestratorClass = loadOrchestratorClass();

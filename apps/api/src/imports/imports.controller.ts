@@ -6,6 +6,8 @@ import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.
 import { AmazonSpApiTokenPersistenceService } from './amazon-sp-api-token-persistence.service';
 import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-env-config-validation.service';
 import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lwa-activation-gate.service';
+import { AmazonSpApiOauthCallbackCommitGateService } from './amazon-sp-api-oauth-callback-commit-gate.service';
+import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-persistence.orchestrator';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -165,6 +167,8 @@ export class ImportsController {
     private readonly amazonSpApiTokenPersistenceService: AmazonSpApiTokenPersistenceService,
     private readonly amazonSpApiLwaEnvConfigValidationService: AmazonSpApiLwaEnvConfigValidationService,
     private readonly amazonSpApiRealLwaActivationGateService: AmazonSpApiRealLwaActivationGateService,
+    private readonly amazonSpApiOauthCallbackCommitGateService: AmazonSpApiOauthCallbackCommitGateService,
+    private readonly amazonSpApiTokenPersistenceOrchestrator: AmazonSpApiTokenPersistenceOrchestrator,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -498,6 +502,9 @@ export class ImportsController {
     @Query('selling_partner_id') sellingPartnerId?: string,
     @Query('error') callbackError?: string,
     @Query('error_description') callbackErrorDescription?: string,
+    @Query('dryRun') dryRun?: string,
+    @Query('commit') requestedCommit?: string,
+    @Query('idempotencyKey') idempotencyKey?: string,
   ) {
     const normalizedState = String(state || '').trim();
     const normalizedCode = String(code || '').trim();
@@ -679,6 +686,139 @@ export class ImportsController {
         lastValidatedAt: new Date().toISOString(),
         revokedAt: null,
       });
+
+    // Step139-T: guarded OAuth callback controller real-write branch implementation.
+    // Default remains dry-run. Commit requires server-side gates and never calls repository directly.
+    const dryRunRequested =
+      String(dryRun ?? 'true').trim().toLowerCase() !== 'false';
+    const requestedCommitByQuery =
+      String(requestedCommit || '').trim().toLowerCase() === 'true';
+    const serverCommitEnabled =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_COMMIT_ENABLED === 'true';
+    const operatorConfirmed =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_OPERATOR_CONFIRMED === 'true';
+    const companyStoreAllowlisted =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_COMPANY_STORE_ALLOWLISTED ===
+      'true';
+    const environmentAllowsPersistence =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_PERSISTENCE_ENABLED === 'true';
+    const trustedStateSignatureValid =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_TRUSTED_STATE_SIGNATURE_VALID ===
+      'true';
+    const trustedStateExpired =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_TRUSTED_STATE_EXPIRED === 'true';
+    const realLwaActivationGateAccepted =
+      process.env.AMAZON_SP_API_OAUTH_CALLBACK_REAL_LWA_GATE_ACCEPTED ===
+      'true';
+
+    const commitGateResult =
+      this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate({
+        dryRun: dryRunRequested,
+        requestedCommit: requestedCommitByQuery && serverCommitEnabled,
+        trustedStateAccepted: persistencePlan.accepted === true,
+        callbackStateSignatureValid: trustedStateSignatureValid,
+        callbackStateExpired: trustedStateExpired,
+        companyId: fakeExchangeResult.companyId,
+        storeId: fakeExchangeResult.storeId,
+        marketplaceId: fakeExchangeResult.marketplaceId,
+        region: fakeExchangeResult.region,
+        sellingPartnerIdPresent: normalizedSellingPartnerId.length > 0,
+        authorizationCodePresent: selectedAuthorizationCode.length > 0,
+        operatorConfirmed,
+        companyStoreAllowlisted,
+        environmentAllowsPersistence,
+        realLwaActivationGateAccepted,
+        idempotencyKey:
+          String(process.env.AMAZON_SP_API_OAUTH_CALLBACK_IDEMPOTENCY_KEY || '').trim() ||
+          String(idempotencyKey || '').trim(),
+        sanitizedLwaParserAccepted: fakeExchangeResult.accepted === true,
+        encryptedPersistenceInputAccepted: serviceDryRunResult.accepted === true,
+      });
+
+    if (commitGateResult.accepted) {
+      const mockedControllerPrismaDelegate =
+        process.env
+          .AMAZON_SP_API_OAUTH_CALLBACK_USE_MOCKED_PRISMA_DELEGATE === 'true'
+          ? {
+              upsert: async (args: any) => ({
+                id: 'step139-t-controller-smoke-credential',
+                ...args.create,
+              }),
+            }
+          : null;
+
+      const realWriteResult =
+        await this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite(
+          {
+            companyId: fakeExchangeResult.companyId,
+            storeId: fakeExchangeResult.storeId,
+            marketplaceId: fakeExchangeResult.marketplaceId,
+            region: fakeExchangeResult.region,
+            sellingPartnerId: normalizedSellingPartnerId,
+            transportAccepted: fakeExchangeResult.accepted === true,
+            parserAccepted: fakeExchangeResult.accepted === true,
+            persistenceInputAccepted: persistencePlan.accepted === true,
+            encryptedRefreshToken:
+              persistencePlan.refreshCredentialInput.encryptedRefreshToken,
+            encryptedAccessTokenCache:
+              persistencePlan.accessTokenCacheInput?.encryptedAccessToken ?? null,
+            accessTokenExpiresAt:
+              persistencePlan.accessTokenCacheInput?.expiresAt ?? null,
+            refreshTokenFingerprint:
+              'step139-t-controller-refresh-token-fingerprint',
+            accessTokenFingerprint: persistencePlan.accessTokenCacheInput
+              ? 'step139-t-controller-access-token-fingerprint'
+              : null,
+            encryptionKeyId: persistencePlan.refreshCredentialInput.encryptionKeyId,
+            encryptionAlgorithm:
+              persistencePlan.refreshCredentialInput.encryptionAlgorithm,
+            tokenVersion: persistencePlan.refreshCredentialInput.tokenVersion,
+            status: 'active',
+            lastValidatedAt: new Date().toISOString(),
+            revokedAt: null,
+          },
+          mockedControllerPrismaDelegate,
+        );
+
+      return {
+        ...baseResponse,
+        source: 'amazon-sp-api-oauth-callback-controller-real-write' as const,
+        wiringMode: 'controller-commit-gate-to-orchestrator-real-write' as const,
+        accepted: realWriteResult.accepted,
+        status: realWriteResult.accepted
+          ? 'token_persistence_committed'
+          : realWriteResult.reason,
+        messageRedacted: realWriteResult.messageRedacted,
+        controllerWiringNow: true as const,
+        oauthCallbackDryRunWiringNow: false as const,
+        oauthCallbackPersistenceWiringNow: true as const,
+        controllerCallsServicePersistenceDryRunNow: false as const,
+        controllerCallsServicePersistenceCommitNow: true as const,
+        commitGateEvaluatedNow: true as const,
+        commitGateAccepted: commitGateResult.accepted,
+        commitGateReason: commitGateResult.reason,
+        controllerCallsRepositoryDirectlyNow: false as const,
+        tokenPersistenceDatabaseWriteNow:
+          realWriteResult.tokenPersistenceDatabaseWriteNow,
+        plaintextTokenDatabaseWriteNow: false as const,
+        databaseWriteNow: realWriteResult.databaseWriteNow,
+        prismaClientWriteNow: realWriteResult.prismaClientWriteNow,
+        amazonNetworkCallNow: false as const,
+        tokenExchangeHttpCallNow: false as const,
+        realSpApiRequestNow: false as const,
+        rawAuthorizationCodeReturnedNow: false as const,
+        rawLwaResponseReturnedNow: false as const,
+        rawAccessTokenReturnedNow: false as const,
+        rawRefreshTokenReturnedNow: false as const,
+        persistedConnection: realWriteResult.persistedCredentialShape,
+        sanitizedResult: {
+          sellingPartnerId: normalizedSellingPartnerId,
+          tokenExchangePending: false,
+          tokenPersistencePending: !realWriteResult.accepted,
+          tokenPersistenceCommitted: realWriteResult.accepted,
+        },
+      };
+    }
 
     return {
       ...baseResponse,

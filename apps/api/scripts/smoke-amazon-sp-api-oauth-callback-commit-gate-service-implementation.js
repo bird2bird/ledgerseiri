@@ -200,13 +200,49 @@ for (const forbidden of [
 
 assert(contractSource.includes("nextSuggestedStep: 'Step139-Q'"), 'Step139-P contract points to Step139-Q');
 
-for (const forbidden of [
-  'AmazonSpApiOauthCallbackCommitGateService',
-  'evaluateCommitGate',
-  'persistEncryptedTokensRealWrite',
-  'upsertEncryptedCredentialRealWrite',
-]) {
-  assert(!controllerSource.includes(forbidden), `controller remains unwired: ${forbidden}`);
+const controllerHasStep139TGuardedRealWriteBranch =
+  controllerSource.includes(
+    'Step139-T: guarded OAuth callback controller real-write branch implementation.',
+  ) ||
+  controllerSource.includes('controller-commit-gate-to-orchestrator-real-write');
+
+if (controllerHasStep139TGuardedRealWriteBranch) {
+  for (const marker of [
+    'AmazonSpApiOauthCallbackCommitGateService',
+    'evaluateCommitGate',
+    'persistEncryptedTokensRealWrite',
+    'controller-commit-gate-to-orchestrator-real-write',
+    'controllerCallsRepositoryDirectlyNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+    'rawAccessTokenReturnedNow: false',
+    'rawRefreshTokenReturnedNow: false',
+    'plaintextTokenDatabaseWriteNow: false',
+  ]) {
+    assert(controllerSource.includes(marker), `controller has guarded Step139-T marker: ${marker}`);
+  }
+
+  for (const forbidden of [
+    'AmazonSpApiCredentialRepository',
+    'upsertEncryptedCredentialRealWrite',
+    'rawAuthorizationCodeReturnedNow: true',
+    'rawLwaResponseReturnedNow: true',
+    'rawAccessTokenReturnedNow: true',
+    'rawRefreshTokenReturnedNow: true',
+    'plaintextTokenDatabaseWriteNow: true',
+    'controllerCallsRepositoryDirectlyNow: true',
+  ]) {
+    assert(!controllerSource.includes(forbidden), `controller Step139-T still forbids: ${forbidden}`);
+  }
+} else {
+  for (const forbidden of [
+    'AmazonSpApiOauthCallbackCommitGateService',
+    'evaluateCommitGate',
+    'persistEncryptedTokensRealWrite',
+    'upsertEncryptedCredentialRealWrite',
+  ]) {
+    assert(!controllerSource.includes(forbidden), `controller remains unwired: ${forbidden}`);
+  }
 }
 
 const ServiceClass = loadServiceClass();

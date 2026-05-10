@@ -9,6 +9,8 @@ import { AmazonSpApiTokenExchangeService } from './amazon-sp-api-token-exchange.
 import { AmazonSpApiOauthAuthorizationUrlService } from './amazon-sp-api-oauth-authorization-url.service';
 import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-env-config-validation.service';
 import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lwa-activation-gate.service';
+import { AmazonSpApiOauthCallbackCommitGateService } from './amazon-sp-api-oauth-callback-commit-gate.service';
+import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-persistence.orchestrator';
 
 @Module({
   controllers: [ImportsController],
@@ -22,6 +24,10 @@ import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lw
     AmazonSpApiOauthAuthorizationUrlService,
     AmazonSpApiLwaEnvConfigValidationService,
     AmazonSpApiRealLwaActivationGateService,
+    AmazonSpApiOauthCallbackCommitGateService,
+    AmazonSpApiTokenPersistenceOrchestrator,
+    AmazonSpApiOauthCallbackCommitGateService,
+    AmazonSpApiTokenPersistenceOrchestrator,
   ],
   exports: [
     ImportsService,

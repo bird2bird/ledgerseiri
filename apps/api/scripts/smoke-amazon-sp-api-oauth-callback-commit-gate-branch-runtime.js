@@ -248,20 +248,57 @@ for (const marker of [
   assert(callbackSlice.includes(marker), `controller callback still contains marker: ${marker}`);
 }
 
-for (const forbidden of [
-  'AmazonSpApiOauthCallbackCommitGateService',
-  'evaluateCommitGate',
-  'persistEncryptedTokensRealWrite',
-  'upsertEncryptedCredentialRealWrite',
-  'AmazonSpApiCredentialRepository',
-  'oauthCallbackPersistenceWiringNow: true',
-  'controllerCallsServicePersistenceCommitNow: true',
-  'tokenPersistenceDatabaseWriteNow: true',
-  'databaseWriteNow: true',
-  'prismaClientWriteNow: true',
-  'amazonNetworkCallNow: true',
-]) {
-  assert(!callbackSlice.includes(forbidden), `controller callback remains unwired: ${forbidden}`);
+const controllerHasStep139TGuardedRealWriteBranch =
+  callbackSlice.includes(
+    'Step139-T: guarded OAuth callback controller real-write branch implementation.',
+  ) ||
+  callbackSlice.includes('controller-commit-gate-to-orchestrator-real-write');
+
+if (controllerHasStep139TGuardedRealWriteBranch) {
+  for (const marker of [
+    'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
+    'controller-commit-gate-to-orchestrator-real-write',
+    'controllerCallsRepositoryDirectlyNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+    'rawAccessTokenReturnedNow: false',
+    'rawRefreshTokenReturnedNow: false',
+    'plaintextTokenDatabaseWriteNow: false',
+    'amazonNetworkCallNow: false',
+    'realSpApiRequestNow: false',
+  ]) {
+    assert(callbackSlice.includes(marker), `controller callback has guarded Step139-T marker: ${marker}`);
+  }
+
+  for (const forbidden of [
+    'upsertEncryptedCredentialRealWrite',
+    'AmazonSpApiCredentialRepository',
+    'rawAuthorizationCodeReturnedNow: true',
+    'rawLwaResponseReturnedNow: true',
+    'rawAccessTokenReturnedNow: true',
+    'rawRefreshTokenReturnedNow: true',
+    'plaintextTokenDatabaseWriteNow: true',
+    'controllerCallsRepositoryDirectlyNow: true',
+  ]) {
+    assert(!callbackSlice.includes(forbidden), `controller callback Step139-T still forbids: ${forbidden}`);
+  }
+} else {
+  for (const forbidden of [
+    'AmazonSpApiOauthCallbackCommitGateService',
+    'evaluateCommitGate',
+    'persistEncryptedTokensRealWrite',
+    'upsertEncryptedCredentialRealWrite',
+    'AmazonSpApiCredentialRepository',
+    'oauthCallbackPersistenceWiringNow: true',
+    'controllerCallsServicePersistenceCommitNow: true',
+    'tokenPersistenceDatabaseWriteNow: true',
+    'databaseWriteNow: true',
+    'prismaClientWriteNow: true',
+    'amazonNetworkCallNow: true',
+  ]) {
+    assert(!callbackSlice.includes(forbidden), `controller callback remains unwired: ${forbidden}`);
+  }
 }
 
 const ServiceClass = loadServiceClass();
