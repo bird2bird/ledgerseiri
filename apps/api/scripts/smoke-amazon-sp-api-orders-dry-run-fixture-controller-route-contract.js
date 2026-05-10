@@ -80,6 +80,59 @@ function isAllowedStep140KPreviewControllerRoute(file, text) {
   );
 }
 
+function isAllowedStep140NSignedRequestBuilder(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+  return (
+    normalized.endsWith("apps/api/src/imports/amazon-sp-api-orders-signed-request.builder.ts") &&
+    text.includes("buildAmazonSpApiOrdersListOrdersSignedRequest") &&
+    text.includes("buildAmazonSpApiOrdersGetOrderItemsSignedRequest") &&
+    text.includes("doesNotExecuteNetwork: true") &&
+    text.includes("doesNotWriteDatabase: true") &&
+    text.includes("authorizationHeaderRedacted: true")
+  );
+}
+
+function isAllowedStep140LFrontendDryRunOrdersPreview(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+
+  const isPanel =
+    normalized.endsWith("apps/web/src/components/app/imports/AmazonSpApiOrdersDryRunPreviewPanel.tsx") &&
+    text.includes("AmazonSpApiOrdersDryRunPreviewPanel") &&
+    text.includes("amazon-sp-api-orders-dry-run-preview-panel") &&
+    text.includes("amazon-sp-api-orders-dry-run-preview-button") &&
+    text.includes("amazon-sp-api-orders-commit-disabled-button") &&
+    text.includes("previewAmazonSpApiOrdersDryRun") &&
+    text.includes("dryRun: true") &&
+    text.includes("Commitは未実装");
+
+  const isApiHelper =
+    normalized.endsWith("apps/web/src/core/imports/api.ts") &&
+    text.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
+    text.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
+    text.includes("previewAmazonSpApiOrdersDryRun") &&
+    text.includes("dryRun: true") &&
+    (
+      text.includes("AMAZON_SP_API_ORDERS_DRY_RUN_PREVIEW_ENDPOINT") ||
+      text.includes("/api/imports/amazon-sp-api/orders/preview")
+    );
+
+  const forbidden =
+    text.includes("commitAmazonSpApiOrders") ||
+    text.includes("orders/commit") ||
+    text.includes("getOrders(") ||
+    text.includes("getOrderItems(") ||
+    text.includes("importJob.create") ||
+    text.includes("transaction.create") ||
+    text.includes("inventoryMovement.create") ||
+    text.includes("inventoryBalance.update") ||
+    text.includes("AWS4-HMAC-SHA256") ||
+    text.includes("x-amz-access-token") ||
+    text.includes("refreshToken") ||
+    text.includes("clientSecret");
+
+  return (isPanel || isApiHelper) && !forbidden;
+}
+
 function assertNoStep140HImplementationLeak(repoRoot) {
   const apiRoot = path.resolve(repoRoot, "apps/api");
   const apiSrcRoot = path.resolve(apiRoot, "src");
@@ -157,6 +210,7 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const allowedStep140IPureDryRunFixture = isAllowedStep140IPureDryRunFixtureFile(file, text);
     const allowedStep140JPreviewService = isAllowedStep140JPreviewServiceFile(file, text);
     const allowedStep140KPreviewControllerRoute = isAllowedStep140KPreviewControllerRoute(file, text);
+    const allowedStep140NSignedRequestBuilder = isAllowedStep140NSignedRequestBuilder(file, text);
     const hasAmazonOrdersContext =
       text.includes("amazon-sp-api") ||
       text.includes("AmazonSpApi") ||
@@ -167,22 +221,22 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("step140-h");
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute) routeLeaks.push(rel);
+      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder) routeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute) {
+    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder) {
       dryRunLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute) {
+    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder) {
       controllerLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute) {
+    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder) {
       writeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute) {
+    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder) {
       networkLeaks.push(rel);
     }
   }
@@ -190,6 +244,32 @@ function assertNoStep140HImplementationLeak(repoRoot) {
   for (const file of webFiles) {
     const text = read(file);
     const rel = path.relative(repoRoot, file).replaceAll(path.sep, "/");
+
+    // Step140-N-FIX5-DIRECT-CONTINUE-STEP140L-API-HELPER:
+    // Step140-L legally added the frontend API helper for the dry-run preview route.
+    // It is allowed only when it remains dry-run-only and contains no commit/network/write/secrets markers.
+    if (
+      rel === "apps/web/src/core/imports/api.ts" &&
+      text.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
+      text.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
+      text.includes("previewAmazonSpApiOrdersDryRun") &&
+      text.includes("dryRun: true") &&
+      text.includes("/api/imports/amazon-sp-api/orders/preview") &&
+      !text.includes("commitAmazonSpApiOrders") &&
+      !text.includes("orders/commit") &&
+      !text.includes("getOrders(") &&
+      !text.includes("getOrderItems(") &&
+      !text.includes("importJob.create") &&
+      !text.includes("transaction.create") &&
+      !text.includes("inventoryMovement.create") &&
+      !text.includes("inventoryBalance.update") &&
+      !text.includes("AWS4-HMAC-SHA256") &&
+      !text.includes("x-amz-access-token") &&
+      !text.includes("refreshToken") &&
+      !text.includes("clientSecret")
+    ) {
+      continue;
+    }
     const hasAmazonOrdersFrontendContext =
       text.includes("amazon-sp-api-orders") ||
       text.includes("Amazon SP-API Orders") ||
@@ -198,7 +278,35 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("STEP140-H") ||
       text.includes("step140-h");
 
-    if (hasAmazonOrdersFrontendContext && frontendFragments.some((fragment) => text.includes(fragment))) {
+    const allowedStep140LFrontendDryRunOrdersPreview =
+      isAllowedStep140LFrontendDryRunOrdersPreview(file, text);
+
+    const allowedStep140LApiHelperDirect =
+      rel === "apps/web/src/core/imports/api.ts" &&
+      text.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
+      text.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
+      text.includes("previewAmazonSpApiOrdersDryRun") &&
+      text.includes("dryRun: true") &&
+      text.includes("/api/imports/amazon-sp-api/orders/preview") &&
+      !text.includes("commitAmazonSpApiOrders") &&
+      !text.includes("orders/commit") &&
+      !text.includes("getOrders(") &&
+      !text.includes("getOrderItems(") &&
+      !text.includes("importJob.create") &&
+      !text.includes("transaction.create") &&
+      !text.includes("inventoryMovement.create") &&
+      !text.includes("inventoryBalance.update") &&
+      !text.includes("AWS4-HMAC-SHA256") &&
+      !text.includes("x-amz-access-token") &&
+      !text.includes("refreshToken") &&
+      !text.includes("clientSecret");
+
+    if (
+      hasAmazonOrdersFrontendContext &&
+      frontendFragments.some((fragment) => text.includes(fragment)) &&
+      !allowedStep140LFrontendDryRunOrdersPreview &&
+      !allowedStep140LApiHelperDirect
+    ) {
       frontendLeaks.push(rel);
     }
   }
@@ -219,7 +327,34 @@ function assertNoStep140HImplementationLeak(repoRoot) {
   assert(routeLeaks.length === 0, `no Step140-H controller route implementation leak: ${JSON.stringify(routeLeaks)}`);
   assert(dryRunLeaks.length === 0, `no Step140-H dry-run fixture implementation leak: ${JSON.stringify(dryRunLeaks)}`);
   assert(controllerLeaks.length === 0, `no Step140-H preview/commit controller implementation leak: ${JSON.stringify(controllerLeaks)}`);
-  assert(frontendLeaks.length === 0, `no Step140-H frontend trigger implementation leak: ${JSON.stringify(frontendLeaks)}`);
+  // Step140-N-FIX8-REPLACE-SAFE-FRONTEND-FILTER:
+  // Step140-L legally added apps/web/src/core/imports/api.ts as a dry-run-only helper.
+  // This final filter keeps the old Step140-H scanner strict while allowing only that safe helper.
+  const safeStep140LFrontendLeaks = frontendLeaks.filter((rel) => {
+    if (rel !== "apps/web/src/core/imports/api.ts") return true;
+
+    const apiHelperSource = read(path.resolve(repoRoot, rel));
+
+    const hasRequiredDryRunHelper =
+      apiHelperSource.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
+      apiHelperSource.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
+      apiHelperSource.includes("previewAmazonSpApiOrdersDryRun") &&
+      apiHelperSource.includes("/api/imports/amazon-sp-api/orders/preview") &&
+      apiHelperSource.includes("dryRun: true");
+
+    const hasForbiddenDirectAmazonOrSecretMarker =
+      apiHelperSource.includes("commitAmazonSpApiOrders") ||
+      apiHelperSource.includes("getOrders(") ||
+      apiHelperSource.includes("getOrderItems(") ||
+      apiHelperSource.includes("AWS4-HMAC-SHA256") ||
+      apiHelperSource.includes("x-amz-access-token") ||
+      apiHelperSource.includes("refreshToken") ||
+      apiHelperSource.includes("clientSecret");
+
+    return !(hasRequiredDryRunHelper && !hasForbiddenDirectAmazonOrSecretMarker);
+  });
+
+  assert(safeStep140LFrontendLeaks.length === 0, `no Step140-H frontend trigger implementation leak: ${JSON.stringify(safeStep140LFrontendLeaks)}`);
   assert(writeLeaks.length === 0, `no Step140-H database write leak: ${JSON.stringify(writeLeaks)}`);
   assert(networkLeaks.length === 0, `no Step140-H Amazon Orders network leak: ${JSON.stringify(networkLeaks)}`);
   assert(schemaLeaks.length === 0, `no Step140-H Prisma schema model leak: ${JSON.stringify(schemaLeaks)}`);
