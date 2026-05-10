@@ -230,7 +230,8 @@
     "smoke:amazon-sp-api-oauth-callback-controller-real-db-e2e": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-real-db-e2e.js",
     "smoke:amazon-sp-api-connection-status-real-read-model-contract": "node scripts/smoke-amazon-sp-api-connection-status-real-read-model-contract.js",
     "smoke:amazon-sp-api-connection-status-real-read-model-implementation": "node scripts/smoke-amazon-sp-api-connection-status-real-read-model-implementation.js",
-    "smoke:amazon-sp-api-connection-status-real-db-runtime": "node scripts/smoke-amazon-sp-api-connection-status-real-db-runtime.js"
+    "smoke:amazon-sp-api-connection-status-real-db-runtime": "node scripts/smoke-amazon-sp-api-connection-status-real-db-runtime.js",
+    "smoke:amazon-sp-api-orders-api-read-boundary-contract": "node scripts/smoke-amazon-sp-api-orders-api-read-boundary-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
