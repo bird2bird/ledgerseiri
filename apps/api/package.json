@@ -251,7 +251,8 @@
     "smoke:amazon-sp-api-orders-sku-resolution-audit": "node scripts/smoke-amazon-sp-api-orders-sku-resolution-audit.js",
     "smoke:amazon-sp-api-orders-inventory-deduction": "node scripts/smoke-amazon-sp-api-orders-inventory-deduction.js",
     "smoke:amazon-sp-api-orders-real-preview-controller-route": "node scripts/smoke-amazon-sp-api-orders-real-preview-controller-route.js",
-    "smoke:amazon-sp-api-orders-server-only-raw-signed-transport": "node scripts/smoke-amazon-sp-api-orders-server-only-raw-signed-transport.js"
+    "smoke:amazon-sp-api-orders-server-only-raw-signed-transport": "node scripts/smoke-amazon-sp-api-orders-server-only-raw-signed-transport.js",
+    "smoke:amazon-sp-api-orders-credential-repository-integration": "node scripts/smoke-amazon-sp-api-orders-credential-repository-integration.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

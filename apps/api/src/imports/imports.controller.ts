@@ -12,6 +12,10 @@ import { buildAmazonSpApiOrdersPreviewService } from './amazon-sp-api-orders-pre
 import { previewAmazonSpApiOrdersRealNoPersistence } from './amazon-sp-api-orders-real-preview.service';
 import type { AmazonSpApiOrdersHttpTransport } from './amazon-sp-api-orders-http.client';
 import { buildAmazonSpApiOrdersServerOnlyRawSignedTransport } from './amazon-sp-api-orders-server-only-raw-signed.transport';
+import {
+  resolveAmazonSpApiOrdersCredentialFromRepository,
+  assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse,
+} from './amazon-sp-api-orders-credential.repository';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -98,13 +102,15 @@ type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previ
   controllerCallsAmazon: boolean;
   controllerUsesHttpClient: true;
   controllerUsesSigV4: true;
-  controllerTransportMode: 'mocked-server-transport' | 'server-only-raw-signed-real-network';
+  controllerTransportMode: 'mocked-server-transport' | 'server-only-raw-signed-real-network' | 'repository-access-token-server-only-real-network';
   importJobWriteNow: false;
   importStagingRowWriteNow: false;
   transactionWriteNow: false;
   inventoryWriteNow: false;
   realNetworkTransportImplementedNow: boolean;
   step140WRequiredForLiveAmazonNetwork: boolean;
+  credentialSource?: 'env' | 'repository';
+  credentialRepository?: ReturnType<typeof assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse>;
 };
 
 function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
@@ -830,11 +836,28 @@ export class ImportsController {
     }
 
     const transportMode = String(process.env.AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT || 'mocked').trim().toLowerCase();
-    const useRealNetworkTransport = transportMode === 'real';
+    const useRealNetworkTransport = transportMode === 'real' || transportMode === 'repository';
+    const useRepositoryCredentials = transportMode === 'repository';
 
-    if (transportMode !== 'mocked' && transportMode !== 'real') {
+    if (transportMode !== 'mocked' && transportMode !== 'real' && transportMode !== 'repository') {
       throw new ForbiddenException(
-        'STEP140_W_ORDERS_REAL_PREVIEW_TRANSPORT_INVALID: AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT must be mocked or real.',
+        'STEP140_X_ORDERS_REAL_PREVIEW_TRANSPORT_INVALID: AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT must be mocked, real, or repository.',
+      );
+    }
+
+    const repositoryCredential = useRepositoryCredentials
+      ? await resolveAmazonSpApiOrdersCredentialFromRepository({
+          prisma: this.prismaService,
+          companyId,
+          storeId: normalizedStoreId,
+          marketplaceId: normalizedMarketplaceId,
+          region: body?.region || normalizedRegion,
+        })
+      : null;
+
+    if (repositoryCredential && !repositoryCredential.repositoryCredentialUsable) {
+      throw new ForbiddenException(
+        `STEP140_X_ORDERS_CREDENTIAL_REPOSITORY_BLOCKED: ${repositoryCredential.blockedReason}`,
       );
     }
 
@@ -842,14 +865,18 @@ export class ImportsController {
       ? buildAmazonSpApiOrdersServerOnlyRawSignedTransport()
       : buildStep140VMockedOrdersTransport();
 
+    const accessTokenForOrders = useRepositoryCredentials
+      ? String(repositoryCredential?.decryptedAccessToken || '')
+      : useRealNetworkTransport
+        ? String(process.env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || '')
+        : 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT';
+
     const result = await previewAmazonSpApiOrdersRealNoPersistence({
       companyId,
       storeId: normalizedStoreId,
       marketplaceId: normalizedMarketplaceId,
       region: normalizedRegion,
-      accessToken: useRealNetworkTransport
-        ? String(process.env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || '')
-        : 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+      accessToken: accessTokenForOrders,
       credentials: {
         accessKeyId: useRealNetworkTransport
           ? String(process.env.AMAZON_SP_API_ORDERS_AWS_ACCESS_KEY_ID || '')
@@ -882,13 +909,17 @@ export class ImportsController {
       controllerCallsAmazon: true as const,
       controllerUsesHttpClient: true as const,
       controllerUsesSigV4: true as const,
-      controllerTransportMode: useRealNetworkTransport ? 'server-only-raw-signed-real-network' : 'mocked-server-transport',
+      controllerTransportMode: useRepositoryCredentials ? 'repository-access-token-server-only-real-network' : useRealNetworkTransport ? 'server-only-raw-signed-real-network' : 'mocked-server-transport',
       importJobWriteNow: false as const,
       importStagingRowWriteNow: false as const,
       transactionWriteNow: false as const,
       inventoryWriteNow: false as const,
       realNetworkTransportImplementedNow: useRealNetworkTransport,
       step140WRequiredForLiveAmazonNetwork: false as const,
+      credentialSource: useRepositoryCredentials ? 'repository' as const : 'env' as const,
+      credentialRepository: repositoryCredential
+        ? assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse(repositoryCredential)
+        : undefined,
     };
   }
 
