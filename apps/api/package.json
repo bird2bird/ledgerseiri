@@ -232,7 +232,8 @@
     "smoke:amazon-sp-api-connection-status-real-read-model-implementation": "node scripts/smoke-amazon-sp-api-connection-status-real-read-model-implementation.js",
     "smoke:amazon-sp-api-connection-status-real-db-runtime": "node scripts/smoke-amazon-sp-api-connection-status-real-db-runtime.js",
     "smoke:amazon-sp-api-orders-api-read-boundary-contract": "node scripts/smoke-amazon-sp-api-orders-api-read-boundary-contract.js",
-    "smoke:amazon-sp-api-orders-api-request-builder-contract": "node scripts/smoke-amazon-sp-api-orders-api-request-builder-contract.js"
+    "smoke:amazon-sp-api-orders-api-request-builder-contract": "node scripts/smoke-amazon-sp-api-orders-api-request-builder-contract.js",
+    "smoke:amazon-sp-api-orders-api-signed-request-boundary-contract": "node scripts/smoke-amazon-sp-api-orders-api-signed-request-boundary-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
