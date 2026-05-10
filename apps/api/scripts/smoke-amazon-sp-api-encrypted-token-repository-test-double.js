@@ -4,6 +4,7 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '../../..');
 const apiRoot = path.join(root, 'apps/api');
+const repositorySource = fs.readFileSync(path.join(apiRoot, 'src/imports/amazon-sp-api-credential.repository.ts'), 'utf8');
 
 const files = {
   repository: path.join(apiRoot, 'src/imports/amazon-sp-api-credential.repository.ts'),
@@ -150,9 +151,6 @@ for (const forbidden of [
   'axios.',
   'http.request',
   'https.request',
-  'prismaClientWriteNow: true',
-  'databaseWriteNow: true',
-  'tokenPersistenceDatabaseWriteNow: true',
   'plaintextTokenDatabaseWriteNow: true',
   'repositoryMayCallAmazonNow: true',
   'repositoryMayParseLwaResponseNow: true',
@@ -287,5 +285,22 @@ assertEqual(cacheUpdate.accepted, true, 'cache update accepted');
 assertEqual(cacheUpdate.operation, 'updateAccessTokenCache', 'cache update operation');
 assertEqual(cacheUpdate.encryptedAccessTokenCachePresent, true, 'cache update encrypted token present');
 assertSafe(cacheUpdate, 'cache update');
+
+
+// Step139-I compatibility: repository now includes a mocked Prisma real-write method.
+// Test-double methods must still stay no-prisma-write, while the mocked real-write method
+// may expose real-write flags for isolated delegate verification only.
+assert(repositorySource.includes('upsertEncryptedCredentialRealWrite'), 'repository contains Step139-I mocked Prisma real-write method');
+assert(repositorySource.includes("repositoryMode: 'mocked-prisma-delegate-real-write-contract'"), 'repository contains Step139-I mocked Prisma repository mode');
+assert(repositorySource.includes('mockedPrismaDelegateUsedNow'), 'repository contains Step139-I mocked Prisma delegate flag');
+assert(repositorySource.includes('prismaClientWriteNow: true'), 'repository may mark mocked Prisma write inside Step139-I method');
+assert(repositorySource.includes('databaseWriteNow: true'), 'repository may mark mocked DB write inside Step139-I method');
+assert(repositorySource.includes('tokenPersistenceDatabaseWriteNow: true'), 'repository may mark mocked token persistence write inside Step139-I method');
+assert(repositorySource.includes('plaintextTokenDatabaseWriteNow: false'), 'repository keeps plaintext token DB write disabled');
+assert(!repositorySource.includes('plaintextTokenDatabaseWriteNow: true'), 'repository does not enable plaintext token DB write');
+assert(!repositorySource.includes('repositoryMayCallAmazonNow: true'), 'repository still cannot call Amazon');
+assert(!repositorySource.includes('repositoryMayParseLwaResponseNow: true'), 'repository still cannot parse LWA response');
+assert(!repositorySource.includes('repositoryMayOwnEncryptionNow: true'), 'repository still cannot own encryption');
+assert(!repositorySource.includes('rawTokenReturnedNow: true'), 'repository still cannot return raw token');
 
 console.log('========== Step137-Y encrypted token repository test-double smoke passed ==========');

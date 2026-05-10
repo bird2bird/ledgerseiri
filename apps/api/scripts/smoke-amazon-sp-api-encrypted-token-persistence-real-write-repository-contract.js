@@ -138,12 +138,20 @@ assertIncludes('repository', repository, 'plaintextRefreshToken?: never');
 assertIncludes('repository', repository, "hasOwn(unsafeInput, 'plaintextAccessToken')");
 assertIncludes('repository', repository, "hasOwn(unsafeInput, 'plaintextRefreshToken')");
 
+assertIncludes('repository', repository, 'upsertEncryptedCredentialRealWrite(');
+assertIncludes('repository', repository, "repositoryMode: 'mocked-prisma-delegate-real-write-contract'");
+assertIncludes('repository', repository, 'mockedPrismaDelegateUsedNow');
+assertIncludes('repository', repository, 'prismaClientWriteNow: true');
+assertIncludes('repository', repository, 'databaseWriteNow: true');
+assertIncludes('repository', repository, 'tokenPersistenceDatabaseWriteNow: true');
+assertIncludes('repository', repository, 'plaintextTokenDatabaseWriteNow: false');
+
 for (const forbidden of [
-  'upsertEncryptedCredentialRealWrite(',
-  'prismaClientWriteNow: true',
-  'databaseWriteNow: true',
-  'tokenPersistenceDatabaseWriteNow: true',
   'plaintextTokenDatabaseWriteNow: true',
+  'repositoryMayCallAmazonNow: true',
+  'repositoryMayParseLwaResponseNow: true',
+  'repositoryMayOwnEncryptionNow: true',
+  'rawTokenReturnedNow: true',
 ]) {
   assertNotIncludes('repository', repository, forbidden);
 }

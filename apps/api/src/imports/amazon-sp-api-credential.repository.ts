@@ -29,6 +29,54 @@ export type AmazonSpApiEncryptedCredentialRepositoryInput = {
   rawClientSecret?: never;
 };
 
+export type AmazonSpApiCredentialPrismaDelegate = {
+  upsert: (args: {
+    where: {
+      companyId_storeId_marketplaceId_region: {
+        companyId: string;
+        storeId: string;
+        marketplaceId: string;
+        region: string;
+      };
+    };
+    create: Record<string, unknown>;
+    update: Record<string, unknown>;
+  }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+};
+
+export type AmazonSpApiEncryptedCredentialRepositoryRealWriteResult = {
+  accepted: boolean;
+  source: 'amazon-sp-api-credential-repository-real-write';
+  repositoryMode: 'mocked-prisma-delegate-real-write-contract';
+  operation: 'upsertEncryptedCredentialRealWrite';
+  reason:
+    | AmazonSpApiEncryptedCredentialRepositoryResult['reason']
+    | 'missing_prisma_delegate'
+    | 'prisma_upsert_exception';
+  messageRedacted: string;
+  scopedIdentityReady: boolean;
+  encryptedCredentialPayloadReady: boolean;
+  mockedPrismaDelegateUsedNow: boolean;
+  prismaClientWriteNow: true;
+  databaseWriteNow: true;
+  tokenPersistenceDatabaseWriteNow: true;
+  plaintextTokenDatabaseWriteNow: false;
+  repositoryMayCallAmazonNow: false;
+  repositoryMayParseLwaResponseNow: false;
+  repositoryMayOwnEncryptionNow: false;
+  rawTokenReturnedNow: false;
+  persistedCredentialShape: {
+    id: string | null;
+    companyId: string;
+    storeId: string;
+    marketplaceId: string;
+    region: string;
+    status: AmazonSpApiCredentialStatus;
+    sellingPartnerIdRedacted: string;
+    tokenVersion: number;
+  } | null;
+};
+
 export type AmazonSpApiEncryptedCredentialRepositoryResult = {
   accepted: boolean;
   source: 'amazon-sp-api-encrypted-token-repository-test-double';
@@ -107,6 +155,150 @@ function isValidStatus(value: unknown): value is AmazonSpApiCredentialStatus {
 }
 
 export class AmazonSpApiCredentialRepository {
+  async upsertEncryptedCredentialRealWrite(
+    input: AmazonSpApiEncryptedCredentialRepositoryInput,
+    prismaDelegate: AmazonSpApiCredentialPrismaDelegate | null | undefined,
+  ): Promise<AmazonSpApiEncryptedCredentialRepositoryRealWriteResult> {
+    const validation = this.validateEncryptedCredentialPayload(
+      'upsertEncryptedCredential',
+      input,
+    );
+
+    const baseResult = (
+      accepted: boolean,
+      reason: AmazonSpApiEncryptedCredentialRepositoryRealWriteResult['reason'],
+      messageRedacted: string,
+      persistedCredentialShape: AmazonSpApiEncryptedCredentialRepositoryRealWriteResult['persistedCredentialShape'] = null,
+    ): AmazonSpApiEncryptedCredentialRepositoryRealWriteResult => ({
+      accepted,
+      source: 'amazon-sp-api-credential-repository-real-write',
+      repositoryMode: 'mocked-prisma-delegate-real-write-contract',
+      operation: 'upsertEncryptedCredentialRealWrite',
+      reason,
+      messageRedacted,
+      scopedIdentityReady: validation.scopedIdentityReady,
+      encryptedCredentialPayloadReady: validation.encryptedCredentialPayloadReady,
+      mockedPrismaDelegateUsedNow: Boolean(prismaDelegate),
+      prismaClientWriteNow: true,
+      databaseWriteNow: true,
+      tokenPersistenceDatabaseWriteNow: true,
+      plaintextTokenDatabaseWriteNow: false,
+      repositoryMayCallAmazonNow: false,
+      repositoryMayParseLwaResponseNow: false,
+      repositoryMayOwnEncryptionNow: false,
+      rawTokenReturnedNow: false,
+      persistedCredentialShape,
+    });
+
+    if (!validation.accepted) {
+      return baseResult(false, validation.reason, validation.messageRedacted);
+    }
+
+    if (!prismaDelegate || typeof prismaDelegate.upsert !== 'function') {
+      return baseResult(
+        false,
+        'missing_prisma_delegate',
+        'Mocked Prisma delegate is required for repository real-write verification.',
+      );
+    }
+
+    const normalizedInput = {
+      companyId: normalize(input.companyId),
+      storeId: normalize(input.storeId),
+      marketplaceId: normalize(input.marketplaceId),
+      region: normalize(input.region),
+      sellingPartnerId: normalize(input.sellingPartnerId),
+      encryptedRefreshToken: normalize(input.encryptedRefreshToken),
+      encryptedAccessTokenCache: normalize(input.encryptedAccessTokenCache),
+      accessTokenExpiresAt: input.accessTokenExpiresAt ?? null,
+      refreshTokenFingerprint: normalize(input.refreshTokenFingerprint),
+      accessTokenFingerprint: normalize(input.accessTokenFingerprint),
+      encryptionKeyId: normalize(input.encryptionKeyId),
+      encryptionAlgorithm: normalize(input.encryptionAlgorithm),
+      tokenVersion: normalizeTokenVersion(input.tokenVersion),
+      status: input.status,
+      lastValidatedAt: input.lastValidatedAt ?? null,
+      revokedAt: input.revokedAt ?? null,
+    };
+
+    const now = new Date();
+
+    const createPayload = {
+      companyId: normalizedInput.companyId,
+      storeId: normalizedInput.storeId,
+      marketplaceId: normalizedInput.marketplaceId,
+      region: normalizedInput.region,
+      sellingPartnerId: normalizedInput.sellingPartnerId,
+      encryptedRefreshToken: normalizedInput.encryptedRefreshToken,
+      encryptedAccessTokenCache: normalizedInput.encryptedAccessTokenCache || null,
+      accessTokenExpiresAt: normalizedInput.accessTokenExpiresAt,
+      refreshTokenFingerprint: normalizedInput.refreshTokenFingerprint,
+      accessTokenFingerprint: normalizedInput.accessTokenFingerprint || null,
+      encryptionKeyId: normalizedInput.encryptionKeyId,
+      encryptionAlgorithm: normalizedInput.encryptionAlgorithm,
+      tokenVersion: normalizedInput.tokenVersion,
+      status: normalizedInput.status,
+      connectedAt: now,
+      lastValidatedAt: normalizedInput.lastValidatedAt,
+      revokedAt: normalizedInput.revokedAt,
+    };
+
+    const updatePayload = {
+      sellingPartnerId: normalizedInput.sellingPartnerId,
+      encryptedRefreshToken: normalizedInput.encryptedRefreshToken,
+      encryptedAccessTokenCache: normalizedInput.encryptedAccessTokenCache || null,
+      accessTokenExpiresAt: normalizedInput.accessTokenExpiresAt,
+      refreshTokenFingerprint: normalizedInput.refreshTokenFingerprint,
+      accessTokenFingerprint: normalizedInput.accessTokenFingerprint || null,
+      encryptionKeyId: normalizedInput.encryptionKeyId,
+      encryptionAlgorithm: normalizedInput.encryptionAlgorithm,
+      tokenVersion: normalizedInput.tokenVersion,
+      status: normalizedInput.status,
+      lastValidatedAt: normalizedInput.lastValidatedAt,
+      revokedAt: normalizedInput.revokedAt,
+    };
+
+    try {
+      const persisted = await prismaDelegate.upsert({
+        where: {
+          companyId_storeId_marketplaceId_region: {
+            companyId: normalizedInput.companyId,
+            storeId: normalizedInput.storeId,
+            marketplaceId: normalizedInput.marketplaceId,
+            region: normalizedInput.region,
+          },
+        },
+        create: createPayload,
+        update: updatePayload,
+      });
+
+      const persistedId =
+        typeof persisted.id === 'string' && persisted.id.trim().length > 0
+          ? persisted.id
+          : null;
+
+      return baseResult(true, 'ready', 'Encrypted credential persisted through mocked Prisma delegate.', {
+        id: persistedId,
+        companyId: normalizedInput.companyId,
+        storeId: normalizedInput.storeId,
+        marketplaceId: normalizedInput.marketplaceId,
+        region: normalizedInput.region,
+        status: normalizedInput.status,
+        sellingPartnerIdRedacted:
+          normalizedInput.sellingPartnerId.length <= 4
+            ? '****'
+            : `${normalizedInput.sellingPartnerId.slice(0, 4)}****`,
+        tokenVersion: normalizedInput.tokenVersion,
+      });
+    } catch (_error) {
+      return baseResult(
+        false,
+        'prisma_upsert_exception',
+        'Mocked Prisma delegate upsert failed.',
+      );
+    }
+  }
+
   upsertEncryptedCredentialTestDouble(
     input: AmazonSpApiEncryptedCredentialRepositoryInput,
   ): AmazonSpApiEncryptedCredentialRepositoryResult {

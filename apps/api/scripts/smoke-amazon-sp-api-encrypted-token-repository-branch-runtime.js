@@ -4,6 +4,7 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '../../..');
 const apiRoot = path.join(root, 'apps/api');
+const repositorySource = fs.readFileSync(path.join(apiRoot, 'src/imports/amazon-sp-api-credential.repository.ts'), 'utf8');
 
 const files = {
   repository: path.join(apiRoot, 'src/imports/amazon-sp-api-credential.repository.ts'),
@@ -140,9 +141,6 @@ for (const forbidden of [
   'axios.',
   'http.request',
   'https.request',
-  'prismaClientWriteNow: true',
-  'databaseWriteNow: true',
-  'tokenPersistenceDatabaseWriteNow: true',
   'plaintextTokenDatabaseWriteNow: true',
   'repositoryMayCallAmazonNow: true',
   'repositoryMayParseLwaResponseNow: true',
@@ -284,5 +282,21 @@ for (const [label, methodName, input, operation] of scopedSuccessCases) {
   assertEqual(result.operation, operation, `${label} operation`);
   assertSafe(result, label);
 }
+
+
+// Step139-I compatibility: repository now has a mocked Prisma real-write method.
+// This does not connect controller persistence and does not allow plaintext/raw token exposure.
+assert(repositorySource.includes('upsertEncryptedCredentialRealWrite'), 'repository contains Step139-I mocked Prisma real-write method');
+assert(repositorySource.includes("repositoryMode: 'mocked-prisma-delegate-real-write-contract'"), 'repository contains Step139-I mocked Prisma repository mode');
+assert(repositorySource.includes('mockedPrismaDelegateUsedNow'), 'repository contains Step139-I mocked Prisma delegate flag');
+assert(repositorySource.includes('prismaClientWriteNow: true'), 'repository may mark mocked Prisma write inside Step139-I method');
+assert(repositorySource.includes('databaseWriteNow: true'), 'repository may mark mocked DB write inside Step139-I method');
+assert(repositorySource.includes('tokenPersistenceDatabaseWriteNow: true'), 'repository may mark mocked token persistence write inside Step139-I method');
+assert(repositorySource.includes('plaintextTokenDatabaseWriteNow: false'), 'repository keeps plaintext token DB write disabled');
+assert(!repositorySource.includes('plaintextTokenDatabaseWriteNow: true'), 'repository does not enable plaintext token DB write');
+assert(!repositorySource.includes('repositoryMayCallAmazonNow: true'), 'repository still cannot call Amazon');
+assert(!repositorySource.includes('repositoryMayParseLwaResponseNow: true'), 'repository still cannot parse LWA response');
+assert(!repositorySource.includes('repositoryMayOwnEncryptionNow: true'), 'repository still cannot own encryption');
+assert(!repositorySource.includes('rawTokenReturnedNow: true'), 'repository still cannot return raw token');
 
 console.log('========== Step137-Z encrypted token repository branch runtime smoke passed ==========');
