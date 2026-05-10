@@ -27,6 +27,56 @@ type LastAuthorizationState = {
   sandbox?: boolean;
 };
 
+type BackendStatusDetail = AmazonSpApiConnectionStatusResponse | null;
+
+function formatNullableDateTime(value?: string | null) {
+  if (!value) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function formatBooleanJa(value?: boolean | null) {
+  if (value === true) return "はい";
+  if (value === false) return "いいえ";
+  return "—";
+}
+
+function getReadModelStatusLabel(value?: string | null) {
+  if (value === "connected") return "connected";
+  if (value === "needs_reauth") return "needs_reauth";
+  if (value === "error") return "error";
+  if (value === "disconnected") return "disconnected";
+  return value || "—";
+}
+
+// Step139-Z3-FRONTEND-AMAZON-SP-API-STATUS-READ-MODEL-RENDER:
+// Keep Y3 real DB read-model details in the panel state and render sanitized fields only.
+// Never display encrypted/raw token values.
+function buildBackendStatusRows(data: BackendStatusDetail) {
+  return [
+    { label: "Read Model", value: data?.readModelMode || "—" },
+    { label: "DB Status", value: getReadModelStatusLabel(data?.readModelStatus) },
+    { label: "Credential", value: formatBooleanJa(data?.credentialPresent) },
+    { label: "Access Token Cache", value: formatBooleanJa(data?.accessTokenCachePresent) },
+    { label: "Access Token Expired", value: formatBooleanJa(data?.accessTokenExpired) },
+    { label: "Access Token Expires At", value: formatNullableDateTime(data?.accessTokenExpiresAt) },
+    { label: "Credential Rotated At", value: formatNullableDateTime(data?.credentialRotatedAt) },
+    { label: "Credential Revoked At", value: formatNullableDateTime(data?.credentialRevokedAt) },
+    { label: "Last Sync At", value: formatNullableDateTime(data?.lastSyncAt) },
+    { label: "Last Error Code", value: data?.lastErrorCode || "—" },
+  ];
+}
+
 function getReturnToPath() {
   if (typeof window === "undefined") return "/ja/app/data/import";
   return `${window.location.pathname}${window.location.search || ""}`;
@@ -88,20 +138,30 @@ function normalizeBackendStatus(data?: AmazonSpApiConnectionStatusResponse | nul
   const rawStatus = String(
     data?.status || data?.sanitizedResult?.status || ""
   ).toUpperCase();
+  const readModelStatus = String(
+    data?.readModelStatus || data?.sanitizedResult?.readModelStatus || ""
+  ).toLowerCase();
 
-  if (rawStatus === "CONNECTED" || data?.connected || data?.sanitizedResult?.connected) {
+  if (
+    rawStatus === "CONNECTED" ||
+    readModelStatus === "connected" ||
+    data?.connected ||
+    data?.sanitizedResult?.connected
+  ) {
     return "connected";
   }
 
   if (
     rawStatus === "RECONNECT_REQUIRED" ||
+    readModelStatus === "needs_reauth" ||
+    data?.needsReconnect ||
     data?.reconnectRequired ||
     data?.sanitizedResult?.reconnectRequired
   ) {
     return "reconnect_required";
   }
 
-  if (rawStatus === "ERROR") {
+  if (rawStatus === "ERROR" || readModelStatus === "error") {
     return "error";
   }
 
@@ -115,6 +175,8 @@ function buildBackendStatusMessage(
   const backendMessage = data?.messageRedacted || data?.message;
 
   if (backendMessage) return backendMessage;
+  if (data?.lastErrorMessageRedacted) return data.lastErrorMessageRedacted;
+  if (data?.lastErrorCode) return `Amazon SP-API の接続状態にエラーがあります: ${data.lastErrorCode}`;
   if (panelStatus === "connected") return "Amazon SP-API の接続状態を確認しました。";
   if (panelStatus === "reconnect_required") return "Amazon SP-API の再接続が必要です。";
   if (panelStatus === "error") return "Amazon SP-API の接続状態を確認できませんでした。";
@@ -126,6 +188,7 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [status, setStatus] = React.useState<PanelStatus>("not_connected");
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
+  const [backendStatusDetail, setBackendStatusDetail] = React.useState<BackendStatusDetail>(null);
   const [lastAuthorization, setLastAuthorization] = React.useState<LastAuthorizationState | null>(null);
 
   React.useEffect(() => {
@@ -152,6 +215,7 @@ export function AmazonSpApiConnectionStatusPanel() {
         if (cancelled) return;
 
         const nextStatus = normalizeBackendStatus(data);
+        setBackendStatusDetail(data);
         setStatus(nextStatus);
         setMessage(buildBackendStatusMessage(data, nextStatus));
       } catch (err) {
@@ -165,6 +229,8 @@ export function AmazonSpApiConnectionStatusPanel() {
           return;
         }
 
+        setBackendStatusDetail(null);
+        setBackendStatusDetail(null);
         setStatus("error");
         setMessage(err instanceof Error ? err.message : String(err));
       } finally {
@@ -230,6 +296,7 @@ export function AmazonSpApiConnectionStatusPanel() {
       });
 
       const nextStatus = normalizeBackendStatus(data);
+      setBackendStatusDetail(data);
       setStatus(nextStatus);
       setMessage(buildBackendStatusMessage(data, nextStatus));
     } catch (err) {
@@ -295,6 +362,53 @@ export function AmazonSpApiConnectionStatusPanel() {
               <div className="mt-1 text-sm font-black text-slate-800">Secret非表示</div>
               <div className="mt-1 text-xs font-semibold text-slate-500">raw tokenはUIに表示しません</div>
             </div>
+          </div>
+
+          <div
+            data-testid="amazon-sp-api-real-db-read-model-details"
+            className="mt-4 rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                  Real DB Read Model
+                </div>
+                <div className="mt-1 text-sm font-black text-slate-800">
+                  Connection / Credential / Access Token Cache
+                </div>
+              </div>
+              <span
+                data-testid="amazon-sp-api-read-model-status"
+                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-600"
+              >
+                {getReadModelStatusLabel(backendStatusDetail?.readModelStatus)}
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {buildBackendStatusRows(backendStatusDetail).map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2"
+                >
+                  <div className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    {item.label}
+                  </div>
+                  <div className="mt-1 break-words text-xs font-bold text-slate-700">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {backendStatusDetail?.lastErrorMessageRedacted ? (
+              <div
+                data-testid="amazon-sp-api-last-error-message-redacted"
+                className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold leading-5 text-rose-700"
+              >
+                {backendStatusDetail.lastErrorMessageRedacted}
+              </div>
+            ) : null}
           </div>
 
           {lastAuthorization?.stateExpiresAt ? (
