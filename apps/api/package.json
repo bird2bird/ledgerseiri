@@ -217,7 +217,8 @@
     "smoke:amazon-sp-api-oauth-callback-controller-real-write-preflight-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-real-write-preflight-contract.js",
     "smoke:amazon-sp-api-oauth-callback-controller-real-write-guarded-impl": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-real-write-guarded-impl.js",
     "smoke:amazon-sp-api-oauth-callback-controller-real-write-branch-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-real-write-branch-runtime.js",
-    "smoke:amazon-sp-api-oauth-callback-real-db-guarded-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-real-db-guarded-runtime.js"
+    "smoke:amazon-sp-api-oauth-callback-real-db-guarded-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-real-db-guarded-runtime.js",
+    "smoke:amazon-sp-api-credential-repository-schema-alignment-contract": "node scripts/smoke-amazon-sp-api-credential-repository-schema-alignment-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
