@@ -188,6 +188,33 @@ function isAllowedStep140RTransactionCommit(file, text) {
   );
 }
 
+function isAllowedStep140SSkuResolutionAudit(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+  return (
+    normalized.endsWith("apps/api/src/imports/amazon-sp-api-orders-sku-resolution-audit.service.ts") &&
+    text.includes("resolveAmazonSpApiOrdersSkuAliasesForStagingRows") &&
+    text.includes("prisma.productSku.findFirst") &&
+    text.includes("prisma.productSkuAlias.findFirst") &&
+    text.includes("RESOLVED_BY_ALIAS") &&
+    text.includes("UNRESOLVED_SKU") &&
+    text.includes("writesInventoryMovement: false") &&
+    text.includes("writesInventoryBalance: false") &&
+    text.includes("deductsInventory: false") &&
+    text.includes("writesTransaction: false") &&
+    text.includes("callsAmazon: false") &&
+    !text.includes("inventoryMovement.create") &&
+    !text.includes("inventoryBalance.update") &&
+    !text.includes("transaction.create") &&
+    !text.includes("importStagingRow.update") &&
+    !text.includes("importStagingRow.create") &&
+    !text.includes("fetch(") &&
+    !text.includes("axios.") &&
+    !text.includes("got(") &&
+    !text.includes("https.request(") &&
+    !text.includes("http.request(")
+  );
+}
+
 function isAllowedStep140LFrontendDryRunOrdersPreview(file, text) {
   const normalized = file.replaceAll(path.sep, "/");
 
@@ -311,6 +338,7 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const allowedStep140PRealPreviewNoPersistence = isAllowedStep140PRealPreviewNoPersistence(file, text);
     const allowedStep140QPreviewPersistence = isAllowedStep140QPreviewPersistence(file, text);
     const allowedStep140RTransactionCommit = isAllowedStep140RTransactionCommit(file, text);
+    const allowedStep140SSkuResolutionAudit = isAllowedStep140SSkuResolutionAudit(file, text);
     const hasAmazonOrdersContext =
       text.includes("amazon-sp-api") ||
       text.includes("AmazonSpApi") ||
@@ -321,22 +349,22 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("step140-h");
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit) routeLeaks.push(rel);
+      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit && !allowedStep140SSkuResolutionAudit) routeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit) {
+    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit && !allowedStep140SSkuResolutionAudit) {
       dryRunLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit) {
+    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit && !allowedStep140SSkuResolutionAudit) {
       controllerLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit) {
+    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit && !allowedStep140SSkuResolutionAudit) {
       writeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit) {
+    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence && !allowedStep140QPreviewPersistence && !allowedStep140RTransactionCommit && !allowedStep140SSkuResolutionAudit) {
       networkLeaks.push(rel);
     }
   }
