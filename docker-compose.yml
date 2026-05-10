@@ -26,6 +26,9 @@ services:
     volumes:
       - /opt/ledgerseiri-data/attachments:/app-data/attachments
 
+    environment:
+      AMAZON_SP_API_ORDERS_REAL_PREVIEW_ROUTE_ENABLED: ${AMAZON_SP_API_ORDERS_REAL_PREVIEW_ROUTE_ENABLED:-false}
+      AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT: ${AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT:-mocked}
   web:
     build:
       context: ./apps/web
