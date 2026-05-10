@@ -11,6 +11,7 @@ import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-p
 import { buildAmazonSpApiOrdersPreviewService } from './amazon-sp-api-orders-preview.service';
 import { previewAmazonSpApiOrdersRealNoPersistence } from './amazon-sp-api-orders-real-preview.service';
 import type { AmazonSpApiOrdersHttpTransport } from './amazon-sp-api-orders-http.client';
+import { buildAmazonSpApiOrdersServerOnlyRawSignedTransport } from './amazon-sp-api-orders-server-only-raw-signed.transport';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -92,18 +93,18 @@ type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previ
   routeImplementedNow: true;
   route: '/api/imports/amazon-sp-api/orders/real-preview';
   guardedBy: 'JwtAuthGuard';
-  controllerMode: 'real-preview-guarded-mocked-transport-until-step140-w';
+  controllerMode: 'real-preview-guarded-mocked-transport-until-step140-w' | 'real-preview-guarded-server-only-transport';
   controllerWritesDatabase: false;
   controllerCallsAmazon: boolean;
   controllerUsesHttpClient: true;
   controllerUsesSigV4: true;
-  controllerTransportMode: 'mocked-server-transport' | 'blocked-real-network-pending-step140-w';
+  controllerTransportMode: 'mocked-server-transport' | 'server-only-raw-signed-real-network';
   importJobWriteNow: false;
   importStagingRowWriteNow: false;
   transactionWriteNow: false;
   inventoryWriteNow: false;
-  realNetworkTransportImplementedNow: false;
-  step140WRequiredForLiveAmazonNetwork: true;
+  realNetworkTransportImplementedNow: boolean;
+  step140WRequiredForLiveAmazonNetwork: boolean;
 };
 
 function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
@@ -829,23 +830,36 @@ export class ImportsController {
     }
 
     const transportMode = String(process.env.AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT || 'mocked').trim().toLowerCase();
+    const useRealNetworkTransport = transportMode === 'real';
 
-    if (transportMode !== 'mocked') {
+    if (transportMode !== 'mocked' && transportMode !== 'real') {
       throw new ForbiddenException(
-        'STEP140_V_REAL_NETWORK_PENDING_STEP140_W: real Amazon network transport is intentionally blocked until Step140-W server-only raw signed transport.',
+        'STEP140_W_ORDERS_REAL_PREVIEW_TRANSPORT_INVALID: AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT must be mocked or real.',
       );
     }
+
+    const serverOnlyTransport = useRealNetworkTransport
+      ? buildAmazonSpApiOrdersServerOnlyRawSignedTransport()
+      : buildStep140VMockedOrdersTransport();
 
     const result = await previewAmazonSpApiOrdersRealNoPersistence({
       companyId,
       storeId: normalizedStoreId,
       marketplaceId: normalizedMarketplaceId,
       region: normalizedRegion,
-      accessToken: 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+      accessToken: useRealNetworkTransport
+        ? String(process.env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || '')
+        : 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
       credentials: {
-        accessKeyId: 'AKIASTEP140VSERVERONLY',
-        secretAccessKey: 'AWS_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
-        sessionToken: 'SESSION_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+        accessKeyId: useRealNetworkTransport
+          ? String(process.env.AMAZON_SP_API_ORDERS_AWS_ACCESS_KEY_ID || '')
+          : 'AKIASTEP140VSERVERONLY',
+        secretAccessKey: useRealNetworkTransport
+          ? String(process.env.AMAZON_SP_API_ORDERS_AWS_SECRET_ACCESS_KEY || '')
+          : 'AWS_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+        sessionToken: useRealNetworkTransport
+          ? String(process.env.AMAZON_SP_API_ORDERS_AWS_SESSION_TOKEN || '')
+          : 'SESSION_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
       },
       createdAfter: normalizedCreatedAfter,
       createdBefore: normalizedCreatedBefore || undefined,
@@ -855,7 +869,7 @@ export class ImportsController {
       env: {
         AMAZON_SP_API_ORDERS_REAL_HTTP_ENABLED: 'true',
       },
-      transport: buildStep140VMockedOrdersTransport(),
+      transport: serverOnlyTransport,
     });
 
     return {
@@ -863,18 +877,18 @@ export class ImportsController {
       routeImplementedNow: true as const,
       route: '/api/imports/amazon-sp-api/orders/real-preview' as const,
       guardedBy: 'JwtAuthGuard' as const,
-      controllerMode: 'real-preview-guarded-mocked-transport-until-step140-w' as const,
+      controllerMode: 'real-preview-guarded-server-only-transport' as const,
       controllerWritesDatabase: false as const,
       controllerCallsAmazon: true as const,
       controllerUsesHttpClient: true as const,
       controllerUsesSigV4: true as const,
-      controllerTransportMode: 'mocked-server-transport' as const,
+      controllerTransportMode: useRealNetworkTransport ? 'server-only-raw-signed-real-network' : 'mocked-server-transport',
       importJobWriteNow: false as const,
       importStagingRowWriteNow: false as const,
       transactionWriteNow: false as const,
       inventoryWriteNow: false as const,
-      realNetworkTransportImplementedNow: false as const,
-      step140WRequiredForLiveAmazonNetwork: true as const,
+      realNetworkTransportImplementedNow: useRealNetworkTransport,
+      step140WRequiredForLiveAmazonNetwork: false as const,
     };
   }
 

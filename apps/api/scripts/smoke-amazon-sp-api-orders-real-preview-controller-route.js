@@ -38,9 +38,9 @@ function main() {
     "assertAmazonSpApiOrdersRealPreviewRouteEnabled",
     "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ROUTE_ENABLED",
     "AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT",
-    "STEP140_V_REAL_NETWORK_PENDING_STEP140_W",
+    "server-only-raw-signed-real-network",
     "buildStep140VMockedOrdersTransport",
-    "real-preview-guarded-mocked-transport-until-step140-w",
+    "real-preview-guarded-server-only-transport",
     "controllerWritesDatabase: false",
     "controllerUsesHttpClient: true",
     "controllerUsesSigV4: true",
@@ -48,8 +48,8 @@ function main() {
     "importStagingRowWriteNow: false",
     "transactionWriteNow: false",
     "inventoryWriteNow: false",
-    "realNetworkTransportImplementedNow: false",
-    "step140WRequiredForLiveAmazonNetwork: true",
+    "realNetworkTransportImplementedNow",
+    "step140WRequiredForLiveAmazonNetwork",
   ];
 
   for (const marker of requiredMarkers) {
