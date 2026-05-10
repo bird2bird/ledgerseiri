@@ -111,9 +111,7 @@ for (const smoke of [
 for (const marker of [
   'amazonSpApiOAuthCallbackBoundary',
   'Step139-T: guarded OAuth callback controller real-write branch implementation',
-  'controller-commit-gate-to-orchestrator-real-write',
-  'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
-  'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
+    'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
   'controllerCallsRepositoryDirectlyNow: false',
   'rawAuthorizationCodeReturnedNow: false',
   'rawLwaResponseReturnedNow: false',
@@ -123,13 +121,52 @@ for (const marker of [
   assertIncludes(controller, marker, 'current controller legacy guarded runtime');
 }
 
-assertNotIncludes(
-  controller,
-  'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite',
-  'current controller schema-aware path not wired before Step139-V9',
-);
+if (controller.includes('this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite')) {
+  for (const marker of [
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite',
+    'controller-commit-gate-to-schema-aware-orchestrator-real-write',
+    'controllerCallsSchemaAwareOrchestratorNow: true',
+    'controllerCallsLegacyOrchestratorNow: false',
+    'controllerCallsRepositoryDirectlyNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+    'rawAccessTokenReturnedNow: false',
+    'rawRefreshTokenReturnedNow: false',
+  ]) {
+    assertIncludes(controller, marker, 'controller schema-aware runtime after Step139-V9');
+  }
+
+  assertNotIncludes(
+    controller,
+      'controller legacy orchestrator path removed after Step139-V9',
+  );
+} else {
+  assertNotIncludes(
+    controller,
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite',
+    'current controller schema-aware path not wired before Step139-V9',
+  );
+}
 
 assertNotIncludes(controller, 'AmazonSpApiCredentialRepository', 'controller repository direct call');
+
+if (controller.includes('this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite')) {
+  for (const marker of [
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite',
+    'controller-commit-gate-to-schema-aware-orchestrator-real-write',
+    'controllerCallsSchemaAwareOrchestratorNow: true',
+    'controllerCallsLegacyOrchestratorNow: false',
+    'controllerCallsRepositoryDirectlyNow: false',
+  ]) {
+    assertIncludes(controller, marker, 'post-Step139-V9 controller schema-aware runtime');
+  }
+
+  assertNotIncludes(
+    controller,
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
+    'post-Step139-V9 controller legacy orchestrator call removed',
+  );
+}
 
 for (const marker of [
   'AmazonSpApiTokenPersistenceOrchestrator',

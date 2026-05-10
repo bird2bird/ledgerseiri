@@ -30,6 +30,7 @@ import {
 } from './dto/amazon-sp-api-sandbox-importjob-read-model-controller-blocked-route-contract.dto';
 import { assertAmazonSpApiSandboxEnvironmentGate } from './dto/amazon-sp-api-sandbox-internal-contract.dto';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { PrismaService } from '../prisma.service';
 
 
 type Step122SAuthenticatedRequest = {
@@ -169,6 +170,7 @@ export class ImportsController {
     private readonly amazonSpApiRealLwaActivationGateService: AmazonSpApiRealLwaActivationGateService,
     private readonly amazonSpApiOauthCallbackCommitGateService: AmazonSpApiOauthCallbackCommitGateService,
     private readonly amazonSpApiTokenPersistenceOrchestrator: AmazonSpApiTokenPersistenceOrchestrator,
+    private readonly prismaService: PrismaService,
   ) {}
 
   // Step122-I: Amazon SP-API sandbox ImportJob read-model controller-disabled implementation shell.
@@ -736,19 +738,8 @@ export class ImportsController {
       });
 
     if (commitGateResult.accepted) {
-      const mockedControllerPrismaDelegate =
-        process.env
-          .AMAZON_SP_API_OAUTH_CALLBACK_USE_MOCKED_PRISMA_DELEGATE === 'true'
-          ? {
-              upsert: async (args: any) => ({
-                id: 'step139-t-controller-smoke-credential',
-                ...args.create,
-              }),
-            }
-          : null;
-
       const realWriteResult =
-        await this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite(
+        await this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensSchemaAwareRealWrite(
           {
             companyId: fakeExchangeResult.companyId,
             storeId: fakeExchangeResult.storeId,
@@ -777,13 +768,13 @@ export class ImportsController {
             lastValidatedAt: new Date().toISOString(),
             revokedAt: null,
           },
-          mockedControllerPrismaDelegate,
+          this.prismaService as any,
         );
 
       return {
         ...baseResponse,
-        source: 'amazon-sp-api-oauth-callback-controller-real-write' as const,
-        wiringMode: 'controller-commit-gate-to-orchestrator-real-write' as const,
+        source: 'amazon-sp-api-oauth-callback-controller-schema-aware-real-write' as const,
+        wiringMode: 'controller-commit-gate-to-schema-aware-orchestrator-real-write' as const,
         accepted: realWriteResult.accepted,
         status: realWriteResult.accepted
           ? 'token_persistence_committed'
@@ -794,6 +785,8 @@ export class ImportsController {
         oauthCallbackPersistenceWiringNow: true as const,
         controllerCallsServicePersistenceDryRunNow: false as const,
         controllerCallsServicePersistenceCommitNow: true as const,
+        controllerCallsSchemaAwareOrchestratorNow: true as const,
+        controllerCallsLegacyOrchestratorNow: false as const,
         commitGateEvaluatedNow: true as const,
         commitGateAccepted: commitGateResult.accepted,
         commitGateReason: commitGateResult.reason,
@@ -803,6 +796,12 @@ export class ImportsController {
         plaintextTokenDatabaseWriteNow: false as const,
         databaseWriteNow: realWriteResult.databaseWriteNow,
         prismaClientWriteNow: realWriteResult.prismaClientWriteNow,
+        connectionWriteNow: realWriteResult.connectionWriteNow,
+        credentialWriteNow: realWriteResult.credentialWriteNow,
+        accessTokenCacheWriteNow: realWriteResult.accessTokenCacheWriteNow,
+        persistedConnectionShape: realWriteResult.persistedConnectionShape,
+        persistedCredentialShape: realWriteResult.persistedCredentialShape,
+        persistedAccessTokenCacheShape: realWriteResult.persistedAccessTokenCacheShape,
         amazonNetworkCallNow: false as const,
         tokenExchangeHttpCallNow: false as const,
         realSpApiRequestNow: false as const,

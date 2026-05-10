@@ -224,7 +224,8 @@
     "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-real-write-implementation": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-real-write-implementation.js",
     "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-branch-runtime.js",
     "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-real-db": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-real-db.js",
-    "smoke:amazon-sp-api-oauth-callback-controller-schema-aware-switch-preflight-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-schema-aware-switch-preflight-contract.js"
+    "smoke:amazon-sp-api-oauth-callback-controller-schema-aware-switch-preflight-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-schema-aware-switch-preflight-contract.js",
+    "smoke:amazon-sp-api-oauth-callback-controller-schema-aware-switch-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-controller-schema-aware-switch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
