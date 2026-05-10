@@ -6,8 +6,10 @@ import {
   AMAZON_SP_API_DEFAULT_STORE_ID,
   previewAmazonSpApiOrdersDryRun,
   previewAmazonSpApiOrdersReal,
+  commitAmazonSpApiOrdersRealImportJob,
   type AmazonSpApiOrdersDryRunPreviewResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
+  type AmazonSpApiOrdersRealImportJobCommitResponse,
 } from "@/core/imports/api";
 
 function formatNumber(value?: number | null) {
@@ -57,12 +59,15 @@ function SummaryPill({
 export function AmazonSpApiOrdersDryRunPreviewPanel() {
   const [loading, setLoading] = React.useState(false);
   const [realLoading, setRealLoading] = React.useState(false);
+  const [commitLoading, setCommitLoading] = React.useState(false);
   const [result, setResult] = React.useState<AmazonSpApiOrdersDryRunPreviewResponse | AmazonSpApiOrdersRealPreviewResponse | null>(null);
+  const [commitResult, setCommitResult] = React.useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
   const [error, setError] = React.useState("");
 
   async function runDryRunPreview() {
     setLoading(true);
     setError("");
+    setCommitResult(null);
 
     try {
       const range = getTodayIsoDateRange();
@@ -88,6 +93,7 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
   async function runRealPreview() {
     setRealLoading(true);
     setError("");
+    setCommitResult(null);
 
     try {
       const range = getTodayIsoDateRange();
@@ -114,11 +120,45 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
     }
   }
 
+  async function runRealImportJobCommit() {
+    setCommitLoading(true);
+    setError("");
+
+    try {
+      const range = getTodayIsoDateRange();
+      const data = await commitAmazonSpApiOrdersRealImportJob({
+        storeId: AMAZON_SP_API_DEFAULT_STORE_ID,
+        marketplaceId: AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+        region: "JP",
+        createdAfter: range.createdAfter,
+        createdBefore: range.createdBefore,
+        orderStatuses: ["Shipped"],
+        maxResultsPerPage: 50,
+        realPreview: true,
+      });
+
+      setCommitResult(data);
+    } catch (err) {
+      setCommitResult(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCommitLoading(false);
+    }
+  }
+
   const orders = Array.isArray(result?.normalizedOrders) ? result.normalizedOrders : [];
   const orderItems = Array.isArray(result?.normalizedOrderItems) ? result.normalizedOrderItems : [];
   const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
   const unresolvedSkus = result?.skuResolutionSummary?.unresolvedSellerSkus || [];
   const currency = result?.transactionImpactPreview?.currencyCode || "JPY";
+  const productionVerification =
+    "productionVerification" in (result || {})
+      ? (result as AmazonSpApiOrdersRealPreviewResponse).productionVerification
+      : undefined;
+  const canCommitRealImportJob =
+    result?.dryRun === false &&
+    productionVerification?.accepted === true &&
+    productionVerification?.productionReadiness?.canProceedToStep141BImportJobPersistence === true;
 
   return (
     <section
@@ -284,7 +324,7 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
                     </div>
                   </div>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-600">
-                    commit disabled
+                    {canCommitRealImportJob ? "ImportJob作成可" : "commit guarded"}
                   </span>
                 </div>
 
@@ -302,6 +342,58 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
                     Inventory: {result.inventoryWriteNow === false ? "なし" : "未確認"}
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : null}
+
+          {productionVerification ? (
+            <div
+              data-testid="amazon-sp-api-orders-production-verification-card"
+              className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold leading-6 ${
+                productionVerification.accepted
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Production verification: {productionVerification.reason || "unknown"}</span>
+                <span className="rounded-full border bg-white/70 px-2 py-0.5 text-[11px] font-black">
+                  {productionVerification.accepted ? "ready for ImportJob" : "not ready"}
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-4">
+                <span>Orders: {formatNumber(productionVerification.orderCount)}</span>
+                <span>Items: {formatNumber(productionVerification.orderItemCount)}</span>
+                <span>SKU未解決: {formatNumber(productionVerification.unresolvedSkuCount)}</span>
+                <span>
+                  Step141-B:{" "}
+                  {productionVerification.productionReadiness?.canProceedToStep141BImportJobPersistence
+                    ? "可"
+                    : "不可"}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          {commitResult ? (
+            <div
+              data-testid="amazon-sp-api-orders-real-importjob-result"
+              className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-800"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>ImportJobを作成しました</span>
+                <span className="rounded-full border border-emerald-300 bg-white/70 px-2 py-0.5 text-[11px] font-black">
+                  {commitResult.reason || "ready"}
+                </span>
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-4">
+                <span>ImportJob: {commitResult.importJobId || "—"}</span>
+                <span>Rows: {formatNumber(commitResult.totalRows)}</span>
+                <span>Success: {formatNumber(commitResult.successRows)}</span>
+                <span>Months: {(commitResult.businessMonths || []).join(", ") || "—"}</span>
+              </div>
+              <div className="mt-2 text-xs font-black text-emerald-700">
+                Transaction作成なし / Inventory扣減なし / StagingRow保存済み
               </div>
             </div>
           ) : null}
@@ -354,13 +446,22 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
           </button>
 
           <button
-            data-testid="amazon-sp-api-orders-commit-disabled-button"
+            data-testid="amazon-sp-api-orders-real-importjob-commit-button"
             type="button"
-            disabled
-            title="Commitは後続ステップで実装します"
-            className="inline-flex h-10 cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-400"
+            onClick={() => void runRealImportJobCommit()}
+            disabled={!canCommitRealImportJob || commitLoading || realLoading || loading}
+            title={
+              canCommitRealImportJob
+                ? "Verified real preview を ImportJob / ImportStagingRow に保存します"
+                : "Real preview の productionVerification が ready の時のみ実行できます"
+            }
+            className={`inline-flex h-10 items-center justify-center rounded-2xl border px-4 text-sm font-black shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              canCommitRealImportJob
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : "border-slate-200 bg-slate-50 text-slate-400"
+            }`}
           >
-            Commitは未実装
+            {commitLoading ? "ImportJob作成中..." : "ImportJob作成"}
           </button>
         </div>
       </div>

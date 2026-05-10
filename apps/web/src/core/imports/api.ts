@@ -744,6 +744,45 @@ export type AmazonSpApiOrdersRealPreviewRequest = {
   realPreview: true;
 };
 
+
+export type AmazonSpApiOrdersRealPreviewProductionVerification = {
+  step?: "Step141-A" | string;
+  source?: "amazon-sp-api-orders-real-preview-production-verification" | string;
+  accepted?: boolean;
+  reason?: string;
+  messageRedacted?: string;
+  transportMode?: string;
+  credentialSource?: "env" | "repository" | string;
+  previewMode?: string | null;
+  dryRun?: boolean | null;
+  orderCount?: number;
+  orderItemCount?: number;
+  unresolvedSkuCount?: number;
+  incomePreviewAmount?: number | null;
+  accessTokenRefresh?: {
+    attempted?: boolean;
+    accepted?: boolean | null;
+    reason?: string | null;
+    cacheWriteNow?: boolean;
+  };
+  productionReadiness?: {
+    canProceedToStep141BImportJobPersistence?: boolean;
+    requiresRealAmazonData?: boolean;
+    requiresPaginationVerification?: boolean;
+    requiresErrorMappingVerification?: boolean;
+    requiresCredentialStabilityVerification?: boolean;
+  };
+  boundaries?: {
+    writesImportJob?: false;
+    writesImportStagingRow?: false;
+    writesTransaction?: false;
+    writesInventory?: false;
+    returnsRawAccessToken?: false;
+    returnsRawRefreshToken?: false;
+    returnsAwsSecret?: false;
+  };
+};
+
 export type AmazonSpApiOrdersRealPreviewResponse =
   Omit<AmazonSpApiOrdersDryRunPreviewResponse, "dryRun" | "source" | "previewMode" | "controllerMode"> & {
     source?: "amazon-sp-api-orders-real-preview" | string;
@@ -760,6 +799,7 @@ export type AmazonSpApiOrdersRealPreviewResponse =
     controllerTransportMode?: "mocked-server-transport" | "blocked-real-network-pending-step140-w" | string;
     realNetworkTransportImplementedNow?: false;
     step140WRequiredForLiveAmazonNetwork?: true;
+    productionVerification?: AmazonSpApiOrdersRealPreviewProductionVerification;
   };
 
 export const AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT =
@@ -776,3 +816,68 @@ export async function previewAmazonSpApiOrdersReal(
     }
   );
 }
+
+
+// Step141-C-FRONTEND-AMAZON-SP-API-ORDERS-REAL-IMPORTJOB-COMMIT:
+// Frontend helper for backend route:
+// POST /api/imports/amazon-sp-api/orders/real-importjob
+// Browser never receives raw LWA/AWS credentials. This only asks the server to persist a verified real preview
+// into ImportJob + ImportStagingRow. It does not create Transactions or deduct Inventory.
+export type AmazonSpApiOrdersRealImportJobCommitRequest = AmazonSpApiOrdersRealPreviewRequest & {
+  realPreview: true;
+};
+
+export type AmazonSpApiOrdersRealImportJobCommitResponse = {
+  step?: "Step141-B" | string;
+  source?: "amazon-sp-api-orders-real-importjob-staging-persistence" | string;
+  accepted?: boolean;
+  reason?: string;
+  messageRedacted?: string;
+  companyId?: string;
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  importJobId?: string | null;
+  totalRows?: number;
+  successRows?: number;
+  failedRows?: number;
+  businessMonths?: string[];
+  fileHash?: string | null;
+  filename?: string | null;
+  domain?: "income" | string;
+  module?: "store-orders" | string;
+  sourceType?: "amazon-sp-api-orders" | string;
+  routeImplementedNow?: true;
+  controllerRoute?: "POST /api/imports/amazon-sp-api/orders/real-importjob" | string;
+  controllerWritesImportJob?: boolean;
+  controllerWritesImportStagingRows?: boolean;
+  controllerWritesTransaction?: false;
+  controllerWritesInventory?: false;
+  boundaries?: {
+    writesImportJob?: boolean;
+    writesImportStagingRow?: boolean;
+    writesTransaction?: false;
+    writesInventory?: false;
+    writesInventoryMovement?: false;
+    callsAmazon?: false;
+    returnsRawAccessToken?: false;
+    returnsRawRefreshToken?: false;
+    returnsAwsSecret?: false;
+  };
+};
+
+export const AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/real-importjob" as const;
+
+export async function commitAmazonSpApiOrdersRealImportJob(
+  payload: AmazonSpApiOrdersRealImportJobCommitRequest
+): Promise<AmazonSpApiOrdersRealImportJobCommitResponse> {
+  return postJson<AmazonSpApiOrdersRealImportJobCommitResponse>(
+    AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT,
+    {
+      ...payload,
+      realPreview: true,
+    }
+  );
+}
+

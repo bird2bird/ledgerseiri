@@ -33,10 +33,12 @@ function main() {
     "Step140-V-FRONTEND-AMAZON-SP-API-ORDERS-REAL-PREVIEW",
     "AmazonSpApiOrdersRealPreviewRequest",
     "AmazonSpApiOrdersRealPreviewResponse",
+    "AmazonSpApiOrdersRealPreviewProductionVerification",
     "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
     "/api/imports/amazon-sp-api/orders/real-preview",
     "previewAmazonSpApiOrdersReal",
     "realPreview: true",
+    "productionVerification?: AmazonSpApiOrdersRealPreviewProductionVerification",
   ];
 
   for (const marker of apiMarkers) {
@@ -50,7 +52,10 @@ function main() {
     "amazon-sp-api-orders-real-preview-button",
     "Real preview",
     "Step140-W required for live network",
-    "Commitは未実装",
+    "productionVerification",
+    "canCommitRealImportJob",
+    "amazon-sp-api-orders-real-importjob-commit-button",
+    "ImportJob作成",
   ];
 
   for (const marker of panelMarkers) {
@@ -65,11 +70,16 @@ function main() {
     "AWS4-HMAC-SHA256",
     "clientSecret",
     "refreshToken",
+    "getOrders(",
+    "getOrderItems(",
   ];
 
   for (const marker of forbiddenPanelMarkers) {
     assert(!panel.includes(marker), `Step140-V panel does not contain forbidden marker: ${marker}`);
   }
+
+  assert(!panel.includes("Commitは未実装"), "old Step140-V disabled commit copy removed after Step141-C");
+  assert(!panel.includes("amazon-sp-api-orders-commit-disabled-button"), "old Step140-V disabled commit button removed after Step141-C");
 
   console.log("[SMOKE_OK] Step140-V Amazon SP-API Orders frontend real preview button smoke passed");
 }
