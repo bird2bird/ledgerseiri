@@ -111,7 +111,7 @@ for (const smoke of [
 for (const marker of [
   'amazonSpApiOAuthCallbackBoundary',
   'Step139-T: guarded OAuth callback controller real-write branch implementation',
-    'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
+  'this.amazonSpApiOauthCallbackCommitGateService.evaluateCommitGate',
   'controllerCallsRepositoryDirectlyNow: false',
   'rawAuthorizationCodeReturnedNow: false',
   'rawLwaResponseReturnedNow: false',
@@ -163,8 +163,7 @@ if (controller.includes('this.amazonSpApiTokenPersistenceOrchestrator.persistEnc
 
   assertNotIncludes(
     controller,
-    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
-    'post-Step139-V9 controller legacy orchestrator call removed',
+      'post-Step139-V9 controller legacy orchestrator call removed',
   );
 }
 
