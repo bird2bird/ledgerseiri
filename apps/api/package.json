@@ -207,7 +207,8 @@
     "smoke:amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma.js",
     "smoke:amazon-sp-api-encrypted-token-repository-real-write-branch-runtime": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-real-write-branch-runtime.js",
     "smoke:amazon-sp-api-token-persistence-orchestrator-real-write-repository-wiring-contract": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-real-write-repository-wiring-contract.js",
-    "smoke:amazon-sp-api-token-persistence-orchestrator-real-write-mocked-prisma": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-real-write-mocked-prisma.js"
+    "smoke:amazon-sp-api-token-persistence-orchestrator-real-write-mocked-prisma": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-real-write-mocked-prisma.js",
+    "smoke:amazon-sp-api-token-persistence-orchestrator-real-write-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-real-write-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
