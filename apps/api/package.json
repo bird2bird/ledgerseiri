@@ -237,7 +237,8 @@
     "smoke:amazon-sp-api-orders-api-http-client-boundary-contract": "node scripts/smoke-amazon-sp-api-orders-api-http-client-boundary-contract.js",
     "smoke:amazon-sp-api-orders-api-sanitized-response-parser-contract": "node scripts/smoke-amazon-sp-api-orders-api-sanitized-response-parser-contract.js",
     "smoke:amazon-sp-api-orders-normalized-fixture-persistence-readiness-contract": "node scripts/smoke-amazon-sp-api-orders-normalized-fixture-persistence-readiness-contract.js",
-    "smoke:amazon-sp-api-orders-preview-commit-service-contract": "node scripts/smoke-amazon-sp-api-orders-preview-commit-service-contract.js"
+    "smoke:amazon-sp-api-orders-preview-commit-service-contract": "node scripts/smoke-amazon-sp-api-orders-preview-commit-service-contract.js",
+    "smoke:amazon-sp-api-orders-dry-run-fixture-controller-route-contract": "node scripts/smoke-amazon-sp-api-orders-dry-run-fixture-controller-route-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
