@@ -19,6 +19,7 @@ import {
 import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-access-token.decryptor';
 import { refreshAmazonSpApiOrdersAccessTokenCache } from './amazon-sp-api-orders-lwa-refresh.service';
 import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-sp-api-orders-real-preview-production.verifier';
+import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './amazon-sp-api-orders-real-importjob-persistence.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -94,6 +95,18 @@ type AmazonSpApiOrdersRealPreviewRouteBody = {
   orderStatuses?: string[];
   maxResultsPerPage?: number;
   realPreview?: boolean;
+};
+
+
+type AmazonSpApiOrdersRealImportJobCommitRouteResponse = Awaited<
+  ReturnType<typeof persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows>
+> & {
+  routeImplementedNow: true;
+  controllerRoute: 'POST /api/imports/amazon-sp-api/orders/real-importjob';
+  controllerWritesImportJob: boolean;
+  controllerWritesImportStagingRows: boolean;
+  controllerWritesTransaction: false;
+  controllerWritesInventory: false;
 };
 
 type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>> & {
@@ -796,6 +809,68 @@ export class ImportsController {
   // In Step140-V it uses a mocked server transport unless Step140-W adds server-only raw signed real network transport.
   // It never writes ImportJob/StagingRow/Transaction/Inventory and never returns raw tokens/secrets.
   @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/real-importjob')
+  async amazonSpApiOrdersRealImportJobCommitControllerRoute(
+    @Req() req: { user?: { id?: string; companyId?: string } },
+    @Body() body: Record<string, unknown>,
+  ): Promise<AmazonSpApiOrdersRealImportJobCommitRouteResponse> {
+    const companyId = req.user?.companyId;
+
+    if (!companyId) {
+      throw new BadRequestException('Company id is required for Amazon SP-API Orders real ImportJob persistence.');
+    }
+
+    const normalizedStoreId = String(body?.storeId || '').trim();
+    const normalizedMarketplaceId = String(body?.marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = String(body?.region || 'JP').trim().toUpperCase();
+    const requestedBy = req.user?.id || null;
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException('storeId is required for Amazon SP-API Orders real ImportJob persistence.');
+    }
+
+    const realPreview = await this.amazonSpApiOrdersRealPreviewControllerRoute(req, {
+      ...body,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      realPreview: true,
+    });
+
+    const persisted = await persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows({
+      prisma: this.prismaService,
+      companyId,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      previewResult: realPreview,
+      productionVerification: realPreview.productionVerification || {
+        accepted: false,
+        reason: 'missing_production_verification',
+        productionReadiness: {
+          canProceedToStep141BImportJobPersistence: false,
+        },
+      },
+      requestedBy,
+      now: new Date(),
+    });
+
+    if (!persisted.accepted) {
+      throw new BadRequestException(`STEP141_B_REAL_IMPORTJOB_PERSISTENCE_REJECTED: ${persisted.reason}`);
+    }
+
+    return {
+      ...persisted,
+      routeImplementedNow: true as const,
+      controllerRoute: 'POST /api/imports/amazon-sp-api/orders/real-importjob' as const,
+      controllerWritesImportJob: persisted.boundaries.writesImportJob,
+      controllerWritesImportStagingRows: persisted.boundaries.writesImportStagingRow,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventory: false as const,
+    };
+  }
+
+
   @Post('amazon-sp-api/orders/real-preview')
   async amazonSpApiOrdersRealPreviewControllerRoute(
     @Req() req: Step122SAuthenticatedRequest,

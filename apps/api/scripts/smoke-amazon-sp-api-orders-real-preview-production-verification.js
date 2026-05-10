@@ -64,6 +64,8 @@ function main() {
     "previewResult: result",
     "credentialSource: useRepositoryCredentials ? 'repository' : 'env'",
     "accessTokenRefreshResult: accessTokenRefreshResult || undefined",
+    "amazonSpApiOrdersRealImportJobCommitControllerRoute",
+    "POST /api/imports/amazon-sp-api/orders/real-importjob",
   ];
 
   for (const marker of controllerMarkers) {
@@ -86,8 +88,8 @@ function main() {
     assert(!verifier.includes(marker), `Step141-A verifier does not contain forbidden marker: ${marker}`);
   }
 
-  assert(!controller.includes("importJob.create"), "controller still does not create ImportJob");
-  assert(!controller.includes("importStagingRow.create"), "controller still does not create ImportStagingRow");
+  assert(controller.includes("amazonSpApiOrdersRealImportJobCommitControllerRoute"), "controller exposes Step141-B real ImportJob route");
+  assert(controller.includes("controllerWritesTransaction: false"), "controller Step141-B route still does not write Transaction");
   assert(!controller.includes("transaction.create"), "controller still does not create Transaction");
   assert(!controller.includes("inventoryMovement.create"), "controller still does not create InventoryMovement");
   assert(!controller.includes("inventoryBalance.update"), "controller still does not update InventoryBalance");
