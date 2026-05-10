@@ -486,9 +486,10 @@ export class ImportsController {
     });
   }
 
-  // Step127-B: Amazon SP-API OAuth callback route implementation boundary.
-  // This route intentionally validates and sanitizes callback input only.
-  // It does not call Amazon LWA, does not persist refresh/access tokens, and does not call real SP-API.
+  // Step139-E: Amazon SP-API OAuth callback dry-run-only controller wiring implementation.
+  // This route validates callback input and runs only a redacted dry-run diagnostic chain.
+  // It does not persist refresh/access tokens, does not write DB, does not call real Amazon HTTP,
+  // and never returns raw authorization code, raw LWA response, raw access token, or raw refresh token.
   @Get('amazon-sp-api/oauth/callback')
   async amazonSpApiOAuthCallbackBoundary(
     @Query('state') state?: string,
@@ -506,13 +507,28 @@ export class ImportsController {
     const normalizedErrorDescription = String(callbackErrorDescription || '').trim();
 
     const baseResponse = {
-      source: 'amazon-sp-api-oauth-callback',
-      routeImplementedNow: true,
-      tokenExchangeHttpCallNow: false,
-      tokenPersistenceDatabaseWriteNow: false,
-      realSpApiRequestNow: false,
-      frontendAddedNow: false,
-    } as const;
+      source: 'amazon-sp-api-oauth-callback-dry-run-controller-wiring' as const,
+      routeImplementedNow: true as const,
+      step139EDryRunControllerWiringImplementedNow: true as const,
+      wiringMode: 'controller-dry-run-only-no-persistence' as const,
+      controllerWiringNow: true as const,
+      oauthCallbackDryRunWiringNow: true as const,
+      oauthCallbackPersistenceWiringNow: false as const,
+      controllerCallsServicePersistenceDryRunNow: false as const,
+      controllerCallsServicePersistenceCommitNow: false as const,
+      tokenExchangeHttpCallNow: false as const,
+      tokenPersistenceDatabaseWriteNow: false as const,
+      plaintextTokenDatabaseWriteNow: false as const,
+      databaseWriteNow: false as const,
+      prismaClientWriteNow: false as const,
+      amazonNetworkCallNow: false as const,
+      realSpApiRequestNow: false as const,
+      rawAuthorizationCodeReturnedNow: false as const,
+      rawLwaResponseReturnedNow: false as const,
+      rawAccessTokenReturnedNow: false as const,
+      rawRefreshTokenReturnedNow: false as const,
+      frontendAddedNow: false as const,
+    };
 
     if (normalizedError) {
       return {
@@ -555,8 +571,6 @@ export class ImportsController {
       };
     }
 
-    // Keep a concrete bridge-service dependency in the route without executing DB or HTTP work.
-    // The full persistence plan requires encrypted token exchange output, which is intentionally unavailable in Step127-B.
     const bridgeServiceReady =
       typeof this.amazonSpApiOauthStatePersistenceBridgeService.buildPersistencePlan === 'function' &&
       typeof this.amazonSpApiOauthStatePersistenceBridgeService.validateStatePayload === 'function';
@@ -568,12 +582,12 @@ export class ImportsController {
       authorizationCode: selectedAuthorizationCode,
       sellingPartnerId: normalizedSellingPartnerId,
       redirectUri: 'https://ledgerseiri.example/api/imports/amazon-sp-api/oauth/callback',
-      clientId: 'amzn1.application-oa2-client.step130b',
+      clientId: 'amzn1.application-oa2-client.step139e',
       clientSecretConfigured: true,
       marketplaceId: 'A1VC38T7YXB528',
       region: 'JP',
-      companyId: 'company-step130b-boundary',
-      storeId: 'store-step130b-boundary',
+      companyId: 'company-step139e-dry-run',
+      storeId: 'store-step139e-dry-run',
       dryRun: true,
     });
 
@@ -589,6 +603,8 @@ export class ImportsController {
         bridgeServiceReady,
         tokenExchangeAttempted: true,
         tokenExchangeTransportMode: 'fake',
+        tokenExchangeHttpCallNow: false as const,
+        realSpApiRequestNow: false as const,
       };
     }
 
@@ -598,7 +614,7 @@ export class ImportsController {
         storeId: fakeExchangeResult.storeId,
         marketplaceId: fakeExchangeResult.marketplaceId,
         region: fakeExchangeResult.region,
-        appId: 'amzn1.application-oa2-client.step130b',
+        appId: 'amzn1.application-oa2-client.step139e',
         nonce: normalizedState,
         issuedAt: new Date(Date.now() - 60_000).toISOString(),
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
@@ -617,7 +633,7 @@ export class ImportsController {
         expectedStoreId: fakeExchangeResult.storeId,
         expectedMarketplaceId: fakeExchangeResult.marketplaceId,
         expectedRegion: fakeExchangeResult.region,
-        expectedAppId: 'amzn1.application-oa2-client.step130b',
+        expectedAppId: 'amzn1.application-oa2-client.step139e',
       },
     );
 
@@ -634,25 +650,45 @@ export class ImportsController {
         tokenExchangeAttempted: true,
         tokenExchangeTransportMode: fakeExchangeResult.transportMode,
         tokenExchangeHttpCallNow: fakeExchangeResult.tokenExchangeHttpCallNow,
-        tokenPersistenceDatabaseWriteNow: false,
         realSpApiRequestNow: fakeExchangeResult.realSpApiRequestNow,
       };
     }
 
-    const persistedRefreshCredential = await this.amazonSpApiTokenPersistenceService.persistEncryptedRefreshCredential(
-      persistencePlan.refreshCredentialInput,
-    );
-
-    const persistedAccessTokenCache = persistencePlan.accessTokenCacheInput
-      ? await this.amazonSpApiTokenPersistenceService.persistEncryptedAccessTokenCache(
-          persistencePlan.accessTokenCacheInput,
-        )
-      : null;
+    const serviceDryRunResult =
+      this.amazonSpApiTokenExchangeService.runTokenPersistenceE2eServiceOnlyTestDouble({
+        activationGateAccepted: true,
+        executableTransportAccepted: true,
+        sanitizedParserAccepted: true,
+        encryptedPersistenceInputAccepted: true,
+        companyId: fakeExchangeResult.companyId,
+        storeId: fakeExchangeResult.storeId,
+        marketplaceId: fakeExchangeResult.marketplaceId,
+        region: fakeExchangeResult.region,
+        sellingPartnerId: normalizedSellingPartnerId,
+        encryptedRefreshToken: persistencePlan.refreshCredentialInput.encryptedRefreshToken,
+        encryptedAccessTokenCache: persistencePlan.accessTokenCacheInput?.encryptedAccessToken ?? null,
+        accessTokenExpiresAt: persistencePlan.accessTokenCacheInput?.expiresAt ?? null,
+        refreshTokenFingerprint: 'step139e-refresh-token-fingerprint-dry-run',
+        accessTokenFingerprint: persistencePlan.accessTokenCacheInput
+          ? 'step139e-access-token-fingerprint-dry-run'
+          : null,
+        encryptionKeyId: persistencePlan.refreshCredentialInput.encryptionKeyId,
+        encryptionAlgorithm: persistencePlan.refreshCredentialInput.encryptionAlgorithm,
+        tokenVersion: persistencePlan.refreshCredentialInput.tokenVersion,
+        status: 'active',
+        lastValidatedAt: new Date().toISOString(),
+        revokedAt: null,
+      });
 
     return {
       ...baseResponse,
-      accepted: true,
-      status: 'token_persistence_completed',
+      accepted: serviceDryRunResult.accepted,
+      status: serviceDryRunResult.accepted
+        ? 'dry_run_token_persistence_ready'
+        : serviceDryRunResult.reason,
+      messageRedacted: serviceDryRunResult.accepted
+        ? 'OAuth callback dry-run completed. Token persistence remains disabled.'
+        : serviceDryRunResult.messageRedacted,
       statePresent: true,
       authorizationCodePresent: true,
       spapiOauthCodeUsed: Boolean(normalizedSpapiOauthCode && !normalizedCode),
@@ -661,24 +697,23 @@ export class ImportsController {
       tokenExchangeAttempted: true,
       tokenExchangeTransportMode: fakeExchangeResult.transportMode,
       tokenExchangeHttpCallNow: fakeExchangeResult.tokenExchangeHttpCallNow,
-      tokenPersistenceDatabaseWriteNow: true,
-      refreshCredentialPersisted: true,
-      accessTokenCachePersisted: Boolean(persistencePlan.accessTokenCacheInput),
       realSpApiRequestNow: fakeExchangeResult.realSpApiRequestNow,
-      sanitizedTokenEnvelope: fakeExchangeResult.sanitizedTokenEnvelope,
-      persistedConnection: {
-        id: persistedAccessTokenCache?.id ?? persistedRefreshCredential.id,
-        status: persistedAccessTokenCache?.status ?? persistedRefreshCredential.status,
-        connectedAt: (persistedAccessTokenCache?.connectedAt ?? persistedRefreshCredential.connectedAt)?.toISOString?.() ?? null,
-        lastTokenRefreshAt:
-          (persistedAccessTokenCache?.lastTokenRefreshAt ?? persistedRefreshCredential.lastTokenRefreshAt)?.toISOString?.() ?? null,
-      },
+      controllerCallsServicePersistenceDryRunNow: true as const,
+      servicePersistenceDryRunAccepted: serviceDryRunResult.accepted,
+      servicePersistenceReason: serviceDryRunResult.reason,
+      serviceWiringMode: serviceDryRunResult.serviceWiringMode,
+      tokenPersistenceDatabaseWriteNow: false as const,
+      plaintextTokenDatabaseWriteNow: false as const,
+      databaseWriteNow: false as const,
+      prismaClientWriteNow: false as const,
+      persistedConnection: null,
       sanitizedResult: {
         ...fakeExchangeResult.sanitizedResult,
         ...persistencePlan.sanitizedResult,
         sellingPartnerId: normalizedSellingPartnerId,
         tokenExchangePending: false,
-        tokenPersistencePending: false,
+        tokenPersistencePending: true,
+        tokenPersistenceDryRunOnly: true,
       },
     };
   }

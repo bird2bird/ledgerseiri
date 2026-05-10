@@ -135,11 +135,19 @@ assertIncludes('service', service, "serviceWiringMode: 'internal-service-only-no
 assertIncludes('service', service, 'controllerWiringNow: false');
 assertIncludes('service', service, 'oauthCallbackWiringNow: false');
 
-assertNotIncludes('controller', controller, 'runTokenPersistenceE2eServiceOnlyTestDouble');
+assertIncludes('controller', controller, 'runTokenPersistenceE2eServiceOnlyTestDouble');
+assertIncludes('controller', controller, "wiringMode: 'controller-dry-run-only-no-persistence'");
+assertIncludes('controller', controller, 'controllerCallsServicePersistenceDryRunNow: true');
+assertIncludes('controller', controller, 'oauthCallbackDryRunWiringNow: true');
+assertIncludes('controller', controller, 'oauthCallbackPersistenceWiringNow: false');
+assertIncludes('controller', controller, 'tokenPersistenceDatabaseWriteNow: false');
 assertNotIncludes('controller', controller, 'AmazonSpApiTokenPersistenceE2eRunner');
 assertNotIncludes('controller', controller, 'AmazonSpApiCredentialRepository');
 assertNotIncludes('controller', controller, 'controllerCallsServicePersistenceNow: true');
+assertNotIncludes('controller', controller, 'controllerCallsServicePersistenceCommitNow: true');
 assertNotIncludes('controller', controller, 'oauthCallbackPersistsTokenNow: true');
 assertNotIncludes('controller', controller, 'oauthCallbackPersistenceWiringNow: true');
+assertNotIncludes('controller', controller, 'persistEncryptedRefreshCredential');
+assertNotIncludes('controller', controller, 'persistEncryptedAccessTokenCache');
 
 console.log('========== Step139-D OAuth callback dry-run-only controller wiring contract smoke passed ==========');

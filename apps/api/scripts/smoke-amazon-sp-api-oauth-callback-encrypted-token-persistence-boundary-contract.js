@@ -157,17 +157,23 @@ assertIncludes('orchestrator', orchestrator, 'export class AmazonSpApiTokenPersi
 assertIncludes('repository', repository, 'export class AmazonSpApiCredentialRepository');
 assertIncludes('repository', repository, 'upsertEncryptedCredentialTestDouble');
 
-assertNotIncludes('controller', controller, 'runTokenPersistenceE2eServiceOnlyTestDouble');
+assertIncludes('controller', controller, 'runTokenPersistenceE2eServiceOnlyTestDouble');
+assertIncludes('controller', controller, "wiringMode: 'controller-dry-run-only-no-persistence'");
+assertIncludes('controller', controller, 'controllerCallsServicePersistenceDryRunNow: true');
+assertIncludes('controller', controller, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('controller', controller, 'plaintextTokenDatabaseWriteNow: false');
+assertIncludes('controller', controller, 'rawAccessTokenReturnedNow: false');
+assertIncludes('controller', controller, 'rawRefreshTokenReturnedNow: false');
 assertNotIncludes('controller', controller, 'AmazonSpApiTokenPersistenceE2eRunner');
 assertNotIncludes('controller', controller, 'AmazonSpApiTokenPersistenceOrchestrator');
 assertNotIncludes('controller', controller, 'AmazonSpApiCredentialRepository');
 
-// Controller may contain historical contract/diagnostic marker strings from earlier guarded
-// handoff DTOs. Step139-C must only fail if the OAuth callback is actually wired to the
-// service persistence path or explicitly marks callback persistence as active.
-assertNotIncludes('controller', controller, 'controllerCallsServicePersistenceNow: true');
+// Step139-E allows controller dry-run wiring only. It must not mark persistence as active.
+assertNotIncludes('controller', controller, 'controllerCallsServicePersistenceCommitNow: true');
 assertNotIncludes('controller', controller, 'oauthCallbackPersistsTokenNow: true');
 assertNotIncludes('controller', controller, 'callServicePersistenceMethodFromControllerNow: true');
 assertNotIncludes('controller', controller, 'oauthCallbackPersistenceWiringNow: true');
+assertNotIncludes('controller', controller, 'persistEncryptedRefreshCredential');
+assertNotIncludes('controller', controller, 'persistEncryptedAccessTokenCache');
 
 console.log('========== Step139-C OAuth callback encrypted token persistence boundary contract smoke passed ==========');

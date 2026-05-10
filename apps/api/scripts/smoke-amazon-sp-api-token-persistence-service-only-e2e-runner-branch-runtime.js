@@ -209,11 +209,33 @@ for (const forbidden of [
   assert(!serviceSource.includes(forbidden), `service does not contain forbidden marker: ${forbidden}`);
 }
 
+// Step139-E allows controller to call the service-only E2E method, but only through
+// a dry-run-only OAuth callback boundary. Direct runner/orchestrator/repository wiring
+// and persistence/DB writes remain forbidden.
+assert(controller.includes('runTokenPersistenceE2eServiceOnlyTestDouble'), 'controller may call service-only E2E method after Step139-E dry-run wiring');
+assert(controller.includes("wiringMode: 'controller-dry-run-only-no-persistence'"), 'controller remains dry-run-only after Step139-E');
+assert(controller.includes('controllerCallsServicePersistenceDryRunNow: true'), 'controller marks dry-run service call only');
+assert(controller.includes('oauthCallbackPersistenceWiringNow: false'), 'controller keeps persistence wiring disabled');
+assert(controller.includes('tokenPersistenceDatabaseWriteNow: false'), 'controller keeps token persistence DB write disabled');
+
 for (const forbidden of [
   'AmazonSpApiTokenPersistenceE2eRunner',
   'AmazonSpApiTokenPersistenceOrchestrator',
   'AmazonSpApiCredentialRepository',
-  'runTokenPersistenceE2eServiceOnlyTestDouble',
+  'controllerCallsServicePersistenceCommitNow: true',
+  'oauthCallbackPersistenceWiringNow: true',
+  'tokenPersistenceDatabaseWriteNow: true',
+  'plaintextTokenDatabaseWriteNow: true',
+  'databaseWriteNow: true',
+  'prismaClientWriteNow: true',
+  'amazonNetworkCallNow: true',
+  'realSpApiRequestNow: true',
+  'rawAuthorizationCodeReturnedNow: true',
+  'rawLwaResponseReturnedNow: true',
+  'rawAccessTokenReturnedNow: true',
+  'rawRefreshTokenReturnedNow: true',
+  'persistEncryptedRefreshCredential',
+  'persistEncryptedAccessTokenCache',
 ]) {
   assert(!controller.includes(forbidden), `controller does not contain forbidden marker: ${forbidden}`);
 }
