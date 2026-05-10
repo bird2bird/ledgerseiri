@@ -17,6 +17,7 @@ import {
   assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse,
 } from './amazon-sp-api-orders-credential.repository';
 import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-access-token.decryptor';
+import { refreshAmazonSpApiOrdersAccessTokenCache } from './amazon-sp-api-orders-lwa-refresh.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -112,6 +113,7 @@ type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previ
   step140WRequiredForLiveAmazonNetwork: boolean;
   credentialSource?: 'env' | 'repository';
   credentialRepository?: ReturnType<typeof assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse>;
+  accessTokenRefresh?: Awaited<ReturnType<typeof refreshAmazonSpApiOrdersAccessTokenCache>>;
 };
 
 function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
@@ -847,7 +849,9 @@ export class ImportsController {
       );
     }
 
-    const repositoryCredential = useRepositoryCredentials
+    let accessTokenRefreshResult: Awaited<ReturnType<typeof refreshAmazonSpApiOrdersAccessTokenCache>> | null = null;
+
+    let repositoryCredential = useRepositoryCredentials
       ? await resolveAmazonSpApiOrdersCredentialFromRepository({
           prisma: this.prismaService,
           companyId,
@@ -858,9 +862,35 @@ export class ImportsController {
         })
       : null;
 
+    if (
+      repositoryCredential &&
+      !repositoryCredential.repositoryCredentialUsable &&
+      (repositoryCredential.blockedReason === 'ACCESS_TOKEN_CACHE_EXPIRED' ||
+        repositoryCredential.blockedReason === 'ACCESS_TOKEN_CACHE_MISSING')
+    ) {
+      accessTokenRefreshResult = await refreshAmazonSpApiOrdersAccessTokenCache({
+        prisma: this.prismaService,
+        companyId,
+        storeId: normalizedStoreId,
+        marketplaceId: normalizedMarketplaceId,
+        region: body?.region || normalizedRegion,
+      });
+
+      if (accessTokenRefreshResult.accepted) {
+        repositoryCredential = await resolveAmazonSpApiOrdersCredentialFromRepository({
+          prisma: this.prismaService,
+          companyId,
+          storeId: normalizedStoreId,
+          marketplaceId: normalizedMarketplaceId,
+          region: body?.region || normalizedRegion,
+          decryptor: this.amazonSpApiOrdersAccessTokenDecryptor,
+        });
+      }
+    }
+
     if (repositoryCredential && !repositoryCredential.repositoryCredentialUsable) {
       throw new ForbiddenException(
-        `STEP140_X_ORDERS_CREDENTIAL_REPOSITORY_BLOCKED: ${repositoryCredential.blockedReason}`,
+        `STEP140_Z_ORDERS_CREDENTIAL_REPOSITORY_BLOCKED: ${repositoryCredential.blockedReason}; refresh=${accessTokenRefreshResult?.reason || 'not_attempted'}`,
       );
     }
 
@@ -923,6 +953,7 @@ export class ImportsController {
       credentialRepository: repositoryCredential
         ? assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse(repositoryCredential)
         : undefined,
+      accessTokenRefresh: accessTokenRefreshResult || undefined,
     };
   }
 
