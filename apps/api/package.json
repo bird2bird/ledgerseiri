@@ -220,7 +220,8 @@
     "smoke:amazon-sp-api-oauth-callback-real-db-guarded-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-real-db-guarded-runtime.js",
     "smoke:amazon-sp-api-credential-repository-schema-alignment-contract": "node scripts/smoke-amazon-sp-api-credential-repository-schema-alignment-contract.js",
     "smoke:amazon-sp-api-credential-repository-schema-aware-real-write-implementation": "node scripts/smoke-amazon-sp-api-credential-repository-schema-aware-real-write-implementation.js",
-    "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-wiring-contract": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-wiring-contract.js"
+    "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-wiring-contract": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-wiring-contract.js",
+    "smoke:amazon-sp-api-token-persistence-orchestrator-schema-aware-real-write-implementation": "node scripts/smoke-amazon-sp-api-token-persistence-orchestrator-schema-aware-real-write-implementation.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

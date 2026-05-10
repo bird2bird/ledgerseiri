@@ -128,7 +128,24 @@ for (const marker of [
   assertIncludes(orchestrator, marker, 'orchestrator legacy runtime');
 }
 
-assertNotIncludes(orchestrator, 'persistEncryptedTokensSchemaAwareRealWrite', 'orchestrator runtime unchanged before V5');
+if (orchestrator.includes('persistEncryptedTokensSchemaAwareRealWrite')) {
+  for (const marker of [
+    'persistEncryptedTokensSchemaAwareRealWrite',
+    "source: 'amazon-sp-api-token-persistence-orchestrator-schema-aware-real-write'",
+    "orchestratorMode: 'repository-schema-aware-real-write-wiring'",
+    "repositoryMethodCalled: 'upsertEncryptedCredentialSchemaAwareRealWrite'",
+    'upsertEncryptedCredentialSchemaAwareRealWrite',
+    'plaintextTokenDatabaseWriteNow: false',
+    'rawAccessTokenReturnedNow: false',
+    'rawRefreshTokenReturnedNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+  ]) {
+    assertIncludes(orchestrator, marker, 'orchestrator schema-aware runtime');
+  }
+} else {
+  assertNotIncludes(orchestrator, 'persistEncryptedTokensSchemaAwareRealWrite', 'orchestrator runtime unchanged before V5');
+}
 
 for (const marker of [
   'model AmazonSpApiConnection',
