@@ -42,9 +42,28 @@ assertIncludes('api', api, 'export type AmazonSpApiConnectionBackendStatus');
 assertIncludes('api', api, 'export type AmazonSpApiConnectionStatusRequest');
 assertIncludes('api', api, 'export type AmazonSpApiConnectionStatusResponse');
 assertIncludes('api', api, 'export async function readAmazonSpApiConnectionStatus');
-assertIncludes('api', api, '/api/imports/amazon-sp-api/connection/status?${params.toString()}');
+if (api.includes('/api/imports/amazon-sp-api/connection/status?${params.toString()}')) {
+  assertIncludes('api', api, '/api/imports/amazon-sp-api/connection/status?${params.toString()}');
+} else {
+  assertIncludes('api', api, 'AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT');
+  assertIncludes('api', api, 'buildAmazonSpApiConnectionStatusUrl');
+  assertIncludes('api', api, 'return `${AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT}?${params.toString()}`');
+}
 assertIncludes('api', api, 'credentials: "include"');
 assertIncludes('api', api, 'cache: "no-store"');
+
+assertIncludes('api', api, 'Step139-Z2-FRONTEND-AMAZON-SP-API-REAL-STATUS-API-HELPER');
+assertIncludes('api', api, 'AmazonSpApiConnectionStatusFrontendResponse');
+assertIncludes('api', api, 'AmazonSpApiConnectionStatusFrontendBackendStatus');
+assertIncludes('api', api, 'AmazonSpApiConnectionStatusFrontendReadModelStatus');
+assertIncludes('api', api, 'AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT');
+assertIncludes('api', api, 'buildAmazonSpApiConnectionStatusUrl');
+assertIncludes('api', api, 'assertAmazonSpApiConnectionStatusResponseIsSanitized');
+assertIncludes('api', api, 'rawAuthorizationCodeReturnedNow !== false');
+assertIncludes('api', api, 'encryptedRefreshTokenReturnedNow !== false');
+assertIncludes('api', api, 'credentialPresent?: boolean');
+assertIncludes('api', api, 'accessTokenCachePresent?: boolean');
+assertIncludes('api', api, 'accessTokenExpired?: boolean');
 assertIncludes('api', api, 'params.set("storeId", args.storeId || "store-step130b-boundary")');
 assertIncludes('api', api, 'params.set("marketplaceId", args.marketplaceId || "A1VC38T7YXB528")');
 assertIncludes('api', api, 'params.set("region", args.region || "JP")');

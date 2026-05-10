@@ -1,4 +1,10 @@
 import type {
+  AmazonSpApiConnectionStatusFrontendBackendStatus,
+  AmazonSpApiConnectionStatusFrontendReadModelStatus,
+  AmazonSpApiConnectionStatusFrontendResponse,
+} from "@/components/app/imports/amazon-sp-api-connection-status-frontend-contract";
+
+import type {
   CashIncomeCommitRequest,
   CashIncomeCommitResponse,
   CashIncomePreviewRequest,
@@ -486,14 +492,17 @@ export async function requestAmazonSpApiAuthorizationUrl(
 
 
 // Step134-B-FRONTEND-AMAZON-SP-API-STATUS-READ:
-// Read the backend connection status endpoint from the frontend panel.
-// This is a sanitized status read only. It does not expose raw tokens, does not call Amazon Reports API,
+// Step139-Z2-FRONTEND-AMAZON-SP-API-REAL-STATUS-API-HELPER:
+// Read the backend real DB connection status endpoint from the frontend panel.
+// This helper consumes the Step139-Y3 sanitized read-model response:
+// AmazonSpApiConnection + AmazonSpApiCredential + AmazonSpApiAccessTokenCache.
+// It does not expose raw tokens, does not call Amazon Orders/Reports API,
 // does not create ImportJob, and does not write transactions or inventory.
 export type AmazonSpApiConnectionBackendStatus =
-  | "NOT_CONNECTED"
-  | "CONNECTED"
-  | "RECONNECT_REQUIRED"
-  | "ERROR";
+  AmazonSpApiConnectionStatusFrontendBackendStatus;
+
+export type AmazonSpApiConnectionReadModelStatus =
+  AmazonSpApiConnectionStatusFrontendReadModelStatus;
 
 export type AmazonSpApiConnectionStatusRequest = {
   storeId?: string;
@@ -501,54 +510,102 @@ export type AmazonSpApiConnectionStatusRequest = {
   region?: string;
 };
 
-export type AmazonSpApiConnectionStatusResponse = {
-  ok?: boolean;
-  source?: string;
-  status?: AmazonSpApiConnectionBackendStatus | string;
-  connected?: boolean;
-  reconnectRequired?: boolean;
-  storeId?: string;
-  marketplaceId?: string;
-  region?: string;
-  tokenExpiresAt?: string | null;
-  lastConnectedAt?: string | null;
-  lastStatusCheckedAt?: string | null;
-  lastErrorCode?: string | null;
-  message?: string;
-  messageRedacted?: string;
-  realSpApiRequestNow?: boolean;
-  reportsApiCallNow?: boolean;
-  importJobWriteNow?: boolean;
-  transactionWriteNow?: boolean;
-  inventoryWriteNow?: boolean;
-  rawTokenReturnedNow?: boolean;
-  clientSecretReturnedNow?: boolean;
-  sanitizedResult?: {
-    companyId?: string;
-    storeId?: string;
-    marketplaceId?: string;
-    region?: string;
-    status?: AmazonSpApiConnectionBackendStatus | string;
-    connected?: boolean;
+export type AmazonSpApiConnectionStatusResponse =
+  AmazonSpApiConnectionStatusFrontendResponse & {
+    ok?: boolean;
+    message?: string;
+    messageRedacted?: string;
     reconnectRequired?: boolean;
+    tokenExpiresAt?: string | null;
+    lastConnectedAt?: string | null;
+    lastStatusCheckedAt?: string | null;
+    reportsApiCallNow?: false;
+    rawTokenReturnedNow?: false;
+    clientSecretReturnedNow?: false;
+    sanitizedResult?: {
+      companyId?: string;
+      storeId?: string;
+      marketplaceId?: string;
+      region?: string;
+      status?: AmazonSpApiConnectionBackendStatus | string;
+      readModelStatus?: AmazonSpApiConnectionReadModelStatus | string;
+      connected?: boolean;
+      reconnectRequired?: boolean;
+      credentialPresent?: boolean;
+      accessTokenCachePresent?: boolean;
+      accessTokenExpired?: boolean;
+    };
   };
-};
+
+export const AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT =
+  "/api/imports/amazon-sp-api/connection/status" as const;
+
+export const AMAZON_SP_API_DEFAULT_MARKETPLACE_ID = "A1VC38T7YXB528" as const;
+export const AMAZON_SP_API_DEFAULT_REGION = "JP" as const;
+export const AMAZON_SP_API_DEFAULT_STORE_ID = "store-step130b-boundary" as const;
+
+export function buildAmazonSpApiConnectionStatusUrl(
+  args: AmazonSpApiConnectionStatusRequest = {}
+): string {
+  const params = new URLSearchParams();
+
+  params.set("storeId", args.storeId || AMAZON_SP_API_DEFAULT_STORE_ID);
+  params.set("marketplaceId", args.marketplaceId || AMAZON_SP_API_DEFAULT_MARKETPLACE_ID);
+  params.set("region", args.region || AMAZON_SP_API_DEFAULT_REGION);
+
+  return `${AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT}?${params.toString()}`;
+}
+
+export function assertAmazonSpApiConnectionStatusResponseIsSanitized(
+  data: AmazonSpApiConnectionStatusResponse
+): AmazonSpApiConnectionStatusResponse {
+  const unsafePayload = JSON.stringify(data);
+
+  for (const forbidden of [
+    "encrypted-refresh-secret",
+    "encrypted-access-secret",
+    "AUTHORIZATION_CODE_SECRET",
+    "RAW_LWA_RESPONSE_SECRET",
+    "PLAINTEXT_ACCESS_TOKEN",
+    "PLAINTEXT_REFRESH_TOKEN",
+  ]) {
+    if (unsafePayload.includes(forbidden)) {
+      throw new Error("Amazon SP-API connection status response exposed a forbidden secret marker.");
+    }
+  }
+
+  if (data.rawAuthorizationCodeReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return raw authorization code.");
+  }
+  if (data.rawLwaResponseReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return raw LWA response.");
+  }
+  if (data.rawAccessTokenReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return raw access token.");
+  }
+  if (data.rawRefreshTokenReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return raw refresh token.");
+  }
+  if (data.encryptedRefreshTokenReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return encrypted refresh token.");
+  }
+  if (data.encryptedAccessTokenReturnedNow !== false) {
+    throw new Error("Amazon SP-API status response must not return encrypted access token.");
+  }
+
+  return data;
+}
 
 export async function readAmazonSpApiConnectionStatus(
   args: AmazonSpApiConnectionStatusRequest = {}
 ): Promise<AmazonSpApiConnectionStatusResponse> {
-  const params = new URLSearchParams();
-
-  params.set("storeId", args.storeId || "store-step130b-boundary");
-  params.set("marketplaceId", args.marketplaceId || "A1VC38T7YXB528");
-  params.set("region", args.region || "JP");
-
-  const url = `/api/imports/amazon-sp-api/connection/status?${params.toString()}`;
+  const url = buildAmazonSpApiConnectionStatusUrl(args);
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",
     cache: "no-store",
   });
 
-  return readJson<AmazonSpApiConnectionStatusResponse>(res, url);
+  const data = await readJson<AmazonSpApiConnectionStatusResponse>(res, url);
+  return assertAmazonSpApiConnectionStatusResponseIsSanitized(data);
 }
