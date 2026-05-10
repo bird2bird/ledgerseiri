@@ -244,7 +244,8 @@
     "smoke:amazon-sp-api-orders-preview-controller-dry-run-route": "node scripts/smoke-amazon-sp-api-orders-preview-controller-dry-run-route.js",
     "smoke:amazon-sp-api-orders-real-http-activation-guard": "node scripts/smoke-amazon-sp-api-orders-real-http-activation-guard.js",
     "smoke:amazon-sp-api-orders-signed-request-builder-no-network": "node scripts/smoke-amazon-sp-api-orders-signed-request-builder-no-network.js",
-    "smoke:amazon-sp-api-orders-guarded-http-client-no-db-write": "node scripts/smoke-amazon-sp-api-orders-guarded-http-client-no-db-write.js"
+    "smoke:amazon-sp-api-orders-guarded-http-client-no-db-write": "node scripts/smoke-amazon-sp-api-orders-guarded-http-client-no-db-write.js",
+    "smoke:amazon-sp-api-orders-real-preview-no-persistence": "node scripts/smoke-amazon-sp-api-orders-real-preview-no-persistence.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

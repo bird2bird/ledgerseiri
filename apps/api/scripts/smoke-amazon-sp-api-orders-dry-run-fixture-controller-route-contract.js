@@ -113,6 +113,33 @@ function isAllowedStep140OGuardedHttpClient(file, text) {
   );
 }
 
+function isAllowedStep140PRealPreviewNoPersistence(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+  return (
+    normalized.endsWith("apps/api/src/imports/amazon-sp-api-orders-real-preview.service.ts") &&
+    text.includes("previewAmazonSpApiOrdersRealNoPersistence") &&
+    text.includes("real-http-mocked-transport-no-persistence") &&
+    text.includes("blockedBecauseNoPersistence: true") &&
+    text.includes("writesDatabase: false") &&
+    text.includes("importJobWriteNow: false") &&
+    text.includes("importStagingRowWriteNow: false") &&
+    text.includes("transactionWriteNow: false") &&
+    text.includes("inventoryWriteNow: false") &&
+    text.includes("usesInjectedTransportOnly: true") &&
+    !text.includes("prisma.") &&
+    !text.includes("importJob.create") &&
+    !text.includes("importStagingRow.create") &&
+    !text.includes("transaction.create") &&
+    !text.includes("inventoryMovement.create") &&
+    !text.includes("inventoryBalance.update") &&
+    !text.includes("fetch(") &&
+    !text.includes("axios.") &&
+    !text.includes("got(") &&
+    !text.includes("https.request(") &&
+    !text.includes("http.request(")
+  );
+}
+
 function isAllowedStep140LFrontendDryRunOrdersPreview(file, text) {
   const normalized = file.replaceAll(path.sep, "/");
 
@@ -233,6 +260,7 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const allowedStep140KPreviewControllerRoute = isAllowedStep140KPreviewControllerRoute(file, text);
     const allowedStep140NSignedRequestBuilder = isAllowedStep140NSignedRequestBuilder(file, text);
     const allowedStep140OGuardedHttpClient = isAllowedStep140OGuardedHttpClient(file, text);
+    const allowedStep140PRealPreviewNoPersistence = isAllowedStep140PRealPreviewNoPersistence(file, text);
     const hasAmazonOrdersContext =
       text.includes("amazon-sp-api") ||
       text.includes("AmazonSpApi") ||
@@ -243,22 +271,22 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("step140-h");
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient) routeLeaks.push(rel);
+      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence) routeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient) {
+    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence) {
       dryRunLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient) {
+    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence) {
       controllerLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient) {
+    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence) {
       writeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient) {
+    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService && !allowedStep140KPreviewControllerRoute && !allowedStep140NSignedRequestBuilder && !allowedStep140OGuardedHttpClient && !allowedStep140PRealPreviewNoPersistence) {
       networkLeaks.push(rel);
     }
   }
