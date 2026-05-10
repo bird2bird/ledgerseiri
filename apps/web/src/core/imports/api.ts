@@ -609,3 +609,123 @@ export async function readAmazonSpApiConnectionStatus(
   const data = await readJson<AmazonSpApiConnectionStatusResponse>(res, url);
   return assertAmazonSpApiConnectionStatusResponseIsSanitized(data);
 }
+
+// Step140-L-FRONTEND-AMAZON-SP-API-ORDERS-DRY-RUN-PREVIEW:
+// Frontend helper for the backend dry-run-only route:
+// POST /api/imports/amazon-sp-api/orders/preview
+// This calls only the Step140-K dry-run preview controller route.
+// It does not call Amazon directly, does not write ImportJob/StagingRow/Transaction/Inventory,
+// and commit remains disabled in the frontend.
+export type AmazonSpApiOrdersDryRunPreviewRequest = {
+  storeId: string;
+  marketplaceId?: string;
+  region?: string;
+  createdAfter: string;
+  createdBefore: string;
+  orderStatuses?: string[];
+  dryRun: true;
+};
+
+export type AmazonSpApiOrdersDryRunPreviewResponse = {
+  requestId?: string;
+  source?: "amazon-sp-api-orders-dry-run-fixture" | string;
+  dryRun: true;
+  routeImplementedNow?: true;
+  route?: "/api/imports/amazon-sp-api/orders/preview" | string;
+  guardedBy?: "JwtAuthGuard" | string;
+  controllerMode?: "dry-run-preview-only" | string;
+  controllerWritesDatabase?: false;
+  controllerCallsAmazon?: false;
+  controllerUsesHttpClient?: false;
+  controllerUsesSigV4?: false;
+  importJobWriteNow?: false;
+  importStagingRowWriteNow?: false;
+  transactionWriteNow?: false;
+  inventoryWriteNow?: false;
+  service?: "AmazonSpApiOrdersPreviewService" | string;
+  previewMode?: "dry-run-fixture" | string;
+  serviceWritesDatabase?: false;
+  serviceCallsAmazon?: false;
+  companyId?: string;
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  normalizedOrders?: Array<{
+    amazonOrderId?: string;
+    purchaseDate?: string;
+    businessMonth?: string;
+    orderStatus?: string;
+    currencyCode?: string;
+    orderTotalAmount?: number;
+    itemCount?: number;
+    dedupeHash?: string;
+  }>;
+  normalizedOrderItems?: Array<{
+    amazonOrderId?: string;
+    orderItemId?: string;
+    asin?: string;
+    sellerSku?: string | null;
+    title?: string;
+    quantityOrdered?: number;
+    itemPriceAmount?: number;
+    itemTaxAmount?: number;
+    itemCurrencyCode?: string;
+    itemLevelDedupeHash?: string;
+  }>;
+  validationSummary?: {
+    totalOrders?: number;
+    totalOrderItems?: number;
+    validationErrorCount?: number;
+    warningCount?: number;
+    commitEligibleCount?: number;
+  };
+  dedupeSummary?: {
+    duplicateOrdersCount?: number;
+    duplicateItemsCount?: number;
+    uniqueOrderDedupeHashes?: string[];
+    uniqueItemDedupeHashes?: string[];
+  };
+  skuResolutionSummary?: {
+    resolvedSkuCount?: number;
+    unresolvedSkuCount?: number;
+    unresolvedSellerSkus?: string[];
+    inventoryBlockedCount?: number;
+  };
+  inventoryImpactPreview?: {
+    wouldDeductInventory?: false;
+    blockedBecauseDryRun?: true;
+    blockedBecauseUnresolvedSkuCount?: number;
+    impacts?: Array<{
+      sellerSku?: string | null;
+      quantityOrdered?: number;
+      resolutionStatus?: "resolved" | "unresolved" | string;
+      wouldDeductQuantity?: number;
+    }>;
+  };
+  transactionImpactPreview?: {
+    wouldCreateTransactions?: false;
+    blockedBecauseDryRun?: true;
+    transactionPreviewCount?: number;
+    totalPreviewAmount?: number;
+    currencyCode?: string;
+  };
+  warnings?: string[];
+  writesDatabase?: false;
+  realAmazonOrdersApiCall?: false;
+};
+
+export const AMAZON_SP_API_ORDERS_DRY_RUN_PREVIEW_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/preview" as const;
+
+export async function previewAmazonSpApiOrdersDryRun(
+  payload: AmazonSpApiOrdersDryRunPreviewRequest
+): Promise<AmazonSpApiOrdersDryRunPreviewResponse> {
+  return postJson<AmazonSpApiOrdersDryRunPreviewResponse>(
+    AMAZON_SP_API_ORDERS_DRY_RUN_PREVIEW_ENDPOINT,
+    {
+      ...payload,
+      dryRun: true,
+    }
+  );
+}
+

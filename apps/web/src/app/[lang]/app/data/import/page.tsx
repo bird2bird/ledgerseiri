@@ -1,6 +1,7 @@
 "use client";
 
 import { AmazonSpApiConnectionStatusPanel } from "@/components/app/imports/AmazonSpApiConnectionStatusPanel";
+import { AmazonSpApiOrdersDryRunPreviewPanel } from "@/components/app/imports/AmazonSpApiOrdersDryRunPreviewPanel";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
@@ -84,6 +85,7 @@ export default function DataImportPage() {
     <main className="space-y-6">
       
       <AmazonSpApiConnectionStatusPanel />
+      <AmazonSpApiOrdersDryRunPreviewPanel />
 {/* Step122-W: Amazon SP-API sandbox read-model panel UI shell. No fetch / no endpoint call. */}
       <AmazonSpApiSandboxReadModelPanelShell />
       <ImportJobsHero
