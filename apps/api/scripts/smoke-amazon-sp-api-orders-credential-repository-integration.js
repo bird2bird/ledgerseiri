@@ -71,6 +71,8 @@ function main() {
     "credentialSource",
     "credentialRepository",
     "this.prismaService",
+    "AmazonSpApiOrdersAccessTokenDecryptor",
+    "decryptor: this.amazonSpApiOrdersAccessTokenDecryptor",
   ];
 
   for (const marker of controllerMarkers) {

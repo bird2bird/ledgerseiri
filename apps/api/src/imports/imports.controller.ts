@@ -16,6 +16,7 @@ import {
   resolveAmazonSpApiOrdersCredentialFromRepository,
   assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse,
 } from './amazon-sp-api-orders-credential.repository';
+import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-access-token.decryptor';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -370,6 +371,7 @@ function buildStep140VMockedOrdersTransport(): AmazonSpApiOrdersHttpTransport {
 @Controller('api/imports')
 export class ImportsController {
   private readonly amazonSpApiOrdersPreviewService = buildAmazonSpApiOrdersPreviewService();
+  private readonly amazonSpApiOrdersAccessTokenDecryptor = new AmazonSpApiOrdersAccessTokenDecryptor();
 
   constructor(
     private readonly service: ImportsService,
@@ -852,6 +854,7 @@ export class ImportsController {
           storeId: normalizedStoreId,
           marketplaceId: normalizedMarketplaceId,
           region: body?.region || normalizedRegion,
+          decryptor: this.amazonSpApiOrdersAccessTokenDecryptor,
         })
       : null;
 
