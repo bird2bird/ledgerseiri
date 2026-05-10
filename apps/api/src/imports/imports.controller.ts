@@ -8,6 +8,7 @@ import { AmazonSpApiLwaEnvConfigValidationService } from './amazon-sp-api-lwa-en
 import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lwa-activation-gate.service';
 import { AmazonSpApiOauthCallbackCommitGateService } from './amazon-sp-api-oauth-callback-commit-gate.service';
 import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-persistence.orchestrator';
+import { buildAmazonSpApiOrdersPreviewService } from './amazon-sp-api-orders-preview.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -44,6 +45,50 @@ type Step122SAuthenticatedRequest = {
 
 
 
+
+
+type AmazonSpApiOrdersDryRunPreviewRouteBody = {
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  orderStatuses?: string[];
+  dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersDryRunPreviewRouteResponse = ReturnType<
+  ReturnType<typeof buildAmazonSpApiOrdersPreviewService>['previewDryRun']
+> & {
+  routeImplementedNow: true;
+  route: '/api/imports/amazon-sp-api/orders/preview';
+  guardedBy: 'JwtAuthGuard';
+  controllerMode: 'dry-run-preview-only';
+  controllerWritesDatabase: false;
+  controllerCallsAmazon: false;
+  controllerUsesHttpClient: false;
+  controllerUsesSigV4: false;
+  importJobWriteNow: false;
+  importStagingRowWriteNow: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+};
+
+function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
+  const normalized = String(value || 'FE').trim().toUpperCase();
+
+  if (normalized === 'JP') {
+    return 'FE';
+  }
+
+  if (normalized === 'FE' || normalized === 'NA' || normalized === 'EU') {
+    return normalized;
+  }
+
+  throw new BadRequestException(
+    'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: region must be FE, NA, EU, or JP.',
+  );
+}
 
 type AmazonSpApiConnectionStatusEndpointResponse = {
   source: 'amazon-sp-api-connection-status';
@@ -222,6 +267,8 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
 
 @Controller('api/imports')
 export class ImportsController {
+  private readonly amazonSpApiOrdersPreviewService = buildAmazonSpApiOrdersPreviewService();
+
   constructor(
     private readonly service: ImportsService,
     private readonly amazonSpApiOauthStatePersistenceBridgeService: AmazonSpApiOauthStatePersistenceBridgeService,
@@ -552,6 +599,88 @@ export class ImportsController {
       marketplaceId: normalizedMarketplaceId,
       region: normalizedRegion,
     });
+  }
+
+
+  // Step140-K: Amazon SP-API Orders dry-run preview controller route implementation.
+  // This route is real, guarded and service-backed, but dry-run only.
+  // It does not call Amazon, does not execute HTTP/SigV4, and does not write ImportJob/StagingRow/Transaction/Inventory.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/preview')
+  amazonSpApiOrdersDryRunPreviewControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersDryRunPreviewRouteBody,
+  ): AmazonSpApiOrdersDryRunPreviewRouteResponse {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP140_K_ORDERS_PREVIEW_COMPANY_REQUIRED: authenticated user must belong to a company to preview Amazon SP-API orders.',
+      );
+    }
+
+    const normalizedStoreId = String(body?.storeId || '').trim();
+    const normalizedMarketplaceId = String(body?.marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = normalizeAmazonSpApiOrdersPreviewRegionForController(body?.region);
+    const normalizedCreatedAfter = String(body?.createdAfter || '').trim();
+    const normalizedCreatedBefore = String(body?.createdBefore || '').trim();
+
+    if (body?.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: dryRun must be true for Amazon SP-API Orders preview route.',
+      );
+    }
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException(
+        'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: storeId is required.',
+      );
+    }
+
+    if (!normalizedMarketplaceId) {
+      throw new BadRequestException(
+        'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: marketplaceId is required.',
+      );
+    }
+
+    if (!normalizedCreatedAfter) {
+      throw new BadRequestException(
+        'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: createdAfter is required.',
+      );
+    }
+
+    if (!normalizedCreatedBefore) {
+      throw new BadRequestException(
+        'STEP140_K_ORDERS_PREVIEW_BAD_REQUEST: createdBefore is required.',
+      );
+    }
+
+    const result = this.amazonSpApiOrdersPreviewService.previewDryRun({
+      companyId,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      createdAfter: normalizedCreatedAfter,
+      createdBefore: normalizedCreatedBefore,
+      orderStatuses: Array.isArray(body?.orderStatuses) ? body.orderStatuses : undefined,
+      dryRun: true,
+    });
+
+    return {
+      ...result,
+      routeImplementedNow: true as const,
+      route: '/api/imports/amazon-sp-api/orders/preview' as const,
+      guardedBy: 'JwtAuthGuard' as const,
+      controllerMode: 'dry-run-preview-only' as const,
+      controllerWritesDatabase: false as const,
+      controllerCallsAmazon: false as const,
+      controllerUsesHttpClient: false as const,
+      controllerUsesSigV4: false as const,
+      importJobWriteNow: false as const,
+      importStagingRowWriteNow: false as const,
+      transactionWriteNow: false as const,
+      inventoryWriteNow: false as const,
+    };
   }
 
   // Step139-E: Amazon SP-API OAuth callback dry-run-only controller wiring implementation.

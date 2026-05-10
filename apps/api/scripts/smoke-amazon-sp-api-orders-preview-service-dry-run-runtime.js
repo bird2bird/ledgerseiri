@@ -79,6 +79,15 @@ function assertNoStep140JImplementationLeak(repoRoot) {
     const isDto = rel.includes("/dto/") || rel.endsWith(".dto.ts");
     const isExpectedService = rel.endsWith("apps/api/src/imports/amazon-sp-api-orders-preview.service.ts");
     const isExpectedFixture = rel.endsWith("apps/api/src/imports/amazon-sp-api-orders-dry-run-fixture.ts");
+    const isAllowedStep140KDryRunController =
+      rel.endsWith("apps/api/src/imports/imports.controller.ts") &&
+      text.includes("amazonSpApiOrdersDryRunPreviewControllerRoute") &&
+      text.includes("@Post('amazon-sp-api/orders/preview')") &&
+      text.includes("controllerMode: 'dry-run-preview-only'") &&
+      text.includes("controllerWritesDatabase: false") &&
+      text.includes("controllerCallsAmazon: false") &&
+      text.includes("controllerUsesHttpClient: false") &&
+      text.includes("controllerUsesSigV4: false");
 
     const hasStep140JContext =
       text.includes("Step140-J") ||
@@ -89,7 +98,8 @@ function assertNoStep140JImplementationLeak(repoRoot) {
       hasStep140JContext &&
       !isDto &&
       !isExpectedService &&
-      !isExpectedFixture
+      !isExpectedFixture &&
+      !isAllowedStep140KDryRunController
     ) {
       leaks.push(rel);
     }
