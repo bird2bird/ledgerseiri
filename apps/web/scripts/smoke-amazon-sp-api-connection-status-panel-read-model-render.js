@@ -153,7 +153,7 @@ const renderSlice = slice(
 );
 
 for (const marker of [
-  'Connection / Credential / Access Token Cache',
+  '接続情報・認証情報・一時トークン状態',
   'buildBackendStatusRows(backendStatusDetail).map',
   'backendStatusDetail?.lastErrorMessageRedacted',
 ]) {

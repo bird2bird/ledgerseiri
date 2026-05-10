@@ -8,6 +8,7 @@
     "smoke:amazon-sp-api-connection-status-frontend-contract": "node scripts/smoke-amazon-sp-api-connection-status-frontend-contract.js",
     "smoke:amazon-sp-api-connection-status-frontend-api-helper": "node scripts/smoke-amazon-sp-api-connection-status-frontend-api-helper.js",
     "smoke:amazon-sp-api-connection-status-panel-read-model-render": "node scripts/smoke-amazon-sp-api-connection-status-panel-read-model-render.js",
+    "smoke:amazon-sp-api-connection-status-panel-closeout": "node scripts/smoke-amazon-sp-api-connection-status-panel-closeout.js",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint",
     "smoke:amazon-sp-api-frontend-status-read": "node scripts/smoke-amazon-sp-api-frontend-status-read-implementation.js",

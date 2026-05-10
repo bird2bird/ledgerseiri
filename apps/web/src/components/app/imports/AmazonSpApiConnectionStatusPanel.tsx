@@ -59,21 +59,22 @@ function getReadModelStatusLabel(value?: string | null) {
   return value || "—";
 }
 
+// Step139-Z4-FRONTEND-AMAZON-SP-API-STATUS-PANEL-CLOSEOUT:
 // Step139-Z3-FRONTEND-AMAZON-SP-API-STATUS-READ-MODEL-RENDER:
 // Keep Y3 real DB read-model details in the panel state and render sanitized fields only.
 // Never display encrypted/raw token values.
 function buildBackendStatusRows(data: BackendStatusDetail) {
   return [
-    { label: "Read Model", value: data?.readModelMode || "—" },
-    { label: "DB Status", value: getReadModelStatusLabel(data?.readModelStatus) },
-    { label: "Credential", value: formatBooleanJa(data?.credentialPresent) },
-    { label: "Access Token Cache", value: formatBooleanJa(data?.accessTokenCachePresent) },
-    { label: "Access Token Expired", value: formatBooleanJa(data?.accessTokenExpired) },
-    { label: "Access Token Expires At", value: formatNullableDateTime(data?.accessTokenExpiresAt) },
-    { label: "Credential Rotated At", value: formatNullableDateTime(data?.credentialRotatedAt) },
-    { label: "Credential Revoked At", value: formatNullableDateTime(data?.credentialRevokedAt) },
-    { label: "Last Sync At", value: formatNullableDateTime(data?.lastSyncAt) },
-    { label: "Last Error Code", value: data?.lastErrorCode || "—" },
+    { label: "読取モード", value: data?.readModelMode || "—" },
+    { label: "DB状態", value: getReadModelStatusLabel(data?.readModelStatus) },
+    { label: "認証情報", value: formatBooleanJa(data?.credentialPresent) },
+    { label: "一時トークン", value: formatBooleanJa(data?.accessTokenCachePresent) },
+    { label: "一時トークン期限切れ", value: formatBooleanJa(data?.accessTokenExpired) },
+    { label: "一時トークン期限", value: formatNullableDateTime(data?.accessTokenExpiresAt) },
+    { label: "認証情報更新日時", value: formatNullableDateTime(data?.credentialRotatedAt) },
+    { label: "認証情報失効日時", value: formatNullableDateTime(data?.credentialRevokedAt) },
+    { label: "最終同期日時", value: formatNullableDateTime(data?.lastSyncAt) },
+    { label: "最終エラーコード", value: data?.lastErrorCode || "—" },
   ];
 }
 
@@ -230,7 +231,6 @@ export function AmazonSpApiConnectionStatusPanel() {
         }
 
         setBackendStatusDetail(null);
-        setBackendStatusDetail(null);
         setStatus("error");
         setMessage(err instanceof Error ? err.message : String(err));
       } finally {
@@ -371,10 +371,10 @@ export function AmazonSpApiConnectionStatusPanel() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                  Real DB Read Model
+                  Amazon SP-API 接続詳細
                 </div>
                 <div className="mt-1 text-sm font-black text-slate-800">
-                  Connection / Credential / Access Token Cache
+                  接続情報・認証情報・一時トークン状態
                 </div>
               </div>
               <span
