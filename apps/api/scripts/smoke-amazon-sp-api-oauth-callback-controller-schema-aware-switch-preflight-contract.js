@@ -163,7 +163,8 @@ if (controller.includes('this.amazonSpApiTokenPersistenceOrchestrator.persistEnc
 
   assertNotIncludes(
     controller,
-      'post-Step139-V9 controller legacy orchestrator call removed',
+    'this.amazonSpApiTokenPersistenceOrchestrator.persistEncryptedTokensRealWrite',
+    'post-Step139-V9 controller legacy orchestrator call removed',
   );
 }
 
