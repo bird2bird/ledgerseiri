@@ -254,7 +254,8 @@
     "smoke:amazon-sp-api-orders-server-only-raw-signed-transport": "node scripts/smoke-amazon-sp-api-orders-server-only-raw-signed-transport.js",
     "smoke:amazon-sp-api-orders-credential-repository-integration": "node scripts/smoke-amazon-sp-api-orders-credential-repository-integration.js",
     "smoke:amazon-sp-api-orders-credential-decryptor-access-token-cache": "node scripts/smoke-amazon-sp-api-orders-credential-decryptor-access-token-cache.js",
-    "smoke:amazon-sp-api-orders-lwa-refresh-access-token-cache-update": "node scripts/smoke-amazon-sp-api-orders-lwa-refresh-access-token-cache-update.js"
+    "smoke:amazon-sp-api-orders-lwa-refresh-access-token-cache-update": "node scripts/smoke-amazon-sp-api-orders-lwa-refresh-access-token-cache-update.js",
+    "smoke:amazon-sp-api-orders-real-preview-production-verification": "node scripts/smoke-amazon-sp-api-orders-real-preview-production-verification.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

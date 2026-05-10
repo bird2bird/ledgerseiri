@@ -57,6 +57,8 @@ function main() {
     "decryptor: this.amazonSpApiOrdersAccessTokenDecryptor",
     "transportMode === 'repository'",
     "repository-access-token-server-only-real-network",
+    "verifyAmazonSpApiOrdersRealPreviewProductionReadiness",
+    "productionVerification",
     "refreshAmazonSpApiOrdersAccessTokenCache",
     "accessTokenRefresh",
   ];

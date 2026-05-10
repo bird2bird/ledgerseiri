@@ -64,6 +64,7 @@ function main() {
     "ACCESS_TOKEN_CACHE_MISSING",
     "STEP140_Z_ORDERS_CREDENTIAL_REPOSITORY_BLOCKED",
     "accessTokenRefresh",
+    "productionVerification",
   ];
 
   for (const marker of controllerMarkers) {

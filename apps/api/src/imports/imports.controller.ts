@@ -18,6 +18,7 @@ import {
 } from './amazon-sp-api-orders-credential.repository';
 import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-access-token.decryptor';
 import { refreshAmazonSpApiOrdersAccessTokenCache } from './amazon-sp-api-orders-lwa-refresh.service';
+import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-sp-api-orders-real-preview-production.verifier';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -114,6 +115,7 @@ type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previ
   credentialSource?: 'env' | 'repository';
   credentialRepository?: ReturnType<typeof assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse>;
   accessTokenRefresh?: Awaited<ReturnType<typeof refreshAmazonSpApiOrdersAccessTokenCache>>;
+  productionVerification?: ReturnType<typeof verifyAmazonSpApiOrdersRealPreviewProductionReadiness>;
 };
 
 function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
@@ -932,6 +934,14 @@ export class ImportsController {
       transport: serverOnlyTransport,
     });
 
+    const productionVerification = verifyAmazonSpApiOrdersRealPreviewProductionReadiness({
+      previewResult: result,
+      transportMode,
+      credentialSource: useRepositoryCredentials ? 'repository' : 'env',
+      accessTokenRefreshResult: accessTokenRefreshResult || undefined,
+      now: new Date(),
+    });
+
     return {
       ...result,
       routeImplementedNow: true as const,
@@ -954,6 +964,7 @@ export class ImportsController {
         ? assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse(repositoryCredential)
         : undefined,
       accessTokenRefresh: accessTokenRefreshResult || undefined,
+      productionVerification,
     };
   }
 

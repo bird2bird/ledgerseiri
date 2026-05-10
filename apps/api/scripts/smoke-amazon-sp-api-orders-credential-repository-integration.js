@@ -67,6 +67,8 @@ function main() {
     "assertAmazonSpApiOrdersCredentialRepositoryResultSafeForResponse",
     "transportMode === 'repository'",
     "repository-access-token-server-only-real-network",
+    "verifyAmazonSpApiOrdersRealPreviewProductionReadiness",
+    "productionVerification",
     "STEP140_Z_ORDERS_CREDENTIAL_REPOSITORY_BLOCKED",
     "credentialSource",
     "credentialRepository",
