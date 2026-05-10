@@ -14,7 +14,8 @@
     "smoke:amazon-sp-api-frontend-status-read": "node scripts/smoke-amazon-sp-api-frontend-status-read-implementation.js",
     "smoke:amazon-sp-api-frontend-status-runtime": "node scripts/smoke-amazon-sp-api-frontend-status-runtime.js",
     "smoke:next-api-rewrite-config": "node scripts/smoke-next-api-rewrite-config.js",
-    "smoke:amazon-sp-api-orders-import-center-dry-run-preview-panel": "node scripts/smoke-amazon-sp-api-orders-import-center-dry-run-preview-panel.js"
+    "smoke:amazon-sp-api-orders-import-center-dry-run-preview-panel": "node scripts/smoke-amazon-sp-api-orders-import-center-dry-run-preview-panel.js",
+    "smoke:amazon-sp-api-orders-import-center-production-closeout": "node scripts/smoke-amazon-sp-api-orders-import-center-production-closeout.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

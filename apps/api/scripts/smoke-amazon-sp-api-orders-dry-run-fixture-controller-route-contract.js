@@ -283,6 +283,44 @@ function isAllowedStep140LFrontendDryRunOrdersPreview(file, text) {
   return (isPanel || isApiHelper) && !forbidden;
 }
 
+function isAllowedStep140UProductionCloseoutPanel(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+
+  const isReadonlyCloseoutPanel =
+    normalized.endsWith("apps/web/src/components/app/imports/AmazonSpApiOrdersProductionCloseoutPanel.tsx") &&
+    text.includes("AmazonSpApiOrdersProductionCloseoutPanel") &&
+    text.includes("amazon-sp-api-orders-production-closeout-panel") &&
+    text.includes("backend closed loop ready") &&
+    text.includes("read-only UX") &&
+    text.includes("Step140-P") &&
+    text.includes("Step140-Q") &&
+    text.includes("Step140-R") &&
+    text.includes("Step140-S") &&
+    text.includes("Step140-T") &&
+    text.includes("Step140-U") &&
+    text.includes("no frontend write action") &&
+    text.includes("no Amazon call from this panel") &&
+    text.includes("no transaction commit button") &&
+    text.includes("no inventory deduction button") &&
+    text.includes("amazon-sp-api-orders-production-closeout-boundary");
+
+  const forbidden =
+    text.includes("fetch(") ||
+    text.includes("previewAmazonSpApiOrdersDryRun(") ||
+    text.includes("previewAmazonSpApiOrdersReal") ||
+    text.includes("commitAmazonSpApiOrders") ||
+    text.includes("deductAmazonSpApiOrders") ||
+    text.includes("transaction.create") ||
+    text.includes("inventoryMovement.create") ||
+    text.includes("inventoryBalance.update") ||
+    text.includes("x-amz-access-token") ||
+    text.includes("AWS4-HMAC-SHA256") ||
+    text.includes("clientSecret") ||
+    text.includes("refreshToken");
+
+  return isReadonlyCloseoutPanel && !forbidden;
+}
+
 function assertNoStep140HImplementationLeak(repoRoot) {
   const apiRoot = path.resolve(repoRoot, "apps/api");
   const apiSrcRoot = path.resolve(apiRoot, "src");
@@ -437,6 +475,9 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const allowedStep140LFrontendDryRunOrdersPreview =
       isAllowedStep140LFrontendDryRunOrdersPreview(file, text);
 
+    const allowedStep140UProductionCloseoutPanel =
+      isAllowedStep140UProductionCloseoutPanel(file, text);
+
     const allowedStep140LApiHelperDirect =
       rel === "apps/web/src/core/imports/api.ts" &&
       text.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
@@ -461,7 +502,8 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       hasAmazonOrdersFrontendContext &&
       frontendFragments.some((fragment) => text.includes(fragment)) &&
       !allowedStep140LFrontendDryRunOrdersPreview &&
-      !allowedStep140LApiHelperDirect
+      !allowedStep140LApiHelperDirect &&
+      !allowedStep140UProductionCloseoutPanel
     ) {
       frontendLeaks.push(rel);
     }

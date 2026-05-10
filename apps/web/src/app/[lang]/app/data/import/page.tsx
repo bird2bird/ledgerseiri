@@ -2,6 +2,7 @@
 
 import { AmazonSpApiConnectionStatusPanel } from "@/components/app/imports/AmazonSpApiConnectionStatusPanel";
 import { AmazonSpApiOrdersDryRunPreviewPanel } from "@/components/app/imports/AmazonSpApiOrdersDryRunPreviewPanel";
+import { AmazonSpApiOrdersProductionCloseoutPanel } from "@/components/app/imports/AmazonSpApiOrdersProductionCloseoutPanel";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
@@ -86,6 +87,7 @@ export default function DataImportPage() {
       
       <AmazonSpApiConnectionStatusPanel />
       <AmazonSpApiOrdersDryRunPreviewPanel />
+      <AmazonSpApiOrdersProductionCloseoutPanel />
 {/* Step122-W: Amazon SP-API sandbox read-model panel UI shell. No fetch / no endpoint call. */}
       <AmazonSpApiSandboxReadModelPanelShell />
       <ImportJobsHero
