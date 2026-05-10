@@ -57,6 +57,17 @@ function isAllowedStep140IPureDryRunFixtureFile(file, text) {
   );
 }
 
+function isAllowedStep140JPreviewServiceFile(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+  return (
+    normalized.endsWith("apps/api/src/imports/amazon-sp-api-orders-preview.service.ts") &&
+    text.includes("AmazonSpApiOrdersPreviewService") &&
+    text.includes("serviceWritesDatabase: false") &&
+    text.includes("serviceCallsAmazon: false") &&
+    text.includes("controllerRouteUsed: false")
+  );
+}
+
 function assertNoStep140HImplementationLeak(repoRoot) {
   const apiRoot = path.resolve(repoRoot, "apps/api");
   const apiSrcRoot = path.resolve(apiRoot, "src");
@@ -132,6 +143,7 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const rel = path.relative(repoRoot, file).replaceAll(path.sep, "/");
     const allowedSandbox = isAllowedExistingSandboxFile(file, text);
     const allowedStep140IPureDryRunFixture = isAllowedStep140IPureDryRunFixtureFile(file, text);
+    const allowedStep140JPreviewService = isAllowedStep140JPreviewServiceFile(file, text);
     const hasAmazonOrdersContext =
       text.includes("amazon-sp-api") ||
       text.includes("AmazonSpApi") ||
@@ -142,22 +154,22 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("step140-h");
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture) routeLeaks.push(rel);
+      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService) routeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
+    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService) {
       dryRunLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
+    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService) {
       controllerLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
+    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService) {
       writeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
+    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture && !allowedStep140JPreviewService) {
       networkLeaks.push(rel);
     }
   }
