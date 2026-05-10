@@ -26,8 +26,6 @@ import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-p
     AmazonSpApiRealLwaActivationGateService,
     AmazonSpApiOauthCallbackCommitGateService,
     AmazonSpApiTokenPersistenceOrchestrator,
-    AmazonSpApiOauthCallbackCommitGateService,
-    AmazonSpApiTokenPersistenceOrchestrator,
   ],
   exports: [
     ImportsService,

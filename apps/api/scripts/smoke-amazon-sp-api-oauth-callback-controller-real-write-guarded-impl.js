@@ -34,6 +34,14 @@ function assertNotIncludes(source, needle, label) {
   assert(!source.includes(needle), `${label} does not contain ${needle}`);
 }
 
+function assertOccurrenceCount(source, needle, expected, label) {
+  const actual = source.split(needle).length - 1;
+  assert(
+    actual === expected,
+    `${label} contains ${needle} exactly ${expected} time(s), actual=${actual}`,
+  );
+}
+
 function sliceControllerOauthCallback(controllerSource) {
   const startMarker =
     'Step139-E: Amazon SP-API OAuth callback dry-run-only controller wiring implementation';
@@ -80,6 +88,19 @@ for (const marker of [
 ]) {
   assertIncludes(moduleSource, marker, 'imports.module');
 }
+
+assertOccurrenceCount(
+  moduleSource,
+  'AmazonSpApiOauthCallbackCommitGateService,',
+  1,
+  'imports.module providers',
+);
+assertOccurrenceCount(
+  moduleSource,
+  'AmazonSpApiTokenPersistenceOrchestrator,',
+  1,
+  'imports.module providers',
+);
 
 for (const marker of [
   'Step139-T: guarded OAuth callback controller real-write branch implementation.',
