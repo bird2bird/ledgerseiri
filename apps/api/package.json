@@ -204,7 +204,8 @@
     "smoke:amazon-sp-api-oauth-callback-dry-run-controller-branch-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-controller-branch-runtime.js",
     "smoke:amazon-sp-api-oauth-callback-encrypted-token-persistence-real-write-boundary-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-encrypted-token-persistence-real-write-boundary-contract.js",
     "smoke:amazon-sp-api-encrypted-token-persistence-real-write-repository-contract": "node scripts/smoke-amazon-sp-api-encrypted-token-persistence-real-write-repository-contract.js",
-    "smoke:amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma.js"
+    "smoke:amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-real-write-mocked-prisma.js",
+    "smoke:amazon-sp-api-encrypted-token-repository-real-write-branch-runtime": "node scripts/smoke-amazon-sp-api-encrypted-token-repository-real-write-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
