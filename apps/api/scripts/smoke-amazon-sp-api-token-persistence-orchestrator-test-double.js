@@ -173,9 +173,6 @@ for (const forbidden of [
   'controllerWiringNow: true',
   'oauthCallbackWiringNow: true',
   'amazonNetworkCallNow: true',
-  'prismaClientWriteNow: true',
-  'databaseWriteNow: true',
-  'tokenPersistenceDatabaseWriteNow: true',
   'plaintextTokenDatabaseWriteNow: true',
 ]) {
   assert(!orchestratorSource.includes(forbidden), `orchestrator does not contain forbidden marker: ${forbidden}`);
@@ -263,5 +260,21 @@ for (const [label, patch, reason] of failureCases) {
   }
   assertSafe(result, label);
 }
+
+
+// Step139-L compatibility: orchestrator now has a mocked Prisma real-write method.
+// Test-double method remains no-prisma-write, while real-write method is isolated from controller/OAuth callback persistence.
+assert(orchestratorSource.includes('persistEncryptedTokensRealWrite'), 'orchestrator contains Step139-L mocked Prisma real-write method');
+assert(orchestratorSource.includes("orchestratorMode: 'repository-real-write-wiring-mocked-prisma'"), 'orchestrator contains Step139-L real-write mode');
+assert(orchestratorSource.includes('upsertEncryptedCredentialRealWrite'), 'orchestrator calls repository real-write method only inside Step139-L method');
+assert(orchestratorSource.includes('prismaClientWriteNow: true'), 'orchestrator may mark mocked Prisma write inside Step139-L method');
+assert(orchestratorSource.includes('databaseWriteNow: true'), 'orchestrator may mark mocked DB write inside Step139-L method');
+assert(orchestratorSource.includes('tokenPersistenceDatabaseWriteNow: true'), 'orchestrator may mark mocked token persistence write inside Step139-L method');
+assert(orchestratorSource.includes('oauthCallbackPersistenceWiringNow: false'), 'orchestrator real-write remains detached from OAuth callback persistence');
+assert(!orchestratorSource.includes('plaintextTokenDatabaseWriteNow: true'), 'orchestrator does not enable plaintext token DB write');
+assert(!orchestratorSource.includes('amazonNetworkCallNow: true'), 'orchestrator still cannot call Amazon');
+assert(!orchestratorSource.includes('rawTokenReturnedNow: true'), 'orchestrator still cannot return raw token');
+assert(!orchestratorSource.includes('rawAccessTokenReturnedNow: true'), 'orchestrator still cannot return raw access token');
+assert(!orchestratorSource.includes('rawRefreshTokenReturnedNow: true'), 'orchestrator still cannot return raw refresh token');
 
 console.log('========== Step138-B token persistence orchestrator test-double smoke passed ==========');

@@ -127,10 +127,13 @@ for (const forbidden of [
 
 assertIncludes('orchestrator', orchestrator, 'export class AmazonSpApiTokenPersistenceOrchestrator');
 assertIncludes('orchestrator', orchestrator, 'tokenPersistenceDatabaseWriteNow: false');
+assertIncludes('orchestrator', orchestrator, 'tokenPersistenceDatabaseWriteNow: true');
 assertIncludes('orchestrator', orchestrator, 'databaseWriteNow: false');
+assertIncludes('orchestrator', orchestrator, 'databaseWriteNow: true');
 assertIncludes('orchestrator', orchestrator, 'prismaClientWriteNow: false');
-assertNotIncludes('orchestrator', orchestrator, 'persistEncryptedTokensRealWrite');
-assertNotIncludes('orchestrator', orchestrator, 'upsertEncryptedCredentialRealWrite');
+assertIncludes('orchestrator', orchestrator, 'prismaClientWriteNow: true');
+assertIncludes('orchestrator', orchestrator, 'persistEncryptedTokensRealWrite');
+assertIncludes('orchestrator', orchestrator, 'upsertEncryptedCredentialRealWrite');
 assertIncludes('orchestrator', orchestrator, 'AmazonSpApiCredentialRepository');
 
 assertIncludes('repository', repository, 'upsertEncryptedCredentialRealWrite');
