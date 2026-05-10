@@ -212,7 +212,8 @@
     "smoke:amazon-sp-api-oauth-callback-real-write-persistence-controller-wiring-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-real-write-persistence-controller-wiring-contract.js",
     "smoke:amazon-sp-api-oauth-callback-dry-run-to-commit-switch-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-to-commit-switch-contract.js",
     "smoke:amazon-sp-api-oauth-callback-commit-gate-service-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-commit-gate-service-contract.js",
-    "smoke:amazon-sp-api-oauth-callback-commit-gate-service-implementation": "node scripts/smoke-amazon-sp-api-oauth-callback-commit-gate-service-implementation.js"
+    "smoke:amazon-sp-api-oauth-callback-commit-gate-service-implementation": "node scripts/smoke-amazon-sp-api-oauth-callback-commit-gate-service-implementation.js",
+    "smoke:amazon-sp-api-oauth-callback-commit-gate-branch-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-commit-gate-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
