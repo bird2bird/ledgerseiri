@@ -47,6 +47,16 @@ function isAllowedExistingSandboxFile(file, text) {
   );
 }
 
+function isAllowedStep140IPureDryRunFixtureFile(file, text) {
+  const normalized = file.replaceAll(path.sep, "/");
+  return (
+    normalized.endsWith("apps/api/src/imports/amazon-sp-api-orders-dry-run-fixture.ts") &&
+    text.includes("buildAmazonSpApiOrdersDryRunPreview") &&
+    text.includes("writesDatabase: false") &&
+    text.includes("realAmazonOrdersApiCall: false")
+  );
+}
+
 function assertNoStep140HImplementationLeak(repoRoot) {
   const apiRoot = path.resolve(repoRoot, "apps/api");
   const apiSrcRoot = path.resolve(apiRoot, "src");
@@ -121,6 +131,7 @@ function assertNoStep140HImplementationLeak(repoRoot) {
     const text = read(file);
     const rel = path.relative(repoRoot, file).replaceAll(path.sep, "/");
     const allowedSandbox = isAllowedExistingSandboxFile(file, text);
+    const allowedStep140IPureDryRunFixture = isAllowedStep140IPureDryRunFixtureFile(file, text);
     const hasAmazonOrdersContext =
       text.includes("amazon-sp-api") ||
       text.includes("AmazonSpApi") ||
@@ -131,22 +142,22 @@ function assertNoStep140HImplementationLeak(repoRoot) {
       text.includes("step140-h");
 
     for (const pattern of routePatterns) {
-      if (pattern.test(text) && !allowedSandbox) routeLeaks.push(rel);
+      if (pattern.test(text) && !allowedSandbox && !allowedStep140IPureDryRunFixture) routeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox) {
+    if (hasAmazonOrdersContext && dryRunFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
       dryRunLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox) {
+    if (hasAmazonOrdersContext && controllerFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
       controllerLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox) {
+    if (hasAmazonOrdersContext && writeFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
       writeLeaks.push(rel);
     }
 
-    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox) {
+    if (hasAmazonOrdersContext && networkFragments.some((fragment) => text.includes(fragment)) && !allowedSandbox && !allowedStep140IPureDryRunFixture) {
       networkLeaks.push(rel);
     }
   }
