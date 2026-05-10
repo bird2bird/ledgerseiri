@@ -152,8 +152,20 @@ for (const marker of [
   assertIncludes(repository, marker, 'current token persistence repository');
 }
 
-assertNotIncludes(repository, 'credential: true', 'repository status read-model currently does not include credential');
-assertNotIncludes(repository, 'accessTokenCache: true', 'repository status read-model currently does not include access token cache');
+if (repository.includes('credential: {') && repository.includes('accessTokenCache: {')) {
+  for (const marker of [
+    'credential: {',
+    'accessTokenCache: {',
+    'encryptionKeyId: true',
+    'tokenVersion: true',
+    'expiresAt: true',
+  ]) {
+    assertIncludes(repository, marker, 'post-Step139-Y2 repository status read-model');
+  }
+} else {
+  assertNotIncludes(repository, 'credential: true', 'repository status read-model currently does not include credential');
+  assertNotIncludes(repository, 'accessTokenCache: true', 'repository status read-model currently does not include access token cache');
+}
 
 for (const marker of [
   'model AmazonSpApiConnection',

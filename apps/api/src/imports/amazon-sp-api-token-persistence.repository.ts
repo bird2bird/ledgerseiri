@@ -48,6 +48,26 @@ export type AmazonSpApiConnectionReadModel = {
   lastErrorMessageRedacted: string | null;
   createdAt: Date;
   updatedAt: Date;
+  credential: {
+    id: string;
+    connectionId: string;
+    encryptionKeyId: string;
+    encryptionAlgorithm: string;
+    tokenVersion: number;
+    rotatedAt: Date;
+    revokedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
+  accessTokenCache: {
+    id: string;
+    connectionId: string;
+    tokenType: string;
+    scope: string | null;
+    expiresAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
 };
 
 function redactSecretLikeText(message: string | undefined): string {
@@ -249,6 +269,32 @@ export class AmazonSpApiTokenPersistenceRepository {
           region: scope.region,
         },
       },
+      include: {
+        credential: {
+          select: {
+            id: true,
+            connectionId: true,
+            encryptionKeyId: true,
+            encryptionAlgorithm: true,
+            tokenVersion: true,
+            rotatedAt: true,
+            revokedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        accessTokenCache: {
+          select: {
+            id: true,
+            connectionId: true,
+            tokenType: true,
+            scope: true,
+            expiresAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
   }
 
@@ -290,6 +336,8 @@ export class AmazonSpApiTokenPersistenceRepository {
     lastErrorMessageRedacted: string | null;
     createdAt: Date;
     updatedAt: Date;
+    credential?: AmazonSpApiConnectionReadModel['credential'];
+    accessTokenCache?: AmazonSpApiConnectionReadModel['accessTokenCache'];
   }): AmazonSpApiConnectionReadModel {
     return {
       id: connection.id,
@@ -309,6 +357,8 @@ export class AmazonSpApiTokenPersistenceRepository {
       lastErrorMessageRedacted: connection.lastErrorMessageRedacted,
       createdAt: connection.createdAt,
       updatedAt: connection.updatedAt,
+      credential: connection.credential ?? null,
+      accessTokenCache: connection.accessTokenCache ?? null,
     };
   }
 }

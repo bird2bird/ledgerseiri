@@ -48,9 +48,14 @@ type Step122SAuthenticatedRequest = {
 type AmazonSpApiConnectionStatusEndpointResponse = {
   source: 'amazon-sp-api-connection-status';
   routeImplementedNow: true;
+  readModelMode: 'real-db-connection-credential-cache';
   status: 'NOT_CONNECTED' | 'CONNECTED' | 'RECONNECT_REQUIRED' | 'ERROR';
+  readModelStatus: 'disconnected' | 'connected' | 'needs_reauth' | 'error';
   connected: boolean;
   needsReconnect: boolean;
+  credentialPresent: boolean;
+  accessTokenCachePresent: boolean;
+  accessTokenExpired: boolean;
   marketplaceId: string;
   region: string;
   storeId: string;
@@ -62,12 +67,21 @@ type AmazonSpApiConnectionStatusEndpointResponse = {
   lastSyncAt: string | null;
   lastErrorCode: string | null;
   lastErrorMessageRedacted: string | null;
+  accessTokenExpiresAt: string | null;
+  credentialRotatedAt: string | null;
+  credentialRevokedAt: string | null;
   tokenExchangeHttpCallNow: false;
   tokenPersistenceDatabaseWriteNow: false;
   realSpApiRequestNow: false;
   importJobWriteNow: false;
   transactionWriteNow: false;
   inventoryWriteNow: false;
+  rawAuthorizationCodeReturnedNow: false;
+  rawLwaResponseReturnedNow: false;
+  rawAccessTokenReturnedNow: false;
+  rawRefreshTokenReturnedNow: false;
+  encryptedRefreshTokenReturnedNow: false;
+  encryptedAccessTokenReturnedNow: false;
 };
 
 function redactSellingPartnerIdForConnectionStatus(value: string | null | undefined): string | null {
@@ -95,12 +109,20 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
     lastSyncAt?: Date | null;
     lastErrorCode?: string | null;
     lastErrorMessageRedacted?: string | null;
+    credential?: {
+      rotatedAt?: Date | null;
+      revokedAt?: Date | null;
+    } | null;
+    accessTokenCache?: {
+      expiresAt?: Date | null;
+    } | null;
   } | null,
   scope: { marketplaceId: string; region: string; storeId: string },
 ): AmazonSpApiConnectionStatusEndpointResponse {
   const base = {
     source: 'amazon-sp-api-connection-status' as const,
     routeImplementedNow: true as const,
+    readModelMode: 'real-db-connection-credential-cache' as const,
     marketplaceId: scope.marketplaceId,
     region: scope.region,
     storeId: scope.storeId,
@@ -110,14 +132,24 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
     importJobWriteNow: false as const,
     transactionWriteNow: false as const,
     inventoryWriteNow: false as const,
+    rawAuthorizationCodeReturnedNow: false as const,
+    rawLwaResponseReturnedNow: false as const,
+    rawAccessTokenReturnedNow: false as const,
+    rawRefreshTokenReturnedNow: false as const,
+    encryptedRefreshTokenReturnedNow: false as const,
+    encryptedAccessTokenReturnedNow: false as const,
   };
 
   if (!connection) {
     return {
       ...base,
       status: 'NOT_CONNECTED',
+      readModelStatus: 'disconnected',
       connected: false,
       needsReconnect: false,
+      credentialPresent: false,
+      accessTokenCachePresent: false,
+      accessTokenExpired: false,
       sellingPartnerIdRedacted: null,
       connectedAt: null,
       revokedAt: null,
@@ -126,27 +158,54 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
       lastSyncAt: null,
       lastErrorCode: null,
       lastErrorMessageRedacted: null,
+      accessTokenExpiresAt: null,
+      credentialRotatedAt: null,
+      credentialRevokedAt: null,
     };
   }
 
   const rawStatus = String(connection.status || '').trim().toUpperCase();
-  const hasError = Boolean(connection.lastErrorCode || connection.lastErrorMessageRedacted);
-  const isRevoked = rawStatus === 'REVOKED' || Boolean(connection.revokedAt);
-  const isConnected = rawStatus === 'CONNECTED' && !isRevoked && !hasError;
+  const credentialPresent = Boolean(connection.credential);
+  const credentialRevoked = Boolean(connection.credential?.revokedAt);
+  const accessTokenExpiresAt = connection.accessTokenCache?.expiresAt ?? null;
+  const accessTokenCachePresent = Boolean(connection.accessTokenCache);
+  const accessTokenExpired = Boolean(
+    accessTokenExpiresAt && accessTokenExpiresAt.getTime() <= Date.now(),
+  );
+  const hasError =
+    rawStatus === 'ERROR' ||
+    Boolean(connection.lastErrorCode || connection.lastErrorMessageRedacted);
+  const isRevoked =
+    rawStatus === 'REVOKED' ||
+    rawStatus === 'EXPIRED' ||
+    Boolean(connection.revokedAt) ||
+    credentialRevoked;
 
-  const mappedStatus: AmazonSpApiConnectionStatusEndpointResponse['status'] = hasError
-    ? 'ERROR'
-    : isRevoked
-      ? 'RECONNECT_REQUIRED'
-      : isConnected
+  const readModelStatus: AmazonSpApiConnectionStatusEndpointResponse['readModelStatus'] =
+    hasError
+      ? 'error'
+      : isRevoked || !credentialPresent
+        ? 'needs_reauth'
+        : rawStatus === 'CONNECTED'
+          ? 'connected'
+          : 'needs_reauth';
+
+  const mappedStatus: AmazonSpApiConnectionStatusEndpointResponse['status'] =
+    readModelStatus === 'error'
+      ? 'ERROR'
+      : readModelStatus === 'connected'
         ? 'CONNECTED'
         : 'RECONNECT_REQUIRED';
 
   return {
     ...base,
     status: mappedStatus,
-    connected: mappedStatus === 'CONNECTED',
-    needsReconnect: mappedStatus === 'RECONNECT_REQUIRED' || mappedStatus === 'ERROR',
+    readModelStatus,
+    connected: readModelStatus === 'connected',
+    needsReconnect: readModelStatus === 'needs_reauth' || readModelStatus === 'error',
+    credentialPresent,
+    accessTokenCachePresent,
+    accessTokenExpired,
     sellingPartnerIdRedacted: redactSellingPartnerIdForConnectionStatus(connection.sellingPartnerId),
     connectedAt: connection.connectedAt?.toISOString?.() ?? null,
     revokedAt: connection.revokedAt?.toISOString?.() ?? null,
@@ -155,6 +214,9 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
     lastSyncAt: connection.lastSyncAt?.toISOString?.() ?? null,
     lastErrorCode: connection.lastErrorCode ?? null,
     lastErrorMessageRedacted: connection.lastErrorMessageRedacted ?? null,
+    accessTokenExpiresAt: accessTokenExpiresAt?.toISOString?.() ?? null,
+    credentialRotatedAt: connection.credential?.rotatedAt?.toISOString?.() ?? null,
+    credentialRevokedAt: connection.credential?.revokedAt?.toISOString?.() ?? null,
   };
 }
 
