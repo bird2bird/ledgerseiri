@@ -130,7 +130,24 @@ for (const marker of [
   assertIncludes(repository, marker, 'current repository legacy shape');
 }
 
-assertNotIncludes(repository, 'upsertEncryptedCredentialSchemaAwareRealWrite', 'repository runtime unchanged');
+if (repository.includes('upsertEncryptedCredentialSchemaAwareRealWrite')) {
+  for (const marker of [
+    'source: \'amazon-sp-api-credential-repository-schema-aware-real-write\'',
+    'repositoryMode: \'schema-aware-prisma-real-write\'',
+    'operation: \'upsertEncryptedCredentialSchemaAwareRealWrite\'',
+    'amazonSpApiConnection.upsert',
+    'amazonSpApiCredential.upsert',
+    'amazonSpApiAccessTokenCache.upsert',
+    'plaintextTokenDatabaseWriteNow: false',
+    'rawTokenReturnedNow: false',
+    'rawLwaResponseReturnedNow: false',
+    'rawAuthorizationCodeReturnedNow: false',
+  ]) {
+    assertIncludes(repository, marker, 'repository schema-aware runtime');
+  }
+} else {
+  assertNotIncludes(repository, 'upsertEncryptedCredentialSchemaAwareRealWrite', 'repository runtime unchanged');
+}
 assertIncludes(orchestrator, 'persistEncryptedTokensRealWrite', 'orchestrator');
 assertIncludes(orchestrator, "repositoryMethodCalled: 'upsertEncryptedCredentialRealWrite'", 'orchestrator legacy repository method');
 

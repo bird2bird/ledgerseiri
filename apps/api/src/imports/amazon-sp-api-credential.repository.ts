@@ -44,6 +44,103 @@ export type AmazonSpApiCredentialPrismaDelegate = {
   }) => Promise<Record<string, unknown>> | Record<string, unknown>;
 };
 
+export type AmazonSpApiCredentialRepositorySchemaAwarePrismaClient = {
+  company: {
+    upsert: (args: {
+      where: { id: string };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  };
+  store: {
+    upsert: (args: {
+      where: { id: string };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  };
+  amazonSpApiConnection: {
+    upsert: (args: {
+      where: {
+        companyId_storeId_marketplaceId_region: {
+          companyId: string;
+          storeId: string;
+          marketplaceId: string;
+          region: string;
+        };
+      };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  };
+  amazonSpApiCredential: {
+    upsert: (args: {
+      where: { connectionId: string };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  };
+  amazonSpApiAccessTokenCache: {
+    upsert: (args: {
+      where: { connectionId: string };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }) => Promise<Record<string, unknown>> | Record<string, unknown>;
+  };
+};
+
+export type AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult = {
+  accepted: boolean;
+  source: 'amazon-sp-api-credential-repository-schema-aware-real-write';
+  repositoryMode: 'schema-aware-prisma-real-write';
+  operation: 'upsertEncryptedCredentialSchemaAwareRealWrite';
+  reason:
+    | AmazonSpApiEncryptedCredentialRepositoryResult['reason']
+    | 'missing_prisma_client'
+    | 'missing_schema_aware_delegate'
+    | 'prisma_schema_aware_write_exception';
+  messageRedacted: string;
+  scopedIdentityReady: boolean;
+  encryptedCredentialPayloadReady: boolean;
+  connectionWriteNow: boolean;
+  credentialWriteNow: boolean;
+  accessTokenCacheWriteNow: boolean;
+  prismaClientWriteNow: true;
+  databaseWriteNow: true;
+  tokenPersistenceDatabaseWriteNow: true;
+  plaintextTokenDatabaseWriteNow: false;
+  repositoryMayCallAmazonNow: false;
+  repositoryMayParseLwaResponseNow: false;
+  repositoryMayOwnEncryptionNow: false;
+  rawTokenReturnedNow: false;
+  rawLwaResponseReturnedNow: false;
+  rawAuthorizationCodeReturnedNow: false;
+  persistedConnectionShape: {
+    id: string | null;
+    companyId: string;
+    storeId: string;
+    marketplaceId: string;
+    region: string;
+    status: 'CONNECTED' | string;
+    sellingPartnerIdRedacted: string;
+    connectedAt: string | null;
+  } | null;
+  persistedCredentialShape: {
+    id: string | null;
+    connectionId: string | null;
+    encryptionKeyId: string;
+    encryptionAlgorithm: string;
+    tokenVersion: number;
+    rotatedAt: string | null;
+    revokedAt: string | null;
+  } | null;
+  persistedAccessTokenCacheShape: {
+    id: string | null;
+    connectionId: string | null;
+    expiresAt: string | null;
+  } | null;
+};
+
 export type AmazonSpApiEncryptedCredentialRepositoryRealWriteResult = {
   accepted: boolean;
   source: 'amazon-sp-api-credential-repository-real-write';
@@ -155,6 +252,292 @@ function isValidStatus(value: unknown): value is AmazonSpApiCredentialStatus {
 }
 
 export class AmazonSpApiCredentialRepository {
+  async upsertEncryptedCredentialSchemaAwareRealWrite(
+    input: AmazonSpApiEncryptedCredentialRepositoryInput,
+    prismaClient: AmazonSpApiCredentialRepositorySchemaAwarePrismaClient | null | undefined,
+  ): Promise<AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult> {
+    const validation = this.validateEncryptedCredentialPayload(
+      'upsertEncryptedCredential',
+      input,
+    );
+
+    const baseResult = (
+      accepted: boolean,
+      reason: AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult['reason'],
+      messageRedacted: string,
+      persistedConnectionShape: AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult['persistedConnectionShape'] = null,
+      persistedCredentialShape: AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult['persistedCredentialShape'] = null,
+      persistedAccessTokenCacheShape: AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult['persistedAccessTokenCacheShape'] = null,
+    ): AmazonSpApiCredentialRepositorySchemaAwareRealWriteResult => ({
+      accepted,
+      source: 'amazon-sp-api-credential-repository-schema-aware-real-write',
+      repositoryMode: 'schema-aware-prisma-real-write',
+      operation: 'upsertEncryptedCredentialSchemaAwareRealWrite',
+      reason,
+      messageRedacted,
+      scopedIdentityReady: validation.scopedIdentityReady,
+      encryptedCredentialPayloadReady: validation.encryptedCredentialPayloadReady,
+      connectionWriteNow: accepted,
+      credentialWriteNow: accepted,
+      accessTokenCacheWriteNow: accepted && Boolean(normalize(input.encryptedAccessTokenCache)),
+      prismaClientWriteNow: true,
+      databaseWriteNow: true,
+      tokenPersistenceDatabaseWriteNow: true,
+      plaintextTokenDatabaseWriteNow: false,
+      repositoryMayCallAmazonNow: false,
+      repositoryMayParseLwaResponseNow: false,
+      repositoryMayOwnEncryptionNow: false,
+      rawTokenReturnedNow: false,
+      rawLwaResponseReturnedNow: false,
+      rawAuthorizationCodeReturnedNow: false,
+      persistedConnectionShape,
+      persistedCredentialShape,
+      persistedAccessTokenCacheShape,
+    });
+
+    if (!validation.accepted) {
+      return baseResult(false, validation.reason, validation.messageRedacted);
+    }
+
+    if (!prismaClient) {
+      return baseResult(
+        false,
+        'missing_prisma_client',
+        'Schema-aware Prisma client is required for Amazon SP-API credential persistence.',
+      );
+    }
+
+    const requiredDelegates = [
+      'company',
+      'store',
+      'amazonSpApiConnection',
+      'amazonSpApiCredential',
+      'amazonSpApiAccessTokenCache',
+    ] as const;
+
+    for (const delegateName of requiredDelegates) {
+      const delegate = prismaClient[delegateName];
+      if (!delegate || typeof delegate.upsert !== 'function') {
+        return baseResult(
+          false,
+          'missing_schema_aware_delegate',
+          'Required schema-aware Prisma delegate is missing.',
+        );
+      }
+    }
+
+    const normalizedInput = {
+      companyId: normalize(input.companyId),
+      storeId: normalize(input.storeId),
+      marketplaceId: normalize(input.marketplaceId),
+      region: normalize(input.region),
+      sellingPartnerId: normalize(input.sellingPartnerId),
+      encryptedRefreshToken: normalize(input.encryptedRefreshToken),
+      encryptedAccessTokenCache: normalize(input.encryptedAccessTokenCache),
+      accessTokenExpiresAt: input.accessTokenExpiresAt ?? null,
+      refreshTokenFingerprint: normalize(input.refreshTokenFingerprint),
+      accessTokenFingerprint: normalize(input.accessTokenFingerprint),
+      encryptionKeyId: normalize(input.encryptionKeyId),
+      encryptionAlgorithm: normalize(input.encryptionAlgorithm),
+      tokenVersion: normalizeTokenVersion(input.tokenVersion),
+      status: input.status,
+      lastValidatedAt: input.lastValidatedAt ?? null,
+      revokedAt: input.revokedAt ?? null,
+    };
+
+    const now = new Date();
+
+    try {
+      await prismaClient.company.upsert({
+        where: { id: normalizedInput.companyId },
+        create: {
+          id: normalizedInput.companyId,
+          name: `Amazon SP-API Company ${normalizedInput.companyId}`,
+        },
+        update: {},
+      });
+
+      await prismaClient.store.upsert({
+        where: { id: normalizedInput.storeId },
+        create: {
+          id: normalizedInput.storeId,
+          companyId: normalizedInput.companyId,
+          name: `Amazon Store ${normalizedInput.storeId}`,
+          platform: 'AMAZON',
+          region: normalizedInput.region,
+        },
+        update: {
+          name: `Amazon Store ${normalizedInput.storeId}`,
+          platform: 'AMAZON',
+          region: normalizedInput.region,
+        },
+      });
+
+      const connection = await prismaClient.amazonSpApiConnection.upsert({
+        where: {
+          companyId_storeId_marketplaceId_region: {
+            companyId: normalizedInput.companyId,
+            storeId: normalizedInput.storeId,
+            marketplaceId: normalizedInput.marketplaceId,
+            region: normalizedInput.region,
+          },
+        },
+        create: {
+          companyId: normalizedInput.companyId,
+          storeId: normalizedInput.storeId,
+          marketplaceId: normalizedInput.marketplaceId,
+          region: normalizedInput.region,
+          sellingPartnerId: normalizedInput.sellingPartnerId,
+          appId: 'ledgerseiri-amazon-sp-api',
+          status: normalizedInput.status === 'active' ? 'CONNECTED' : 'ERROR',
+          connectedAt: now,
+          revokedAt: normalizedInput.revokedAt,
+          lastTokenRefreshAt: normalizedInput.lastValidatedAt,
+          lastErrorCode: null,
+          lastErrorMessageRedacted: null,
+        },
+        update: {
+          sellingPartnerId: normalizedInput.sellingPartnerId,
+          status: normalizedInput.status === 'active' ? 'CONNECTED' : 'ERROR',
+          connectedAt: now,
+          revokedAt: normalizedInput.revokedAt,
+          lastTokenRefreshAt: normalizedInput.lastValidatedAt,
+          lastErrorCode: null,
+          lastErrorMessageRedacted: null,
+        },
+      });
+
+      const connectionId =
+        typeof connection.id === 'string' && connection.id.trim().length > 0
+          ? connection.id
+          : null;
+
+      if (!connectionId) {
+        return baseResult(
+          false,
+          'prisma_schema_aware_write_exception',
+          'Schema-aware connection upsert did not return a connection id.',
+        );
+      }
+
+      const credential = await prismaClient.amazonSpApiCredential.upsert({
+        where: { connectionId },
+        create: {
+          connectionId,
+          encryptedRefreshToken: normalizedInput.encryptedRefreshToken,
+          encryptionKeyId: normalizedInput.encryptionKeyId,
+          encryptionAlgorithm: normalizedInput.encryptionAlgorithm,
+          tokenVersion: normalizedInput.tokenVersion,
+          rotatedAt: now,
+          revokedAt: normalizedInput.revokedAt,
+        },
+        update: {
+          encryptedRefreshToken: normalizedInput.encryptedRefreshToken,
+          encryptionKeyId: normalizedInput.encryptionKeyId,
+          encryptionAlgorithm: normalizedInput.encryptionAlgorithm,
+          tokenVersion: normalizedInput.tokenVersion,
+          rotatedAt: now,
+          revokedAt: normalizedInput.revokedAt,
+        },
+      });
+
+      let accessTokenCache: Record<string, unknown> | null = null;
+
+      if (normalizedInput.encryptedAccessTokenCache) {
+        accessTokenCache = await prismaClient.amazonSpApiAccessTokenCache.upsert({
+          where: { connectionId },
+          create: {
+            connectionId,
+            encryptedAccessToken: normalizedInput.encryptedAccessTokenCache,
+            tokenType: 'bearer',
+            scope: null,
+            expiresAt: normalizedInput.accessTokenExpiresAt || now,
+          },
+          update: {
+            encryptedAccessToken: normalizedInput.encryptedAccessTokenCache,
+            tokenType: 'bearer',
+            scope: null,
+            expiresAt: normalizedInput.accessTokenExpiresAt || now,
+          },
+        });
+      }
+
+      const connectionIdValue =
+        typeof connection.id === 'string' ? connection.id : null;
+      const credentialIdValue =
+        typeof credential.id === 'string' ? credential.id : null;
+      const credentialConnectionId =
+        typeof credential.connectionId === 'string' ? credential.connectionId : null;
+
+      return baseResult(
+        true,
+        'ready',
+        'Amazon SP-API credential persisted with schema-aware Prisma writes.',
+        {
+          id: connectionIdValue,
+          companyId: normalizedInput.companyId,
+          storeId: normalizedInput.storeId,
+          marketplaceId: normalizedInput.marketplaceId,
+          region: normalizedInput.region,
+          status: 'CONNECTED',
+          sellingPartnerIdRedacted:
+            normalizedInput.sellingPartnerId.length <= 4
+              ? '****'
+              : `${normalizedInput.sellingPartnerId.slice(0, 4)}****`,
+          connectedAt:
+            connection.connectedAt instanceof Date
+              ? connection.connectedAt.toISOString()
+              : typeof connection.connectedAt === 'string'
+                ? connection.connectedAt
+                : null,
+        },
+        {
+          id: credentialIdValue,
+          connectionId: credentialConnectionId,
+          encryptionKeyId: normalizedInput.encryptionKeyId,
+          encryptionAlgorithm: normalizedInput.encryptionAlgorithm,
+          tokenVersion: normalizedInput.tokenVersion,
+          rotatedAt:
+            credential.rotatedAt instanceof Date
+              ? credential.rotatedAt.toISOString()
+              : typeof credential.rotatedAt === 'string'
+                ? credential.rotatedAt
+                : null,
+          revokedAt:
+            credential.revokedAt instanceof Date
+              ? credential.revokedAt.toISOString()
+              : typeof credential.revokedAt === 'string'
+                ? credential.revokedAt
+                : null,
+        },
+        accessTokenCache
+          ? {
+              id:
+                typeof accessTokenCache.id === 'string'
+                  ? accessTokenCache.id
+                  : null,
+              connectionId:
+                typeof accessTokenCache.connectionId === 'string'
+                  ? accessTokenCache.connectionId
+                  : null,
+              expiresAt:
+                accessTokenCache.expiresAt instanceof Date
+                  ? accessTokenCache.expiresAt.toISOString()
+                  : typeof accessTokenCache.expiresAt === 'string'
+                    ? accessTokenCache.expiresAt
+                    : null,
+            }
+          : null,
+      );
+    } catch (_error) {
+      return baseResult(
+        false,
+        'prisma_schema_aware_write_exception',
+        'Schema-aware Prisma write failed.',
+      );
+    }
+  }
+
   async upsertEncryptedCredentialRealWrite(
     input: AmazonSpApiEncryptedCredentialRepositoryInput,
     prismaDelegate: AmazonSpApiCredentialPrismaDelegate | null | undefined,
