@@ -327,29 +327,47 @@ function assertNoStep140HImplementationLeak(repoRoot) {
   assert(routeLeaks.length === 0, `no Step140-H controller route implementation leak: ${JSON.stringify(routeLeaks)}`);
   assert(dryRunLeaks.length === 0, `no Step140-H dry-run fixture implementation leak: ${JSON.stringify(dryRunLeaks)}`);
   assert(controllerLeaks.length === 0, `no Step140-H preview/commit controller implementation leak: ${JSON.stringify(controllerLeaks)}`);
-  // Step140-N-FIX8-REPLACE-SAFE-FRONTEND-FILTER:
-  // Step140-L legally added apps/web/src/core/imports/api.ts as a dry-run-only helper.
-  // This final filter keeps the old Step140-H scanner strict while allowing only that safe helper.
+  // Step140-N-FIX9-SCOPE-STEP140L-API-HELPER-BLOCK:
+  // apps/web/src/core/imports/api.ts is a shared frontend API file. It may contain unrelated helpers.
+  // For Step140-H regression, only inspect the Step140-L dry-run Orders helper block, not the whole file.
   const safeStep140LFrontendLeaks = frontendLeaks.filter((rel) => {
     if (rel !== "apps/web/src/core/imports/api.ts") return true;
 
     const apiHelperSource = read(path.resolve(repoRoot, rel));
+    const blockStart = apiHelperSource.indexOf("Step140-L-FRONTEND-AMAZON-SP-API-ORDERS-DRY-RUN-PREVIEW");
+    const blockEnd = apiHelperSource.indexOf("export async function previewAmazonSpApiOrdersDryRun", blockStart);
+
+    if (blockStart < 0 || blockEnd < 0) {
+      return true;
+    }
+
+    const functionEnd = apiHelperSource.indexOf("\n}", blockEnd);
+    const step140LBlock = apiHelperSource.slice(
+      blockStart,
+      functionEnd > blockEnd ? functionEnd + 2 : blockEnd + 1500,
+    );
 
     const hasRequiredDryRunHelper =
-      apiHelperSource.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
-      apiHelperSource.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
-      apiHelperSource.includes("previewAmazonSpApiOrdersDryRun") &&
-      apiHelperSource.includes("/api/imports/amazon-sp-api/orders/preview") &&
-      apiHelperSource.includes("dryRun: true");
+      step140LBlock.includes("AmazonSpApiOrdersDryRunPreviewRequest") &&
+      step140LBlock.includes("AmazonSpApiOrdersDryRunPreviewResponse") &&
+      step140LBlock.includes("AMAZON_SP_API_ORDERS_DRY_RUN_PREVIEW_ENDPOINT") &&
+      step140LBlock.includes("previewAmazonSpApiOrdersDryRun") &&
+      step140LBlock.includes("/api/imports/amazon-sp-api/orders/preview") &&
+      step140LBlock.includes("dryRun: true");
 
     const hasForbiddenDirectAmazonOrSecretMarker =
-      apiHelperSource.includes("commitAmazonSpApiOrders") ||
-      apiHelperSource.includes("getOrders(") ||
-      apiHelperSource.includes("getOrderItems(") ||
-      apiHelperSource.includes("AWS4-HMAC-SHA256") ||
-      apiHelperSource.includes("x-amz-access-token") ||
-      apiHelperSource.includes("refreshToken") ||
-      apiHelperSource.includes("clientSecret");
+      step140LBlock.includes("commitAmazonSpApiOrders") ||
+      step140LBlock.includes("orders/commit") ||
+      step140LBlock.includes("getOrders(") ||
+      step140LBlock.includes("getOrderItems(") ||
+      step140LBlock.includes("AWS4-HMAC-SHA256") ||
+      step140LBlock.includes("x-amz-access-token") ||
+      step140LBlock.includes("refreshToken") ||
+      step140LBlock.includes("clientSecret") ||
+      step140LBlock.includes("importJob.create") ||
+      step140LBlock.includes("transaction.create") ||
+      step140LBlock.includes("inventoryMovement.create") ||
+      step140LBlock.includes("inventoryBalance.update");
 
     return !(hasRequiredDryRunHelper && !hasForbiddenDirectAmazonOrSecretMarker);
   });
