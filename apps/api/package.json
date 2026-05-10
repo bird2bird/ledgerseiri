@@ -200,7 +200,8 @@
     "smoke:amazon-sp-api-token-persistence-service-only-e2e-runner-branch-runtime": "node scripts/smoke-amazon-sp-api-token-persistence-service-only-e2e-runner-branch-runtime.js",
     "smoke:amazon-sp-api-oauth-callback-encrypted-token-persistence-boundary-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-encrypted-token-persistence-boundary-contract.js",
     "smoke:amazon-sp-api-oauth-callback-dry-run-controller-wiring-contract": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-controller-wiring-contract.js",
-    "smoke:amazon-sp-api-oauth-callback-dry-run-controller-wiring-impl": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-controller-wiring-impl.js"
+    "smoke:amazon-sp-api-oauth-callback-dry-run-controller-wiring-impl": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-controller-wiring-impl.js",
+    "smoke:amazon-sp-api-oauth-callback-dry-run-controller-branch-runtime": "node scripts/smoke-amazon-sp-api-oauth-callback-dry-run-controller-branch-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
