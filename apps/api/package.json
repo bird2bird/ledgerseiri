@@ -246,7 +246,8 @@
     "smoke:amazon-sp-api-orders-signed-request-builder-no-network": "node scripts/smoke-amazon-sp-api-orders-signed-request-builder-no-network.js",
     "smoke:amazon-sp-api-orders-guarded-http-client-no-db-write": "node scripts/smoke-amazon-sp-api-orders-guarded-http-client-no-db-write.js",
     "smoke:amazon-sp-api-orders-real-preview-no-persistence": "node scripts/smoke-amazon-sp-api-orders-real-preview-no-persistence.js",
-    "smoke:amazon-sp-api-orders-preview-persistence": "node scripts/smoke-amazon-sp-api-orders-preview-persistence.js"
+    "smoke:amazon-sp-api-orders-preview-persistence": "node scripts/smoke-amazon-sp-api-orders-preview-persistence.js",
+    "smoke:amazon-sp-api-orders-transaction-commit": "node scripts/smoke-amazon-sp-api-orders-transaction-commit.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
