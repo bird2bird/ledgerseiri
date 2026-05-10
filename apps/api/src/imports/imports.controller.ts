@@ -9,6 +9,8 @@ import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lw
 import { AmazonSpApiOauthCallbackCommitGateService } from './amazon-sp-api-oauth-callback-commit-gate.service';
 import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-persistence.orchestrator';
 import { buildAmazonSpApiOrdersPreviewService } from './amazon-sp-api-orders-preview.service';
+import { previewAmazonSpApiOrdersRealNoPersistence } from './amazon-sp-api-orders-real-preview.service';
+import type { AmazonSpApiOrdersHttpTransport } from './amazon-sp-api-orders-http.client';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -72,6 +74,36 @@ type AmazonSpApiOrdersDryRunPreviewRouteResponse = ReturnType<
   importStagingRowWriteNow: false;
   transactionWriteNow: false;
   inventoryWriteNow: false;
+};
+
+
+type AmazonSpApiOrdersRealPreviewRouteBody = {
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  createdAfter?: string;
+  createdBefore?: string;
+  orderStatuses?: string[];
+  maxResultsPerPage?: number;
+  realPreview?: boolean;
+};
+
+type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>> & {
+  routeImplementedNow: true;
+  route: '/api/imports/amazon-sp-api/orders/real-preview';
+  guardedBy: 'JwtAuthGuard';
+  controllerMode: 'real-preview-guarded-mocked-transport-until-step140-w';
+  controllerWritesDatabase: false;
+  controllerCallsAmazon: boolean;
+  controllerUsesHttpClient: true;
+  controllerUsesSigV4: true;
+  controllerTransportMode: 'mocked-server-transport' | 'blocked-real-network-pending-step140-w';
+  importJobWriteNow: false;
+  importStagingRowWriteNow: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  realNetworkTransportImplementedNow: false;
+  step140WRequiredForLiveAmazonNetwork: true;
 };
 
 function normalizeAmazonSpApiOrdersPreviewRegionForController(value: string | undefined): 'FE' | 'NA' | 'EU' {
@@ -262,6 +294,69 @@ function mapAmazonSpApiConnectionStatusForEndpoint(
     accessTokenExpiresAt: accessTokenExpiresAt?.toISOString?.() ?? null,
     credentialRotatedAt: connection.credential?.rotatedAt?.toISOString?.() ?? null,
     credentialRevokedAt: connection.credential?.revokedAt?.toISOString?.() ?? null,
+  };
+}
+
+
+function assertAmazonSpApiOrdersRealPreviewRouteEnabled(): void {
+  const enabled = String(process.env.AMAZON_SP_API_ORDERS_REAL_PREVIEW_ROUTE_ENABLED || '').trim().toLowerCase();
+
+  if (enabled !== 'true') {
+    throw new ForbiddenException(
+      'STEP140_V_ORDERS_REAL_PREVIEW_ROUTE_DISABLED: set AMAZON_SP_API_ORDERS_REAL_PREVIEW_ROUTE_ENABLED=true to enable guarded real preview route.',
+    );
+  }
+}
+
+function buildStep140VMockedOrdersTransport(): AmazonSpApiOrdersHttpTransport {
+  return async (request) => {
+    if (request.operation === 'ListOrders') {
+      return {
+        status: 200,
+        headers: {
+          'x-amzn-requestid': 'STEP140-V-LIST-MOCKED',
+        },
+        bodyText: JSON.stringify({
+          payload: {
+            Orders: [
+              {
+                AmazonOrderId: 'ORDER-STEP140-V-001',
+                PurchaseDate: '2026-05-01T10:00:00Z',
+                LastUpdateDate: '2026-05-01T11:00:00Z',
+                OrderStatus: 'Shipped',
+                FulfillmentChannel: 'AFN',
+                SalesChannel: 'Amazon.co.jp',
+                MarketplaceId: 'A1VC38T7YXB528',
+                OrderTotal: { CurrencyCode: 'JPY', Amount: '4980' },
+              },
+            ],
+          },
+        }),
+      };
+    }
+
+    return {
+      status: 200,
+      headers: {
+        'x-amzn-requestid': 'STEP140-V-ITEMS-MOCKED',
+      },
+      bodyText: JSON.stringify({
+        payload: {
+          OrderItems: [
+            {
+              OrderItemId: 'ITEM-STEP140-V-001-A',
+              ASIN: 'B0STEP140V1',
+              SellerSKU: 'SKU-STEP140-V-REAL-PREVIEW',
+              Title: 'Step140-V guarded real preview mocked transport item',
+              QuantityOrdered: 1,
+              QuantityShipped: 1,
+              ItemPrice: { CurrencyCode: 'JPY', Amount: '4980' },
+              ItemTax: { CurrencyCode: 'JPY', Amount: '452' },
+            },
+          ],
+        },
+      }),
+    };
   };
 }
 
@@ -680,6 +775,106 @@ export class ImportsController {
       importStagingRowWriteNow: false as const,
       transactionWriteNow: false as const,
       inventoryWriteNow: false as const,
+    };
+  }
+
+  // Step140-V: Amazon SP-API Orders real preview controller route + frontend real preview button.
+  // This route is guarded and runs the Step140-P real-preview service through Step140-O's HTTP client boundary.
+  // In Step140-V it uses a mocked server transport unless Step140-W adds server-only raw signed real network transport.
+  // It never writes ImportJob/StagingRow/Transaction/Inventory and never returns raw tokens/secrets.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/real-preview')
+  async amazonSpApiOrdersRealPreviewControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersRealPreviewRouteBody,
+  ): Promise<AmazonSpApiOrdersRealPreviewRouteResponse> {
+    assertAmazonSpApiOrdersRealPreviewRouteEnabled();
+
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP140_V_ORDERS_REAL_PREVIEW_COMPANY_REQUIRED: authenticated user must belong to a company to preview real Amazon SP-API orders.',
+      );
+    }
+
+    if (body?.realPreview !== true) {
+      throw new BadRequestException(
+        'STEP140_V_ORDERS_REAL_PREVIEW_BAD_REQUEST: realPreview must be true.',
+      );
+    }
+
+    const normalizedStoreId = String(body?.storeId || '').trim();
+    const normalizedMarketplaceId = String(body?.marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = normalizeAmazonSpApiOrdersPreviewRegionForController(body?.region);
+    const normalizedCreatedAfter = String(body?.createdAfter || '').trim();
+    const normalizedCreatedBefore = String(body?.createdBefore || '').trim();
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException(
+        'STEP140_V_ORDERS_REAL_PREVIEW_BAD_REQUEST: storeId is required.',
+      );
+    }
+
+    if (!normalizedMarketplaceId) {
+      throw new BadRequestException(
+        'STEP140_V_ORDERS_REAL_PREVIEW_BAD_REQUEST: marketplaceId is required.',
+      );
+    }
+
+    if (!normalizedCreatedAfter) {
+      throw new BadRequestException(
+        'STEP140_V_ORDERS_REAL_PREVIEW_BAD_REQUEST: createdAfter is required.',
+      );
+    }
+
+    const transportMode = String(process.env.AMAZON_SP_API_ORDERS_REAL_PREVIEW_TRANSPORT || 'mocked').trim().toLowerCase();
+
+    if (transportMode !== 'mocked') {
+      throw new ForbiddenException(
+        'STEP140_V_REAL_NETWORK_PENDING_STEP140_W: real Amazon network transport is intentionally blocked until Step140-W server-only raw signed transport.',
+      );
+    }
+
+    const result = await previewAmazonSpApiOrdersRealNoPersistence({
+      companyId,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      accessToken: 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+      credentials: {
+        accessKeyId: 'AKIASTEP140VSERVERONLY',
+        secretAccessKey: 'AWS_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+        sessionToken: 'SESSION_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT',
+      },
+      createdAfter: normalizedCreatedAfter,
+      createdBefore: normalizedCreatedBefore || undefined,
+      orderStatuses: Array.isArray(body?.orderStatuses) ? body.orderStatuses : undefined,
+      maxResultsPerPage: body?.maxResultsPerPage,
+      now: new Date(),
+      env: {
+        AMAZON_SP_API_ORDERS_REAL_HTTP_ENABLED: 'true',
+      },
+      transport: buildStep140VMockedOrdersTransport(),
+    });
+
+    return {
+      ...result,
+      routeImplementedNow: true as const,
+      route: '/api/imports/amazon-sp-api/orders/real-preview' as const,
+      guardedBy: 'JwtAuthGuard' as const,
+      controllerMode: 'real-preview-guarded-mocked-transport-until-step140-w' as const,
+      controllerWritesDatabase: false as const,
+      controllerCallsAmazon: true as const,
+      controllerUsesHttpClient: true as const,
+      controllerUsesSigV4: true as const,
+      controllerTransportMode: 'mocked-server-transport' as const,
+      importJobWriteNow: false as const,
+      importStagingRowWriteNow: false as const,
+      transactionWriteNow: false as const,
+      inventoryWriteNow: false as const,
+      realNetworkTransportImplementedNow: false as const,
+      step140WRequiredForLiveAmazonNetwork: true as const,
     };
   }
 

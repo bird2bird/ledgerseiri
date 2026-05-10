@@ -728,4 +728,51 @@ export async function previewAmazonSpApiOrdersDryRun(
     }
   );
 }
+// Step140-V-FRONTEND-AMAZON-SP-API-ORDERS-REAL-PREVIEW:
+// Frontend helper for the guarded backend route:
+// POST /api/imports/amazon-sp-api/orders/real-preview
+// This does not call Amazon directly from the browser and does not write ImportJob/StagingRow/Transaction/Inventory.
+// Step140-V route uses mocked server transport until Step140-W implements server-only raw signed real network transport.
+export type AmazonSpApiOrdersRealPreviewRequest = {
+  storeId: string;
+  marketplaceId?: string;
+  region?: string;
+  createdAfter: string;
+  createdBefore?: string;
+  orderStatuses?: string[];
+  maxResultsPerPage?: number;
+  realPreview: true;
+};
 
+export type AmazonSpApiOrdersRealPreviewResponse =
+  Omit<AmazonSpApiOrdersDryRunPreviewResponse, "dryRun" | "source" | "previewMode" | "controllerMode"> & {
+    source?: "amazon-sp-api-orders-real-preview" | string;
+    previewMode?: "real-http-mocked-transport-no-persistence" | string;
+    dryRun: false;
+    realPreview?: true;
+    routeImplementedNow?: true;
+    route?: "/api/imports/amazon-sp-api/orders/real-preview" | string;
+    controllerMode?: "real-preview-guarded-mocked-transport-until-step140-w" | string;
+    controllerWritesDatabase?: false;
+    controllerCallsAmazon?: boolean;
+    controllerUsesHttpClient?: true;
+    controllerUsesSigV4?: true;
+    controllerTransportMode?: "mocked-server-transport" | "blocked-real-network-pending-step140-w" | string;
+    realNetworkTransportImplementedNow?: false;
+    step140WRequiredForLiveAmazonNetwork?: true;
+  };
+
+export const AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/real-preview" as const;
+
+export async function previewAmazonSpApiOrdersReal(
+  payload: AmazonSpApiOrdersRealPreviewRequest
+): Promise<AmazonSpApiOrdersRealPreviewResponse> {
+  return postJson<AmazonSpApiOrdersRealPreviewResponse>(
+    AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT,
+    {
+      ...payload,
+      realPreview: true,
+    }
+  );
+}

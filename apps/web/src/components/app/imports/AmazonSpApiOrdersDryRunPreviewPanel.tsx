@@ -5,7 +5,9 @@ import {
   AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
   AMAZON_SP_API_DEFAULT_STORE_ID,
   previewAmazonSpApiOrdersDryRun,
+  previewAmazonSpApiOrdersReal,
   type AmazonSpApiOrdersDryRunPreviewResponse,
+  type AmazonSpApiOrdersRealPreviewResponse,
 } from "@/core/imports/api";
 
 function formatNumber(value?: number | null) {
@@ -54,7 +56,8 @@ function SummaryPill({
 
 export function AmazonSpApiOrdersDryRunPreviewPanel() {
   const [loading, setLoading] = React.useState(false);
-  const [result, setResult] = React.useState<AmazonSpApiOrdersDryRunPreviewResponse | null>(null);
+  const [realLoading, setRealLoading] = React.useState(false);
+  const [result, setResult] = React.useState<AmazonSpApiOrdersDryRunPreviewResponse | AmazonSpApiOrdersRealPreviewResponse | null>(null);
   const [error, setError] = React.useState("");
 
   async function runDryRunPreview() {
@@ -82,6 +85,35 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
     }
   }
 
+  async function runRealPreview() {
+    setRealLoading(true);
+    setError("");
+
+    try {
+      const range = getTodayIsoDateRange();
+      const data = await previewAmazonSpApiOrdersReal({
+        storeId: AMAZON_SP_API_DEFAULT_STORE_ID,
+        marketplaceId: AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+        region: "JP",
+        createdAfter: range.createdAfter,
+        createdBefore: range.createdBefore,
+        orderStatuses: ["Shipped"],
+        maxResultsPerPage: 50,
+        realPreview: true,
+      });
+
+      setResult({
+        ...data,
+        realPreview: true,
+      });
+    } catch (err) {
+      setResult(null);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRealLoading(false);
+    }
+  }
+
   const orders = Array.isArray(result?.normalizedOrders) ? result.normalizedOrders : [];
   const orderItems = Array.isArray(result?.normalizedOrderItems) ? result.normalizedOrderItems : [];
   const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
@@ -104,6 +136,9 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
             </span>
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-600">
               書き込みなし
+            </span>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700">
+              Step140-W required for live network
             </span>
           </div>
 
@@ -306,6 +341,16 @@ export function AmazonSpApiOrdersDryRunPreviewPanel() {
             className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "プレビュー中..." : "注文APIプレビュー"}
+          </button>
+
+          <button
+            data-testid="amazon-sp-api-orders-real-preview-button"
+            type="button"
+            onClick={() => void runRealPreview()}
+            disabled={realLoading || loading}
+            className="inline-flex h-11 items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 px-5 text-sm font-black text-sky-700 shadow-sm transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {realLoading ? "Real preview中..." : "Real preview"}
           </button>
 
           <button
