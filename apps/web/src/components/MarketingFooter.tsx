@@ -41,37 +41,8 @@ export default function MarketingFooter({ lang }: { lang: Lang }) {
             <div className="mt-3 text-xs text-slate-500">{t.company.addr}</div>
           </div>
 
-          <div className="flex items-center gap-3 md:justify-end">
-            <a
-              href="#"
-              aria-label={t.social.facebook}
-              className={cn(
-                "h-10 w-10 rounded-full border border-black/10 bg-white shadow-sm",
-                "grid place-items-center text-slate-700 hover:bg-black/[0.03] active:scale-[0.99]"
-              )}
-            >
-              f
-            </a>
-            <a
-              href="#"
-              aria-label={t.social.youtube}
-              className={cn(
-                "h-10 w-10 rounded-full border border-black/10 bg-white shadow-sm",
-                "grid place-items-center text-slate-700 hover:bg-black/[0.03] active:scale-[0.99]"
-              )}
-            >
-              ▶
-            </a>
-            <a
-              href="#"
-              aria-label={t.social.x}
-              className={cn(
-                "h-10 w-10 rounded-full border border-black/10 bg-white shadow-sm",
-                "grid place-items-center text-slate-700 hover:bg-black/[0.03] active:scale-[0.99]"
-              )}
-            >
-              𝕏
-            </a>
+          <div className="hidden items-center gap-3 md:justify-end" aria-hidden="true">
+            {/* SNS links are hidden until official account URLs are available. */}
           </div>
         </div>
 

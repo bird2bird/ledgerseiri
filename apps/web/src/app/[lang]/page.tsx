@@ -46,95 +46,95 @@ const I18N: Record<
     nav: { features: "特長", usecases: "適合/不適合", pricing: "料金", faq: "FAQ", plans: "料金プラン", login: "ログイン", trial: "無料体験",
         resources: "資料一覧",
         cases: "導入事例",
-        support: "support",},
+        support: "サポート",},
 
     hero: {
       eyebrow: "Amazon出品者向け 経営管理SaaS",
       title1: "Amazonの注文・売上・在庫を、",
       title2: "経営管理の形に整理",
       lead: "Amazon注文データの取り込み、SKU別販売分析、在庫管理、銀行明細との照合を支援します。Seller CentralのログインID・パスワードは取得しません。",
-      ctaPrimary: "👉 免费开始使用",
-      ctaSecondary: "👉 看看能解决什么问题",
-      note: "※ 本服务为经营参考工具，最终申告以税理士判断为准",
+      ctaPrimary: "👉 無料で始める",
+      ctaSecondary: "👉 解決できる課題を見る",
+      note: "※ 本サービスは経営管理を支援するツールです。最終的な申告は税理士等の専門家にご確認ください",
       badges: ["Amazon SP-API連携", "注文データ取込", "SKU別販売分析", "在庫管理", "銀行明細照合"],
     },
 
     value: {
-      title: "卖得不错，却不知道到底赚没赚？",
+      title: "売上はあるのに、利益が見えにくいことはありませんか？",
       items: [
-        { title: "销售额很高，但钱却没剩多少", desc: "Amazon 后台销售额看起来不错，但实际利润却不清楚。" },
-        { title: "成本与费用散落各处", desc: "成本、广告费、运费、税分散在不同系统里。" },
-        { title: "年底才发现利润不如预期", desc: "税理士来了才知道真实情况，已经来不及调整。" },
+        { title: "売上は高いのに、手元に残る利益が見えにくい", desc: "Amazonの売上は確認できても、実際の利益や入金状況が分かりにくいことがあります。" },
+        { title: "原価・広告費・運賃などが分散している", desc: "仕入原価、広告費、運賃、税区分などが別々のシステムやCSVに分散しがちです。" },
+        { title: "月末・年末まで実態に気づきにくい", desc: "税理士に渡す段階で初めて状況を把握すると、改善判断が遅れます。" },
       ],
     },
 
     blocks: {
       a: {
-        title: "这是一个“经营财务工具”，不是会计软件",
-        desc: "LedgerSeiri 帮助电商卖家，把分散的数据整合成老板能立刻看懂的经营状态。不要求你懂会计，不替代税理士，只做一件事：让你不再盲飞。",
-        bullets: ["不要求会计知识", "不替代税理士", "实时看懂经营状态"],
+        title: "LedgerSeiriは会計ソフトではなく、経営管理を支援するツールです",
+        desc: "LedgerSeiriは、EC事業者が分散した注文・売上・在庫・銀行明細データを整理し、日々の経営状況を把握しやすくするクラウドサービスです。会計知識を前提とせず、税理士を代替するものではありません。",
+        bullets: ["会計知識を前提にしない", "税理士を代替しない", "日々の経営状況を把握"],
       },
       b: {
-        title: "销售数据自动整理，不再只看表面业绩",
-        desc: "从 Amazon 获取销售与结算数据，自动拆分销售额、退款、平台费用、代收税。",
-        bullets: ["知道钱怎么卖出来", "知道钱怎么被扣掉", "不再只看销售额"],
+        title: "Amazon注文データを整理し、表面的な売上だけでなく販売状況を確認",
+        desc: "Amazon注文データを取り込み、注文別・SKU別の売上確認と販売数量の整理を支援します。",
+        bullets: ["どの商品が売れたかを確認", "注文・SKU単位で販売数量を整理", "売上だけでなく運営状況を確認"],
       },
       c: {
-        title: "知道库存数量，更要知道库存成本",
-        desc: "记录进货数量与成本，自动计算销售成本（COGS），随时查看库存价值。",
-        bullets: ["自动计算 COGS", "查看库存价值", "不用等年底才知道利润"],
+        title: "在庫数量だけでなく、在庫と販売数量の関係を確認",
+        desc: "注文データと在庫データを組み合わせ、販売数量に応じた在庫確認や原価管理を補助します。",
+        bullets: ["販売数量に応じた在庫確認", "在庫状況の見える化", "月次で経営状況を確認"],
       },
     },
 
     grid: {
-      title: "核心功能",
-      lead: "围绕“经营可视化”设计的关键模块。",
+      title: "主な機能",
+      lead: "Amazon出品者の経営管理に必要なデータ整理を支援します。",
       cards: [
-        { title: "支出与发票管理", desc: "记录所有支出，上传并绑定发票，一眼看出缺票支出。" },
-        { title: "利润看板", desc: "销售 − 成本 − 费用 − 税务参考，自动汇总利润趋势。" },
-        { title: "税理士协作导出", desc: "销售汇总、支出明细+发票、库存变动一键导出。" },
-        { title: "AI 经营助理（Premium）", desc: "月度经营解读、异常提示、对话式查询、发票识别。" },
-        { title: "利润变化解释", desc: "清楚说明利润波动原因，辅助决策。" },
-        { title: "税务参考说明", desc: "所有数据为经营参考值，申告以税理士调整为准。" },
+        { title: "支出・証憑管理", desc: "支出を記録し、請求書・証憑と紐づけて管理できます。" },
+        { title: "経営ダッシュボード", desc: "売上、支出、在庫、インポート履歴を確認し、経営状況を把握します。" },
+        { title: "税理士連携用のデータ整理", desc: "売上集計、支出明細、証憑、在庫関連データの整理を支援します。" },
+        { title: "AI経営サポート（予定）", desc: "月次状況の確認、異常検知、証憑整理などを段階的に拡張予定です。" },
+        { title: "変動要因の確認", desc: "売上や支出の変動要因を確認し、意思決定を補助します。" },
+        { title: "税務判断に関する注意", desc: "本サービスの情報は経営管理の参考情報です。最終的な申告は税理士等の専門家にご確認ください。" },
       ],
     },
 
     usecases: {
-      title: "适合谁？不适合谁？",
-      lead: "帮助真正关心经营数据的卖家。",
+      title: "向いている事業者・向いていない事業者",
+      lead: "日々の経営データを把握したいAmazon出品者に向いています。",
       items: [
-        { title: "适合：电商卖家 / 个人事业主", desc: "想随时知道现在赚没赚的人。" },
-        { title: "适合：已委托税理士的卖家", desc: "希望更高效协作。" },
-        { title: "不适合：只想最低成本报税", desc: "或希望系统完全替代税理士的人。" },
+        { title: "向いている：EC事業者・個人事業主", desc: "売上、在庫、支出、入金状況を継続的に把握したい事業者。" },
+        { title: "向いている：税理士へ資料を渡す事業者", desc: "月次資料や証憑整理の負担を減らしたい事業者。" },
+        { title: "向いていない：申告だけを最低限で済ませたい事業者", desc: "システムが税理士業務を完全に代替することを期待する場合には向きません。" },
       ],
     },
 
     pricing: {
-      title: "从免费开始，按需要升级",
-      lead: "免费版支持基础记账与利润看板。",
-      hint: "👉 免费注册，10分钟看到第一份利润概览",
+      title: "料金プラン",
+      lead: "Amazon出品者の規模に合わせて段階的に利用できます。",
+      hint: "表示価格は税込です。正式な提供条件は特定商取引法に基づく表示および申込画面に従います。",
       plans: [
-        { name: "Free", price: "¥0", items: ["基础记账", "利润看板"] },
-        { name: "Premium", price: "¥1,980/月", items: ["AI经营助理", "深度分析"] },
-        { name: "Enterprise", price: "Coming Soon", items: ["高级协作", "数据导出增强"] },
+        { name: "Starter", price: "¥1,980/月", items: ["単一ストア", "注文データ取込", "基本ダッシュボード"] },
+        { name: "Standard", price: "¥4,980/月", items: ["SKU別販売分析", "在庫管理", "銀行明細との照合"] },
+        { name: "Business", price: "¥9,980/月", items: ["複数ストア", "詳細なインポート履歴", "チーム利用を想定"] },
       ],
     },
 
     faq: {
-      title: "常见问题",
+      title: "よくある質問",
       items: [
-        { q: "这是会计软件吗？", a: "不是。它是经营参考工具。" },
-        { q: "会替代税理士吗？", a: "不会。最终申告以税理士判断为准。" },
-        { q: "利润数据准确吗？", a: "利润为经营参考值。" },
-        { q: "AI 是否提供法律意见？", a: "不会。AI 仅提供经营参考。" },
+        { q: "LedgerSeiriは会計ソフトですか？", a: "いいえ。LedgerSeiriは会計データ整理と経営管理を支援するSaaSです。" },
+        { q: "税理士の代わりになりますか？", a: "いいえ。最終的な申告や税務判断は税理士等の専門家にご確認ください。" },
+        { q: "データは何に利用できますか？", a: "売上確認、SKU別販売分析、在庫管理、銀行明細との照合、会計資料整理の補助に利用できます。" },
+        { q: "Amazonのパスワードを預ける必要がありますか？", a: "いいえ。LedgerSeiriはSeller CentralのログインID・パスワードを取得しません。Amazon OAuthを通じて承認された範囲でSP-APIを利用します。" },
       ],
     },
 
     final: {
-      title: "别等税理士来告诉你结果",
-      lead: "在经营过程中，就该知道现在发生了什么。",
-      cta: "👉 现在开始使用 LedgerSeiri",
-      sub: "实时掌握经营状况，而不是事后复盘。",
+      title: "税理士に渡す前に、経営状況を把握する",
+      lead: "注文、売上、SKU、在庫、銀行明細を整理し、日々の経営判断と資料整理を効率化します。",
+      cta: "👉 LedgerSeiriを始める",
+      sub: "事後確認ではなく、運営中に数字を確認できる状態を目指します。",
     },
   },
 
@@ -216,7 +216,7 @@ const I18N: Record<
         support: "支持",},
     hero: {
       eyebrow: "面向跨境电商卖家的经营级 SaaS",
-      title1: "销售、广告、退款、FBA 费用——",
+      title1: "销售、广告、退款、Amazon注文データ——",
       title2: "一站式汇总成经营仪表盘。",
       lead: "把多店铺交易导入到同一个系统里，快速看清利润结构与成本构成。减少记账负担，加速经营决策。",
       ctaPrimary: "免费体验",
@@ -269,7 +269,7 @@ const I18N: Record<
       ],
     },
     faq: {
-      title: "常见问题",
+      title: "よくある質問",
       items: [
         { q: "免费体验后会自动扣费吗？", a: "目前不会。未来如引入订阅，也会清晰提示并由你确认。" },
         { q: "支持哪些平台？", a: "优先 Amazon，后续逐步扩展其它平台/支付/物流数据。" },
@@ -395,7 +395,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       </span>
       <div className="leading-tight">
         <div className="text-sm font-semibold tracking-tight">LedgerSeiri</div>
-        <div className="text-[12px] text-slate-500">Official</div>
+        <div className="text-[12px] text-slate-500">Seller Operations SaaS</div>
       </div>
     </a>
 
@@ -498,7 +498,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
             <div className="ls-card overflow-hidden">
               <div className="border-b border-black/5 px-5 py-4">
                 <div className="text-sm font-semibold">LedgerSeiri Dashboard</div>
-                <div className="text-[12px] text-slate-500">Sales / Fees / Ads / Refunds / Net</div>
+                <div className="text-[12px] text-slate-500">Orders / Sales / SKU / Inventory</div>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-3">
@@ -520,7 +520,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-dashed border-black/15 bg-white/50 p-4 text-[12px] text-slate-500">
-                  ※ This is a visual mock. Replace with real screenshots later.
+                  ※ 画面は機能説明用のイメージです。実際の表示内容は利用状況により異なります。
                 </div>
               </div>
             </div>
@@ -598,7 +598,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
               </div>
               <div className="col-span-12 lg:col-span-6">
                 <div className="ls-card p-6">
-                  <div className="text-[12px] text-slate-500">Visual placeholder</div>
+                  <div className="text-[12px] text-slate-500">機能イメージ</div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <div className="h-20 rounded-2xl border border-black/10 bg-white" />
                     <div className="h-20 rounded-2xl border border-black/10 bg-white" />
