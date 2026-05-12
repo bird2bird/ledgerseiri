@@ -7,9 +7,9 @@ import MarketingFooter from "@/components/MarketingFooter";
 
 
 export const metadata: Metadata = {
-  title: "LedgerSeiri | 経営級クラウド記帳（クロスボーダーEC向け）",
+  title: "LedgerSeiri | Amazon出品者向け 売上・注文・在庫・照合管理SaaS",
   description:
-    "Amazonなど複数ストアの取引・手数料・広告・返金をまとめて記帳。ダッシュボードで経営を見える化するクラウドSaaS。",
+    "LedgerSeiriは、日本の中小企業・EC事業者向けに、Amazon注文データの取込、売上確認、SKU別販売分析、在庫管理、銀行明細との照合を支援するクラウドSaaSです。",
 };
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
@@ -49,14 +49,14 @@ const I18N: Record<
         support: "support",},
 
     hero: {
-      eyebrow: "クロスボーダーEC向け 経営級SaaS",
-      title1: "電商売家的经营财务，",
-      title2: "一眼就清楚",
-      lead: "不用等税理士、不用学会计。实时掌握 销售 · 库存 · 成本 · 利润 · 税务风险。",
+      eyebrow: "Amazon出品者向け 経営管理SaaS",
+      title1: "Amazonの注文・売上・在庫を、",
+      title2: "経営管理の形に整理",
+      lead: "Amazon注文データの取り込み、SKU別販売分析、在庫管理、銀行明細との照合を支援します。Seller CentralのログインID・パスワードは取得しません。",
       ctaPrimary: "👉 免费开始使用",
       ctaSecondary: "👉 看看能解决什么问题",
       note: "※ 本服务为经营参考工具，最终申告以税理士判断为准",
-      badges: ["销售数据整合", "库存与COGS", "利润看板", "发票管理", "AI经营助理"],
+      badges: ["Amazon SP-API連携", "注文データ取込", "SKU別販売分析", "在庫管理", "銀行明細照合"],
     },
 
     value: {
@@ -717,6 +717,89 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
       </section>
       <ScrollToTop />
     
+      {/* Amazon Public Developer review support: keep existing LP layout, append compliance cards */}
+      <section id="amazon-sp-api" className="mx-auto max-w-7xl px-5 py-16">
+        <div className="rounded-[2rem] border border-[#2b5cff]/15 bg-white/85 p-6 shadow-[var(--sh-md)] backdrop-blur md:p-10">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="text-sm font-bold text-[#2b5cff]">Amazon SP-API / OAuth</div>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+              Amazon連携について
+            </h2>
+            <p className="mt-4 text-base leading-8 text-slate-600">
+              LedgerSeiriは、出品者がAmazon OAuthを通じて明示的に承認した場合にのみ、
+              Amazon Selling Partner API（SP-API）を通じて出品者自身の注文データへアクセスします。
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-3xl border border-black/10 bg-slate-50 p-5">
+              <h3 className="text-base font-black text-slate-950">OAuthによる明示的な承認</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Amazon連携は、出品者本人が承認した場合にのみ開始されます。Seller CentralのログインID・パスワードは取得しません。
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-black/10 bg-slate-50 p-5">
+              <h3 className="text-base font-black text-slate-950">取得するAmazonデータ</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                注文ID、注文日時、注文ステータス、マーケットプレイスID、SKU、ASIN、商品名、販売数量、商品価格など、注文管理に必要な範囲に限定します。
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-black/10 bg-slate-50 p-5">
+              <h3 className="text-base font-black text-slate-950">利用目的</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                売上確認、SKU別販売分析、在庫管理、銀行明細との照合、インポート履歴管理、会計資料整理の補助に利用します。
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-black/10 bg-slate-50 p-5">
+              <h3 className="text-base font-black text-slate-950">データ保護</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                Amazon連携トークンはサーバー側で管理し、refresh token等は暗号化して保存します。access token、refresh token、client secretをブラウザへ返却しません。
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-3xl border border-black/10 bg-white p-5">
+              <h3 className="text-base font-black text-slate-950">取得しない情報</h3>
+              <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
+                <li>・Seller CentralのログインID・パスワード</li>
+                <li>・クレジットカード情報</li>
+                <li>・初期連携では購入者の氏名・住所・電話番号などの購入者個人情報を利用目的の対象外とします</li>
+              </ul>
+            </div>
+
+            <div className="rounded-3xl border border-black/10 bg-white p-5">
+              <h3 className="text-base font-black text-slate-950">第三者販売・広告利用なし</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                取得したAmazonデータを第三者に販売せず、広告目的で利用せず、利用目的の範囲を超えて共有しません。
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-black/10 bg-white p-5">
+              <h3 className="text-base font-black text-slate-950">連携解除・削除</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">
+                出品者はいつでもAmazon連携の解除を依頼できます。不要になった連携情報は削除または無効化できます。
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-bold">
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 text-slate-800 hover:bg-slate-50" href={`/${lang}/privacy`}>
+              プライバシーポリシー
+            </Link>
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 text-slate-800 hover:bg-slate-50" href={`/${lang}/security`}>
+              セキュリティ
+            </Link>
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 text-slate-800 hover:bg-slate-50" href={`/${lang}/commerce`}>
+              特定商取引法に基づく表示
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <MarketingFooter lang={lang} />
 </main>
   );

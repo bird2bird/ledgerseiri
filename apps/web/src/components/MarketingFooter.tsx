@@ -19,6 +19,7 @@ export default function MarketingFooter({ lang }: { lang: Lang }) {
       commerce: `/${lang}/commerce`,
       terms: `/${lang}/terms`,
       privacy: `/${lang}/privacy`,
+      security: `/${lang}/security`,
     };
   }, [lang]);
 
@@ -80,6 +81,7 @@ export default function MarketingFooter({ lang }: { lang: Lang }) {
             <Link className="hover:text-slate-900" href={href.commerce}>{t.links.commerce}</Link>
             <Link className="hover:text-slate-900" href={href.terms}>{t.links.terms}</Link>
             <Link className="hover:text-slate-900" href={href.privacy}>{t.links.privacy}</Link>
+            <Link className="hover:text-slate-900" href={href.security}>{t.links.security}</Link>
           </nav>
 
           <div className="mt-6 text-center text-xs text-slate-500">
