@@ -359,6 +359,43 @@ function getLang(params: any): Lang {
   return lang === "ja" || lang === "en" || lang === "zh-CN" || lang === "zh-TW" ? lang : "ja";
 }
 
+function FeatureSummaryVisual({ variant = "orders" }: { variant?: "orders" | "inventory" | "reconcile" }) {
+  const data = {
+    orders: [
+      ["注文データ取込", "Amazon OAuth承認後、SP-APIを通じて注文データを取り込みます。"],
+      ["SKU別販売分析", "SKU別の販売数量を確認し、販売状況を整理します。"],
+      ["インポート履歴", "いつ、どのデータを取り込んだかを確認できます。"],
+    ],
+    inventory: [
+      ["在庫確認", "販売数量と在庫情報を組み合わせて確認できます。"],
+      ["原価管理の補助", "在庫と仕入情報を整理し、原価確認を支援します。"],
+      ["SKU単位の管理", "商品ごとの販売数量と在庫状況を見える化します。"],
+    ],
+    reconcile: [
+      ["銀行明細との照合", "銀行明細を取り込み、売上・支出・入金確認を補助します。"],
+      ["証憑管理", "請求書や証憑を支出データと紐づけて整理できます。"],
+      ["税理士連携", "月次確認や資料整理を効率化します。"],
+    ],
+  }[variant];
+
+  return (
+    <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm">
+      <div className="text-[12px] font-bold text-[#2b5cff]">機能概要</div>
+      <div className="mt-4 grid gap-3">
+        {data.map(([title, body]) => (
+          <div key={title} className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3">
+            <div className="text-sm font-black text-slate-950">{title}</div>
+            <div className="mt-1 text-xs leading-5 text-slate-600">{body}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-xs leading-6 text-slate-600">
+        Seller CentralのログインID・パスワードは取得しません。Amazon OAuthで承認された範囲のみ利用します。
+      </div>
+    </div>
+  );
+}
+
 export default async function LangLanding({ params }: { params: Promise<{ lang: string }> }) {
   const p = await params;
   const lang = getLang(p);
@@ -598,7 +635,7 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
               </div>
               <div className="col-span-12 lg:col-span-6">
                 <div className="ls-card p-6">
-                  <div className="text-[12px] text-slate-500">機能イメージ</div>
+                  <div className="text-[12px] text-slate-500">機能概要</div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <div className="h-20 rounded-2xl border border-black/10 bg-white" />
                     <div className="h-20 rounded-2xl border border-black/10 bg-white" />
