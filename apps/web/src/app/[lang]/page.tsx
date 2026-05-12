@@ -114,9 +114,9 @@ const I18N: Record<
       lead: "Amazon出品者の規模に合わせて段階的に利用できます。",
       hint: "表示価格は税込です。正式な提供条件は特定商取引法に基づく表示および申込画面に従います。",
       plans: [
-        { name: "Starter", price: "¥1,980/月", items: ["単一ストア", "注文データ取込", "基本ダッシュボード"] },
-        { name: "Standard", price: "¥4,980/月", items: ["SKU別販売分析", "在庫管理", "銀行明細との照合"] },
-        { name: "Business", price: "¥9,980/月", items: ["複数ストア", "詳細なインポート履歴", "チーム利用を想定"] },
+        { name: "Starter", price: "¥980/月", items: ["単一ストア", "注文データ取込", "基本ダッシュボード"] },
+        { name: "Standard", price: "¥1,980/月", items: ["SKU別販売分析", "在庫管理", "銀行明細との照合"] },
+        { name: "Business", price: "¥3,980/月", items: ["複数ストア", "詳細なインポート履歴", "チーム利用を想定"] },
       ],
     },
 
@@ -195,7 +195,7 @@ const I18N: Record<
       plans: [
         { name: "Starter", price: "from ¥980/mo", items: ["Single store", "Basic dashboard", "Basic CSV import"] },
         { name: "Standard", price: "from ¥1,980/mo", items: ["Multi-store", "Advanced aggregation", "Priority support"] },
-        { name: "AI Pro", price: "from ¥4,980/mo", items: ["AI suggestions (planned)", "OCR (planned)", "Auto checks (planned)"] },
+        { name: "Business", price: "from ¥3,980/mo", items: ["AI suggestions (planned)", "OCR (planned)", "Auto checks (planned)"] },
       ],
     },
     faq: {
@@ -265,7 +265,7 @@ const I18N: Record<
       plans: [
         { name: "Starter", price: "¥980/月起（拟）", items: ["单店铺", "基础 Dashboard", "基础 CSV 导入"] },
         { name: "Standard", price: "¥1,980/月起（拟）", items: ["多店铺", "更强汇总能力", "优先支持"] },
-        { name: "AI Pro", price: "¥4,980/月起（拟）", items: ["AI 建议（规划）", "OCR（规划）", "自动检查（规划）"] },
+        { name: "Business", price: "¥1,980/月起（拟）", items: ["AI 建议（规划）", "OCR（规划）", "自动检查（规划）"] },
       ],
     },
     faq: {
@@ -335,7 +335,7 @@ const I18N: Record<
       plans: [
         { name: "Starter", price: "¥980/月起（擬）", items: ["單店舖", "基礎 Dashboard", "基礎 CSV"] },
         { name: "Standard", price: "¥1,980/月起（擬）", items: ["多店舖", "進階彙總", "優先支援"] },
-        { name: "AI Pro", price: "¥4,980/月起（擬）", items: ["AI 建議（規劃）", "OCR（規劃）", "自動檢查（規劃）"] },
+        { name: "Business", price: "¥1,980/月起（擬）", items: ["AI 建議（規劃）", "OCR（規劃）", "自動檢查（規劃）"] },
       ],
     },
     faq: {

@@ -33,9 +33,9 @@ export default function TokuteiDisclosurePage({ params }: { params: { lang: stri
       <div className="space-y-1">
         <div>サブスクリプション料金（消費税込）</div>
         <div className="mt-1 rounded-2xl border border-black/10 bg-white p-3 text-sm">
-          <div>Starter: <span className="font-semibold">¥1,980/月</span></div>
-          <div>Standard: <span className="font-semibold">¥4,980/月</span></div>
-          <div>Business: <span className="font-semibold">¥9,980/月</span></div>
+          <div>Starter: <span className="font-semibold">¥980/月</span></div>
+          <div>Standard: <span className="font-semibold">¥1,980/月</span></div>
+          <div>Business: <span className="font-semibold">¥3,980/月</span></div>
         </div>
         <div className="text-xs text-slate-500">※ 価格は各プラン表示に準じます。</div>
       </div>

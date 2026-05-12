@@ -308,22 +308,22 @@ const PLANS: Record<Lang, Plan[]> = {
   ja: [
     { key: "starter", name: "Starter", monthly: 980, tagline: "まずはここから（個人〜小規模）", items: ["単一ストア", "基本ダッシュボード", "取引/費用の基本管理"], fit: ["月商〜100万円目安", "SKU 少なめ", "広告運用は軽め"] },
     { key: "standard", name: "Standard", monthly: 1980, tagline: "一番おすすめ（経営の見える化）", items: ["複数ストア", "推移/集計の強化", "証憑（領収書/請求書）紐付け"], fit: ["月商100万〜500万円目安", "広告運用あり", "月次で改善したい"], recommended: true },
-    { key: "ai", name: "AI Pro", monthly: 4980, tagline: "AIで“経営の解釈”まで", items: ["AI 月次サマリー（計画）", "異常/リスク検知（計画）", "対話式検索（計画）"], fit: ["月商500万円〜", "複数担当/外注あり", "意思決定を速くしたい"] },
+    { key: "ai", name: "Business", monthly: 3980, tagline: "複数ストア・高度な管理まで", items: ["AI 月次サマリー（計画）", "異常/リスク検知（計画）", "対話式検索（計画）"], fit: ["月商500万円〜", "複数担当/外注あり", "意思決定を速くしたい"] },
   ],
   en: [
     { key: "starter", name: "Starter", monthly: 980, tagline: "Start simple", items: ["Single store", "Basic dashboard", "Transactions & expenses"], fit: ["~¥1M/mo", "Few SKUs", "Light ads"] },
     { key: "standard", name: "Standard", monthly: 1980, tagline: "Recommended for most", items: ["Multi-store", "Trends & summaries", "Receipt linking"], fit: ["¥1M–¥5M/mo", "Running ads", "Monthly loop"], recommended: true },
-    { key: "ai", name: "AI Pro", monthly: 4980, tagline: "AI insights", items: ["Monthly AI summary (planned)", "Anomaly alerts (planned)", "Chat queries (planned)"], fit: ["¥5M+/mo", "Teams", "Faster decisions"] },
+    { key: "ai", name: "Business", monthly: 3980, tagline: "AI insights", items: ["Monthly AI summary (planned)", "Anomaly alerts (planned)", "Chat queries (planned)"], fit: ["¥5M+/mo", "Teams", "Faster decisions"] },
   ],
   "zh-CN": [
     { key: "starter", name: "Starter", monthly: 980, tagline: "从这里开始（个人/小规模）", items: ["单店铺", "基础看板", "交易/支出管理"], fit: ["月销~100万日元", "SKU 较少", "广告较轻"] },
     { key: "standard", name: "Standard", monthly: 1980, tagline: "最推荐（经营可视化）", items: ["多店铺", "趋势/汇总增强", "证凭上传与绑定"], fit: ["月销100万〜500万", "有广告投放", "需要月度复盘"], recommended: true },
-    { key: "ai", name: "AI Pro", monthly: 4980, tagline: "AI 把数字变成信息", items: ["AI 月度解读（计划）", "异常/风险提示（计划）", "对话式查询（计划）"], fit: ["月销500万以上", "多人协作/外包", "更快决策"] },
+    { key: "ai", name: "Business", monthly: 3980, tagline: "AI 把数字变成信息", items: ["AI 月度解读（计划）", "异常/风险提示（计划）", "对话式查询（计划）"], fit: ["月销500万以上", "多人协作/外包", "更快决策"] },
   ],
   "zh-TW": [
     { key: "starter", name: "Starter", monthly: 980, tagline: "從這裡開始（個人/小規模）", items: ["單店舖", "基礎看板", "交易/支出管理"], fit: ["月銷~100萬日圓", "SKU 較少", "廣告較輕"] },
     { key: "standard", name: "Standard", monthly: 1980, tagline: "最推薦（經營可視化）", items: ["多店舖", "趨勢/彙總增強", "證憑上傳與綁定"], fit: ["月銷100萬〜500萬", "有廣告投放", "需要月度復盤"], recommended: true },
-    { key: "ai", name: "AI Pro", monthly: 4980, tagline: "AI 把數字變成資訊", items: ["AI 月度解讀（計畫）", "異常/風險提示（計畫）", "對話式查詢（計畫）"], fit: ["月銷500萬以上", "多人協作/外包", "更快決策"] },
+    { key: "ai", name: "Business", monthly: 3980, tagline: "AI 把數字變成資訊", items: ["AI 月度解讀（計畫）", "異常/風險提示（計畫）", "對話式查詢（計畫）"], fit: ["月銷500萬以上", "多人協作/外包", "更快決策"] },
   ],
 } as any;
 
