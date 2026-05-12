@@ -1,127 +1,78 @@
-import LanguageMenuLP from "@/components/LanguageMenuLP";
-import MarketingTopBar from "@/components/MarketingTopBar";
+import Link from "next/link";
 import MarketingFooter from "@/components/MarketingFooter";
+import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 
-type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
+const COMPANY_LEGAL_JA = "Kimoca Co., Ltd.（株式会社キモカ）";
+const SUPPORT_EMAIL = "support@kimoca.com";
+const SUPPORT_PHONE = "+81-70-8332-2320";
 
-function getLang(params: any): Lang {
-  const lang = (params?.lang ?? "ja") as Lang;
-  return lang === "ja" || lang === "en" || lang === "zh-CN" || lang === "zh-TW" ? lang : "ja";
-}
-
-function cn(...a: (string | false | null | undefined)[]) {
-  return a.filter(Boolean).join(" ");
-}
-
-type NavT = {
-  menu: {
-    features: string;
-    pricing: string;
-    resources: string;
-    usecases: string;
-    cases: string;
-    support: string;
-  };
-  right: { login: string; trial: string; };
-  title: string;
-  lead: string;
-  ctaTrial: string;
-};
-
-const I18N: Record<Lang, NavT> = {
-  ja: {
-    menu: { features: "機能", pricing: "Pricing", resources: "資料一覧", usecases: "活用シーン", cases: "導入事例", support: "support" },
-    right: { login: "ログイン", trial: "無料で体験" },
-    title: "サポート",
-    lead: "使い方・よくある質問・トラブル対応をまとめます。",
-    ctaTrial: "無料で体験を開始",
-  },
-  en: {
-    menu: { features: "Features", pricing: "Pricing", resources: "Resources", usecases: "Use cases", cases: "Case studies", support: "Support" },
-    right: { login: "Login", trial: "Start free" },
-    title: "Support",
-    lead: "Help center, FAQs, and troubleshooting.",
-    ctaTrial: "Start free",
-  },
-  "zh-CN": {
-    menu: { features: "功能", pricing: "价格", resources: "资料一览", usecases: "使用场景", cases: "导入事例", support: "支持" },
-    right: { login: "登录", trial: "免费体验" },
-    title: "支持",
-    lead: "使用帮助 / FAQ / 常见问题处理。",
-    ctaTrial: "开始免费体验",
-  },
-  "zh-TW": {
-    menu: { features: "功能", pricing: "價格", resources: "資料一覽", usecases: "活用情境", cases: "導入事例", support: "支援" },
-    right: { login: "登入", trial: "免費體驗" },
-    title: "支援",
-    lead: "使用說明 / FAQ / 常見問題處理。",
-    ctaTrial: "開始免費體驗",
-  },
-};
-
-export default async function Page({ params }: { params: Promise<{ lang: string }> }) {
-  const p = await params;
-  const lang = getLang(p);
-  const t = (I18N[lang] as any);
-  
-  const nav = { ...(t.menu || {}), login: t.right?.login, trial: t.right?.trial };
-const topNav = { ...(t.menu || {}), login: t.right?.login, trial: t.right?.trial };
-const homeHref = `/${lang}`;
-  const featuresHref = `/${lang}/features`;
-  const pricingHref = `/${lang}/pricing`;
-  const resourcesHref = `/${lang}/resources`;
-  const usecasesHref = `/${lang}/usecases`;
-  const casesHref = `/${lang}/cases`;
-  const supportHref = `/${lang}/support`;
-
-  const loginHref = `/${lang}/login`;
-  const trialHref = `/${lang}/register`;
+export default function SupportPage({ params }: { params: { lang: string } }) {
+  const lang: Lang = normalizeLang(params.lang);
 
   return (
-      <>
-        <MarketingTopBar active="auto" lang={lang} nav={topNav as any} subtitle="Support" />
-        <main className="min-h-screen ls-bg text-slate-900">
-      {/* Subtle gradient background */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-24 left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#2b5cff]/10 via-sky-100/40 to-transparent blur-2xl" />
-        <div className="absolute top-[520px] left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full bg-gradient-to-br from-emerald-100/35 via-white to-transparent blur-2xl" />
+    <main className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-5xl px-5 py-12">
+        <div className="rounded-3xl border border-black/10 bg-white p-8 shadow-sm">
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">サポート</h1>
+          <p className="mt-4 text-sm leading-7 text-slate-600">
+            LedgerSeiriの使い方、Amazon連携、アカウント、請求、データ削除に関するお問い合わせを受け付けています。
+          </p>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <section className="rounded-3xl border border-black/10 bg-slate-50 p-6">
+              <h2 className="text-lg font-black text-slate-950">お問い合わせ窓口</h2>
+              <dl className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
+                <div>
+                  <dt className="font-bold">運営会社</dt>
+                  <dd>{COMPANY_LEGAL_JA}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold">メール</dt>
+                  <dd><a className="text-[#2b5cff] underline underline-offset-4" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></dd>
+                </div>
+                <div>
+                  <dt className="font-bold">電話</dt>
+                  <dd>{SUPPORT_PHONE}（平日 10:00〜18:00）</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="rounded-3xl border border-black/10 bg-slate-50 p-6">
+              <h2 className="text-lg font-black text-slate-950">Amazon連携の解除・データ削除</h2>
+              <p className="mt-4 text-sm leading-7 text-slate-700">
+                Amazon連携の解除、保存されたAmazon連携情報の削除、アカウント解約、データ削除に関する依頼は、
+                サポート窓口までご連絡ください。法令上保存が必要な情報を除き、合理的な期間内に削除または匿名化を行います。
+              </p>
+            </section>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              ["Amazon連携", "OAuth承認、SP-API連携、注文データ取込に関するお問い合わせ。"],
+              ["アカウント・請求", "ログイン、プラン、請求、解約に関するお問い合わせ。"],
+              ["不具合・改善要望", "画面表示、CSV取込、データ確認に関するお問い合わせ。"],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-2xl border border-black/10 bg-white p-5">
+                <h3 className="font-black text-slate-950">{title}</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold">
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 hover:bg-slate-50" href={"/" + lang + "/privacy"}>
+              プライバシーポリシー
+            </Link>
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 hover:bg-slate-50" href={"/" + lang + "/security"}>
+              セキュリティ
+            </Link>
+            <Link className="rounded-full border border-black/10 bg-white px-5 py-3 hover:bg-slate-50" href={"/" + lang + "/commerce"}>
+              特定商取引法に基づく表示
+            </Link>
+          </div>
+        </div>
       </div>
-
-      {/* Top nav */}
-      {/* Page content */}
-      <section className="mx-auto max-w-6xl px-5 pt-12 pb-10">
-        <h1 className="text-4xl leading-[1.1] tracking-tight font-semibold md:text-5xl">{t.title}</h1>
-        <p className="mt-4 text-base text-slate-600 md:text-lg">{t.lead}</p>
-
-        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-black/10 bg-white/85 p-6 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Section 1</div>
-            <div className="mt-2 text-sm text-slate-600">（ここに内容を追加していきます）</div>
-          </div>
-          <div className="rounded-3xl border border-black/10 bg-white/85 p-6 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Section 2</div>
-            <div className="mt-2 text-sm text-slate-600">（ここに内容を追加していきます）</div>
-          </div>
-          <div className="rounded-3xl border border-black/10 bg-white/85 p-6 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Section 3</div>
-            <div className="mt-2 text-sm text-slate-600">（ここに内容を追加していきます）</div>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <a href={trialHref} className="ls-btn ls-btn-primary inline-flex items-center justify-center px-5 py-3">
-            {t.ctaTrial}
-          </a>
-          <a href={pricingHref} className="ls-btn ls-btn-ghost inline-flex items-center justify-center px-5 py-3 text-slate-900">
-            {t.menu.pricing}
-          </a>
-        </div>
-      </section>
-    </main>
-
       <MarketingFooter lang={lang} />
-
-    </>
+    </main>
   );
-
 }
