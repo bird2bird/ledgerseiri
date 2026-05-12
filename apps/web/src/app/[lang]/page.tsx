@@ -380,7 +380,7 @@ function FeatureSummaryVisual({ variant = "orders" }: { variant?: "orders" | "in
 
   return (
     <div className="rounded-[28px] border border-black/10 bg-white p-6 shadow-sm">
-      <div className="text-[12px] font-bold text-[#2b5cff]">機能概要</div>
+      <div className="text-[12px] font-bold text-[#2b5cff]">機能カード</div>
       <div className="mt-4 grid gap-3">
         {data.map(([title, body]) => (
           <div key={title} className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3">
@@ -635,11 +635,20 @@ export default async function LangLanding({ params }: { params: Promise<{ lang: 
               </div>
               <div className="col-span-12 lg:col-span-6">
                 <div className="ls-card p-6">
-                  <div className="text-[12px] text-slate-500">機能概要</div>
+                  <div className="text-[12px] font-bold text-[#2b5cff]">機能カード</div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="h-20 rounded-2xl border border-black/10 bg-white" />
-                    <div className="h-20 rounded-2xl border border-black/10 bg-white" />
-                    <div className="col-span-2 h-28 rounded-2xl border border-black/10 bg-white" />
+                    <div className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3">
+                      <div className="text-sm font-black text-slate-950">Amazon注文データ取込</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-600">OAuth承認後、SP-APIを通じて注文データを取り込みます。</div>
+                    </div>
+                    <div className="rounded-2xl border border-black/10 bg-slate-50 px-4 py-3">
+                      <div className="text-sm font-black text-slate-950">SKU別販売分析</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-600">SKU別の販売数量を確認し、販売状況を整理します。</div>
+                    </div>
+                    <div className="col-span-2 rounded-2xl border border-black/10 bg-blue-50 px-4 py-3">
+                      <div className="text-sm font-black text-slate-950">在庫・銀行明細確認</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-600">販売数量に応じた在庫確認と、銀行明細との照合を補助します。</div>
+                    </div>
                   </div>
                 </div>
               </div>
