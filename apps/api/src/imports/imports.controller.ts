@@ -871,6 +871,7 @@ export class ImportsController {
   }
 
 
+  @UseGuards(JwtAuthGuard)
   @Post('amazon-sp-api/orders/real-preview')
   async amazonSpApiOrdersRealPreviewControllerRoute(
     @Req() req: Step122SAuthenticatedRequest,
