@@ -60,7 +60,7 @@ const AMAZON_JP_AUTHORIZATION_BASE_URL =
 const CALLBACK_REDIRECT_URI =
   'https://ledgerseiri.example/api/imports/amazon-sp-api/oauth/callback';
 
-const FAKE_APPLICATION_ID = 'amzn1.sp.solution.step129b.fake';
+const AMAZON_SP_API_PRODUCTION_APPLICATION_ID = 'amzn1.sp.solution.e476e21e-a924-4418-a19d-a0cc78c3cecc';
 
 function normalize(value: string | undefined): string {
   return String(value || '').trim();
@@ -134,7 +134,7 @@ export class AmazonSpApiOauthAuthorizationUrlService {
 
     const signedState = toBase64Url(
       JSON.stringify({
-        version: 'step129b-fake-state-v1',
+        version: 'step141d-production-state-v1',
         companyId,
         storeId,
         marketplaceId,
@@ -150,7 +150,7 @@ export class AmazonSpApiOauthAuthorizationUrlService {
     );
 
     const url = new URL(AMAZON_JP_AUTHORIZATION_BASE_URL);
-    url.searchParams.set('application_id', FAKE_APPLICATION_ID);
+    url.searchParams.set('application_id', AMAZON_SP_API_PRODUCTION_APPLICATION_ID);
     url.searchParams.set('state', signedState);
     url.searchParams.set('version', 'beta');
     url.searchParams.set('marketplace_id', marketplaceId);
