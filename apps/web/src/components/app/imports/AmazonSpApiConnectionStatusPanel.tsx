@@ -208,7 +208,7 @@ export function AmazonSpApiConnectionStatusPanel() {
 
       try {
         const data = await readAmazonSpApiConnectionStatus({
-          storeId: "cmnx56kru0001ms7s5054wssr",
+          storeId: "cmn4jghll0005o901075vk5w4",
           marketplaceId: "A1VC38T7YXB528",
           region: "JP",
         });
@@ -252,7 +252,7 @@ export function AmazonSpApiConnectionStatusPanel() {
 
     try {
       const data = await requestAmazonSpApiAuthorizationUrl({
-        storeId: "cmnx56kru0001ms7s5054wssr",
+        storeId: "cmn4jghll0005o901075vk5w4",
         marketplaceId: "A1VC38T7YXB528",
         region: "JP",
         returnTo: getReturnToPath(),
@@ -290,7 +290,7 @@ export function AmazonSpApiConnectionStatusPanel() {
 
     try {
       const data = await readAmazonSpApiConnectionStatus({
-        storeId: "cmnx56kru0001ms7s5054wssr",
+        storeId: "cmn4jghll0005o901075vk5w4",
         marketplaceId: "A1VC38T7YXB528",
         region: "JP",
       });

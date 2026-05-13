@@ -471,7 +471,7 @@ export async function requestAmazonSpApiAuthorizationUrl(
 ): Promise<AmazonSpApiAuthorizationUrlResponse> {
   const params = new URLSearchParams();
 
-  params.set("storeId", args.storeId || "cmnx56kru0001ms7s5054wssr");
+  params.set("storeId", args.storeId || "cmn4jghll0005o901075vk5w4");
   params.set("marketplaceId", args.marketplaceId || "A1VC38T7YXB528");
   params.set("region", args.region || "JP");
   params.set("sandbox", args.sandbox === false ? "false" : "true");
@@ -542,7 +542,7 @@ export const AMAZON_SP_API_CONNECTION_STATUS_ENDPOINT =
 
 export const AMAZON_SP_API_DEFAULT_MARKETPLACE_ID = "A1VC38T7YXB528" as const;
 export const AMAZON_SP_API_DEFAULT_REGION = "JP" as const;
-export const AMAZON_SP_API_DEFAULT_STORE_ID = "cmnx56kru0001ms7s5054wssr" as const;
+export const AMAZON_SP_API_DEFAULT_STORE_ID = "cmn4jghll0005o901075vk5w4" as const;
 
 export function buildAmazonSpApiConnectionStatusUrl(
   args: AmazonSpApiConnectionStatusRequest = {}
