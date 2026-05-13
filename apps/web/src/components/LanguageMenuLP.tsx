@@ -5,11 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 
 type Lang = "ja" | "en" | "zh-CN" | "zh-TW";
 
+// Public Developer review mode:
+ // Keep only Japanese visible until EN/ZH copies are fully reviewed.
 const ITEMS: Array<{ code: Lang; label: string; ccy: string }> = [
   { code: "ja", label: "日本語", ccy: "JPY" },
-  { code: "en", label: "English", ccy: "USD" },
-  { code: "zh-CN", label: "简体中文", ccy: "CNY" },
-  { code: "zh-TW", label: "繁體中文", ccy: "TWD" },
 ];
 
 function normalizePath(pathname: string | null) {
@@ -74,16 +73,19 @@ export default function LanguageMenuLP({ current }: { current: Lang }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (ITEMS.length <= 1) return;
+          setOpen((v) => !v);
+        }}
         className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur hover:bg-white/80 active:scale-[0.99]"
       >
         <span className="text-slate-500">🌐</span>
         <span className="font-medium">{currentItem.label}</span>
         <span className="ml-1 rounded-md bg-black/[0.04] px-2 py-0.5 text-[11px] font-semibold text-slate-600">{currentItem.ccy}</span>
-        <span className="text-slate-400">▾</span>
+        {ITEMS.length > 1 ? <span className="text-slate-400">▾</span> : null}
       </button>
 
-      {open && (
+      {open && ITEMS.length > 1 && (
         <div
           role="menu"
           className="absolute right-0 mt-2 w-[220px] overflow-hidden rounded-2xl border border-black/10 bg-white/80 shadow-xl backdrop-blur z-50"
