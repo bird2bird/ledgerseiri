@@ -122,6 +122,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-F3B-AMAZON-SPAPI-IMPORTJOB-URL-AUTO-DRAWER:
 // Auto-open the ImportJob detail drawer only for Amazon SP-API Orders ImportJobs selected by URL.
 // This preserves historical generic importJobId highlight-only behavior.
+//
+// Step141-F3C-AMAZON-SPAPI-STAGING-ROW-SUMMARY:
+// Render Amazon SP-API staging row summary fields from normalizedPayloadJson.
+// Keep JSON details as-is and do not add Transaction / Inventory writes.
 
 
 
@@ -181,6 +185,146 @@ function buildImportCenterInventoryStatusHref(importJobId: string) {
 
 function buildImportCenterInventoryAlertsHref(importJobId: string) {
   return `/ja/app/inventory/alerts?source=import-center&importJobId=${encodeURIComponent(importJobId)}`;
+}
+
+function readRecordValue(source: unknown, key: string): unknown {
+  if (!source || typeof source !== "object") return undefined;
+  return (source as Record<string, unknown>)[key];
+}
+
+function stringifyAmazonSummaryValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return Number.isFinite(value) ? value.toLocaleString("ja-JP") : "-";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return String(value);
+}
+
+function formatAmazonMoney(value: unknown, currency: unknown) {
+  const amount = typeof value === "number" ? value : Number(value);
+  const currencyCode = String(currency || "JPY");
+
+  if (!Number.isFinite(amount)) return "-";
+
+  if (currencyCode === "JPY") {
+    return `¥${amount.toLocaleString("ja-JP")}`;
+  }
+
+  return `${amount.toLocaleString("ja-JP")} ${currencyCode}`;
+}
+
+function resolveAmazonSpApiNormalizedPayload(row: { normalizedPayloadJson?: unknown }) {
+  const payload = row.normalizedPayloadJson;
+  if (!payload || typeof payload !== "object") return null;
+  return payload as Record<string, unknown>;
+}
+
+function isAmazonSpApiStagingRow(row: { normalizedPayloadJson?: unknown }) {
+  return readRecordValue(resolveAmazonSpApiNormalizedPayload(row), "sourceType") === "amazon-sp-api-orders";
+}
+
+function buildAmazonSpApiStagingRowSummary(row: { normalizedPayloadJson?: unknown }) {
+  const payload = resolveAmazonSpApiNormalizedPayload(row);
+  if (!payload) return null;
+
+  return {
+    amazonOrderId: stringifyAmazonSummaryValue(readRecordValue(payload, "amazonOrderId")),
+    orderItemId: stringifyAmazonSummaryValue(readRecordValue(payload, "orderItemId")),
+    sellerSku: stringifyAmazonSummaryValue(readRecordValue(payload, "sellerSku")),
+    asin: stringifyAmazonSummaryValue(readRecordValue(payload, "asin")),
+    title: stringifyAmazonSummaryValue(readRecordValue(payload, "title")),
+    quantityOrdered: stringifyAmazonSummaryValue(readRecordValue(payload, "quantityOrdered")),
+    quantityShipped: stringifyAmazonSummaryValue(readRecordValue(payload, "quantityShipped")),
+    itemPrice: formatAmazonMoney(
+      readRecordValue(payload, "itemPriceAmount"),
+      readRecordValue(payload, "itemCurrencyCode")
+    ),
+    itemTax: formatAmazonMoney(
+      readRecordValue(payload, "itemTaxAmount"),
+      readRecordValue(payload, "itemCurrencyCode")
+    ),
+    shippingPrice: formatAmazonMoney(
+      readRecordValue(payload, "shippingPriceAmount"),
+      readRecordValue(payload, "itemCurrencyCode")
+    ),
+    shippingTax: formatAmazonMoney(
+      readRecordValue(payload, "shippingTaxAmount"),
+      readRecordValue(payload, "itemCurrencyCode")
+    ),
+    marketplaceId: stringifyAmazonSummaryValue(readRecordValue(payload, "marketplaceId")),
+    storeId: stringifyAmazonSummaryValue(readRecordValue(payload, "storeId")),
+    region: stringifyAmazonSummaryValue(readRecordValue(payload, "region")),
+    sourceType: stringifyAmazonSummaryValue(readRecordValue(payload, "sourceType")),
+  };
+}
+
+function AmazonSpApiStagingRowSummaryCard(props: {
+  row: { normalizedPayloadJson?: unknown; matchStatus?: string | null; businessMonth?: string | null };
+}) {
+  const { row } = props;
+  const summary = buildAmazonSpApiStagingRowSummary(row);
+
+  if (!summary || !isAmazonSpApiStagingRow(row)) return null;
+
+  return (
+    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-700">
+            Amazon SP-API Order Summary
+          </div>
+          <div className="mt-1 truncate text-sm font-black text-slate-950" title={summary.title}>
+            {summary.title}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-1.5">
+          <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-black text-emerald-700">
+            {row.matchStatus || "-"}
+          </span>
+          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
+            {row.businessMonth || "-"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <CopyFriendlyId label="Amazon注文ID" value={summary.amazonOrderId} />
+        <CopyFriendlyId label="Order Item ID" value={summary.orderItemId} />
+        <CopyFriendlyId label="Seller SKU" value={summary.sellerSku} />
+        <CopyFriendlyId label="ASIN" value={summary.asin} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-700 sm:grid-cols-4">
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Qty Ordered</div>
+          <div className="mt-1 font-black text-slate-900">{summary.quantityOrdered}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Qty Shipped</div>
+          <div className="mt-1 font-black text-slate-900">{summary.quantityShipped}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Item</div>
+          <div className="mt-1 font-black text-slate-900">{summary.itemPrice}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Tax</div>
+          <div className="mt-1 font-black text-slate-900">{summary.itemTax}</div>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-bold text-slate-600 sm:grid-cols-3">
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
+          Shipping: <span className="font-black text-slate-900">{summary.shippingPrice}</span>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
+          Shipping Tax: <span className="font-black text-slate-900">{summary.shippingTax}</span>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
+          Region: <span className="font-black text-slate-900">{summary.region}</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -515,6 +659,8 @@ function ImportJobDetailDrawer(props: {
                       <CopyFriendlyId label="Target Entity" value={row.targetEntityId} />
                       <CopyFriendlyId label="Dedupe Hash" value={row.dedupeHash} />
                     </div>
+
+                    <AmazonSpApiStagingRowSummaryCard row={row} />
 
                     <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
                       Target: <span className="font-black">{row.targetEntityType || "-"}</span>
