@@ -972,15 +972,15 @@ export class ImportsController {
       );
     }
 
-    const serverOnlyTransport = useRealNetworkTransport
-      ? buildAmazonSpApiOrdersServerOnlyRawSignedTransport()
-      : buildStep140VMockedOrdersTransport();
-
     const accessTokenForOrders = useRepositoryCredentials
       ? String(repositoryCredential?.decryptedAccessToken || '')
       : useRealNetworkTransport
         ? String(process.env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || '')
         : 'AT_SECRET_STEP140_V_SERVER_ONLY_MOCKED_TRANSPORT';
+
+    const serverOnlyTransport = useRealNetworkTransport
+      ? buildAmazonSpApiOrdersServerOnlyRawSignedTransport({ accessToken: accessTokenForOrders })
+      : buildStep140VMockedOrdersTransport();
 
     const result = await previewAmazonSpApiOrdersRealNoPersistence({
       companyId,

@@ -17,6 +17,7 @@ export type AmazonSpApiOrdersServerOnlyRawSignedTransportEnv = {
 export type AmazonSpApiOrdersServerOnlyRawSignedTransportOptions = {
   env?: AmazonSpApiOrdersServerOnlyRawSignedTransportEnv;
   timeoutMs?: number;
+  accessToken?: string;
 };
 
 export type AmazonSpApiOrdersServerOnlyRawSignedTransportReadiness = {
@@ -58,7 +59,12 @@ export function buildAmazonSpApiOrdersServerOnlyRawSignedTransport(
   options: AmazonSpApiOrdersServerOnlyRawSignedTransportOptions = {},
 ): AmazonSpApiOrdersHttpTransport {
   const env = (options.env || process.env) as AmazonSpApiOrdersServerOnlyRawSignedTransportEnv;
-  const readiness = getAmazonSpApiOrdersServerOnlyRawSignedTransportReadiness(env);
+  const accessToken = String(options.accessToken || env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || '').trim();
+  const readinessEnv: AmazonSpApiOrdersServerOnlyRawSignedTransportEnv = {
+    ...env,
+    AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN: accessToken,
+  };
+  const readiness = getAmazonSpApiOrdersServerOnlyRawSignedTransportReadiness(readinessEnv);
   const timeoutMs = options.timeoutMs || Number(env.AMAZON_SP_API_ORDERS_RAW_SIGNED_HTTP_TIMEOUT_MS || 15000);
 
   return async (envelope: AmazonSpApiOrdersHttpTransportRequest): Promise<AmazonSpApiOrdersHttpTransportResponse> => {
@@ -78,7 +84,7 @@ export function buildAmazonSpApiOrdersServerOnlyRawSignedTransport(
     }
 
     return executeAmazonSpApiOrdersServerOnlyRawSignedHttpRequest(envelope, {
-      accessToken: String(env.AMAZON_SP_API_ORDERS_REAL_ACCESS_TOKEN || ''),
+      accessToken,
       timeoutMs,
     });
   };
