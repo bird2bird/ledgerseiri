@@ -133,6 +133,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-G2-AMAZON-SPAPI-STAGING-COMMIT-READINESS-UI:
 // Wire dry-run readiness into ImportJob drawer for Amazon SP-API Orders.
 // Display commit blockers/warnings without creating Transaction or InventoryMovement.
+//
+// Step141-G2B-AMAZON-SPAPI-READINESS-WORDING:
+// Clarify row validation vs whole-ImportJob commit readiness.
+// Row READY can still have commit warnings such as SKU未リンク.
 
 
 
@@ -370,12 +374,12 @@ function AmazonSpApiStagingRowSummaryCard(props: {
       {readinessRow ? (
         <div className="mt-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-900">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-black">Readiness: {readinessRow.readiness || "-"}</span>
+            <span className="font-black">Row validation: {readinessRow.readiness || "-"}</span>
             {readinessRow.blockers?.length ? (
-              <span>Blockers: {readinessRow.blockers.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
+              <span>Row blockers: {readinessRow.blockers.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
             ) : null}
             {readinessRow.warnings?.length ? (
-              <span>Warnings: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
+              <span>Commit warning: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
             ) : null}
           </div>
         </div>
@@ -396,6 +400,14 @@ function AmazonSpApiCommitReadinessPanel(props: {
   const data = state.data;
   const canCommit = data?.canCommit === true;
   const blockedReasons = Array.isArray(data?.commitBlockedReasons) ? data.commitBlockedReasons : [];
+  const unresolvedSkuRows = Number(data?.unresolvedSkuRows || 0);
+  const commitReadinessLabel = state.loading ? "CHECKING" : canCommit ? "READY" : "BLOCKED";
+  const commitReasonLabel =
+    !state.loading && !state.error && unresolvedSkuRows > 0
+      ? `Reason: SKU未リンク ${unresolvedSkuRows.toLocaleString("ja-JP")}`
+      : blockedReasons.length > 0
+        ? `Reason: ${blockedReasons.map(formatAmazonSpApiReadinessReason).join(" / ")}`
+        : "";
 
   return (
     <div
@@ -419,10 +431,8 @@ function AmazonSpApiCommitReadinessPanel(props: {
               : state.error
                 ? state.error
                 : canCommit
-                  ? "正式登録できる状態です。ただし Step141-G2 ではまだ書き込みません。"
-                  : blockedReasons.length > 0
-                    ? blockedReasons.map(formatAmazonSpApiReadinessReason).join(" / ")
-                    : "正式登録前チェックが未完了です。"}
+                  ? "Commit readiness: READY。正式登録できる状態です。ただし Step141-G2B ではまだ書き込みません。"
+                  : commitReasonLabel || "Commit readiness: BLOCKED。正式登録前チェックが未完了です。"}
           </div>
         </div>
 
@@ -435,17 +445,17 @@ function AmazonSpApiCommitReadinessPanel(props: {
                 : "border-amber-200 bg-white text-amber-800"
           }`}
         >
-          {state.loading ? "CHECKING" : canCommit ? "READY" : "BLOCKED"}
+          Commit readiness: {commitReadinessLabel}
         </span>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-700 sm:grid-cols-4">
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Ready</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Row Ready</div>
           <div className="mt-1 font-black text-slate-900">{Number(data?.readyRows || 0).toLocaleString("ja-JP")}</div>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Blocked</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Row Blocked</div>
           <div className="mt-1 font-black text-slate-900">{Number(data?.blockedRows || 0).toLocaleString("ja-JP")}</div>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
