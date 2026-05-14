@@ -20,6 +20,7 @@ import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-ac
 import { refreshAmazonSpApiOrdersAccessTokenCache } from './amazon-sp-api-orders-lwa-refresh.service';
 import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-sp-api-orders-real-preview-production.verifier';
 import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './amazon-sp-api-orders-real-importjob-persistence.service';
+import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -107,6 +108,11 @@ type AmazonSpApiOrdersRealImportJobCommitRouteResponse = Awaited<
   controllerWritesImportStagingRows: boolean;
   controllerWritesTransaction: false;
   controllerWritesInventory: false;
+};
+
+type AmazonSpApiOrdersStagingCommitReadinessRouteBody = {
+  importJobId?: string;
+  dryRun?: boolean;
 };
 
 type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>> & {
@@ -719,6 +725,37 @@ export class ImportsController {
       storeId: normalizedStoreId,
       marketplaceId: normalizedMarketplaceId,
       region: normalizedRegion,
+    });
+  }
+
+
+  // Step141-G1: Amazon SP-API Orders staging commit readiness / dry-run contract.
+  // Read-only readiness endpoint for future explicit commit into Transaction / InventoryMovement.
+  // This endpoint must not create Transaction, InventoryMovement, InventoryBalance, or mutate ImportStagingRow.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/staging-commit-readiness')
+  async amazonSpApiOrdersStagingCommitReadinessControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersStagingCommitReadinessRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP141_G1_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun === false) {
+      throw new ForbiddenException(
+        'STEP141_G1_DRY_RUN_ONLY: staging commit readiness is dry-run only in Step141-G1.',
+      );
+    }
+
+    return evaluateAmazonSpApiOrdersStagingCommitReadiness({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
     });
   }
 
