@@ -5,7 +5,10 @@ import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
 import {
   listInventoryAuditIssuesForImportJob,
+  readAmazonSpApiOrdersStagingCommitReadiness,
   summarizeInventoryAuditIssuesForImportJob,
+  type AmazonSpApiOrdersStagingCommitReadinessResponse,
+  type AmazonSpApiOrdersStagingCommitReadinessRow,
   type InventoryAuditImportSummary,
 } from "@/core/imports/api";
 import { fmtDate } from "./jobs-shared";
@@ -126,6 +129,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-F3C-AMAZON-SPAPI-STAGING-ROW-SUMMARY:
 // Render Amazon SP-API staging row summary fields from normalizedPayloadJson.
 // Keep JSON details as-is and do not add Transaction / Inventory writes.
+//
+// Step141-G2-AMAZON-SPAPI-STAGING-COMMIT-READINESS-UI:
+// Wire dry-run readiness into ImportJob drawer for Amazon SP-API Orders.
+// Display commit blockers/warnings without creating Transaction or InventoryMovement.
 
 
 
@@ -140,6 +147,41 @@ const EMPTY_IMPORT_CENTER_INVENTORY_AUDIT_SUMMARY: ImportCenterInventoryAuditSum
   error: "",
   summary: null,
 };
+
+type AmazonSpApiCommitReadinessState = {
+  loading: boolean;
+  error: string;
+  data: AmazonSpApiOrdersStagingCommitReadinessResponse | null;
+};
+
+const EMPTY_AMAZON_SP_API_COMMIT_READINESS_STATE: AmazonSpApiCommitReadinessState = {
+  loading: false,
+  error: "",
+  data: null,
+};
+
+function isAmazonSpApiOrdersImportJob(job?: { sourceType?: string | null } | null) {
+  return job?.sourceType === "amazon-sp-api-orders";
+}
+
+function formatAmazonSpApiReadinessReason(reason: string) {
+  if (reason === "UNRESOLVED_SKU_ROWS_PRESENT") return "SKU未リンクの行があります";
+  if (reason === "BLOCKED_ROWS_PRESENT") return "ブロックされた行があります";
+  if (reason === "IMPORT_JOB_NOT_SUCCEEDED") return "ImportJob が完了していません";
+  if (reason === "NO_STAGING_ROWS") return "Staging Row がありません";
+  return reason;
+}
+
+function formatAmazonSpApiReadinessIssue(issue: string) {
+  if (issue === "SKU_NOT_LINKED_TO_TARGET_ENTITY_YET") return "SKU未リンク";
+  if (issue === "MISSING_ORDER_IDENTITY") return "注文ID不足";
+  if (issue === "MISSING_ITEM_PRICE_AMOUNT") return "金額不足";
+  if (issue === "MISSING_DEDUPE_HASH") return "重複判定キー不足";
+  if (issue === "DUPLICATE_DEDUPE_HASH_IN_STAGING") return "Staging内重複";
+  if (issue === "TRANSACTION_ALREADY_EXISTS_FOR_DEDUPE_HASH") return "登録済みTransactionあり";
+  if (issue === "INVENTORY_MOVEMENT_ALREADY_EXISTS_FOR_ROW") return "在庫移動作成済み";
+  return issue;
+}
 
 function hasImportCenterInventoryAuditSummary(summary?: InventoryAuditImportSummary | null) {
   return Boolean(summary && summary.total > 0);
@@ -259,8 +301,9 @@ function buildAmazonSpApiStagingRowSummary(row: { normalizedPayloadJson?: unknow
 
 function AmazonSpApiStagingRowSummaryCard(props: {
   row: { normalizedPayloadJson?: unknown; matchStatus?: string | null; businessMonth?: string | null };
+  readinessRow?: AmazonSpApiOrdersStagingCommitReadinessRow | null;
 }) {
-  const { row } = props;
+  const { row, readinessRow } = props;
   const summary = buildAmazonSpApiStagingRowSummary(row);
 
   if (!summary || !isAmazonSpApiStagingRow(row)) return null;
@@ -323,6 +366,114 @@ function AmazonSpApiStagingRowSummaryCard(props: {
           Region: <span className="font-black text-slate-900">{summary.region}</span>
         </div>
       </div>
+
+      {readinessRow ? (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-900">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-black">Readiness: {readinessRow.readiness || "-"}</span>
+            {readinessRow.blockers?.length ? (
+              <span>Blockers: {readinessRow.blockers.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
+            ) : null}
+            {readinessRow.warnings?.length ? (
+              <span>Warnings: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+
+function AmazonSpApiCommitReadinessPanel(props: {
+  job: ImportJobItem;
+  state: AmazonSpApiCommitReadinessState;
+}) {
+  const { job, state } = props;
+
+  if (!isAmazonSpApiOrdersImportJob(job)) return null;
+
+  const data = state.data;
+  const canCommit = data?.canCommit === true;
+  const blockedReasons = Array.isArray(data?.commitBlockedReasons) ? data.commitBlockedReasons : [];
+
+  return (
+    <div
+      data-testid={`amazon-sp-api-commit-readiness-panel-${job.id}`}
+      className={`rounded-2xl border px-4 py-3 ${
+        state.error
+          ? "border-rose-200 bg-rose-50 text-rose-900"
+          : canCommit
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-sm font-black text-slate-950">
+            Amazon SP-API Commit Readiness
+          </div>
+          <div className="mt-1 text-xs font-bold leading-5 opacity-90">
+            {state.loading
+              ? "正式登録前チェックを読み込んでいます..."
+              : state.error
+                ? state.error
+                : canCommit
+                  ? "正式登録できる状態です。ただし Step141-G2 ではまだ書き込みません。"
+                  : blockedReasons.length > 0
+                    ? blockedReasons.map(formatAmazonSpApiReadinessReason).join(" / ")
+                    : "正式登録前チェックが未完了です。"}
+          </div>
+        </div>
+
+        <span
+          className={`inline-flex h-9 shrink-0 items-center justify-center rounded-xl border px-3 text-xs font-black shadow-sm ${
+            state.loading
+              ? "border-slate-200 bg-white text-slate-500"
+              : canCommit
+                ? "border-emerald-200 bg-white text-emerald-700"
+                : "border-amber-200 bg-white text-amber-800"
+          }`}
+        >
+          {state.loading ? "CHECKING" : canCommit ? "READY" : "BLOCKED"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-700 sm:grid-cols-4">
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Ready</div>
+          <div className="mt-1 font-black text-slate-900">{Number(data?.readyRows || 0).toLocaleString("ja-JP")}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Blocked</div>
+          <div className="mt-1 font-black text-slate-900">{Number(data?.blockedRows || 0).toLocaleString("ja-JP")}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">SKU未リンク</div>
+          <div className="mt-1 font-black text-slate-900">{Number(data?.unresolvedSkuRows || 0).toLocaleString("ja-JP")}</div>
+        </div>
+        <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Rows</div>
+          <div className="mt-1 font-black text-slate-900">{Number(data?.totalRows || 0).toLocaleString("ja-JP")}</div>
+        </div>
+      </div>
+
+      {Number(data?.unresolvedSkuRows || 0) > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a
+            href={buildImportCenterInventoryAuditHref(job.id)}
+            className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+          >
+            SKU監査へ移動
+          </a>
+          <a
+            href={buildImportCenterInventoryAlertsHref(job.id)}
+            className="inline-flex h-9 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 shadow-sm transition hover:bg-amber-50"
+          >
+            在庫リスク確認
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -384,6 +535,62 @@ function ImportJobDetailDrawer(props: {
       cancelled = true;
     };
   }, [job.id]);
+
+  const [amazonSpApiReadinessState, setAmazonSpApiReadinessState] =
+    React.useState<AmazonSpApiCommitReadinessState>(
+      EMPTY_AMAZON_SP_API_COMMIT_READINESS_STATE
+    );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!isAmazonSpApiOrdersImportJob(job)) {
+      setAmazonSpApiReadinessState(EMPTY_AMAZON_SP_API_COMMIT_READINESS_STATE);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setAmazonSpApiReadinessState({
+      loading: true,
+      error: "",
+      data: null,
+    });
+
+    readAmazonSpApiOrdersStagingCommitReadiness(job.id)
+      .then((data) => {
+        if (cancelled) return;
+
+        setAmazonSpApiReadinessState({
+          loading: false,
+          error: "",
+          data,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+
+        setAmazonSpApiReadinessState({
+          loading: false,
+          error: error instanceof Error ? error.message : String(error),
+          data: null,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, job.sourceType]);
+
+  const amazonSpApiReadinessRowsByStagingRowId = React.useMemo(() => {
+    const map = new Map<string, AmazonSpApiOrdersStagingCommitReadinessRow>();
+
+    for (const row of amazonSpApiReadinessState.data?.rows || []) {
+      if (row.stagingRowId) map.set(row.stagingRowId, row);
+    }
+
+    return map;
+  }, [amazonSpApiReadinessState.data]);
 
   const inventoryAuditSummary = inventoryAuditSummaryState.summary;
   const inventoryAuditHref = buildImportCenterInventoryAuditHref(job.id);
@@ -660,7 +867,10 @@ function ImportJobDetailDrawer(props: {
                       <CopyFriendlyId label="Dedupe Hash" value={row.dedupeHash} />
                     </div>
 
-                    <AmazonSpApiStagingRowSummaryCard row={row} />
+                    <AmazonSpApiStagingRowSummaryCard
+                      row={row}
+                      readinessRow={amazonSpApiReadinessRowsByStagingRowId.get(row.id) || null}
+                    />
 
                     <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
                       Target: <span className="font-black">{row.targetEntityType || "-"}</span>

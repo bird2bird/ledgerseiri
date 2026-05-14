@@ -881,3 +881,67 @@ export async function commitAmazonSpApiOrdersRealImportJob(
   );
 }
 
+
+// Step141-G2-FRONTEND-AMAZON-SP-API-STAGING-COMMIT-READINESS:
+// Frontend read helper for backend dry-run readiness endpoint.
+// This is review-only UI wiring. It does not create Transaction or InventoryMovement.
+export type AmazonSpApiOrdersStagingCommitReadinessRow = {
+  stagingRowId: string;
+  rowNo: number;
+  businessMonth: string | null;
+  matchStatus: string;
+  matchReason: string | null;
+  dedupeHash: string | null;
+  amazonOrderId: string | null;
+  orderItemId: string | null;
+  sellerSku: string | null;
+  asin: string | null;
+  itemPriceAmount: number | null;
+  quantityOrdered: number | null;
+  targetEntityType: string | null;
+  targetEntityId: string | null;
+  readiness: "READY" | "BLOCKED" | string;
+  blockers: string[];
+  warnings: string[];
+};
+
+export type AmazonSpApiOrdersStagingCommitReadinessResponse = {
+  source?: "amazon-sp-api-orders-staging-commit-readiness" | string;
+  route?: "/api/imports/amazon-sp-api/orders/staging-commit-readiness" | string;
+  dryRun?: true;
+  writesDatabase?: false;
+  transactionWriteNow?: false;
+  inventoryWriteNow?: false;
+  importJobId?: string;
+  importJobFound?: boolean;
+  sourceType?: "amazon-sp-api-orders" | string | null;
+  status?: string | null;
+  totalRows?: number;
+  readyRows?: number;
+  blockedRows?: number;
+  duplicateRows?: number;
+  existingTransactionRows?: number;
+  existingInventoryMovementRows?: number;
+  unresolvedSkuRows?: number;
+  missingAmountRows?: number;
+  missingOrderIdentityRows?: number;
+  canCommit?: boolean;
+  commitBlockedReasons?: string[];
+  rows?: AmazonSpApiOrdersStagingCommitReadinessRow[];
+};
+
+export const AMAZON_SP_API_ORDERS_STAGING_COMMIT_READINESS_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/staging-commit-readiness" as const;
+
+export async function readAmazonSpApiOrdersStagingCommitReadiness(
+  importJobId: string
+): Promise<AmazonSpApiOrdersStagingCommitReadinessResponse> {
+  return postJson<AmazonSpApiOrdersStagingCommitReadinessResponse>(
+    AMAZON_SP_API_ORDERS_STAGING_COMMIT_READINESS_ENDPOINT,
+    {
+      importJobId,
+      dryRun: true,
+    }
+  );
+}
+
