@@ -2,9 +2,9 @@ import type { ImportJobItem } from "@/core/jobs";
 
 // Step109-Z1-H15-F-IMPORT-CENTER-SELECTION-HELPERS:
 // Extract URL importJobId selection helpers from ImportJobsTableCard.tsx.
-// Keep URL behavior unchanged:
-// - importJobId highlights the row only.
-// - Drawer is opened manually by user action.
+// Keep default URL behavior unchanged:
+// - importJobId highlights the row by default.
+// - Drawer is opened manually by user action unless a caller applies a narrow auto-open rule.
 
 export type ImportCenterUrlSelectionInfo = {
   importJobId: string;

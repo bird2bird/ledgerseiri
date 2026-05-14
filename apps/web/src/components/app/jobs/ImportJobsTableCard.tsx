@@ -118,6 +118,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 //
 // Step109-Z1-H13-B-FIX1-EMPTY-FILTER-CLEAR-ACTION:
 // Add clear filters action to empty filtered list state after selection is cleared.
+//
+// Step141-F3B-AMAZON-SPAPI-IMPORTJOB-URL-AUTO-DRAWER:
+// Auto-open the ImportJob detail drawer only for Amazon SP-API Orders ImportJobs selected by URL.
+// This preserves historical generic importJobId highlight-only behavior.
 
 
 
@@ -719,17 +723,20 @@ export function ImportJobsTableCard(props: {
 
     setSelectedJobId((current) => (current === importJobId ? current : importJobId));
 
-    if (!selectionInfo.shouldAutoOpenDrawer) {
+    const targetJob = props.jobs.find((job) => job.id === importJobId) || null;
+    if (!targetJob) {
+      setSelectedJob(null);
+      return;
+    }
+
+    const shouldAutoOpenAmazonSpApiOrdersDrawer =
+      targetJob.sourceType === "amazon-sp-api-orders";
+
+    if (!selectionInfo.shouldAutoOpenDrawer && !shouldAutoOpenAmazonSpApiOrdersDrawer) {
       // Step109-Z1-H26-B-FIX-ORDINARY-URL-DETAIL-DRAWER:
       // Ordinary ?importJobId= URLs should highlight the row only on page load.
       // Do not clear selectedJob here after the user manually clicks 詳細;
       // otherwise the URL effect immediately closes the drawer again.
-      return;
-    }
-
-    const targetJob = props.jobs.find((job) => job.id === importJobId) || null;
-    if (!targetJob) {
-      setSelectedJob(null);
       return;
     }
 
