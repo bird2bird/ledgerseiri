@@ -32,6 +32,50 @@ export type AmazonSpApiOrdersRealPreviewInput = {
   transport: AmazonSpApiOrdersHttpTransport;
 };
 
+
+const AMAZON_SP_API_ORDERS_CREATED_BEFORE_SAFETY_MINUTES = 3;
+
+function resolveAmazonOrdersCreatedBeforeSafetyWindow(args: {
+  createdBefore?: string;
+  now: Date;
+}): {
+  createdBefore?: string;
+  adjusted: boolean;
+  originalCreatedBefore?: string;
+  safetyCutoff: string;
+} {
+  const safetyCutoffDate = new Date(
+    args.now.getTime() - AMAZON_SP_API_ORDERS_CREATED_BEFORE_SAFETY_MINUTES * 60 * 1000,
+  );
+  const safetyCutoff = safetyCutoffDate.toISOString();
+
+  if (!args.createdBefore) {
+    return {
+      createdBefore: safetyCutoff,
+      adjusted: true,
+      originalCreatedBefore: undefined,
+      safetyCutoff,
+    };
+  }
+
+  const requested = new Date(args.createdBefore);
+  if (Number.isNaN(requested.getTime()) || requested.getTime() > safetyCutoffDate.getTime()) {
+    return {
+      createdBefore: safetyCutoff,
+      adjusted: true,
+      originalCreatedBefore: args.createdBefore,
+      safetyCutoff,
+    };
+  }
+
+  return {
+    createdBefore: args.createdBefore,
+    adjusted: false,
+    originalCreatedBefore: args.createdBefore,
+    safetyCutoff,
+  };
+}
+
 export class AmazonSpApiOrdersRealPreviewHttpError extends Error {
   readonly code = 'AMAZON_SP_API_ORDERS_REAL_PREVIEW_HTTP_FAILED' as const;
   readonly httpStatus: number | null;
@@ -200,7 +244,13 @@ export async function previewAmazonSpApiOrdersRealNoPersistence(
 ): Promise<AmazonSpApiOrdersRealPreviewEnvelope> {
   assertRealPreviewInput(input);
 
-  const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
+    const effectiveNow = input.now ?? new Date();
+    const createdBeforeSafetyWindow = resolveAmazonOrdersCreatedBeforeSafetyWindow({
+    createdBefore: input.createdBefore,
+    now: effectiveNow,
+  });
+
+const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     companyId: input.companyId,
     storeId: input.storeId,
     marketplaceId: input.marketplaceId,
@@ -208,7 +258,7 @@ export async function previewAmazonSpApiOrdersRealNoPersistence(
     accessToken: input.accessToken,
     credentials: input.credentials,
     createdAfter: input.createdAfter,
-    createdBefore: input.createdBefore,
+    createdBefore: createdBeforeSafetyWindow.createdBefore,
     orderStatuses: input.orderStatuses,
     maxResultsPerPage: input.maxResultsPerPage,
     now: input.now,
@@ -231,7 +281,7 @@ export async function previewAmazonSpApiOrdersRealNoPersistence(
         region: input.region,
         marketplaceId: input.marketplaceId,
         createdAfter: input.createdAfter,
-        createdBefore: input.createdBefore,
+        createdBefore: createdBeforeSafetyWindow.createdBefore,
       },
     });
   }

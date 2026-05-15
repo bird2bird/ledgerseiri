@@ -24,7 +24,7 @@ const previewMarkers = [
   "httpStatus: typeof listOrdersHttp.status === 'number' ? listOrdersHttp.status : null",
   "sanitizedResponse: listOrdersHttp.sanitizedResponse",
   "createdAfter: input.createdAfter",
-  "createdBefore: input.createdBefore",
+  "createdBefore: createdBeforeSafetyWindow.createdBefore",
 ];
 
 for (const marker of previewMarkers) {
@@ -58,5 +58,5 @@ if (/STEP140_P_LIST_ORDERS_HTTP_FAILED:\s*\$\{listOrdersHttp\.error\?\.code\s*\|
   throw new Error("[FAIL] generic !listOrdersHttp.ok throw still exists");
 }
 
-console.log("[OK] Step P2-A-FIX4 real-preview Amazon 400 details static smoke passed");
-console.log("[OK] Sanitized error is type-safe for current ListOrders HTTP client shape");
+console.log("[OK] Step P2-A/P2-B real-preview Amazon error detail static smoke passed");
+console.log("[OK] Sanitized error reports clamped CreatedBefore");
