@@ -149,6 +149,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-H5-IMPORT-CENTER-AMAZON-FILTER-NAVIGATION:
 // Make Amazon SP-API Orders ImportJobs easier to find in Import Center.
 // Add sourceType filter / quick Amazon filter without changing backend or creating writes.
+//
+// Step141-H6-SKU-ALIAS-WORKFLOW-SIMPLIFICATION:
+// Simplify the SKU alias workflow wording.
+// Keep the existing Inventory Audit bridge and do not create Transaction / InventoryMovement.
 
 
 
@@ -487,7 +491,7 @@ function AmazonSpApiStagingRowSummaryCard(props: {
               <span>Row blockers: {readinessRow.blockers.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
             ) : null}
             {readinessRow.warnings?.length ? (
-              <span>Commit warning: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
+              <span>リンク確認: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
             ) : null}
           </div>
 
@@ -500,7 +504,10 @@ function AmazonSpApiStagingRowSummaryCard(props: {
                 商品SKUにリンク
               </a>
               <span className="text-[11px] font-bold text-amber-800">
-                sellerSku / ASIN を引き継いで SKU 監査へ移動します。
+                Amazon sellerSku / ASIN を引き継いで、商品SKUリンク画面へ移動します。
+              </span>
+              <span className="text-[11px] font-bold text-amber-700">
+                この操作では Transaction作成・InventoryMovement作成・在庫扣減は行いません。
               </span>
             </div>
           ) : null}
@@ -596,8 +603,8 @@ function AmazonSpApiCommitReadinessPanel(props: {
       {Number(data?.unresolvedSkuRows || 0) > 0 ? (
         <div className="mt-3">
           <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold leading-5 text-amber-900">
-            SKU resolution bridge: Amazon sellerSku を既存の商品SKUまたは SKU Alias にリンクすると、
-            この ImportJob の commit readiness が再評価可能になります。
+            SKUリンク未完了の明細があります。Amazon sellerSku を既存の商品SKUにリンクすると、
+            この ImportJob の確認状態が再評価されます。これは商品SKUリンクのみで、在庫扣減・会計登録は行いません。
           </div>
 
           <div className="mt-2 flex flex-wrap gap-2">
@@ -605,7 +612,7 @@ function AmazonSpApiCommitReadinessPanel(props: {
               href={buildAmazonSpApiSkuResolutionHref({ importJobId: job.id })}
               className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
             >
-              SKU resolution を開始
+              商品SKUリンクを開始
             </a>
             <a
               href={buildImportCenterInventoryAuditHref(job.id)}
