@@ -141,6 +141,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-G3-AMAZON-SPAPI-SKU-RESOLUTION-BRIDGE:
 // Bridge unresolved Amazon sellerSku rows to the existing inventory audit / SKU resolution workflow.
 // This step adds navigation context only and does not create ProductSkuAlias, Transaction, or InventoryMovement.
+//
+// Step141-H4-AMAZON-SPAPI-IMPORTJOB-DRAWER-DISPLAY-CLEANUP:
+// Make Amazon order staging rows readable in the ImportJob drawer.
+// Keep JSON details secondary and do not create Transaction / InventoryMovement.
 
 
 
@@ -300,6 +304,17 @@ function formatAmazonMoney(value: unknown, currency: unknown) {
   return `${amount.toLocaleString("ja-JP")} ${currencyCode}`;
 }
 
+function formatAmazonOrderCompactValue(value: unknown) {
+  const text = stringifyAmazonSummaryValue(value);
+  return text === "-" ? "未取得" : text;
+}
+
+function formatAmazonQuantity(value: unknown) {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return "未取得";
+  return n.toLocaleString("ja-JP");
+}
+
 function resolveAmazonSpApiNormalizedPayload(row: { normalizedPayloadJson?: unknown }) {
   const payload = row.normalizedPayloadJson;
   if (!payload || typeof payload !== "object") return null;
@@ -315,13 +330,14 @@ function buildAmazonSpApiStagingRowSummary(row: { normalizedPayloadJson?: unknow
   if (!payload) return null;
 
   return {
-    amazonOrderId: stringifyAmazonSummaryValue(readRecordValue(payload, "amazonOrderId")),
-    orderItemId: stringifyAmazonSummaryValue(readRecordValue(payload, "orderItemId")),
-    sellerSku: stringifyAmazonSummaryValue(readRecordValue(payload, "sellerSku")),
-    asin: stringifyAmazonSummaryValue(readRecordValue(payload, "asin")),
-    title: stringifyAmazonSummaryValue(readRecordValue(payload, "title")),
-    quantityOrdered: stringifyAmazonSummaryValue(readRecordValue(payload, "quantityOrdered")),
-    quantityShipped: stringifyAmazonSummaryValue(readRecordValue(payload, "quantityShipped")),
+    amazonOrderId: formatAmazonOrderCompactValue(readRecordValue(payload, "amazonOrderId")),
+    orderItemId: formatAmazonOrderCompactValue(readRecordValue(payload, "orderItemId")),
+    sellerSku: formatAmazonOrderCompactValue(readRecordValue(payload, "sellerSku")),
+    asin: formatAmazonOrderCompactValue(readRecordValue(payload, "asin")),
+    title: formatAmazonOrderCompactValue(readRecordValue(payload, "title")),
+    businessMonth: formatAmazonOrderCompactValue(readRecordValue(payload, "businessMonth")),
+    quantityOrdered: formatAmazonQuantity(readRecordValue(payload, "quantityOrdered")),
+    quantityShipped: formatAmazonQuantity(readRecordValue(payload, "quantityShipped")),
     itemPrice: formatAmazonMoney(
       readRecordValue(payload, "itemPriceAmount"),
       readRecordValue(payload, "itemCurrencyCode")
@@ -338,10 +354,10 @@ function buildAmazonSpApiStagingRowSummary(row: { normalizedPayloadJson?: unknow
       readRecordValue(payload, "shippingTaxAmount"),
       readRecordValue(payload, "itemCurrencyCode")
     ),
-    marketplaceId: stringifyAmazonSummaryValue(readRecordValue(payload, "marketplaceId")),
-    storeId: stringifyAmazonSummaryValue(readRecordValue(payload, "storeId")),
-    region: stringifyAmazonSummaryValue(readRecordValue(payload, "region")),
-    sourceType: stringifyAmazonSummaryValue(readRecordValue(payload, "sourceType")),
+    marketplaceId: formatAmazonOrderCompactValue(readRecordValue(payload, "marketplaceId")),
+    storeId: formatAmazonOrderCompactValue(readRecordValue(payload, "storeId")),
+    region: formatAmazonOrderCompactValue(readRecordValue(payload, "region")),
+    sourceType: formatAmazonOrderCompactValue(readRecordValue(payload, "sourceType")),
   };
 }
 
@@ -360,6 +376,7 @@ function AmazonSpApiStagingRowSummaryCard(props: {
 
   if (!summary || !isAmazonSpApiStagingRow(row)) return null;
 
+  const businessMonth = row.businessMonth || summary.businessMonth || "-";
   const skuResolutionHref = buildAmazonSpApiSkuResolutionHref({
     importJobId,
     rowNo: row.rowNo,
@@ -370,14 +387,20 @@ function AmazonSpApiStagingRowSummaryCard(props: {
   });
 
   return (
-    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+    <div
+      data-testid={`amazon-sp-api-staging-row-summary-${row.rowNo ?? "unknown"}`}
+      className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-700">
-            Amazon SP-API Order Summary
+            Amazon注文明細
           </div>
           <div className="mt-1 truncate text-sm font-black text-slate-950" title={summary.title}>
             {summary.title}
+          </div>
+          <div className="mt-1 text-[11px] font-bold text-slate-500">
+            Row #{row.rowNo ?? "-"} / businessMonth: {businessMonth}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-1.5">
@@ -385,43 +408,45 @@ function AmazonSpApiStagingRowSummaryCard(props: {
             {row.matchStatus || "-"}
           </span>
           <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-600">
-            {row.businessMonth || "-"}
+            {businessMonth}
           </span>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <CopyFriendlyId label="Amazon注文ID" value={summary.amazonOrderId} />
-        <CopyFriendlyId label="Order Item ID" value={summary.orderItemId} />
-        <CopyFriendlyId label="Seller SKU" value={summary.sellerSku} />
-        <CopyFriendlyId label="ASIN" value={summary.asin} />
+      <div className="mt-3 rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-sm">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <CopyFriendlyId label="Amazon注文番号" value={summary.amazonOrderId} />
+          <CopyFriendlyId label="Order Item ID" value={summary.orderItemId} />
+          <CopyFriendlyId label="sellerSku" value={summary.sellerSku} />
+          <CopyFriendlyId label="ASIN" value={summary.asin} />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-700 sm:grid-cols-4">
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Qty Ordered</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">数量</div>
           <div className="mt-1 font-black text-slate-900">{summary.quantityOrdered}</div>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Qty Shipped</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">出荷数量</div>
           <div className="mt-1 font-black text-slate-900">{summary.quantityShipped}</div>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Item</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">商品金額</div>
           <div className="mt-1 font-black text-slate-900">{summary.itemPrice}</div>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Tax</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">消費税</div>
           <div className="mt-1 font-black text-slate-900">{summary.itemTax}</div>
         </div>
       </div>
 
       <div className="mt-2 grid grid-cols-1 gap-2 text-xs font-bold text-slate-600 sm:grid-cols-3">
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
-          Shipping: <span className="font-black text-slate-900">{summary.shippingPrice}</span>
+          送料: <span className="font-black text-slate-900">{summary.shippingPrice}</span>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
-          Shipping Tax: <span className="font-black text-slate-900">{summary.shippingTax}</span>
+          送料税: <span className="font-black text-slate-900">{summary.shippingTax}</span>
         </div>
         <div className="rounded-xl border border-white/80 bg-white px-3 py-2">
           Region: <span className="font-black text-slate-900">{summary.region}</span>
@@ -446,7 +471,7 @@ function AmazonSpApiStagingRowSummaryCard(props: {
                 href={skuResolutionHref}
                 className="inline-flex h-8 items-center justify-center rounded-lg bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-800"
               >
-                Resolve SKU
+                商品SKUにリンク
               </a>
               <span className="text-[11px] font-bold text-amber-800">
                 sellerSku / ASIN を引き継いで SKU 監査へ移動します。
@@ -455,10 +480,13 @@ function AmazonSpApiStagingRowSummaryCard(props: {
           ) : null}
         </div>
       ) : null}
+
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold leading-5 text-slate-500">
+        JSON details は下の normalizedPayloadJson に保持しています。このカードは注文確認用の要約です。
+      </div>
     </div>
   );
 }
-
 
 function AmazonSpApiCommitReadinessPanel(props: {
   job: ImportJobItem;
