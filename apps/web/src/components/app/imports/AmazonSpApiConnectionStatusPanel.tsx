@@ -2,10 +2,17 @@
 
 import React from "react";
 import {
+  AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+  AMAZON_SP_API_DEFAULT_REGION,
+  AMAZON_SP_API_DEFAULT_STORE_ID,
+  commitAmazonSpApiOrdersRealImportJob,
+  previewAmazonSpApiOrdersReal,
   readAmazonSpApiConnectionStatus,
   requestAmazonSpApiAuthorizationUrl,
   type AmazonSpApiAuthorizationUrlResponse,
   type AmazonSpApiConnectionStatusResponse,
+  type AmazonSpApiOrdersRealImportJobCommitResponse,
+  type AmazonSpApiOrdersRealPreviewResponse,
 } from "@/core/imports/api";
 
 type PanelStatus =
@@ -28,6 +35,39 @@ type LastAuthorizationState = {
 };
 
 type BackendStatusDetail = AmazonSpApiConnectionStatusResponse | null;
+
+type OrderPullStepStatus = "idle" | "loading" | "success" | "error";
+
+function buildDefaultAmazonOrderPullWindow() {
+  const createdBefore = new Date();
+  const createdAfter = new Date(createdBefore.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+  return {
+    createdAfter: createdAfter.toISOString(),
+    createdBefore: createdBefore.toISOString(),
+  };
+}
+
+function getOrderPullStatusClass(status: OrderPullStepStatus) {
+  if (status === "success") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "error") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (status === "loading") return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function formatOrderPullWindow(value: string) {
+  try {
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
 
 function formatNullableDateTime(value?: string | null) {
   if (!value) return "—";
@@ -192,6 +232,13 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [backendStatusDetail, setBackendStatusDetail] = React.useState<BackendStatusDetail>(null);
   const [lastAuthorization, setLastAuthorization] = React.useState<LastAuthorizationState | null>(null);
 
+  const [orderPullStatus, setOrderPullStatus] = React.useState<OrderPullStepStatus>("idle");
+  const [orderPullMessage, setOrderPullMessage] = React.useState("");
+  const [orderPreview, setOrderPreview] = React.useState<AmazonSpApiOrdersRealPreviewResponse | null>(null);
+  const [orderImportJob, setOrderImportJob] =
+    React.useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
+  const [orderPullWindow] = React.useState(() => buildDefaultAmazonOrderPullWindow());
+
   React.useEffect(() => {
     let cancelled = false;
 
@@ -317,6 +364,66 @@ export function AmazonSpApiConnectionStatusPanel() {
     }
   }
 
+  async function fetchAmazonOrdersPreview() {
+    setOrderPullStatus("loading");
+    setOrderPullMessage("");
+    setOrderPreview(null);
+    setOrderImportJob(null);
+
+    try {
+      const data = await previewAmazonSpApiOrdersReal({
+        storeId: AMAZON_SP_API_DEFAULT_STORE_ID,
+        marketplaceId: AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+        region: AMAZON_SP_API_DEFAULT_REGION,
+        createdAfter: orderPullWindow.createdAfter,
+        createdBefore: orderPullWindow.createdBefore,
+        orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
+        maxResultsPerPage: 20,
+        realPreview: true,
+      });
+
+      setOrderPreview(data);
+      setOrderPullStatus("success");
+      setOrderPullMessage(
+        `注文を取得しました。注文 ${data.normalizedOrders?.length ?? 0} 件 / 明細 ${
+          data.normalizedOrderItems?.length ?? 0
+        } 件。`
+      );
+    } catch (err) {
+      setOrderPullStatus("error");
+      setOrderPullMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function createAmazonOrdersImportJob() {
+    setOrderPullStatus("loading");
+    setOrderPullMessage("");
+
+    try {
+      const data = await commitAmazonSpApiOrdersRealImportJob({
+        storeId: AMAZON_SP_API_DEFAULT_STORE_ID,
+        marketplaceId: AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+        region: AMAZON_SP_API_DEFAULT_REGION,
+        createdAfter: orderPullWindow.createdAfter,
+        createdBefore: orderPullWindow.createdBefore,
+        orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
+        maxResultsPerPage: 20,
+        realPreview: true,
+      });
+
+      setOrderImportJob(data);
+      setOrderPullStatus("success");
+      setOrderPullMessage(
+        data.importJobId
+          ? `ImportJobを作成しました。明細 ${data.totalRows ?? 0} 件を保存しました。`
+          : "ImportJob作成結果を受信しました。"
+      );
+    } catch (err) {
+      setOrderPullStatus("error");
+      setOrderPullMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <section
       data-testid="amazon-sp-api-connection-status-panel"
@@ -338,8 +445,8 @@ export function AmazonSpApiConnectionStatusPanel() {
           </div>
 
           <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">
-            Amazon注文レポートのAPI連携に向けた接続パネルです。現段階では認可URLの発行と
-            callback後の接続完了表示までを対象にし、注文レポート取得・ImportJob作成・在庫扣減はまだ実行しません。
+            Amazon SP-API から注文を取得し、ImportJob と ImportStagingRow として保存します。
+            この画面では会計入账・Transaction作成・在庫扣減は行いません。
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -419,6 +526,133 @@ export function AmazonSpApiConnectionStatusPanel() {
               認可URLを発行しました。有効期限: {lastAuthorization.stateExpiresAt}
             </div>
           ) : null}
+
+          <div
+            data-testid="amazon-sp-api-simple-order-pull-card"
+            className="mt-4 rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                  Amazon注文取得
+                </div>
+                <h3 className="mt-1 text-base font-black text-slate-950">
+                  注文を取得して Import Center で確認
+                </h3>
+                <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-emerald-900">
+                  最短パス：注文を取得 → ImportJobを作成 → Import Centerで確認。
+                  Transaction作成・在庫扣減は行いません。
+                </p>
+                <div className="mt-2 text-[11px] font-bold text-emerald-800">
+                  取得期間: {formatOrderPullWindow(orderPullWindow.createdAfter)} 〜{" "}
+                  {formatOrderPullWindow(orderPullWindow.createdBefore)}
+                </div>
+              </div>
+
+              <span
+                data-testid="amazon-sp-api-simple-order-pull-status"
+                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${getOrderPullStatusClass(orderPullStatus)}`}
+              >
+                {orderPullStatus === "loading"
+                  ? "処理中"
+                  : orderPullStatus === "success"
+                    ? "完了"
+                    : orderPullStatus === "error"
+                      ? "エラー"
+                      : "未実行"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <button
+                data-testid="amazon-sp-api-fetch-orders-button"
+                type="button"
+                onClick={() => void fetchAmazonOrdersPreview()}
+                disabled={orderPullStatus === "loading"}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                1. 注文を取得
+              </button>
+
+              <button
+                data-testid="amazon-sp-api-create-importjob-button"
+                type="button"
+                onClick={() => void createAmazonOrdersImportJob()}
+                disabled={orderPullStatus === "loading"}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-emerald-200 bg-white px-4 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                2. ImportJobを作成
+              </button>
+
+              <a
+                data-testid="amazon-sp-api-open-import-center-button"
+                href={`/ja/app/data/import${
+                  orderImportJob?.importJobId
+                    ? `?importJobId=${encodeURIComponent(orderImportJob.importJobId)}`
+                    : ""
+                }`}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                3. Import Centerで確認
+              </a>
+            </div>
+
+            {orderPullMessage ? (
+              <div
+                data-testid="amazon-sp-api-simple-order-pull-message"
+                className={`mt-3 rounded-2xl border px-3 py-2 text-xs font-bold leading-5 ${
+                  orderPullStatus === "error"
+                    ? "border-rose-200 bg-white text-rose-700"
+                    : "border-emerald-200 bg-white text-emerald-800"
+                }`}
+              >
+                {orderPullMessage}
+              </div>
+            ) : null}
+
+            {orderPreview ? (
+              <div
+                data-testid="amazon-sp-api-simple-order-preview-summary"
+                className="mt-3 grid gap-2 text-xs md:grid-cols-3"
+              >
+                <div className="rounded-2xl border border-emerald-100 bg-white px-3 py-2">
+                  <div className="font-black text-slate-500">取得注文</div>
+                  <div className="mt-1 font-black text-slate-950">
+                    {orderPreview.normalizedOrders?.length ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-white px-3 py-2">
+                  <div className="font-black text-slate-500">注文明細</div>
+                  <div className="mt-1 font-black text-slate-950">
+                    {orderPreview.normalizedOrderItems?.length ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-white px-3 py-2">
+                  <div className="font-black text-slate-500">DB書き込み</div>
+                  <div className="mt-1 font-black text-slate-950">未実行</div>
+                </div>
+              </div>
+            ) : null}
+
+            {orderImportJob?.importJobId ? (
+              <div
+                data-testid="amazon-sp-api-simple-importjob-result"
+                className="mt-3 rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-xs font-bold text-emerald-800"
+              >
+                <div>ImportJob: {orderImportJob.importJobId}</div>
+                <div className="mt-1">
+                  保存明細: {orderImportJob.totalRows ?? 0} / sourceType:{" "}
+                  {orderImportJob.sourceType || "amazon-sp-api-orders"}
+                </div>
+                <a
+                  href={`/ja/app/data/import?importJobId=${encodeURIComponent(orderImportJob.importJobId)}`}
+                  className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm hover:bg-slate-800"
+                >
+                  Import Centerで確認
+                </a>
+              </div>
+            ) : null}
+          </div>
 
           {message ? (
             <div
