@@ -1446,6 +1446,20 @@ export class ImportsController {
     };
   }
 
+
+  // Step142-B2: dry-run-only income Transaction projection for Amazon SP-API Orders ImportJob.
+  // GET route is read-only: no Transaction / InventoryMovement / ImportJob / ImportStagingRow writes.
+  @Get('amazon-sp-api/orders/income-transaction-dry-run')
+  previewAmazonSpApiOrdersIncomeTransactionDryRun(
+    @Query('importJobId') importJobId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.service.previewAmazonSpApiOrdersIncomeTransactionDryRun({
+      importJobId,
+      companyId,
+    });
+  }
+
   @Post('detect-month-conflicts')
   detectMonthConflicts(@Body() body: DetectMonthConflictsDto) {
     return this.service.detectMonthConflicts(body);

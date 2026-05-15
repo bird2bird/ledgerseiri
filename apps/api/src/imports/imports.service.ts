@@ -5,6 +5,7 @@ import {
   buildAmazonOrderNormalizedPayload,
   type AmazonOrderNormalizedPayload,
 } from './amazon-order-normalized-contract';
+import { previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRun } from './amazon-sp-api-orders-transaction-commit.service';
 import {
   buildAmazonSpApiSandboxNormalizedPayloads,
   type AmazonSpApiSandboxOrder,
@@ -3736,6 +3737,27 @@ private buildStoreOperationDedupeHash(companyId: string, charge: AmazonTransacti
     };
   }
 
+
+
+  // Step142-B2: backend wrapper for Amazon SP-API Orders income Transaction dry-run.
+  // This method is read-only and delegates to the Step142-B1 service-only projection.
+  async previewAmazonSpApiOrdersIncomeTransactionDryRun(args: {
+    importJobId?: string | null;
+    companyId?: string | null;
+  }) {
+    const importJobId = String(args.importJobId || '').trim();
+    if (!importJobId) {
+      throw new BadRequestException('importJobId is required for Amazon SP-API Orders income transaction dry-run.');
+    }
+
+    const companyId = await this.resolveCompanyId(String(args.companyId || '').trim() || undefined);
+
+    return previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRun({
+      prisma: this.prisma,
+      companyId,
+      importJobId,
+    });
+  }
 
   async detectMonthConflicts(dto: DetectMonthConflictsDto) {
     const companyId = await this.resolveCompanyId(dto.companyId);
