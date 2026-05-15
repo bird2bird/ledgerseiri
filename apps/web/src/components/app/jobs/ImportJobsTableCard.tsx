@@ -137,6 +137,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-G2B-AMAZON-SPAPI-READINESS-WORDING:
 // Clarify row validation vs whole-ImportJob commit readiness.
 // Row READY can still have commit warnings such as SKU未リンク.
+//
+// Step141-G3-AMAZON-SPAPI-SKU-RESOLUTION-BRIDGE:
+// Bridge unresolved Amazon sellerSku rows to the existing inventory audit / SKU resolution workflow.
+// This step adds navigation context only and does not create ProductSkuAlias, Transaction, or InventoryMovement.
 
 
 
@@ -233,6 +237,44 @@ function buildImportCenterInventoryAlertsHref(importJobId: string) {
   return `/ja/app/inventory/alerts?source=import-center&importJobId=${encodeURIComponent(importJobId)}`;
 }
 
+function buildAmazonSpApiSkuResolutionHref(args: {
+  importJobId: string;
+  rowNo?: number | null;
+  sellerSku?: string | null;
+  asin?: string | null;
+  amazonOrderId?: string | null;
+  orderItemId?: string | null;
+}) {
+  const params = new URLSearchParams();
+
+  params.set("source", "amazon-sp-api-readiness");
+  params.set("importJobId", args.importJobId);
+  params.set("reason", "sku-unlinked");
+
+  if (args.rowNo !== null && args.rowNo !== undefined) {
+    params.set("rowNo", String(args.rowNo));
+  }
+
+  if (args.sellerSku && args.sellerSku !== "-") {
+    params.set("sellerSku", args.sellerSku);
+    params.set("aliasSku", args.sellerSku);
+  }
+
+  if (args.asin && args.asin !== "-") {
+    params.set("asin", args.asin);
+  }
+
+  if (args.amazonOrderId && args.amazonOrderId !== "-") {
+    params.set("amazonOrderId", args.amazonOrderId);
+  }
+
+  if (args.orderItemId && args.orderItemId !== "-") {
+    params.set("orderItemId", args.orderItemId);
+  }
+
+  return `/ja/app/inventory/audit?${params.toString()}`;
+}
+
 function readRecordValue(source: unknown, key: string): unknown {
   if (!source || typeof source !== "object") return undefined;
   return (source as Record<string, unknown>)[key];
@@ -304,13 +346,28 @@ function buildAmazonSpApiStagingRowSummary(row: { normalizedPayloadJson?: unknow
 }
 
 function AmazonSpApiStagingRowSummaryCard(props: {
-  row: { normalizedPayloadJson?: unknown; matchStatus?: string | null; businessMonth?: string | null };
+  importJobId: string;
+  row: {
+    normalizedPayloadJson?: unknown;
+    matchStatus?: string | null;
+    businessMonth?: string | null;
+    rowNo?: number | null;
+  };
   readinessRow?: AmazonSpApiOrdersStagingCommitReadinessRow | null;
 }) {
-  const { row, readinessRow } = props;
+  const { importJobId, row, readinessRow } = props;
   const summary = buildAmazonSpApiStagingRowSummary(row);
 
   if (!summary || !isAmazonSpApiStagingRow(row)) return null;
+
+  const skuResolutionHref = buildAmazonSpApiSkuResolutionHref({
+    importJobId,
+    rowNo: row.rowNo,
+    sellerSku: summary.sellerSku,
+    asin: summary.asin,
+    amazonOrderId: summary.amazonOrderId,
+    orderItemId: summary.orderItemId,
+  });
 
   return (
     <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
@@ -382,6 +439,20 @@ function AmazonSpApiStagingRowSummaryCard(props: {
               <span>Commit warning: {readinessRow.warnings.map(formatAmazonSpApiReadinessIssue).join(" / ")}</span>
             ) : null}
           </div>
+
+          {readinessRow.warnings?.includes("SKU_NOT_LINKED_TO_TARGET_ENTITY_YET") ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <a
+                href={skuResolutionHref}
+                className="inline-flex h-8 items-center justify-center rounded-lg bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-slate-800"
+              >
+                Resolve SKU
+              </a>
+              <span className="text-[11px] font-bold text-amber-800">
+                sellerSku / ASIN を引き継いで SKU 監査へ移動します。
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -469,19 +540,32 @@ function AmazonSpApiCommitReadinessPanel(props: {
       </div>
 
       {Number(data?.unresolvedSkuRows || 0) > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <a
-            href={buildImportCenterInventoryAuditHref(job.id)}
-            className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
-          >
-            SKU監査へ移動
-          </a>
-          <a
-            href={buildImportCenterInventoryAlertsHref(job.id)}
-            className="inline-flex h-9 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 shadow-sm transition hover:bg-amber-50"
-          >
-            在庫リスク確認
-          </a>
+        <div className="mt-3">
+          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold leading-5 text-amber-900">
+            SKU resolution bridge: Amazon sellerSku を既存の商品SKUまたは SKU Alias にリンクすると、
+            この ImportJob の commit readiness が再評価可能になります。
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <a
+              href={buildAmazonSpApiSkuResolutionHref({ importJobId: job.id })}
+              className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+            >
+              SKU resolution を開始
+            </a>
+            <a
+              href={buildImportCenterInventoryAuditHref(job.id)}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              在庫監査へ移動
+            </a>
+            <a
+              href={buildImportCenterInventoryAlertsHref(job.id)}
+              className="inline-flex h-9 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 shadow-sm transition hover:bg-amber-50"
+            >
+              在庫リスク確認
+            </a>
+          </div>
         </div>
       ) : null}
     </div>
@@ -878,6 +962,7 @@ function ImportJobDetailDrawer(props: {
                     </div>
 
                     <AmazonSpApiStagingRowSummaryCard
+                      importJobId={job.id}
                       row={row}
                       readinessRow={amazonSpApiReadinessRowsByStagingRowId.get(row.id) || null}
                     />
