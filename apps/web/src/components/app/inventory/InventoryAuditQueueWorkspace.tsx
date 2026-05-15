@@ -319,14 +319,155 @@ function buildInventoryStatusSkuHref(skuCode: unknown) {
   return sku ? `/ja/app/inventory/status?sku=${encodeURIComponent(sku)}` : "/ja/app/inventory/status";
 }
 
+// Step141-G4B-AMAZON-SPAPI-SKU-RESOLUTION-CONTEXT:
+// Inventory Audit consumes query context from ImportJob drawer Resolve SKU links.
+// This is UI-only context wiring and does not create ProductSkuAlias, Transaction, or InventoryMovement.
+type AmazonSpApiSkuResolutionQueryContext = {
+  active: boolean;
+  source: string;
+  reason: string;
+  importJobId: string;
+  rowNo: string;
+  sellerSku: string;
+  aliasSku: string;
+  asin: string;
+  amazonOrderId: string;
+  orderItemId: string;
+};
+
+type SearchParamsLike = {
+  get(name: string): string | null;
+};
+
+function readAmazonSpApiSkuResolutionQueryContext(
+  searchParams: SearchParamsLike,
+): AmazonSpApiSkuResolutionQueryContext {
+  const source = searchParams.get("source")?.trim() ?? "";
+  const reason = searchParams.get("reason")?.trim() ?? "";
+  const importJobId = searchParams.get("importJobId")?.trim() ?? "";
+  const sellerSku = searchParams.get("sellerSku")?.trim() ?? "";
+  const aliasSku = searchParams.get("aliasSku")?.trim() ?? sellerSku;
+  const asin = searchParams.get("asin")?.trim() ?? "";
+  const rowNo = searchParams.get("rowNo")?.trim() ?? "";
+  const amazonOrderId = searchParams.get("amazonOrderId")?.trim() ?? "";
+  const orderItemId = searchParams.get("orderItemId")?.trim() ?? "";
+
+  return {
+    active: source === "amazon-sp-api-readiness" && Boolean(importJobId),
+    source,
+    reason,
+    importJobId,
+    rowNo,
+    sellerSku,
+    aliasSku,
+    asin,
+    amazonOrderId,
+    orderItemId,
+  };
+}
+
+function AmazonSpApiSkuResolutionContextCard(props: {
+  context: AmazonSpApiSkuResolutionQueryContext;
+  onApplySellerSku: () => void;
+}) {
+  const { context, onApplySellerSku } = props;
+
+  if (!context.active) return null;
+
+  return (
+    <section
+      data-testid="amazon-sp-api-sku-resolution-context-card"
+      className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">
+            Amazon SP-API SKU Resolution Context
+          </div>
+          <h2 className="mt-1 text-base font-black text-slate-950">
+            ImportJob drawer から SKU 解決コンテキストを受信しました
+          </h2>
+          <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-amber-900">
+            sellerSku / ASIN / 注文行情報を引き継いでいます。次のステップで既存の商品SKUを選択し、
+            必要に応じて ProductSkuAlias を登録してください。このカード自体は書き込みを行いません。
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onApplySellerSku}
+            className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm hover:bg-slate-800"
+          >
+            sellerSku を検索に反映
+          </button>
+          <a
+            href={`/ja/app/data/import?importJobId=${encodeURIComponent(context.importJobId)}`}
+            className="inline-flex h-9 items-center justify-center rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-800 shadow-sm hover:bg-amber-100"
+          >
+            ImportJob へ戻る
+          </a>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">sellerSku</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.sellerSku || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">aliasSku</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.aliasSku || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">ASIN</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.asin || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">rowNo</div>
+          <div className="mt-1 font-mono font-bold text-slate-950">{context.rowNo || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2 md:col-span-2">
+          <div className="font-black text-slate-500">amazonOrderId</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.amazonOrderId || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2 md:col-span-2">
+          <div className="font-black text-slate-500">orderItemId</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.orderItemId || "-"}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2 md:col-span-2">
+          <div className="font-black text-slate-500">importJobId</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.importJobId}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">source</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.source}</div>
+        </div>
+        <div className="rounded-xl border border-white/70 bg-white px-3 py-2">
+          <div className="font-black text-slate-500">reason</div>
+          <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.reason || "-"}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function InventoryAuditQueueWorkspace() {
   const searchParams = useSearchParams();
+  const amazonSpApiSkuResolutionContext = useMemo(
+    () => readAmazonSpApiSkuResolutionQueryContext(searchParams),
+    [searchParams],
+  );
   const linkedImportJobId = searchParams.get("importJobId")?.trim() ?? "";
+  const initialAmazonSkuQuery =
+    amazonSpApiSkuResolutionContext.active
+      ? amazonSpApiSkuResolutionContext.sellerSku || amazonSpApiSkuResolutionContext.aliasSku
+      : "";
 
   const [status, setStatus] = useState(linkedImportJobId ? "ALL" : "OPEN");
   const [reason, setReason] = useState("");
-  const [skuDraft, setSkuDraft] = useState("");
-  const [sku, setSku] = useState("");
+  const [skuDraft, setSkuDraft] = useState(initialAmazonSkuQuery);
+  const [sku, setSku] = useState(initialAmazonSkuQuery);
   const [data, setData] = useState<AuditIssuesResponse | null>(null);
   const [selected, setSelected] = useState<AuditIssueItem | null>(null);
   const [products, setProducts] = useState<ProductSkuItem[]>([]);
@@ -619,6 +760,22 @@ export default function InventoryAuditQueueWorkspace() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  useEffect(() => {
+    if (!amazonSpApiSkuResolutionContext.active) return;
+
+    const nextSku =
+      amazonSpApiSkuResolutionContext.sellerSku || amazonSpApiSkuResolutionContext.aliasSku;
+
+    if (!nextSku) return;
+
+    setSkuDraft(nextSku);
+    setSku(nextSku);
+  }, [
+    amazonSpApiSkuResolutionContext.active,
+    amazonSpApiSkuResolutionContext.sellerSku,
+    amazonSpApiSkuResolutionContext.aliasSku,
+  ]);
 
   useEffect(() => {
     if (selected) {
