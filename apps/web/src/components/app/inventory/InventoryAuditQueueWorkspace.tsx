@@ -198,6 +198,9 @@ type ProductSkuAliasResponse = {
 // Step141-G5-AMAZON-SPAPI-CONTEXT-ALIAS-REGISTRATION:
 // Register ProductSkuAlias directly from Amazon SP-API resolution context.
 // This step must not resolve audit issues, create InventoryMovement, create Transaction, or deduct inventory.
+//
+// Step141-G7-READINESS-REFRESH-AFTER-ALIAS:
+// After alias registration succeeds, show a return/refresh action for the ImportJob readiness drawer.
 type AmazonSpApiContextAliasRegistrationState = {
   submitting: boolean;
   error: string | null;
@@ -337,6 +340,16 @@ function buildInventoryStatusSkuHref(skuCode: unknown) {
   return sku ? `/ja/app/inventory/status?sku=${encodeURIComponent(sku)}` : "/ja/app/inventory/status";
 }
 
+// Step141-G7-READINESS-REFRESH-AFTER-ALIAS:
+// After ProductSkuAlias registration, guide the user back to ImportJob drawer.
+// The drawer will re-call staging-commit-readiness and reflect alias-aware unresolvedSkuRows.
+function buildAmazonSpApiReadinessReturnHref(importJobId: string) {
+  const id = String(importJobId || "").trim();
+  return id
+    ? `/ja/app/data/import?importJobId=${encodeURIComponent(id)}&source=inventory-audit-alias-registered&refreshReadiness=1`
+    : "/ja/app/data/import";
+}
+
 // Step141-G4B-AMAZON-SPAPI-SKU-RESOLUTION-CONTEXT:
 // Inventory Audit consumes query context from ImportJob drawer Resolve SKU links.
 // This is UI-only context wiring and does not create ProductSkuAlias, Transaction, or InventoryMovement.
@@ -414,6 +427,8 @@ function AmazonSpApiSkuResolutionContextCard(props: {
   } = props;
 
   if (!context.active) return null;
+
+  const readinessReturnHref = buildAmazonSpApiReadinessReturnHref(context.importJobId);
 
   return (
     <section
@@ -503,7 +518,7 @@ function AmazonSpApiSkuResolutionContextCard(props: {
             </h3>
             <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-emerald-900">
               この操作は ProductSkuAlias だけを登録します。Inventory Audit の解決、InventoryMovement 作成、
-              Transaction 作成、在庫減算は実行しません。
+              Transaction 作成、在庫減算は実行しません。登録後は ImportJob drawer に戻って readiness を再確認します。
             </p>
           </div>
 
@@ -558,8 +573,30 @@ function AmazonSpApiSkuResolutionContextCard(props: {
         ) : null}
 
         {aliasState.success ? (
-          <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-800">
-            {aliasState.success}
+          <div
+            data-testid="amazon-sp-api-alias-readiness-refresh-action"
+            className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-3 text-xs font-bold text-emerald-800"
+          >
+            <div>{aliasState.success}</div>
+            <div className="mt-2 text-[11px] leading-5 text-emerald-700">
+              ProductSkuAlias 登録後、ImportJob drawer に戻ると readiness が再評価されます。
+              alias 命中行は SKU_LINKED_BY_PRODUCT_SKU_ALIAS として表示され、未リンクSKU数が減少します。
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={readinessReturnHref}
+                className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white shadow-sm hover:bg-slate-800"
+              >
+                ImportJob readiness を再確認
+              </a>
+              <button
+                type="button"
+                onClick={onApplySellerSku}
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-800 shadow-sm hover:bg-emerald-100"
+              >
+                SKU検索を再適用
+              </button>
+            </div>
           </div>
         ) : null}
 
