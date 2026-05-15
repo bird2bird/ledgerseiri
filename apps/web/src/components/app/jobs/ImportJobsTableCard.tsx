@@ -145,6 +145,10 @@ import { getDrawerActionToneClass } from "./import-center-drawer-tone";
 // Step141-H4-AMAZON-SPAPI-IMPORTJOB-DRAWER-DISPLAY-CLEANUP:
 // Make Amazon order staging rows readable in the ImportJob drawer.
 // Keep JSON details secondary and do not create Transaction / InventoryMovement.
+//
+// Step141-H5-IMPORT-CENTER-AMAZON-FILTER-NAVIGATION:
+// Make Amazon SP-API Orders ImportJobs easier to find in Import Center.
+// Add sourceType filter / quick Amazon filter without changing backend or creating writes.
 
 
 
@@ -174,6 +178,28 @@ const EMPTY_AMAZON_SP_API_COMMIT_READINESS_STATE: AmazonSpApiCommitReadinessStat
 
 function isAmazonSpApiOrdersImportJob(job?: { sourceType?: string | null } | null) {
   return job?.sourceType === "amazon-sp-api-orders";
+}
+
+function uniqueImportCenterSourceTypes(jobs: ImportJobItem[]) {
+  return Array.from(
+    new Set(
+      jobs
+        .map((job) => String(job.sourceType || "").trim())
+        .filter(Boolean)
+    )
+  ).sort();
+}
+
+function getAmazonSpApiOrdersJobCount(jobs: ImportJobItem[]) {
+  return jobs.filter((job) => isAmazonSpApiOrdersImportJob(job)).length;
+}
+
+function getImportCenterSourceTypeBadgeClass(sourceType?: string | null) {
+  if (sourceType === "amazon-sp-api-orders") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-500";
 }
 
 function formatAmazonSpApiReadinessReason(reason: string) {
@@ -1128,6 +1154,7 @@ export function ImportJobsTableCard(props: {
   const [query, setQuery] = React.useState("");
   const [domainFilter, setDomainFilter] = React.useState("ALL");
   const [statusFilter, setStatusFilter] = React.useState("ALL");
+  const [sourceTypeFilter, setSourceTypeFilter] = React.useState("ALL");
   const [selectedJob, setSelectedJob] = React.useState<ImportJobItem | null>(null);
   const [selectedJobId, setSelectedJobId] = React.useState<string | null>(null);
   const [detailRowsState, setDetailRowsState] = React.useState<ImportJobDetailFetchState>(
@@ -1136,6 +1163,12 @@ export function ImportJobsTableCard(props: {
   const appliedUrlImportJobIdRef = React.useRef<string | null>(null);
 
   const domains = React.useMemo(() => uniqueDomains(props.jobs), [props.jobs]);
+
+  const sourceTypes = React.useMemo(() => uniqueImportCenterSourceTypes(props.jobs), [props.jobs]);
+  const amazonSpApiOrdersJobCount = React.useMemo(
+    () => getAmazonSpApiOrdersJobCount(props.jobs),
+    [props.jobs]
+  );
 
   const openImportJobDetail = React.useCallback((job: ImportJobItem) => {
     appliedUrlImportJobIdRef.current = job.id;
@@ -1233,9 +1266,11 @@ export function ImportJobsTableCard(props: {
     return props.jobs.filter((job) => {
       const domain = String(job.domain || "").trim();
       const status = getStatusFilterValue(job);
+      const sourceType = String(job.sourceType || "").trim();
 
       if (domainFilter !== "ALL" && domain !== domainFilter) return false;
       if (statusFilter !== "ALL" && status !== statusFilter) return false;
+      if (sourceTypeFilter !== "ALL" && sourceType !== sourceTypeFilter) return false;
 
       if (!q) return true;
 
@@ -1254,7 +1289,7 @@ export function ImportJobsTableCard(props: {
 
       return haystack.includes(q);
     });
-  }, [domainFilter, props.jobs, query, statusFilter]);
+  }, [domainFilter, props.jobs, query, sourceTypeFilter, statusFilter]);
 
   const summary = React.useMemo(() => summarizeJobs(filteredJobs), [filteredJobs]);
 
@@ -1273,13 +1308,21 @@ export function ImportJobsTableCard(props: {
   );
 
   const hasActiveImportJobListFilters = Boolean(
-    query.trim() || domainFilter !== "ALL" || statusFilter !== "ALL"
+    query.trim() || domainFilter !== "ALL" || statusFilter !== "ALL" || sourceTypeFilter !== "ALL"
   );
 
   function clearImportJobListFilters() {
     setQuery("");
     setDomainFilter("ALL");
     setStatusFilter("ALL");
+    setSourceTypeFilter("ALL");
+  }
+
+  function showAmazonSpApiOrdersOnly() {
+    setQuery("");
+    setDomainFilter("ALL");
+    setStatusFilter("ALL");
+    setSourceTypeFilter("amazon-sp-api-orders");
   }
 
   function clearImportJobSelectionOnly() {
@@ -1303,6 +1346,16 @@ export function ImportJobsTableCard(props: {
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
             表示 {filteredJobs.length.toLocaleString("ja-JP")} / 全 {props.jobs.length.toLocaleString("ja-JP")}
           </span>
+          {amazonSpApiOrdersJobCount > 0 ? (
+            <button
+              data-testid="import-center-amazon-sp-api-orders-quick-filter"
+              type="button"
+              onClick={showAmazonSpApiOrdersOnly}
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 transition hover:bg-emerald-100"
+            >
+              Amazon SP-API Orders {amazonSpApiOrdersJobCount.toLocaleString("ja-JP")}
+            </button>
+          ) : null}
           {summary.pendingPreview > 0 ? (
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-700">
               未正式登録 {summary.pendingPreview.toLocaleString("ja-JP")}
@@ -1321,7 +1374,7 @@ export function ImportJobsTableCard(props: {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+      <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_220px]">
         <label className="block">
           <span className="sr-only">ImportJob search</span>
           <input
@@ -1362,6 +1415,23 @@ export function ImportJobsTableCard(props: {
             <option value="PENDING_PREVIEW">未正式登録</option>
             <option value="PROCESSING">処理中</option>
             <option value="PENDING">待機中</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="sr-only">Source type filter</span>
+          <select
+            data-testid="import-center-source-type-filter"
+            value={sourceTypeFilter}
+            onChange={(event) => setSourceTypeFilter(event.target.value)}
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-slate-400 focus:ring-4 focus:ring-slate-100"
+          >
+            <option value="ALL">すべての取込種別</option>
+            {sourceTypes.map((sourceType) => (
+              <option key={sourceType} value={sourceType}>
+                {getImportCenterSourceTypeLabel(sourceType)}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -1432,6 +1502,25 @@ export function ImportJobsTableCard(props: {
         </div>
       ) : null}
 
+      {sourceTypeFilter === "amazon-sp-api-orders" ? (
+        <div
+          data-testid="import-center-amazon-sp-api-orders-filter-active"
+          className="mt-5 rounded-[22px] border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold leading-6 text-emerald-900"
+        >
+          <div>Amazon SP-API Orders の ImportJob だけを表示しています。</div>
+          <div className="mt-1 text-xs font-semibold text-emerald-700">
+            注文取得後の ImportJob を選択し、詳細から Amazon注文番号 / sellerSku / ASIN / 金額を確認できます。
+          </div>
+          <button
+            type="button"
+            onClick={clearImportJobListFilters}
+            className="mt-3 inline-flex h-8 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-[11px] font-black text-emerald-800 shadow-sm transition hover:bg-emerald-100"
+          >
+            フィルター解除
+          </button>
+        </div>
+      ) : null}
+
       {props.jobs.length === 0 ? (
         <div className="mt-5 rounded-[22px] border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
           <div className="text-sm font-bold text-slate-700">ImportJob はまだありません。</div>
@@ -1489,7 +1578,10 @@ export function ImportJobsTableCard(props: {
                         </span>
                       ) : null}
                       {job.sourceType ? (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                        <span
+                          data-testid={isAmazonSpApiOrdersImportJob(job) ? "import-center-amazon-sp-api-orders-badge" : undefined}
+                          className={`rounded-full border px-2 py-0.5 text-[11px] font-black ${getImportCenterSourceTypeBadgeClass(job.sourceType)}`}
+                        >
                           {getImportCenterSourceTypeLabel(job.sourceType)}
                         </span>
                       ) : null}
@@ -1503,6 +1595,11 @@ export function ImportJobsTableCard(props: {
                     {selectedJobId === job.id && !selectedJob ? (
                       <div className="mt-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-black text-sky-700">
                         URLで選択中。詳細ボタンで開けます。
+                      </div>
+                    ) : null}
+                    {isAmazonSpApiOrdersImportJob(job) ? (
+                      <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold leading-5 text-emerald-800">
+                        Amazon注文取得済み。詳細で Amazon注文番号 / sellerSku / ASIN / 金額を確認できます。
                       </div>
                     ) : null}
                   </div>
