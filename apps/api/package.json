@@ -257,7 +257,8 @@
     "smoke:amazon-sp-api-orders-lwa-refresh-access-token-cache-update": "node scripts/smoke-amazon-sp-api-orders-lwa-refresh-access-token-cache-update.js",
     "smoke:amazon-sp-api-orders-real-preview-production-verification": "node scripts/smoke-amazon-sp-api-orders-real-preview-production-verification.js",
     "smoke:amazon-sp-api-orders-real-importjob-staging-persistence": "node scripts/smoke-amazon-sp-api-orders-real-importjob-staging-persistence.js",
-    "smoke:amazon-sp-api-orders-staging-commit-readiness": "node scripts/smoke-amazon-sp-api-orders-staging-commit-readiness-contract.js"
+    "smoke:amazon-sp-api-orders-staging-commit-readiness": "node scripts/smoke-amazon-sp-api-orders-staging-commit-readiness-contract.js",
+    "smoke:amazon-sp-api-orders-income-transaction-dry-run-service-only": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-service-only.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

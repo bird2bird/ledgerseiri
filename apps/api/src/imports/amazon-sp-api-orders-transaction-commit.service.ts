@@ -159,6 +159,292 @@ type NormalizedPayload = {
   transactionCommitStatus?: string;
 };
 
+
+export type PreviewAmazonSpApiOrdersIncomeTransactionDryRunInput = {
+  prisma: any;
+  companyId: string;
+  importJobId: string;
+};
+
+export type PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult = {
+  source: 'amazon-sp-api-orders-income-transaction-dry-run';
+  dryRun: true;
+  route: 'service-only';
+  companyId: string;
+  importJobId: string;
+  sourceType: 'amazon-sp-api-orders';
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  writesDatabase: false;
+  summary: {
+    totalRows: number;
+    previewableRows: number;
+    blockedRows: number;
+    duplicateRows: number;
+    existingTransactionRows: number;
+    missingAmountRows: number;
+    missingOrderIdentityRows: number;
+  };
+  rows: Array<{
+    stagingRowId: string;
+    rowNo: number | null;
+    amazonOrderId: string | null;
+    orderItemId: string | null;
+    sellerSku: string | null;
+    productSkuId: string | null;
+    amount: number | null;
+    currency: string;
+    businessDate: string | null;
+    businessMonth: string | null;
+    dedupeHash: string | null;
+    existingTransactionId: string | null;
+    blockers: string[];
+    warnings: string[];
+  }>;
+  guardrails: {
+    doesNotCreateTransaction: true;
+    doesNotCreateInventoryMovement: true;
+    doesNotUpdateImportJob: true;
+    doesNotUpdateImportStagingRow: true;
+    serviceOnly: true;
+  };
+};
+
+function readPreviewRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function readPreviewString(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+  return text ? text : null;
+}
+
+function readPreviewNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const normalized = String(value ?? '').replace(/,/g, '').trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readPreviewOrderAndItem(payload: Record<string, unknown>): {
+  order: Record<string, unknown>;
+  item: Record<string, unknown>;
+} {
+  const order =
+    readPreviewRecord(payload.order) ||
+    readPreviewRecord(payload.normalizedOrder) ||
+    readPreviewRecord(payload.amazonOrder);
+
+  const item =
+    readPreviewRecord(payload.item) ||
+    readPreviewRecord(payload.orderItem) ||
+    readPreviewRecord(payload.normalizedOrderItem) ||
+    readPreviewRecord(payload.amazonOrderItem);
+
+  return {
+    order: Object.keys(order).length ? order : payload,
+    item: Object.keys(item).length ? item : payload,
+  };
+}
+
+// Step142-B1: service-only dry-run projection.
+// This function must stay read-only: no Transaction create, no InventoryMovement create,
+// no ImportJob mutation, and no ImportStagingRow mutation.
+export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRun(
+  input: PreviewAmazonSpApiOrdersIncomeTransactionDryRunInput,
+): Promise<PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult> {
+  if (!input?.prisma) throw new Error('Step142-B1 dry-run violation: prisma adapter is required.');
+  if (!input.companyId) throw new Error('Step142-B1 dry-run violation: companyId is required.');
+  if (!input.importJobId) throw new Error('Step142-B1 dry-run violation: importJobId is required.');
+  if (!input.prisma.importJob?.findFirst) {
+    throw new Error('Step142-B1 dry-run violation: prisma.importJob.findFirst is required.');
+  }
+  if (!input.prisma.importStagingRow?.findMany) {
+    throw new Error('Step142-B1 dry-run violation: prisma.importStagingRow.findMany is required.');
+  }
+  if (!input.prisma.transaction?.findFirst) {
+    throw new Error('Step142-B1 dry-run violation: prisma.transaction.findFirst is required.');
+  }
+
+  const job = await input.prisma.importJob.findFirst({
+    where: {
+      id: input.importJobId,
+      companyId: input.companyId,
+      sourceType: 'amazon-sp-api-orders',
+    },
+  });
+
+  if (!job) {
+    throw new Error('Step142-B1 dry-run violation: amazon-sp-api-orders ImportJob not found.');
+  }
+
+  const stagingRows = await input.prisma.importStagingRow.findMany({
+    where: {
+      importJobId: input.importJobId,
+      companyId: input.companyId,
+      module: 'store-orders',
+    },
+    orderBy: {
+      rowNo: 'asc',
+    },
+  });
+
+  const dedupeCounts = new Map<string, number>();
+  for (const row of stagingRows) {
+    const key = String(row?.dedupeHash || '').trim();
+    if (!key) continue;
+    dedupeCounts.set(key, (dedupeCounts.get(key) || 0) + 1);
+  }
+
+  const rows: PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult['rows'] = [];
+
+  for (const row of stagingRows) {
+    const blockers: string[] = [];
+    const warnings: string[] = [];
+
+    const payload = coerceNormalizedPayload(row?.normalizedPayloadJson);
+    const { order, item } = readPreviewOrderAndItem(payload as Record<string, unknown>);
+
+    const amazonOrderId =
+      readPreviewString(order.amazonOrderId) ||
+      readPreviewString(order.orderId) ||
+      readPreviewString((payload as Record<string, unknown>).amazonOrderId) ||
+      readPreviewString((payload as Record<string, unknown>).orderId);
+
+    const orderItemId =
+      readPreviewString(item.orderItemId) ||
+      readPreviewString(item.amazonOrderItemId) ||
+      readPreviewString((payload as Record<string, unknown>).orderItemId) ||
+      readPreviewString((payload as Record<string, unknown>).amazonOrderItemId);
+
+    const sellerSku =
+      readPreviewString(item.sellerSku) ||
+      readPreviewString(item.sku) ||
+      readPreviewString((payload as Record<string, unknown>).sellerSku);
+
+    const businessDate =
+      readPreviewString(order.purchaseDate) ||
+      readPreviewString(order.orderDate) ||
+      readPreviewString((payload as Record<string, unknown>).purchaseDate) ||
+      readPreviewString((payload as Record<string, unknown>).orderDate);
+
+    const currency =
+      readPreviewString(item.itemPriceCurrency) ||
+      readPreviewString(item.currency) ||
+      readPreviewString((payload as Record<string, unknown>).currency) ||
+      'JPY';
+
+    const rawAmount =
+      item.itemPriceAmount ??
+      item.priceAmount ??
+      (payload as Record<string, unknown>).itemPriceAmount ??
+      (payload as Record<string, unknown>).grossAmount ??
+      (payload as Record<string, unknown>).amount;
+
+    const amountNumber = readPreviewNumber(rawAmount);
+    const amount = amountNumber === null ? null : normalizeIncomeAmount(amountNumber);
+
+    if (!amazonOrderId || !orderItemId) {
+      blockers.push('MISSING_ORDER_IDENTITY');
+    }
+
+    if (amount === null || !Number.isFinite(amount) || amount <= 0) {
+      blockers.push('MISSING_OR_INVALID_AMOUNT');
+    }
+
+    const computedDedupeHash =
+      amazonOrderId && orderItemId
+        ? buildAmazonSpApiOrdersTransactionDedupeHash(input.companyId, amazonOrderId, orderItemId)
+        : null;
+
+    const dedupeHash = computedDedupeHash || readPreviewString(row?.dedupeHash);
+
+    if (!dedupeHash) {
+      blockers.push('MISSING_DEDUPE_HASH');
+    } else if ((dedupeCounts.get(String(row?.dedupeHash || '').trim()) || 0) > 1) {
+      blockers.push('DUPLICATE_DEDUPE_HASH_IN_IMPORT_JOB');
+    }
+
+    let existingTransactionId: string | null = null;
+    if (dedupeHash) {
+      const existing = await input.prisma.transaction.findFirst({
+        where: {
+          companyId: input.companyId,
+          dedupeHash,
+        },
+        select: {
+          id: true,
+        },
+      });
+      existingTransactionId = existing?.id || null;
+      if (existingTransactionId) {
+        blockers.push('TRANSACTION_ALREADY_EXISTS_FOR_DEDUPE_HASH');
+      }
+    }
+
+    const productSkuId =
+      String(row?.targetEntityType || '') === 'ProductSku'
+        ? readPreviewString(row?.targetEntityId)
+        : null;
+
+    if (!productSkuId) {
+      warnings.push('PRODUCT_SKU_TARGET_NOT_PROJECTED_IN_TRANSACTION_DRY_RUN');
+    }
+
+    rows.push({
+      stagingRowId: String(row?.id || ''),
+      rowNo: typeof row?.rowNo === 'number' ? row.rowNo : null,
+      amazonOrderId,
+      orderItemId,
+      sellerSku,
+      productSkuId,
+      amount,
+      currency,
+      businessDate,
+      businessMonth: readPreviewString(row?.businessMonth),
+      dedupeHash,
+      existingTransactionId,
+      blockers,
+      warnings,
+    });
+  }
+
+  const blockedRows = rows.filter((row) => row.blockers.length > 0).length;
+
+  return {
+    source: 'amazon-sp-api-orders-income-transaction-dry-run',
+    dryRun: true,
+    route: 'service-only',
+    companyId: input.companyId,
+    importJobId: input.importJobId,
+    sourceType: 'amazon-sp-api-orders',
+    transactionWriteNow: false,
+    inventoryWriteNow: false,
+    writesDatabase: false,
+    summary: {
+      totalRows: rows.length,
+      previewableRows: rows.length - blockedRows,
+      blockedRows,
+      duplicateRows: rows.filter((row) => row.blockers.includes('DUPLICATE_DEDUPE_HASH_IN_IMPORT_JOB')).length,
+      existingTransactionRows: rows.filter((row) =>
+        row.blockers.includes('TRANSACTION_ALREADY_EXISTS_FOR_DEDUPE_HASH'),
+      ).length,
+      missingAmountRows: rows.filter((row) => row.blockers.includes('MISSING_OR_INVALID_AMOUNT')).length,
+      missingOrderIdentityRows: rows.filter((row) => row.blockers.includes('MISSING_ORDER_IDENTITY')).length,
+    },
+    rows,
+    guardrails: {
+      doesNotCreateTransaction: true,
+      doesNotCreateInventoryMovement: true,
+      doesNotUpdateImportJob: true,
+      doesNotUpdateImportStagingRow: true,
+      serviceOnly: true,
+    },
+  };
+}
+
+
 export async function commitAmazonSpApiOrdersStagingRowsToIncomeTransactions(
   input: CommitAmazonSpApiOrdersStagingRowsInput,
 ): Promise<CommitAmazonSpApiOrdersStagingRowsResult> {
