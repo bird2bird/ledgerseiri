@@ -1,16 +1,10 @@
 "use client";
+import type { AmazonSpApiOrdersIncomeTransactionDryRunResponse } from "@/core/imports/api";
 
 import React from "react";
 import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
-import {
-  listInventoryAuditIssuesForImportJob,
-  readAmazonSpApiOrdersStagingCommitReadiness,
-  summarizeInventoryAuditIssuesForImportJob,
-  type AmazonSpApiOrdersStagingCommitReadinessResponse,
-  type AmazonSpApiOrdersStagingCommitReadinessRow,
-  type InventoryAuditImportSummary,
-} from "@/core/imports/api";
+import { listInventoryAuditIssuesForImportJob, readAmazonSpApiOrdersStagingCommitReadiness, summarizeInventoryAuditIssuesForImportJob, type AmazonSpApiOrdersStagingCommitReadinessResponse, type AmazonSpApiOrdersStagingCommitReadinessRow, type InventoryAuditImportSummary, fetchAmazonSpApiOrdersIncomeTransactionDryRun } from "@/core/imports/api";
 import { fmtDate } from "./jobs-shared";
 import {
   formatRows,
@@ -520,6 +514,194 @@ function AmazonSpApiStagingRowSummaryCard(props: {
     </div>
   );
 }
+
+
+function AmazonSpApiIncomeTransactionDryRunPanel(props: {
+  job: ImportJobItem;
+}) {
+  const { job } = props;
+  const [state, setState] = React.useState<{
+    loading: boolean;
+    data: AmazonSpApiOrdersIncomeTransactionDryRunResponse | null;
+    error: string | null;
+  }>({
+    loading: false,
+    data: null,
+    error: null,
+  });
+
+  React.useEffect(() => {
+    if (!isAmazonSpApiOrdersImportJob(job)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    setState({
+      loading: true,
+      data: null,
+      error: null,
+    });
+
+    fetchAmazonSpApiOrdersIncomeTransactionDryRun({
+      importJobId: job.id,
+      companyId: job.companyId,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setState({
+          loading: false,
+          data,
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState({
+          loading: false,
+          data: null,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, job.companyId, job.sourceType]);
+
+  if (!isAmazonSpApiOrdersImportJob(job)) {
+    return null;
+  }
+
+  const data = state.data;
+  const summary = data?.summary;
+  const sampleRows = Array.isArray(data?.rows) ? data.rows.slice(0, 5) : [];
+
+  return (
+    <div
+      className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 shadow-sm"
+      data-testid={`amazon-sp-api-income-transaction-dry-run-panel-${job.id}`}
+    >
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-sm font-black text-slate-900">
+            Income Transaction Dry-run Preview
+          </div>
+          <div className="mt-1 text-xs leading-5 text-slate-600">
+            Read-only preview only. This panel does not create Transaction, does not create
+            InventoryMovement, does not update ImportJob, and does not update ImportStagingRow.
+          </div>
+        </div>
+        <div
+          className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-sky-700"
+          data-testid="amazon-sp-api-income-transaction-dry-run-no-write-badge"
+        >
+          dry-run / no DB write
+        </div>
+      </div>
+
+      {state.loading ? (
+        <div className="mt-3 rounded-xl border border-sky-100 bg-white px-3 py-2 text-xs text-slate-600">
+          Loading income transaction dry-run preview...
+        </div>
+      ) : null}
+
+      {state.error ? (
+        <div
+          className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+          data-testid="amazon-sp-api-income-transaction-dry-run-error"
+        >
+          {state.error}
+        </div>
+      ) : null}
+
+      {data ? (
+        <div className="mt-3 space-y-3" data-testid="amazon-sp-api-income-transaction-dry-run-loaded">
+          <div className="grid gap-2 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total rows</div>
+              <div className="mt-1 text-lg font-black text-slate-900">{summary?.totalRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Previewable</div>
+              <div className="mt-1 text-lg font-black text-emerald-700">{summary?.previewableRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Blocked</div>
+              <div className="mt-1 text-lg font-black text-amber-700">{summary?.blockedRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Existing Tx</div>
+              <div className="mt-1 text-lg font-black text-slate-900">{summary?.existingTransactionRows ?? 0}</div>
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Duplicate</div>
+              <div className="mt-1 text-sm font-black text-slate-900">{summary?.duplicateRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Missing amount</div>
+              <div className="mt-1 text-sm font-black text-slate-900">{summary?.missingAmountRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Missing identity</div>
+              <div className="mt-1 text-sm font-black text-slate-900">{summary?.missingOrderIdentityRows ?? 0}</div>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Write flags</div>
+              <div className="mt-1 text-[11px] font-bold text-slate-700">
+                writesDatabase={String(data.writesDatabase)} / transactionWriteNow={String(data.transactionWriteNow)}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-100 bg-white">
+            <div className="border-b border-slate-100 px-3 py-2 text-xs font-black text-slate-700">
+              Sample dry-run rows
+            </div>
+            {sampleRows.length ? (
+              <div className="divide-y divide-slate-100">
+                {sampleRows.map((row) => (
+                  <div
+                    key={row.stagingRowId}
+                    className="grid gap-2 px-3 py-2 text-xs text-slate-700 md:grid-cols-5"
+                    data-testid="amazon-sp-api-income-transaction-dry-run-row"
+                  >
+                    <div>
+                      <span className="text-slate-400">Row</span> {row.rowNo ?? "-"}
+                    </div>
+                    <div className="truncate" title={row.amazonOrderId || ""}>
+                      <span className="text-slate-400">Order</span> {row.amazonOrderId || "-"}
+                    </div>
+                    <div className="truncate" title={row.sellerSku || ""}>
+                      <span className="text-slate-400">SKU</span> {row.sellerSku || "-"}
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Amount</span>{" "}
+                      {row.amount === null ? "-" : `¥${Number(row.amount).toLocaleString("ja-JP")}`}
+                    </div>
+                    <div className="truncate" title={[...row.blockers, ...row.warnings].join(" / ")}>
+                      {[...row.blockers, ...row.warnings].length
+                        ? [...row.blockers, ...row.warnings].join(" / ")
+                        : "READY"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-3 py-3 text-xs text-slate-500">
+                No dry-run rows returned.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 
 function AmazonSpApiCommitReadinessPanel(props: {
   job: ImportJobItem;
@@ -1056,6 +1238,10 @@ function ImportJobDetailDrawer(props: {
                 ) : null}
               </div>
             </DetailDataStateCard>
+
+              {isAmazonSpApiOrdersImportJob(job) ? (
+                <AmazonSpApiIncomeTransactionDryRunPanel job={job} />
+              ) : null}
 
             <DetailDataStateCard
               title={`Transaction Trace (${detailRowsState.transactions.length})`}
