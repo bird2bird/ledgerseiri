@@ -17,7 +17,8 @@
     "smoke:amazon-sp-api-orders-import-center-dry-run-preview-panel": "node scripts/smoke-amazon-sp-api-orders-import-center-dry-run-preview-panel.js",
     "smoke:amazon-sp-api-orders-import-center-production-closeout": "node scripts/smoke-amazon-sp-api-orders-import-center-production-closeout.js",
     "smoke:amazon-sp-api-orders-real-preview-button": "node scripts/smoke-amazon-sp-api-orders-real-preview-button.js",
-    "smoke:amazon-sp-api-orders-real-importjob-commit-button": "node scripts/smoke-amazon-sp-api-orders-real-importjob-commit-button.js"
+    "smoke:amazon-sp-api-orders-real-importjob-commit-button": "node scripts/smoke-amazon-sp-api-orders-real-importjob-commit-button.js",
+    "smoke:amazon-sp-api-orders-income-transaction-dry-run-helper": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-helper.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

@@ -945,3 +945,97 @@ export async function readAmazonSpApiOrdersStagingCommitReadiness(
   );
 }
 
+
+// Step142-B4: Frontend helper for backend read-only income Transaction dry-run route.
+// This route is dry-run only and must not create Transaction / InventoryMovement.
+export type AmazonSpApiOrdersIncomeTransactionDryRunRow = {
+  stagingRowId: string;
+  rowNo: number | null;
+  amazonOrderId: string | null;
+  orderItemId: string | null;
+  sellerSku: string | null;
+  productSkuId: string | null;
+  amount: number | null;
+  currency: string;
+  businessDate: string | null;
+  businessMonth: string | null;
+  dedupeHash: string | null;
+  existingTransactionId: string | null;
+  blockers: string[];
+  warnings: string[];
+};
+
+export type AmazonSpApiOrdersIncomeTransactionDryRunResponse = {
+  source: "amazon-sp-api-orders-income-transaction-dry-run" | string;
+  dryRun: true;
+  route: "service-only" | string;
+  companyId: string;
+  importJobId: string;
+  sourceType: "amazon-sp-api-orders" | string;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  writesDatabase: false;
+  summary: {
+    totalRows: number;
+    previewableRows: number;
+    blockedRows: number;
+    duplicateRows: number;
+    existingTransactionRows: number;
+    missingAmountRows: number;
+    missingOrderIdentityRows: number;
+  };
+  rows: AmazonSpApiOrdersIncomeTransactionDryRunRow[];
+  guardrails: {
+    doesNotCreateTransaction: true;
+    doesNotCreateInventoryMovement: true;
+    doesNotUpdateImportJob: true;
+    doesNotUpdateImportStagingRow: true;
+    serviceOnly: true;
+  };
+};
+
+export const AMAZON_SP_API_ORDERS_INCOME_TRANSACTION_DRY_RUN_ROUTE =
+  "/api/imports/amazon-sp-api/orders/income-transaction-dry-run" as const;
+
+export async function fetchAmazonSpApiOrdersIncomeTransactionDryRun(args: {
+  importJobId: string;
+  companyId?: string | null;
+}): Promise<AmazonSpApiOrdersIncomeTransactionDryRunResponse> {
+  const importJobId = String(args.importJobId || "").trim();
+  if (!importJobId) {
+    throw new Error("importJobId is required for Amazon SP-API Orders income transaction dry-run.");
+  }
+
+  const params = new URLSearchParams();
+  params.set("importJobId", importJobId);
+
+  const companyId = String(args.companyId || "").trim();
+  if (companyId) {
+    params.set("companyId", companyId);
+  }
+
+  const url = `${AMAZON_SP_API_ORDERS_INCOME_TRANSACTION_DRY_RUN_ROUTE}?${params.toString()}`;
+  const res = await fetch(url, {
+    method: "GET",
+  });
+  const data = await readJson<AmazonSpApiOrdersIncomeTransactionDryRunResponse>(
+    res,
+    "amazon-sp-api-orders-income-transaction-dry-run"
+  );
+
+  if (data.dryRun !== true) {
+    throw new Error("Amazon SP-API Orders income transaction dry-run response must have dryRun=true.");
+  }
+  if (data.writesDatabase !== false) {
+    throw new Error("Amazon SP-API Orders income transaction dry-run response must have writesDatabase=false.");
+  }
+  if (data.transactionWriteNow !== false) {
+    throw new Error("Amazon SP-API Orders income transaction dry-run response must have transactionWriteNow=false.");
+  }
+  if (data.inventoryWriteNow !== false) {
+    throw new Error("Amazon SP-API Orders income transaction dry-run response must have inventoryWriteNow=false.");
+  }
+
+  return data;
+}
+
