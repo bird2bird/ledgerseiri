@@ -195,6 +195,24 @@ type ProductSkuAliasResponse = {
 };
 
 
+// Step141-G5-AMAZON-SPAPI-CONTEXT-ALIAS-REGISTRATION:
+// Register ProductSkuAlias directly from Amazon SP-API resolution context.
+// This step must not resolve audit issues, create InventoryMovement, create Transaction, or deduct inventory.
+type AmazonSpApiContextAliasRegistrationState = {
+  submitting: boolean;
+  error: string | null;
+  success: string | null;
+  item: ProductSkuAliasResponse["item"] | null;
+};
+
+const EMPTY_AMAZON_SP_API_CONTEXT_ALIAS_REGISTRATION: AmazonSpApiContextAliasRegistrationState = {
+  submitting: false,
+  error: null,
+  success: null,
+  item: null,
+};
+
+
 function asText(value: unknown, fallback = "-") {
   if (value === undefined || value === null || value === "") return fallback;
   return String(value);
@@ -368,9 +386,32 @@ function readAmazonSpApiSkuResolutionQueryContext(
 
 function AmazonSpApiSkuResolutionContextCard(props: {
   context: AmazonSpApiSkuResolutionQueryContext;
+  products: ProductSkuItem[];
+  productsLoading: boolean;
+  productsError: string | null;
+  filteredProducts: ProductSkuItem[];
+  selectedSkuId: string;
+  skuSearchDraft: string;
+  aliasState: AmazonSpApiContextAliasRegistrationState;
   onApplySellerSku: () => void;
+  onSelectedSkuIdChange: (value: string) => void;
+  onSkuSearchDraftChange: (value: string) => void;
+  onRegisterAlias: () => void;
 }) {
-  const { context, onApplySellerSku } = props;
+  const {
+    context,
+    products,
+    productsLoading,
+    productsError,
+    filteredProducts,
+    selectedSkuId,
+    skuSearchDraft,
+    aliasState,
+    onApplySellerSku,
+    onSelectedSkuIdChange,
+    onSkuSearchDraftChange,
+    onRegisterAlias,
+  } = props;
 
   if (!context.active) return null;
 
@@ -448,6 +489,100 @@ function AmazonSpApiSkuResolutionContextCard(props: {
           <div className="mt-1 break-all font-mono font-bold text-slate-950">{context.reason || "-"}</div>
         </div>
       </div>
+      <div
+        data-testid="amazon-sp-api-context-alias-registration"
+        className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
+              ProductSkuAlias Registration
+            </div>
+            <h3 className="mt-1 text-sm font-black text-slate-950">
+              Amazon sellerSku を既存の商品SKUへリンク
+            </h3>
+            <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-emerald-900">
+              この操作は ProductSkuAlias だけを登録します。Inventory Audit の解決、InventoryMovement 作成、
+              Transaction 作成、在庫減算は実行しません。
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onRegisterAlias}
+            disabled={!selectedSkuId || productsLoading || aliasState.submitting}
+            className="inline-flex h-9 items-center justify-center rounded-xl bg-emerald-700 px-3 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aliasState.submitting ? "登録中..." : "ProductSkuAlias を登録"}
+          </button>
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1.4fr]">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-black text-emerald-800">商品SKU検索</span>
+            <input
+              value={skuSearchDraft}
+              onChange={(event) => onSkuSearchDraftChange(event.target.value)}
+              placeholder="sku / product / store"
+              className="h-10 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm outline-none focus:border-emerald-500"
+            />
+            <span className="text-[11px] font-bold text-emerald-800">
+              {productsLoading ? "商品SKUを読み込み中..." : `候補 ${filteredProducts.length} / ${products.length}`}
+            </span>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-black text-emerald-800">リンク先の商品SKU</span>
+            <select
+              value={selectedSkuId}
+              onChange={(event) => onSelectedSkuIdChange(event.target.value)}
+              className="h-10 rounded-xl border border-emerald-200 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm outline-none focus:border-emerald-500"
+            >
+              <option value="">商品SKUを選択</option>
+              {filteredProducts.slice(0, 100).map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.sku} / {product.name} / {product.store}
+                </option>
+              ))}
+            </select>
+            {productsError ? (
+              <span className="text-[11px] font-bold text-rose-700">{productsError}</span>
+            ) : null}
+          </label>
+        </div>
+
+        {aliasState.error ? (
+          <div className="mt-3 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700">
+            {aliasState.error}
+          </div>
+        ) : null}
+
+        {aliasState.success ? (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-800">
+            {aliasState.success}
+          </div>
+        ) : null}
+
+        {aliasState.item ? (
+          <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+              <div className="font-black text-slate-500">aliasSku</div>
+              <div className="mt-1 break-all font-mono font-bold text-slate-950">{aliasState.item.aliasSku}</div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+              <div className="font-black text-slate-500">normalizedAliasSku</div>
+              <div className="mt-1 break-all font-mono font-bold text-slate-950">{aliasState.item.normalizedAliasSku}</div>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+              <div className="font-black text-slate-500">linked sku</div>
+              <div className="mt-1 break-all font-mono font-bold text-slate-950">
+                {aliasState.item.sku?.skuCode || aliasState.item.skuId}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
     </section>
   );
 }
@@ -488,6 +623,10 @@ export default function InventoryAuditQueueWorkspace() {
   const [aliasError, setAliasError] = useState<string | null>(null);
   const [aliasSuccess, setAliasSuccess] = useState<string | null>(null);
   const [lastAlias, setLastAlias] = useState<ProductSkuAliasResponse | null>(null);
+  const [amazonSpApiContextAliasState, setAmazonSpApiContextAliasState] =
+    useState<AmazonSpApiContextAliasRegistrationState>(
+      EMPTY_AMAZON_SP_API_CONTEXT_ALIAS_REGISTRATION,
+    );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -609,6 +748,104 @@ export default function InventoryAuditQueueWorkspace() {
       setStockPreviewError(err instanceof Error ? err.message : "在庫プレビューの取得に失敗しました。");
     } finally {
       setStockPreviewLoading(false);
+    }
+  }
+
+  async function registerAmazonSpApiContextAlias() {
+    if (!amazonSpApiSkuResolutionContext.active) return;
+
+    const aliasSku = (
+      amazonSpApiSkuResolutionContext.aliasSku ||
+      amazonSpApiSkuResolutionContext.sellerSku
+    ).trim();
+
+    if (!aliasSku) {
+      setAmazonSpApiContextAliasState({
+        submitting: false,
+        error: "Alias登録に必要な sellerSku / aliasSku がありません。",
+        success: null,
+        item: null,
+      });
+      return;
+    }
+
+    if (!selectedSkuId) {
+      setAmazonSpApiContextAliasState({
+        submitting: false,
+        error: "リンク先の商品SKUを選択してください。",
+        success: null,
+        item: null,
+      });
+      return;
+    }
+
+    const selectedProduct = products.find((item) => item.id === selectedSkuId) ?? null;
+
+    setAmazonSpApiContextAliasState({
+      submitting: true,
+      error: null,
+      success: null,
+      item: null,
+    });
+
+    try {
+      const response = await fetch("/api/inventory/sku-aliases", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          aliasSku,
+          skuId: selectedSkuId,
+          skuCode: selectedProduct?.sku || undefined,
+          sourceType: "AMAZON_SP_API_ORDERS",
+          storeId: selectedProduct?.storeId || undefined,
+          note: [
+            "Created from Amazon SP-API readiness context",
+            `importJob=${amazonSpApiSkuResolutionContext.importJobId}`,
+            amazonSpApiSkuResolutionContext.rowNo
+              ? `row=${amazonSpApiSkuResolutionContext.rowNo}`
+              : "",
+            amazonSpApiSkuResolutionContext.asin
+              ? `asin=${amazonSpApiSkuResolutionContext.asin}`
+              : "",
+            amazonSpApiSkuResolutionContext.amazonOrderId
+              ? `amazonOrderId=${amazonSpApiSkuResolutionContext.amazonOrderId}`
+              : "",
+            amazonSpApiSkuResolutionContext.orderItemId
+              ? `orderItemId=${amazonSpApiSkuResolutionContext.orderItemId}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("; "),
+          isActive: true,
+        }),
+      });
+
+      const responseText = await response.text();
+      const parsed = responseText ? (JSON.parse(responseText) as ProductSkuAliasResponse) : null;
+
+      if (!response.ok || !parsed?.ok) {
+        throw new Error(parsed?.message || `Alias登録 HTTP ${response.status}`);
+      }
+
+      setAmazonSpApiContextAliasState({
+        submitting: false,
+        error: null,
+        success: `ProductSkuAlias を登録しました。${parsed.item.aliasSku} → ${
+          parsed.item.sku?.skuCode ?? selectedProduct?.sku ?? selectedSkuId
+        }`,
+        item: parsed.item,
+      });
+    } catch (err) {
+      setAmazonSpApiContextAliasState({
+        submitting: false,
+        error: err instanceof Error ? err.message : "ProductSkuAlias の登録に失敗しました。",
+        success: null,
+        item: null,
+      });
     }
   }
 
@@ -785,6 +1022,13 @@ export default function InventoryAuditQueueWorkspace() {
   }, [selected?.id]);
 
   useEffect(() => {
+    if (amazonSpApiSkuResolutionContext.active) {
+      void loadProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amazonSpApiSkuResolutionContext.active]);
+
+  useEffect(() => {
     const product = products.find((item) => item.id === selectedSkuId) ?? null;
     setResolutionConfirmed(false);
     void loadStockPreview(product);
@@ -947,6 +1191,29 @@ export default function InventoryAuditQueueWorkspace() {
               </a>
             </div>
           ) : null}
+
+          <AmazonSpApiSkuResolutionContextCard
+            context={amazonSpApiSkuResolutionContext}
+            products={products}
+            productsLoading={productsLoading}
+            productsError={productsError}
+            filteredProducts={filteredProducts}
+            selectedSkuId={selectedSkuId}
+            skuSearchDraft={skuSearchDraft}
+            aliasState={amazonSpApiContextAliasState}
+            onApplySellerSku={() => {
+              const nextSku =
+                amazonSpApiSkuResolutionContext.sellerSku ||
+                amazonSpApiSkuResolutionContext.aliasSku;
+
+              setSkuDraft(nextSku);
+              setSku(nextSku);
+            }}
+            onSelectedSkuIdChange={setSelectedSkuId}
+            onSkuSearchDraftChange={setSkuSearchDraft}
+            onRegisterAlias={registerAmazonSpApiContextAlias}
+          />
+
 
           <section className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
