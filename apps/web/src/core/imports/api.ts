@@ -1,3 +1,43 @@
+
+function formatImportApiErrorBodyForMessage(body: unknown): string {
+  if (body == null) return "";
+
+  if (typeof body === "string") {
+    return body.length > 1200 ? `${body.slice(0, 1200)}...` : body;
+  }
+
+  try {
+    const value = body as any;
+    const parts: string[] = [];
+
+    const message = value?.message;
+    const code = value?.code;
+    const amazonStatus = value?.amazonStatus;
+    const httpStatus = value?.httpStatus;
+    const requestSummary = value?.requestSummary;
+    const sanitizedResponse = value?.sanitizedResponse;
+
+    if (message) parts.push(`message=${String(message)}`);
+    if (code) parts.push(`code=${String(code)}`);
+    if (amazonStatus) parts.push(`amazonStatus=${String(amazonStatus)}`);
+    if (httpStatus !== undefined && httpStatus !== null) parts.push(`httpStatus=${String(httpStatus)}`);
+
+    if (requestSummary) {
+      parts.push(`requestSummary=${JSON.stringify(requestSummary)}`);
+    }
+
+    if (sanitizedResponse) {
+      parts.push(`sanitizedResponse=${JSON.stringify(sanitizedResponse).slice(0, 1200)}`);
+    }
+
+    if (parts.length) return parts.join(" | ");
+
+    return JSON.stringify(body).slice(0, 1200);
+  } catch {
+    return String(body);
+  }
+}
+
 import type {
   AmazonSpApiConnectionStatusFrontendBackendStatus,
   AmazonSpApiConnectionStatusFrontendReadModelStatus,
@@ -26,10 +66,23 @@ import type {
 } from "./types";
 
 async function readJson<T>(res: Response, label: string): Promise<T> {
-  if (!res.ok) {
-    throw new Error(`${label} failed: ${res.status}`);
+  const text = await res.text();
+  let parsed: unknown = null;
+
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
   }
-  return (await res.json()) as T;
+
+  if (!res.ok) {
+    const details = formatImportApiErrorBodyForMessage(parsed);
+    throw new Error(details ? `${label} failed: ${res.status} | ${details}` : `${label} failed: ${res.status}`);
+  }
+
+  return parsed as T;
 }
 
 async function postJson<T>(url: string, payload: unknown): Promise<T> {
