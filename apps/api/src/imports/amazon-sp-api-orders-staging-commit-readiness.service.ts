@@ -24,6 +24,13 @@ function readNumber(payload: Record<string, unknown>, key: string): number | nul
   return Number.isFinite(n) ? n : null;
 }
 
+// Step141-G6-AMAZON-SPAPI-ALIAS-AWARE-READINESS:
+// Normalize Amazon sellerSku the same way ProductSkuAlias.normalizedAliasSku is created.
+// This readiness projection is read-only and must not update ImportStagingRow.
+function normalizeAmazonSellerSkuForAlias(value: string | null): string {
+  return String(value || '').trim().replace(/\s+/g, '').toUpperCase();
+}
+
 function countDuplicateDedupeHashes(rows: { dedupeHash?: string | null }[]) {
   const counts = new Map<string, number>();
 
@@ -166,6 +173,46 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
       .filter((value) => Number.isFinite(value)),
   );
 
+  const amazonAliasKeys = Array.from(
+    new Set(
+      stagingRows
+        .map((row) => normalizeAmazonSellerSkuForAlias(readString(asRecord(row.normalizedPayloadJson), 'sellerSku')))
+        .filter(Boolean),
+    ),
+  );
+
+  const productSkuAliases = amazonAliasKeys.length
+    ? await args.prisma.productSkuAlias.findMany({
+        where: {
+          companyId,
+          isActive: true,
+          normalizedAliasSku: { in: amazonAliasKeys },
+        },
+        select: {
+          skuId: true,
+          aliasSku: true,
+          normalizedAliasSku: true,
+          sourceType: true,
+          storeId: true,
+          sku: {
+            select: {
+              id: true,
+              skuCode: true,
+              name: true,
+              productId: true,
+              storeId: true,
+              asin: true,
+              externalSku: true,
+            },
+          },
+        },
+      })
+    : [];
+
+  const productSkuAliasByNormalizedAliasSku = new Map(
+    productSkuAliases.map((alias) => [alias.normalizedAliasSku, alias]),
+  );
+
   const readinessRows: AmazonSpApiOrdersStagingCommitReadinessRow[] = stagingRows.map((row) => {
     const payload = asRecord(row.normalizedPayloadJson);
     const amazonOrderId = readString(payload, 'amazonOrderId');
@@ -198,8 +245,21 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
       warnings.push(`UNEXPECTED_MATCH_STATUS:${row.matchStatus}`);
     }
 
-    if (!row.targetEntityId) {
+    const normalizedSellerSku = normalizeAmazonSellerSkuForAlias(sellerSku);
+    const matchedAlias = normalizedSellerSku
+      ? productSkuAliasByNormalizedAliasSku.get(normalizedSellerSku) || null
+      : null;
+
+    const projectedTargetEntityType =
+      row.targetEntityType || (matchedAlias ? 'ProductSku' : null);
+    const projectedTargetEntityId = row.targetEntityId || matchedAlias?.skuId || null;
+
+    if (!projectedTargetEntityId) {
       warnings.push('SKU_NOT_LINKED_TO_TARGET_ENTITY_YET');
+    }
+
+    if (matchedAlias && !row.targetEntityId) {
+      warnings.push('SKU_LINKED_BY_PRODUCT_SKU_ALIAS');
     }
 
     const dedupeHash = String(row.dedupeHash || '').trim();
@@ -232,8 +292,8 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
       asin,
       itemPriceAmount,
       quantityOrdered,
-      targetEntityType: row.targetEntityType,
-      targetEntityId: row.targetEntityId,
+      targetEntityType: projectedTargetEntityType,
+      targetEntityId: projectedTargetEntityId,
       readiness: blockers.length > 0 ? 'BLOCKED' : 'READY',
       blockers,
       warnings,

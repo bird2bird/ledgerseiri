@@ -70,8 +70,17 @@ assert(
   service.includes("MISSING_ORDER_IDENTITY") &&
     service.includes("MISSING_ITEM_PRICE_AMOUNT") &&
     service.includes("TRANSACTION_ALREADY_EXISTS_FOR_DEDUPE_HASH") &&
-    service.includes("SKU_NOT_LINKED_TO_TARGET_ENTITY_YET"),
+    service.includes("SKU_NOT_LINKED_TO_TARGET_ENTITY_YET") &&
+    service.includes("SKU_LINKED_BY_PRODUCT_SKU_ALIAS"),
   "readiness blockers/warnings are incomplete"
+);
+
+assert(
+  service.includes("args.prisma.productSkuAlias.findMany") &&
+    service.includes("normalizeAmazonSellerSkuForAlias") &&
+    service.includes("productSkuAliasByNormalizedAliasSku") &&
+    service.includes("projectedTargetEntityId"),
+  "alias-aware readiness projection is missing"
 );
 
 console.log("[OK] Step141-G1 staging commit readiness contract smoke passed");
