@@ -260,7 +260,8 @@
     "smoke:amazon-sp-api-orders-staging-commit-readiness": "node scripts/smoke-amazon-sp-api-orders-staging-commit-readiness-contract.js",
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-service-only": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-service-only.js",
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-route": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-route.js",
-    "smoke:amazon-sp-api-orders-income-transaction-dry-run-route-runtime": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-route-runtime.js"
+    "smoke:amazon-sp-api-orders-income-transaction-dry-run-route-runtime": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-route-runtime.js",
+    "smoke:amazon-sp-api-orders-real-preview-amazon400-details": "node scripts/smoke-amazon-sp-api-orders-real-preview-amazon400-details.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -32,6 +32,54 @@ export type AmazonSpApiOrdersRealPreviewInput = {
   transport: AmazonSpApiOrdersHttpTransport;
 };
 
+export class AmazonSpApiOrdersRealPreviewHttpError extends Error {
+  readonly code = 'AMAZON_SP_API_ORDERS_REAL_PREVIEW_HTTP_FAILED' as const;
+  readonly httpStatus: number | null;
+  readonly amazonStatus: string;
+  readonly sanitizedResponse: unknown;
+  readonly requestSummary: {
+    region: AmazonSpApiOrdersRealPreviewInput['region'];
+    marketplaceId: string;
+    createdAfter: string;
+    createdBefore?: string;
+  };
+
+  constructor(args: {
+    amazonStatus: string;
+    httpStatus: number | null;
+    sanitizedResponse: unknown;
+    requestSummary: {
+      region: AmazonSpApiOrdersRealPreviewInput['region'];
+      marketplaceId: string;
+      createdAfter: string;
+      createdBefore?: string;
+    };
+  }) {
+    super(`STEP_P2A_REAL_PREVIEW_HTTP_FAILED: ${args.amazonStatus}`);
+    this.name = 'AmazonSpApiOrdersRealPreviewHttpError';
+    this.amazonStatus = args.amazonStatus;
+    this.httpStatus = args.httpStatus;
+    this.sanitizedResponse = args.sanitizedResponse;
+    this.requestSummary = args.requestSummary;
+  }
+
+  toResponseBody() {
+    return {
+      message: this.message,
+      code: this.code,
+      amazonStatus: this.amazonStatus,
+      httpStatus: this.httpStatus,
+      requestSummary: this.requestSummary,
+      sanitizedResponse: this.sanitizedResponse,
+      writesImportJob: false,
+      writesImportStagingRow: false,
+      writesTransaction: false,
+      writesInventoryMovement: false,
+    };
+  }
+}
+
+
 export type AmazonSpApiOrdersRealPreviewEnvelope = {
   step: 'Step140-P';
   source: 'amazon-sp-api-orders-real-preview';
@@ -175,7 +223,17 @@ export async function previewAmazonSpApiOrdersRealNoPersistence(
   const listOrdersHttp = await executeAmazonSpApiOrdersListOrdersHttp(listOrdersInput, httpOptions);
 
   if (!listOrdersHttp.ok) {
-    throw new Error(`STEP140_P_LIST_ORDERS_HTTP_FAILED: ${listOrdersHttp.error?.code || listOrdersHttp.status}`);
+    throw new AmazonSpApiOrdersRealPreviewHttpError({
+      amazonStatus: String(listOrdersHttp.error?.code || listOrdersHttp.status),
+      httpStatus: typeof listOrdersHttp.status === 'number' ? listOrdersHttp.status : null,
+      sanitizedResponse: listOrdersHttp.sanitizedResponse,
+      requestSummary: {
+        region: input.region,
+        marketplaceId: input.marketplaceId,
+        createdAfter: input.createdAfter,
+        createdBefore: input.createdBefore,
+      },
+    });
   }
 
   const orders = parseOrdersFromListOrdersPayload(listOrdersHttp.sanitizedResponse.json);

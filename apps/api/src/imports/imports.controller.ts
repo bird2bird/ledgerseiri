@@ -9,7 +9,7 @@ import { AmazonSpApiRealLwaActivationGateService } from './amazon-sp-api-real-lw
 import { AmazonSpApiOauthCallbackCommitGateService } from './amazon-sp-api-oauth-callback-commit-gate.service';
 import { AmazonSpApiTokenPersistenceOrchestrator } from './amazon-sp-api-token-persistence.orchestrator';
 import { buildAmazonSpApiOrdersPreviewService } from './amazon-sp-api-orders-preview.service';
-import { previewAmazonSpApiOrdersRealNoPersistence } from './amazon-sp-api-orders-real-preview.service';
+import { AmazonSpApiOrdersRealPreviewHttpError, previewAmazonSpApiOrdersRealNoPersistence } from './amazon-sp-api-orders-real-preview.service';
 import type { AmazonSpApiOrdersHttpTransport } from './amazon-sp-api-orders-http.client';
 import { buildAmazonSpApiOrdersServerOnlyRawSignedTransport } from './amazon-sp-api-orders-server-only-raw-signed.transport';
 import {
@@ -1019,7 +1019,9 @@ export class ImportsController {
       ? buildAmazonSpApiOrdersServerOnlyRawSignedTransport({ accessToken: accessTokenForOrders })
       : buildStep140VMockedOrdersTransport();
 
-    const result = await previewAmazonSpApiOrdersRealNoPersistence({
+    let result: Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>>;
+    try {
+      result = await previewAmazonSpApiOrdersRealNoPersistence({
       companyId,
       storeId: normalizedStoreId,
       marketplaceId: normalizedMarketplaceId,
@@ -1046,6 +1048,12 @@ export class ImportsController {
       },
       transport: serverOnlyTransport,
     });
+    } catch (error) {
+      if (error instanceof AmazonSpApiOrdersRealPreviewHttpError) {
+        throw new BadRequestException(error.toResponseBody());
+      }
+      throw error;
+    }
 
     const productionVerification = verifyAmazonSpApiOrdersRealPreviewProductionReadiness({
       previewResult: result,
