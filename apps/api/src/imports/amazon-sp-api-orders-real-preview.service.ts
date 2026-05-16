@@ -279,7 +279,7 @@ function summarizeAmazonSpApiListOrdersPayloadForDiagnostics(value: unknown): {
 
   const firstOrders = orders.slice(0, 5).map((order) => {
     const row = toDiagnosticsRecord(order);
-    return {
+  return {
       amazonOrderId: typeof row?.AmazonOrderId === 'string' ? row.AmazonOrderId : null,
       orderStatus: typeof row?.OrderStatus === 'string' ? row.OrderStatus : null,
       purchaseDate: typeof row?.PurchaseDate === 'string' ? row.PurchaseDate : null,
@@ -295,6 +295,35 @@ function summarizeAmazonSpApiListOrdersPayloadForDiagnostics(value: unknown): {
     nextTokenPresent: Boolean(payload?.NextToken ?? root?.NextToken),
     firstOrders,
   };
+}
+
+function logAmazonSpApiPreviewCountPipelineDiagnostic(args: {
+  listOrdersParsedCount: number;
+  normalizedOrdersCount: number;
+  normalizedOrderItemsCount: number;
+  getOrderItemsAttemptCount: number;
+  getOrderItemsSuccessCount: number;
+  getOrderItemsFailedCount: number;
+  responseOrdersCount?: number;
+  responseOrderItemsCount?: number;
+}): void {
+  const diagnostic = {
+    source: 'P3_Z6_PREVIEW_COUNT_PIPELINE_DIAG',
+    listOrdersParsedCount: args.listOrdersParsedCount,
+    normalizedOrdersCount: args.normalizedOrdersCount,
+    normalizedOrderItemsCount: args.normalizedOrderItemsCount,
+    getOrderItemsAttemptCount: args.getOrderItemsAttemptCount,
+    getOrderItemsSuccessCount: args.getOrderItemsSuccessCount,
+    getOrderItemsFailedCount: args.getOrderItemsFailedCount,
+    responseOrdersCount: args.responseOrdersCount ?? null,
+    responseOrderItemsCount: args.responseOrderItemsCount ?? null,
+    writesImportJob: false,
+    writesImportStagingRow: false,
+    writesTransaction: false,
+    writesInventoryMovement: false,
+  };
+
+  console.log(`P3_Z6_PREVIEW_COUNT_PIPELINE_DIAG ${JSON.stringify(diagnostic)}`);
 }
 
 function logAmazonSpApiListOrdersZeroDiagnostic(args: {
@@ -424,6 +453,10 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     nextTokenRemaining: Boolean(listOrdersNextToken),
   });
   const normalizedOrders: AmazonSpApiOrdersNormalizedOrder[] = [];
+  let getOrderItemsAttemptCount = 0;
+  let getOrderItemsSuccessCount = 0;
+  let getOrderItemsFailedCount = 0;
+
   const normalizedOrderItems: AmazonSpApiOrdersNormalizedOrderItem[] = [];
   const warnings: string[] = [];
 
@@ -435,6 +468,7 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
       continue;
     }
 
+    getOrderItemsAttemptCount += 1;
     const orderItemsHttp = await executeAmazonSpApiOrdersGetOrderItemsHttp(
       {
         companyId: input.companyId,
@@ -451,10 +485,12 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     );
 
     if (!orderItemsHttp.ok) {
+      getOrderItemsFailedCount += 1;
       warnings.push(`Failed to preview order items for ${amazonOrderId}: ${orderItemsHttp.error?.code || orderItemsHttp.status}`);
       continue;
     }
 
+      getOrderItemsSuccessCount += 1;
     const orderItems = parseOrderItemsPayload(orderItemsHttp.sanitizedResponse.json);
     const normalizedItemsForOrder = normalizeRealOrderItems(input, order, orderItems);
     normalizedOrderItems.push(...normalizedItemsForOrder);
@@ -464,6 +500,17 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
   const unresolvedItems = normalizedOrderItems.filter((item) => !item.sellerSku);
   const resolvedItems = normalizedOrderItems.filter((item) => Boolean(item.sellerSku));
   const totalPreviewAmount = normalizedOrders.reduce((sum, order) => sum + order.orderTotalAmount, 0);
+
+  logAmazonSpApiPreviewCountPipelineDiagnostic({
+    listOrdersParsedCount: orders.length,
+    normalizedOrdersCount: normalizedOrders.length,
+    normalizedOrderItemsCount: normalizedOrderItems.length,
+    getOrderItemsAttemptCount,
+    getOrderItemsSuccessCount,
+    getOrderItemsFailedCount,
+    responseOrdersCount: normalizedOrders.length,
+    responseOrderItemsCount: normalizedOrderItems.length,
+  });
 
   return {
     step: 'Step140-P',

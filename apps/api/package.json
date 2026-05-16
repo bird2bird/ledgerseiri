@@ -266,7 +266,8 @@
     "smoke:amazon-sp-api-orders-real-preview-zero-diagnostic-log": "node scripts/smoke-amazon-sp-api-orders-real-preview-zero-diagnostic-log.js",
     "smoke:amazon-sp-api-orders-real-preview-no-status-filter": "node scripts/smoke-amazon-sp-api-orders-real-preview-no-status-filter.js",
     "smoke:amazon-sp-api-orders-real-preview-pagination": "node scripts/smoke-amazon-sp-api-orders-real-preview-pagination.js",
-    "smoke:amazon-sp-api-orders-nexttoken-transport-url-boundary": "node scripts/smoke-amazon-sp-api-orders-nexttoken-transport-url-boundary.js"
+    "smoke:amazon-sp-api-orders-nexttoken-transport-url-boundary": "node scripts/smoke-amazon-sp-api-orders-nexttoken-transport-url-boundary.js",
+    "smoke:amazon-sp-api-orders-real-preview-count-pipeline-diagnostic": "node scripts/smoke-amazon-sp-api-orders-real-preview-count-pipeline-diagnostic.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
