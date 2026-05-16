@@ -49,6 +49,7 @@ export type AmazonSpApiOrdersSignedRequestEnvelope = {
   path: string;
   canonicalQueryString: string;
   signedUrl: string;
+  httpSignedUrl: string;
   headers: Record<string, string>;
   sanitized: {
     accessTokenRedacted: true;
@@ -303,6 +304,7 @@ function buildSignedGetRequestEnvelope(parts: InternalSignedRequestParts): Amazo
     // The raw canonical query string is used internally for SigV4 signing only.
     // The returned envelope is sanitized because NextToken can be sensitive and must not be logged.
     canonicalQueryString: redactNextTokenInUrl(canonicalQueryString),
+    httpSignedUrl: signedUrl,
     signedUrl: redactNextTokenInUrl(signedUrl),
     headers,
     sanitized: {

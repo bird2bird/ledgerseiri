@@ -100,7 +100,7 @@ export async function executeAmazonSpApiOrdersSignedHttpEnvelope(
 
   const transportRequest: AmazonSpApiOrdersHttpTransportRequest = {
     method: envelope.method,
-    signedUrl: envelope.signedUrl,
+    signedUrl: envelope.httpSignedUrl,
     headers: envelope.headers,
     operation: envelope.operation,
     timeoutMs,
