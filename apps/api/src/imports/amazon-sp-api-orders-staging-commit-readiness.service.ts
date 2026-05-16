@@ -43,6 +43,18 @@ function countDuplicateDedupeHashes(rows: { dedupeHash?: string | null }[]) {
   return counts;
 }
 
+
+function isAmazonSpApiOrdersOrderItemStagingRow(row: { normalizedPayloadJson: unknown }): boolean {
+  const payload = asRecord(row.normalizedPayloadJson);
+  const rowKind = readString(payload, 'rowKind');
+  const stagingLevel = readString(payload, 'stagingLevel');
+
+  if (rowKind === 'order-header' || stagingLevel === 'order') return false;
+  if (rowKind === 'order-item' || stagingLevel === 'item') return true;
+
+  return Boolean(readString(payload, 'orderItemId'));
+}
+
 export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
   prisma: PrismaService;
   companyId: string;
@@ -134,8 +146,10 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     },
   });
 
-  const duplicateDedupeCounts = countDuplicateDedupeHashes(stagingRows);
-  const dedupeHashes = stagingRows
+  const itemStagingRows = stagingRows.filter(isAmazonSpApiOrdersOrderItemStagingRow);
+
+  const duplicateDedupeCounts = countDuplicateDedupeHashes(itemStagingRows);
+  const dedupeHashes = itemStagingRows
     .map((row) => String(row.dedupeHash || '').trim())
     .filter(Boolean);
 
@@ -175,7 +189,7 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
 
   const amazonAliasKeys = Array.from(
     new Set(
-      stagingRows
+      itemStagingRows
         .map((row) => normalizeAmazonSellerSkuForAlias(readString(asRecord(row.normalizedPayloadJson), 'sellerSku')))
         .filter(Boolean),
     ),
@@ -213,7 +227,7 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     productSkuAliases.map((alias) => [alias.normalizedAliasSku, alias]),
   );
 
-  const readinessRows: AmazonSpApiOrdersStagingCommitReadinessRow[] = stagingRows.map((row) => {
+  const readinessRows: AmazonSpApiOrdersStagingCommitReadinessRow[] = itemStagingRows.map((row) => {
     const payload = asRecord(row.normalizedPayloadJson);
     const amazonOrderId = readString(payload, 'amazonOrderId');
     const orderItemId = readString(payload, 'orderItemId');
@@ -324,7 +338,7 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
 
   const commitBlockedReasons: string[] = [];
   if (importJob.status !== 'SUCCEEDED') commitBlockedReasons.push('IMPORT_JOB_NOT_SUCCEEDED');
-  if (stagingRows.length === 0) commitBlockedReasons.push('NO_STAGING_ROWS');
+  if (itemStagingRows.length === 0) commitBlockedReasons.push('NO_STAGING_ROWS');
   if (blockedRows > 0) commitBlockedReasons.push('BLOCKED_ROWS_PRESENT');
   if (unresolvedSkuRows > 0) commitBlockedReasons.push('UNRESOLVED_SKU_ROWS_PRESENT');
 
@@ -342,7 +356,7 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     importJobFound: true,
     sourceType: importJob.sourceType,
     status: importJob.status,
-    totalRows: stagingRows.length,
+    totalRows: itemStagingRows.length,
     readyRows,
     blockedRows,
     duplicateRows,

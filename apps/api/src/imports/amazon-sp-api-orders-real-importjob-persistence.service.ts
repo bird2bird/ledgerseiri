@@ -199,6 +199,8 @@ export async function persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRo
       businessMonth,
       rawPayloadJson: {
         source: 'amazon-sp-api-orders-real-preview',
+        rowKind: 'order-item',
+        stagingLevel: 'item',
         item,
       },
       normalizedPayloadJson: {
@@ -207,6 +209,8 @@ export async function persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRo
         orderItemId: orderItemId || null,
         businessMonth,
         sourceType: 'amazon-sp-api-orders',
+        rowKind: 'order-item',
+        stagingLevel: 'item',
         storeId,
         marketplaceId,
         region,
@@ -218,6 +222,73 @@ export async function persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRo
       targetEntityId: null,
     };
   });
+
+  const orderHeaderStagingRows = normalizedOrders.map((order, index) => {
+    const orderRecord = (order || {}) as Record<string, unknown>;
+    const amazonOrderIdValue = orderRecord.amazonOrderId;
+    const amazonOrderId = typeof amazonOrderIdValue === 'string' ? amazonOrderIdValue : '';
+    const purchaseDateValue = orderRecord.purchaseDate;
+    const purchaseDate = typeof purchaseDateValue === 'string' ? purchaseDateValue : '';
+    const orderStatusValue = orderRecord.orderStatus;
+    const orderStatus = typeof orderStatusValue === 'string' ? orderStatusValue : '';
+    const orderTotalAmountValue = orderRecord.orderTotalAmount;
+    const orderTotalAmount =
+      typeof orderTotalAmountValue === 'number' && Number.isFinite(orderTotalAmountValue)
+        ? orderTotalAmountValue
+        : null;
+    const businessMonth = deriveBusinessMonth(purchaseDate, now);
+    const dedupeHash = sha256([
+      'amazon-sp-api-orders',
+      'order-header',
+      input.companyId,
+      input.storeId,
+      input.marketplaceId,
+      amazonOrderId,
+      purchaseDate,
+      orderStatus,
+      String(orderTotalAmount ?? ''),
+    ].join('|'));
+
+    return {
+      importJobId: '__PENDING__',
+      companyId: input.companyId,
+      module: 'store-orders',
+      rowNo: stagingRows.length + index + 1,
+      businessMonth,
+      rawPayloadJson: {
+        source: 'amazon-sp-api-orders-real-preview',
+        rowKind: 'order-header',
+        stagingLevel: 'order',
+        amazonOrderId,
+        item: null,
+        order,
+      },
+      normalizedPayloadJson: {
+        ...orderRecord,
+        sourceType: 'amazon-sp-api-orders',
+        rowKind: 'order-header',
+        stagingLevel: 'order',
+        amazonOrderId,
+        orderItemId: null,
+        storeId: input.storeId,
+        marketplaceId: input.marketplaceId,
+        region: input.region,
+        purchaseDate,
+        orderStatus,
+        orderTotalAmount,
+        businessMonth,
+        importJobId: '__PENDING__',
+      },
+      dedupeHash,
+      matchStatus: 'PENDING_REVIEW',
+      matchReason: '',
+      targetEntityType: null,
+      targetEntityId: null,
+    };
+  });
+
+  stagingRows.push(...orderHeaderStagingRows);
+
 
   const businessMonths = Array.from(
     new Set(stagingRows.map((row) => row.businessMonth).filter((v): v is string => Boolean(v))),

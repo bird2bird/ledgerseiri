@@ -172,6 +172,31 @@ type NormalizedPayload = {
   } | null;
 };
 
+
+function isAmazonSpApiOrdersOrderItemStagingPayload(payloadInput: unknown): boolean {
+  const payload = coercePayload(payloadInput);
+  const payloadRecord = payload as Record<string, unknown>;
+  const rowKind = typeof payloadRecord.rowKind === 'string' ? payloadRecord.rowKind : '';
+  const stagingLevel = typeof payloadRecord.stagingLevel === 'string' ? payloadRecord.stagingLevel : '';
+
+  if (rowKind === 'order-header' || stagingLevel === 'order') return false;
+  if (rowKind === 'order-item' || stagingLevel === 'item') return true;
+
+  const itemRecord =
+    payloadRecord.item && typeof payloadRecord.item === 'object' && !Array.isArray(payloadRecord.item)
+      ? (payloadRecord.item as Record<string, unknown>)
+      : null;
+  const orderItemId =
+    itemRecord && typeof itemRecord.orderItemId === 'string'
+      ? itemRecord.orderItemId
+      : typeof payloadRecord.orderItemId === 'string'
+        ? payloadRecord.orderItemId
+        : '';
+
+  return Boolean(orderItemId);
+}
+
+
 export async function deductAmazonSpApiOrdersInventoryFromCommittedTransactions(
   input: DeductAmazonSpApiOrdersInventoryInput,
 ): Promise<DeductAmazonSpApiOrdersInventoryResult> {
@@ -197,6 +222,8 @@ export async function deductAmazonSpApiOrdersInventoryFromCommittedTransactions(
     }),
   ]);
 
+  const itemStagingRows = stagingRows.filter((row) => isAmazonSpApiOrdersOrderItemStagingPayload(row.normalizedPayloadJson));
+
   const transactionByRowNo = new Map<number, AmazonSpApiOrdersCommittedIncomeTransaction>();
   for (const tx of transactions) {
     if (typeof tx.sourceRowNo === 'number') {
@@ -217,7 +244,7 @@ export async function deductAmazonSpApiOrdersInventoryFromCommittedTransactions(
   let transactionMissingSkippedCount = 0;
   let invalidPayloadSkippedCount = 0;
 
-  for (const row of stagingRows) {
+  for (const row of itemStagingRows) {
     const payload = coercePayload(row.normalizedPayloadJson);
     const item = payload.amazonOrderItem;
     const order = payload.amazonOrder;

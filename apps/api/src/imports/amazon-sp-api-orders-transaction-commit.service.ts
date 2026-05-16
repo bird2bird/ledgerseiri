@@ -249,6 +249,25 @@ function readPreviewOrderAndItem(payload: Record<string, unknown>): {
 }
 
 // Step142-B1: service-only dry-run projection.
+
+function isAmazonSpApiOrdersOrderItemStagingPayload(payloadInput: unknown): boolean {
+  const payload = coerceNormalizedPayload(payloadInput);
+  const payloadRecord = payload as Record<string, unknown>;
+  const rowKind = readPreviewString(payloadRecord.rowKind);
+  const stagingLevel = readPreviewString(payloadRecord.stagingLevel);
+
+  if (rowKind === 'order-header' || stagingLevel === 'order') return false;
+  if (rowKind === 'order-item' || stagingLevel === 'item') return true;
+
+  const itemRecord =
+    payloadRecord.item && typeof payloadRecord.item === 'object' && !Array.isArray(payloadRecord.item)
+      ? (payloadRecord.item as Record<string, unknown>)
+      : null;
+
+  return Boolean(readPreviewString(itemRecord?.orderItemId) || readPreviewString(payloadRecord.orderItemId));
+}
+
+
 // This function must stay read-only: no Transaction create, no InventoryMovement create,
 // no ImportJob mutation, and no ImportStagingRow mutation.
 export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRun(
@@ -291,7 +310,9 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
   });
 
   const dedupeCounts = new Map<string, number>();
-  for (const row of stagingRows) {
+  const itemStagingRows = stagingRows.filter((row: AmazonSpApiOrdersTransactionCommitStagingRow) => isAmazonSpApiOrdersOrderItemStagingPayload(row.normalizedPayloadJson));
+
+  for (const row of itemStagingRows) {
     const key = String(row?.dedupeHash || '').trim();
     if (!key) continue;
     dedupeCounts.set(key, (dedupeCounts.get(key) || 0) + 1);
@@ -299,7 +320,7 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
 
   const rows: PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult['rows'] = [];
 
-  for (const row of stagingRows) {
+  for (const row of itemStagingRows) {
     const blockers: string[] = [];
     const warnings: string[] = [];
 
@@ -474,6 +495,8 @@ export async function commitAmazonSpApiOrdersStagingRowsToIncomeTransactions(
     },
   });
 
+  const itemRows = rows.filter((row: AmazonSpApiOrdersTransactionCommitStagingRow) => isAmazonSpApiOrdersOrderItemStagingPayload(row.normalizedPayloadJson));
+
   const committedTransactions: CommitAmazonSpApiOrdersStagingRowsResult['committedTransactions'] = [];
   const skippedRows: CommitAmazonSpApiOrdersStagingRowsResult['skippedRows'] = [];
 
@@ -481,7 +504,7 @@ export async function commitAmazonSpApiOrdersStagingRowsToIncomeTransactions(
   let unresolvedSkuSkippedCount = 0;
   let failedRowCount = 0;
 
-  for (const row of rows) {
+  for (const row of itemRows) {
     if (row.matchStatus !== 'READY_FOR_REVIEW') {
       const reasonCode = row.matchStatus === 'UNRESOLVED_SKU' ? 'UNRESOLVED_SKU' : 'NOT_READY_FOR_REVIEW';
       if (reasonCode === 'UNRESOLVED_SKU') unresolvedSkuSkippedCount += 1;
