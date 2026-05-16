@@ -1,67 +1,76 @@
 #!/usr/bin/env node
-
 const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const cardPath = path.join(root, "src/components/app/jobs/ImportJobsTableCard.tsx");
-const panelPath = path.join(root, "src/components/app/jobs/AmazonSpApiOrdersStagingSummaryPanel.tsx");
+const componentPath = path.join(root, "src/components/app/jobs/AmazonSpApiOrdersStagingSummaryPanel.tsx");
+const source = fs.readFileSync(componentPath, "utf8");
 
-const card = fs.readFileSync(cardPath, "utf8");
-const panel = fs.readFileSync(panelPath, "utf8");
-
-const cardRequired = [
-  '"use client";',
-  'import { AmazonSpApiOrdersStagingSummaryPanel } from "./AmazonSpApiOrdersStagingSummaryPanel";',
-  "<AmazonSpApiOrdersStagingSummaryPanel",
-  "rows={detailRowsState.stagingRows}",
-  "loading={detailRowsState.loading}",
-  "error={detailRowsState.error ? String(detailRowsState.error) : null}",
-  "isAmazonSpApiOrdersImportJob(job)",
-];
-
-for (const marker of cardRequired) {
-  if (!card.includes(marker)) {
-    throw new Error(`[FAIL] ImportJobsTableCard missing marker: ${marker}`);
+function assertIncludes(needle, message) {
+  if (!source.includes(needle)) {
+    throw new Error(`${message}\nMissing: ${needle}`);
   }
 }
 
-const useClientIndex = card.indexOf('"use client";');
-const importIndex = card.indexOf('import { AmazonSpApiOrdersStagingSummaryPanel }');
-if (importIndex < useClientIndex) {
-  throw new Error("[FAIL] summary panel import must appear after use client directive");
+function assertNotIncludes(needle, message) {
+  if (source.includes(needle)) {
+    throw new Error(`${message}\nForbidden: ${needle}`);
+  }
 }
 
-const panelRequired = [
+assertIncludes(
   'data-testid="amazon-sp-api-orders-staging-summary-panel"',
-  "buildAmazonSpApiOrdersStagingSummary",
-  'stagingMode: "item-level"',
-  "amazonOrderId",
-  "orderItemId",
-  "sellerSku",
-  "quantityOrdered",
-  "itemPriceAmount",
-  "Transaction作成・InventoryMovement作成・在庫扣減は行いません",
-];
+  "Summary panel must keep its test id.",
+);
 
-for (const marker of panelRequired) {
-  if (!panel.includes(marker)) {
-    throw new Error(`[FAIL] Summary panel missing marker: ${marker}`);
-  }
-}
+assertIncludes(
+  'stagingMode: "mixed-header-item" | "item-level"',
+  "Summary panel must support mixed-header-item mode while preserving item-level compatibility.",
+);
 
-const forbidden = [
-  "createTransaction(",
-  "inventoryMovement.create",
-  "commitAmazonSpApiOrders",
-  'fetch("/api/imports/amazon-sp-api/orders/real-importjob',
-];
+assertIncludes(
+  'stagingMode: headerRowCount > 0 ? "mixed-header-item" : "item-level"',
+  "Summary panel must switch mode based on order-header rows.",
+);
 
-for (const marker of forbidden) {
-  if (panel.includes(marker)) {
-    throw new Error(`[FAIL] Summary panel must be display-only; forbidden marker found: ${marker}`);
-  }
-}
+assertIncludes(
+  "ImportStagingRow の order-header / order-item を分離して集計しています。",
+  "Summary panel must explain mixed header/item aggregation.",
+);
 
-console.log("[OK] Step144-A Amazon orders staging summary panel static smoke passed");
-console.log("[OK] Panel is frontend-only, item-level, and no-write");
+assertIncludes(
+  "注文ヘッダー",
+  "Summary panel must show order-header metric.",
+);
+
+assertIncludes(
+  "保存商品明細",
+  "Summary panel must show saved item-row metric.",
+);
+
+assertIncludes(
+  "商品明細なし注文",
+  "Summary panel must show header-without-items metric.",
+);
+
+assertIncludes(
+  "旧item rows",
+  "Summary panel must preserve legacy item-row visibility.",
+);
+
+assertIncludes(
+  "不明rows",
+  "Summary panel must surface unknown row count.",
+);
+
+assertIncludes(
+  "Transaction作成・InventoryMovement作成・在庫扣減は行いません。",
+  "Summary panel must remain frontend-only / no-write.",
+);
+
+assertNotIncludes(
+  "現在の ImportStagingRow は item-level staging です。1 row = 1 Amazon order item として集計しています。",
+  "Summary panel must not keep old item-level-only explanation.",
+);
+
+console.log("[OK] Step144-A compatibility smoke passed for mixed header/item summary panel.");

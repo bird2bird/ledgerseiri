@@ -23,7 +23,8 @@
     "smoke:amazon-sp-api-real-preview-error-message": "node scripts/smoke-amazon-sp-api-real-preview-error-message.js",
     "smoke:step144-a-amazon-orders-staging-summary-panel": "node scripts/smoke-step144-a-amazon-orders-staging-summary-panel.js",
     "smoke:step144-b-amazon-orders-grouped-staging-list": "node scripts/smoke-step144-b-amazon-orders-grouped-staging-list.js",
-    "smoke:step145-d-count-display": "node scripts/smoke-step145-d-amazon-orders-count-display-polish.js"
+    "smoke:step145-d-count-display": "node scripts/smoke-step145-d-amazon-orders-count-display-polish.js",
+    "smoke:step146-b-mixed-header-item-display": "node scripts/smoke-step146-b-amazon-orders-mixed-header-item-display.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
