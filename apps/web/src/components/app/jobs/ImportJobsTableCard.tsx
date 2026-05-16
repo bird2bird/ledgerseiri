@@ -3,6 +3,7 @@ import type { AmazonSpApiOrdersIncomeTransactionDryRunResponse } from "@/core/im
 
 import React from "react";
 import { AmazonSpApiOrdersStagingSummaryPanel } from "./AmazonSpApiOrdersStagingSummaryPanel";
+import { AmazonSpApiOrdersGroupedStagingList } from "./AmazonSpApiOrdersGroupedStagingList";
 import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
 import { listInventoryAuditIssuesForImportJob, readAmazonSpApiOrdersStagingCommitReadiness, summarizeInventoryAuditIssuesForImportJob, type AmazonSpApiOrdersStagingCommitReadinessResponse, type AmazonSpApiOrdersStagingCommitReadinessRow, type InventoryAuditImportSummary, fetchAmazonSpApiOrdersIncomeTransactionDryRun } from "@/core/imports/api";
@@ -1251,6 +1252,11 @@ function ImportJobDetailDrawer(props: {
                   error={detailRowsState.error ? String(detailRowsState.error) : null}
                 />
               ) : null}
+
+              {isAmazonSpApiOrdersImportJob(job) ? (
+                <AmazonSpApiOrdersGroupedStagingList rows={detailRowsState.stagingRows} />
+              ) : null}
+
 
             <DetailDataStateCard
               title={`Transaction Trace (${detailRowsState.transactions.length})`}
