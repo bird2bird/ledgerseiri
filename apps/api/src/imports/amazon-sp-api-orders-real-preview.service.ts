@@ -468,6 +468,7 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
       continue;
     }
 
+    const normalizedItemsForOrder: AmazonSpApiOrdersNormalizedOrderItem[] = [];
     getOrderItemsAttemptCount += 1;
     const orderItemsHttp = await executeAmazonSpApiOrdersGetOrderItemsHttp(
       {
@@ -487,13 +488,14 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     if (!orderItemsHttp.ok) {
       getOrderItemsFailedCount += 1;
       warnings.push(`Failed to preview order items for ${amazonOrderId}: ${orderItemsHttp.error?.code || orderItemsHttp.status}`);
+      normalizedOrders.push(normalizeRealOrder(order, normalizedItemsForOrder, input));
       continue;
     }
 
       getOrderItemsSuccessCount += 1;
     const orderItems = parseOrderItemsPayload(orderItemsHttp.sanitizedResponse.json);
-    const normalizedItemsForOrder = normalizeRealOrderItems(input, order, orderItems);
-    normalizedOrderItems.push(...normalizedItemsForOrder);
+    normalizedItemsForOrder.push(...normalizeRealOrderItems(input, order, orderItems));
+normalizedOrderItems.push(...normalizedItemsForOrder);
     normalizedOrders.push(normalizeRealOrder(order, normalizedItemsForOrder, input));
   }
 
