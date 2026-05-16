@@ -20,7 +20,8 @@
     "smoke:amazon-sp-api-orders-real-importjob-commit-button": "node scripts/smoke-amazon-sp-api-orders-real-importjob-commit-button.js",
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-helper": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-helper.js",
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-panel": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-panel.js",
-    "smoke:amazon-sp-api-real-preview-error-message": "node scripts/smoke-amazon-sp-api-real-preview-error-message.js"
+    "smoke:amazon-sp-api-real-preview-error-message": "node scripts/smoke-amazon-sp-api-real-preview-error-message.js",
+    "smoke:step144-a-amazon-orders-staging-summary-panel": "node scripts/smoke-step144-a-amazon-orders-staging-summary-panel.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

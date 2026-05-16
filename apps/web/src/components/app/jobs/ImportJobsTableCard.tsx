@@ -2,6 +2,7 @@
 import type { AmazonSpApiOrdersIncomeTransactionDryRunResponse } from "@/core/imports/api";
 
 import React from "react";
+import { AmazonSpApiOrdersStagingSummaryPanel } from "./AmazonSpApiOrdersStagingSummaryPanel";
 import { createPortal } from "react-dom";
 import type { ImportJobItem } from "@/core/jobs";
 import { listInventoryAuditIssuesForImportJob, readAmazonSpApiOrdersStagingCommitReadiness, summarizeInventoryAuditIssuesForImportJob, type AmazonSpApiOrdersStagingCommitReadinessResponse, type AmazonSpApiOrdersStagingCommitReadinessRow, type InventoryAuditImportSummary, fetchAmazonSpApiOrdersIncomeTransactionDryRun } from "@/core/imports/api";
@@ -1241,6 +1242,14 @@ function ImportJobDetailDrawer(props: {
 
               {isAmazonSpApiOrdersImportJob(job) ? (
                 <AmazonSpApiIncomeTransactionDryRunPanel job={job} />
+              ) : null}
+
+              {isAmazonSpApiOrdersImportJob(job) ? (
+                <AmazonSpApiOrdersStagingSummaryPanel
+                  rows={detailRowsState.stagingRows}
+                  loading={detailRowsState.loading}
+                  error={detailRowsState.error ? String(detailRowsState.error) : null}
+                />
               ) : null}
 
             <DetailDataStateCard
