@@ -35,6 +35,18 @@ export type AmazonSpApiOrdersRealPreviewInput = {
 
 const AMAZON_SP_API_ORDERS_CREATED_BEFORE_SAFETY_MINUTES = 3;
 
+const AMAZON_SP_API_ORDERS_REAL_PREVIEW_DEFAULT_STATUSES = [
+  'Pending',
+  'Unshipped',
+  'PartiallyShipped',
+  'Shipped',
+  'Canceled',
+  'Unfulfillable',
+  'InvoiceUnconfirmed',
+  'PendingAvailability',
+] as const;
+
+
 function resolveAmazonOrdersCreatedBeforeSafetyWindow(args: {
   createdBefore?: string;
   now: Date;
@@ -239,6 +251,75 @@ type AmazonOrdersApiOrderItem = {
   };
 };
 
+
+function toDiagnosticsRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+function summarizeAmazonSpApiListOrdersPayloadForDiagnostics(value: unknown): {
+  topLevelKeys: string[];
+  payloadKeys: string[];
+  ordersArrayPath: string | null;
+  rawOrdersCount: number;
+  nextTokenPresent: boolean;
+  firstOrders: Array<{
+    amazonOrderId: string | null;
+    orderStatus: string | null;
+    purchaseDate: string | null;
+    lastUpdateDate: string | null;
+  }>;
+} {
+  const root = toDiagnosticsRecord(value);
+  const payload = toDiagnosticsRecord(root?.payload) ?? root;
+
+  const rootOrders = Array.isArray(root?.Orders) ? root.Orders : null;
+  const payloadOrders = Array.isArray(payload?.Orders) ? payload.Orders : null;
+  const orders = payloadOrders ?? rootOrders ?? [];
+
+  const firstOrders = orders.slice(0, 5).map((order) => {
+    const row = toDiagnosticsRecord(order);
+    return {
+      amazonOrderId: typeof row?.AmazonOrderId === 'string' ? row.AmazonOrderId : null,
+      orderStatus: typeof row?.OrderStatus === 'string' ? row.OrderStatus : null,
+      purchaseDate: typeof row?.PurchaseDate === 'string' ? row.PurchaseDate : null,
+      lastUpdateDate: typeof row?.LastUpdateDate === 'string' ? row.LastUpdateDate : null,
+    };
+  });
+
+  return {
+    topLevelKeys: root ? Object.keys(root).sort() : [],
+    payloadKeys: payload ? Object.keys(payload).sort() : [],
+    ordersArrayPath: payloadOrders ? 'payload.Orders' : rootOrders ? 'Orders' : null,
+    rawOrdersCount: orders.length,
+    nextTokenPresent: Boolean(payload?.NextToken ?? root?.NextToken),
+    firstOrders,
+  };
+}
+
+function logAmazonSpApiListOrdersZeroDiagnostic(args: {
+  requestSummary: Record<string, unknown>;
+  responsePayload: unknown;
+  parsedOrdersCount: number;
+}): void {
+  const diagnostic = {
+    source: 'P3_Z_LIST_ORDERS_DIAG',
+    requestSummary: args.requestSummary,
+    responseSummary: summarizeAmazonSpApiListOrdersPayloadForDiagnostics(args.responsePayload),
+    parsedOrdersCount: args.parsedOrdersCount,
+    writesImportJob: false,
+    writesImportStagingRow: false,
+    writesTransaction: false,
+    writesInventoryMovement: false,
+  };
+
+  // Sanitized: no tokens, no secrets, no Authorization header.
+  console.log(`P3_Z_LIST_ORDERS_DIAG ${JSON.stringify(diagnostic)}`);
+}
+
+
 export async function previewAmazonSpApiOrdersRealNoPersistence(
   input: AmazonSpApiOrdersRealPreviewInput,
 ): Promise<AmazonSpApiOrdersRealPreviewEnvelope> {
@@ -259,7 +340,7 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     credentials: input.credentials,
     createdAfter: input.createdAfter,
     createdBefore: createdBeforeSafetyWindow.createdBefore,
-    orderStatuses: input.orderStatuses,
+    orderStatuses: input.orderStatuses?.length ? input.orderStatuses : [...AMAZON_SP_API_ORDERS_REAL_PREVIEW_DEFAULT_STATUSES],
     maxResultsPerPage: input.maxResultsPerPage,
     now: input.now,
     env: input.env,
@@ -287,6 +368,19 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
   }
 
   const orders = parseOrdersFromListOrdersPayload(listOrdersHttp.sanitizedResponse.json);
+
+  logAmazonSpApiListOrdersZeroDiagnostic({
+    requestSummary: {
+      region: input.region,
+      marketplaceId: input.marketplaceId,
+      createdAfter: input.createdAfter,
+      createdBefore: createdBeforeSafetyWindow.createdBefore,
+      orderStatuses: listOrdersInput.orderStatuses ?? null,
+      maxResultsPerPage: input.maxResultsPerPage ?? null,
+    },
+    responsePayload: listOrdersHttp.sanitizedResponse.json,
+    parsedOrdersCount: orders.length,
+  });
   const normalizedOrders: AmazonSpApiOrdersNormalizedOrder[] = [];
   const normalizedOrderItems: AmazonSpApiOrdersNormalizedOrderItem[] = [];
   const warnings: string[] = [];

@@ -262,7 +262,9 @@
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-route": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-route.js",
     "smoke:amazon-sp-api-orders-income-transaction-dry-run-route-runtime": "node scripts/smoke-amazon-sp-api-orders-income-transaction-dry-run-route-runtime.js",
     "smoke:amazon-sp-api-orders-real-preview-amazon400-details": "node scripts/smoke-amazon-sp-api-orders-real-preview-amazon400-details.js",
-    "smoke:amazon-sp-api-orders-real-preview-created-before-safety": "node scripts/smoke-amazon-sp-api-orders-real-preview-created-before-safety.js"
+    "smoke:amazon-sp-api-orders-real-preview-created-before-safety": "node scripts/smoke-amazon-sp-api-orders-real-preview-created-before-safety.js",
+    "smoke:amazon-sp-api-orders-real-preview-zero-diagnostic-log": "node scripts/smoke-amazon-sp-api-orders-real-preview-zero-diagnostic-log.js",
+    "smoke:amazon-sp-api-orders-real-preview-default-statuses": "node scripts/smoke-amazon-sp-api-orders-real-preview-default-statuses.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
