@@ -820,7 +820,6 @@ export class ImportsController {
       region: normalizedRegion,
       createdAfter: normalizedCreatedAfter,
       createdBefore: normalizedCreatedBefore,
-      orderStatuses: Array.isArray(body?.orderStatuses) ? body.orderStatuses : undefined,
       dryRun: true,
     });
 
@@ -1040,7 +1039,6 @@ export class ImportsController {
       },
       createdAfter: normalizedCreatedAfter,
       createdBefore: normalizedCreatedBefore || undefined,
-      orderStatuses: Array.isArray(body?.orderStatuses) ? body.orderStatuses : undefined,
       maxResultsPerPage: body?.maxResultsPerPage,
       now: new Date(),
       env: {

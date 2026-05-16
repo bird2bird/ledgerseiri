@@ -104,7 +104,7 @@ export function buildAmazonSpApiOrdersListOrdersSignedRequest(
         MarketplaceIds: input.marketplaceId,
         CreatedAfter: input.createdAfter,
         CreatedBefore: input.createdBefore,
-        OrderStatuses: input.orderStatuses,
+        
         MaxResultsPerPage: input.maxResultsPerPage ? String(input.maxResultsPerPage) : '50',
       };
 

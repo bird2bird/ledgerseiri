@@ -35,16 +35,6 @@ export type AmazonSpApiOrdersRealPreviewInput = {
 
 const AMAZON_SP_API_ORDERS_CREATED_BEFORE_SAFETY_MINUTES = 3;
 
-const AMAZON_SP_API_ORDERS_REAL_PREVIEW_DEFAULT_STATUSES = [
-  'Pending',
-  'Unshipped',
-  'PartiallyShipped',
-  'Shipped',
-  'Canceled',
-  'Unfulfillable',
-  'InvoiceUnconfirmed',
-  'PendingAvailability',
-] as const;
 
 
 function resolveAmazonOrdersCreatedBeforeSafetyWindow(args: {
@@ -340,7 +330,7 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     credentials: input.credentials,
     createdAfter: input.createdAfter,
     createdBefore: createdBeforeSafetyWindow.createdBefore,
-    orderStatuses: input.orderStatuses?.length ? input.orderStatuses : [...AMAZON_SP_API_ORDERS_REAL_PREVIEW_DEFAULT_STATUSES],
+    orderStatuses: undefined,
     maxResultsPerPage: input.maxResultsPerPage,
     now: input.now,
     env: input.env,
@@ -375,7 +365,7 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
       marketplaceId: input.marketplaceId,
       createdAfter: input.createdAfter,
       createdBefore: createdBeforeSafetyWindow.createdBefore,
-      orderStatuses: listOrdersInput.orderStatuses ?? null,
+      orderStatuses: null,
       maxResultsPerPage: input.maxResultsPerPage ?? null,
     },
     responsePayload: listOrdersHttp.sanitizedResponse.json,
