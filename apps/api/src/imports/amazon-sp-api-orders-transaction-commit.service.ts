@@ -184,6 +184,11 @@ export type PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult = {
     existingTransactionRows: number;
     missingAmountRows: number;
     missingOrderIdentityRows: number;
+    itemPriceTotal: number;
+    itemTaxTotal: number;
+    shippingPriceTotal: number;
+    candidateAmountTotal: number;
+    amountPolicy: 'ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX';
   };
   rows: Array<{
     stagingRowId: string;
@@ -191,11 +196,20 @@ export type PreviewAmazonSpApiOrdersIncomeTransactionDryRunResult = {
     amazonOrderId: string | null;
     orderItemId: string | null;
     sellerSku: string | null;
+    asin: string | null;
+    title: string | null;
     productSkuId: string | null;
     amount: number | null;
+    itemPriceAmount: number | null;
+    itemTaxAmount: number | null;
+    shippingPriceAmount: number | null;
+    candidateAmount: number | null;
+    amountPolicy: 'ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX';
     currency: string;
     businessDate: string | null;
     businessMonth: string | null;
+    orderStatus: string | null;
+    orderTotalAmount: number | null;
     dedupeHash: string | null;
     existingTransactionId: string | null;
     blockers: string[];
@@ -268,6 +282,81 @@ function isAmazonSpApiOrdersOrderItemStagingPayload(payloadInput: unknown): bool
 }
 
 
+function isAmazonSpApiOrdersOrderHeaderStagingPayload(payloadInput: unknown): boolean {
+  const payload = coerceNormalizedPayload(payloadInput);
+  const payloadRecord = payload as Record<string, unknown>;
+  const rowKind = readPreviewString(payloadRecord.rowKind);
+  const stagingLevel = readPreviewString(payloadRecord.stagingLevel);
+  return rowKind === 'order-header' || stagingLevel === 'order';
+}
+
+type AmazonSpApiOrdersIncomeDryRunHeaderContext = {
+  purchaseDate: string | null;
+  orderStatus: string | null;
+  orderTotalAmount: number | null;
+};
+
+function buildAmazonSpApiOrdersIncomeDryRunHeaderContext(
+  payloadInput: unknown,
+): { amazonOrderId: string | null; context: AmazonSpApiOrdersIncomeDryRunHeaderContext } {
+  const payload = coerceNormalizedPayload(payloadInput);
+  const payloadRecord = payload as Record<string, unknown>;
+  const { order } = readPreviewOrderAndItem(payloadRecord);
+
+  const amazonOrderId =
+    readPreviewString(order.amazonOrderId) ||
+    readPreviewString(order.orderId) ||
+    readPreviewString(payloadRecord.amazonOrderId) ||
+    readPreviewString(payloadRecord.orderId);
+
+  const purchaseDate =
+    readPreviewString(order.purchaseDate) ||
+    readPreviewString(order.orderDate) ||
+    readPreviewString(payloadRecord.purchaseDate) ||
+    readPreviewString(payloadRecord.orderDate);
+
+  const orderStatus =
+    readPreviewString(order.orderStatus) ||
+    readPreviewString(order.status) ||
+    readPreviewString(payloadRecord.orderStatus) ||
+    readPreviewString(payloadRecord.status);
+
+  const orderTotalAmount =
+    readPreviewNumber(order.orderTotalAmount) ??
+    readPreviewNumber(order.totalAmount) ??
+    readPreviewNumber(order.amount) ??
+    readPreviewNumber(payloadRecord.orderTotalAmount) ??
+    readPreviewNumber(payloadRecord.totalAmount) ??
+    readPreviewNumber(payloadRecord.amount);
+
+  return {
+    amazonOrderId,
+    context: {
+      purchaseDate,
+      orderStatus,
+      orderTotalAmount,
+    },
+  };
+}
+
+function normalizeOptionalIncomeAmount(value: unknown): number | null {
+  const amount = readPreviewNumber(value);
+  if (amount === null) return null;
+  return normalizeIncomeAmount(amount);
+}
+
+// Step147-B: income candidate amount policy.
+// Item tax is returned as a separate reference field and is not added to candidateAmount,
+// because itemPriceAmount may already represent buyer-paid item price depending on Amazon source semantics.
+function buildAmazonSpApiOrdersIncomeCandidateAmount(input: {
+  itemPriceAmount: number | null;
+  shippingPriceAmount: number | null;
+}): number | null {
+  if (input.itemPriceAmount === null) return null;
+  return normalizeIncomeAmount(input.itemPriceAmount + (input.shippingPriceAmount || 0));
+}
+
+
 // This function must stay read-only: no Transaction create, no InventoryMovement create,
 // no ImportJob mutation, and no ImportStagingRow mutation.
 export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRun(
@@ -310,7 +399,16 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
   });
 
   const dedupeCounts = new Map<string, number>();
+  const headerContextByAmazonOrderId = new Map<string, AmazonSpApiOrdersIncomeDryRunHeaderContext>();
   const itemStagingRows = stagingRows.filter((row: AmazonSpApiOrdersTransactionCommitStagingRow) => isAmazonSpApiOrdersOrderItemStagingPayload(row.normalizedPayloadJson));
+
+  for (const row of stagingRows) {
+    if (!isAmazonSpApiOrdersOrderHeaderStagingPayload(row.normalizedPayloadJson)) continue;
+    const headerContext = buildAmazonSpApiOrdersIncomeDryRunHeaderContext(row.normalizedPayloadJson);
+    if (headerContext.amazonOrderId) {
+      headerContextByAmazonOrderId.set(headerContext.amazonOrderId, headerContext.context);
+    }
+  }
 
   for (const row of itemStagingRows) {
     const key = String(row?.dedupeHash || '').trim();
@@ -344,27 +442,67 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
       readPreviewString(item.sku) ||
       readPreviewString((payload as Record<string, unknown>).sellerSku);
 
+    const headerContext = amazonOrderId ? headerContextByAmazonOrderId.get(amazonOrderId) : undefined;
     const businessDate =
       readPreviewString(order.purchaseDate) ||
       readPreviewString(order.orderDate) ||
       readPreviewString((payload as Record<string, unknown>).purchaseDate) ||
-      readPreviewString((payload as Record<string, unknown>).orderDate);
-
+      readPreviewString((payload as Record<string, unknown>).orderDate) ||
+      headerContext?.purchaseDate ||
+      null;
     const currency =
       readPreviewString(item.itemPriceCurrency) ||
       readPreviewString(item.currency) ||
       readPreviewString((payload as Record<string, unknown>).currency) ||
       'JPY';
-
-    const rawAmount =
+    const itemPriceAmount = normalizeOptionalIncomeAmount(
       item.itemPriceAmount ??
-      item.priceAmount ??
-      (payload as Record<string, unknown>).itemPriceAmount ??
-      (payload as Record<string, unknown>).grossAmount ??
-      (payload as Record<string, unknown>).amount;
-
-    const amountNumber = readPreviewNumber(rawAmount);
-    const amount = amountNumber === null ? null : normalizeIncomeAmount(amountNumber);
+        item.priceAmount ??
+        (payload as Record<string, unknown>).itemPriceAmount ??
+        (payload as Record<string, unknown>).grossAmount ??
+        (payload as Record<string, unknown>).amount,
+    );
+    const itemTaxAmount = normalizeOptionalIncomeAmount(
+      item.itemTaxAmount ??
+        item.taxAmount ??
+        (payload as Record<string, unknown>).itemTaxAmount ??
+        (payload as Record<string, unknown>).taxAmount,
+    );
+    const shippingPriceAmount = normalizeOptionalIncomeAmount(
+      item.shippingPriceAmount ??
+        item.shippingAmount ??
+        (payload as Record<string, unknown>).shippingPriceAmount ??
+        (payload as Record<string, unknown>).shippingAmount,
+    );
+    const candidateAmount = buildAmazonSpApiOrdersIncomeCandidateAmount({
+      itemPriceAmount,
+      shippingPriceAmount,
+    });
+    const amount = candidateAmount;
+    const orderStatus =
+      readPreviewString(order.orderStatus) ||
+      readPreviewString(order.status) ||
+      readPreviewString((payload as Record<string, unknown>).orderStatus) ||
+      readPreviewString((payload as Record<string, unknown>).status) ||
+      headerContext?.orderStatus ||
+      null;
+    const orderTotalAmount =
+      readPreviewNumber(order.orderTotalAmount) ??
+      readPreviewNumber(order.totalAmount) ??
+      readPreviewNumber((payload as Record<string, unknown>).orderTotalAmount) ??
+      readPreviewNumber((payload as Record<string, unknown>).totalAmount) ??
+      headerContext?.orderTotalAmount ??
+      null;
+    const asin =
+      readPreviewString(item.asin) ||
+      readPreviewString((payload as Record<string, unknown>).asin);
+    const title =
+      readPreviewString(item.title) ||
+      readPreviewString(item.itemName) ||
+      readPreviewString(item.productName) ||
+      readPreviewString((payload as Record<string, unknown>).title) ||
+      readPreviewString((payload as Record<string, unknown>).itemName) ||
+      readPreviewString((payload as Record<string, unknown>).productName);
 
     if (!amazonOrderId || !orderItemId) {
       blockers.push('MISSING_ORDER_IDENTITY');
@@ -419,11 +557,20 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
       amazonOrderId,
       orderItemId,
       sellerSku,
+      asin,
+      title,
       productSkuId,
       amount,
+      itemPriceAmount,
+      itemTaxAmount,
+      shippingPriceAmount,
+      candidateAmount,
+      amountPolicy: 'ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX',
       currency,
       businessDate,
       businessMonth: readPreviewString(row?.businessMonth),
+      orderStatus,
+      orderTotalAmount,
       dedupeHash,
       existingTransactionId,
       blockers,
@@ -453,6 +600,11 @@ export async function previewAmazonSpApiOrdersStagingRowsIncomeTransactionsDryRu
       ).length,
       missingAmountRows: rows.filter((row) => row.blockers.includes('MISSING_OR_INVALID_AMOUNT')).length,
       missingOrderIdentityRows: rows.filter((row) => row.blockers.includes('MISSING_ORDER_IDENTITY')).length,
+      itemPriceTotal: rows.reduce((sum, row) => sum + (row.itemPriceAmount || 0), 0),
+      itemTaxTotal: rows.reduce((sum, row) => sum + (row.itemTaxAmount || 0), 0),
+      shippingPriceTotal: rows.reduce((sum, row) => sum + (row.shippingPriceAmount || 0), 0),
+      candidateAmountTotal: rows.reduce((sum, row) => sum + (row.candidateAmount || 0), 0),
+      amountPolicy: 'ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX',
     },
     rows,
     guardrails: {

@@ -270,7 +270,8 @@
     "smoke:amazon-sp-api-orders-real-preview-count-pipeline-diagnostic": "node scripts/smoke-amazon-sp-api-orders-real-preview-count-pipeline-diagnostic.js",
     "smoke:amazon-sp-api-orders-real-preview-keep-orders-on-item-failure": "node scripts/smoke-amazon-sp-api-orders-real-preview-keep-orders-on-item-failure.js",
     "smoke:step145-b": "node scripts/smoke-step145-b-amazon-orders-order-header-staging-rows.js",
-    "smoke:step145-b5": "node scripts/smoke-step145-b5-header-row-item-flow-filters.js"
+    "smoke:step145-b5": "node scripts/smoke-step145-b5-header-row-item-flow-filters.js",
+    "smoke:step147-b-income-candidate-read-model": "node scripts/smoke-step147-b-amazon-orders-income-candidate-read-model.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
