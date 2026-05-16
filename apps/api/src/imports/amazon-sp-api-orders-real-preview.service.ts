@@ -34,6 +34,7 @@ export type AmazonSpApiOrdersRealPreviewInput = {
 
 
 const AMAZON_SP_API_ORDERS_CREATED_BEFORE_SAFETY_MINUTES = 3;
+const AMAZON_SP_API_ORDERS_LIST_ORDERS_MAX_PAGES = 50;
 
 
 
@@ -249,6 +250,13 @@ function toDiagnosticsRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function extractAmazonSpApiListOrdersNextToken(value: unknown): string | undefined {
+  const root = toDiagnosticsRecord(value);
+  const payload = toDiagnosticsRecord(root?.payload) ?? root;
+  const nextToken = payload?.NextToken ?? root?.NextToken;
+  return typeof nextToken === 'string' && nextToken.length > 0 ? nextToken : undefined;
+}
+
 function summarizeAmazonSpApiListOrdersPayloadForDiagnostics(value: unknown): {
   topLevelKeys: string[];
   payloadKeys: string[];
@@ -293,12 +301,16 @@ function logAmazonSpApiListOrdersZeroDiagnostic(args: {
   requestSummary: Record<string, unknown>;
   responsePayload: unknown;
   parsedOrdersCount: number;
+  pageCount?: number;
+  nextTokenRemaining?: boolean;
 }): void {
   const diagnostic = {
     source: 'P3_Z_LIST_ORDERS_DIAG',
     requestSummary: args.requestSummary,
     responseSummary: summarizeAmazonSpApiListOrdersPayloadForDiagnostics(args.responsePayload),
     parsedOrdersCount: args.parsedOrdersCount,
+    pageCount: args.pageCount ?? null,
+    nextTokenRemaining: args.nextTokenRemaining ?? null,
     writesImportJob: false,
     writesImportStagingRow: false,
     writesTransaction: false,
@@ -358,6 +370,44 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
   }
 
   const orders = parseOrdersFromListOrdersPayload(listOrdersHttp.sanitizedResponse.json);
+  let listOrdersPageCount = 1;
+  let listOrdersNextToken = extractAmazonSpApiListOrdersNextToken(
+    listOrdersHttp.sanitizedResponse.json,
+  );
+
+  while (listOrdersNextToken && listOrdersPageCount < AMAZON_SP_API_ORDERS_LIST_ORDERS_MAX_PAGES) {
+    const nextPageListOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
+      ...listOrdersInput,
+      nextToken: listOrdersNextToken,
+    };
+
+    const nextPageListOrdersHttp = await executeAmazonSpApiOrdersListOrdersHttp(
+      nextPageListOrdersInput,
+      httpOptions,
+    );
+
+    if (!nextPageListOrdersHttp.ok) {
+      throw new AmazonSpApiOrdersRealPreviewHttpError({
+        amazonStatus: String(nextPageListOrdersHttp.error?.code || nextPageListOrdersHttp.status),
+        httpStatus:
+          typeof nextPageListOrdersHttp.status === 'number' ? nextPageListOrdersHttp.status : null,
+        sanitizedResponse: nextPageListOrdersHttp.sanitizedResponse,
+        requestSummary: {
+          region: input.region,
+          marketplaceId: input.marketplaceId,
+          createdAfter: input.createdAfter,
+          createdBefore: createdBeforeSafetyWindow.createdBefore,
+        },
+      });
+    }
+
+    orders.push(...parseOrdersFromListOrdersPayload(nextPageListOrdersHttp.sanitizedResponse.json));
+    listOrdersPageCount += 1;
+    listOrdersNextToken = extractAmazonSpApiListOrdersNextToken(
+      nextPageListOrdersHttp.sanitizedResponse.json,
+    );
+  }
+
 
   logAmazonSpApiListOrdersZeroDiagnostic({
     requestSummary: {
@@ -370,6 +420,8 @@ const listOrdersInput: AmazonSpApiOrdersListOrdersSignedRequestInput = {
     },
     responsePayload: listOrdersHttp.sanitizedResponse.json,
     parsedOrdersCount: orders.length,
+    pageCount: listOrdersPageCount,
+    nextTokenRemaining: Boolean(listOrdersNextToken),
   });
   const normalizedOrders: AmazonSpApiOrdersNormalizedOrder[] = [];
   const normalizedOrderItems: AmazonSpApiOrdersNormalizedOrderItem[] = [];
