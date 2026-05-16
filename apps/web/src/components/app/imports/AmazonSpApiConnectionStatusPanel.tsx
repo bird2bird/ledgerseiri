@@ -415,7 +415,7 @@ export function AmazonSpApiConnectionStatusPanel() {
       setOrderPullStatus("success");
       setOrderPullMessage(
         data.importJobId
-          ? `ImportJobを作成しました。明細 ${data.totalRows ?? 0} 件を保存しました。`
+          ? `ImportJobを作成しました。保存行数 ${data.totalRows ?? 0} 件（注文ヘッダー ${orderPreview?.normalizedOrders?.length ?? 0} 件 / 保存商品明細 ${Math.max(0, Number(data.totalRows ?? 0) - Number(orderPreview?.normalizedOrders?.length ?? 0))} 件）を保存しました。`
           : "ImportJob作成結果を受信しました。"
       );
     } catch (err) {
@@ -618,11 +618,11 @@ export function AmazonSpApiConnectionStatusPanel() {
                 <div className="rounded-2xl border border-emerald-100 bg-white px-3 py-2">
                   <div className="font-black text-slate-500">取得注文</div>
                   <div className="mt-1 font-black text-slate-950">
-                    {orderPreview.normalizedOrders?.length ?? 0}
+                    {orderPreview?.normalizedOrders?.length ?? 0}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-emerald-100 bg-white px-3 py-2">
-                  <div className="font-black text-slate-500">注文明細</div>
+                  <div className="font-black text-slate-500">取得注文明細</div>
                   <div className="mt-1 font-black text-slate-950">
                     {orderPreview.normalizedOrderItems?.length ?? 0}
                   </div>
@@ -641,8 +641,13 @@ export function AmazonSpApiConnectionStatusPanel() {
               >
                 <div>ImportJob: {orderImportJob.importJobId}</div>
                 <div className="mt-1">
-                  保存明細: {orderImportJob.totalRows ?? 0} / sourceType:{" "}
-                  {orderImportJob.sourceType || "amazon-sp-api-orders"}
+                  保存行数: {orderImportJob.totalRows ?? 0} / 注文ヘッダー:{" "}
+                  {orderPreview?.normalizedOrders?.length ?? 0} / 保存商品明細:{" "}
+                  {Math.max(
+                    0,
+                    Number(orderImportJob.totalRows ?? 0) - Number(orderPreview?.normalizedOrders?.length ?? 0),
+                  )}{" "}
+                  / sourceType: {orderImportJob.sourceType || "amazon-sp-api-orders"}
                 </div>
                 <a
                   href={`/ja/app/data/import?importJobId=${encodeURIComponent(orderImportJob.importJobId)}`}
