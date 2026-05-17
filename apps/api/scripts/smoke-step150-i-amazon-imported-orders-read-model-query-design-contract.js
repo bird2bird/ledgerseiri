@@ -163,8 +163,25 @@ assert(contract.boundaries.createsSyncSegment === false, "createsSyncSegment fal
 assert(contract.boundaries.writesDatabase === false, "writesDatabase false");
 assert(contract.boundaries.queriesPrismaNow === false, "queriesPrismaNow false");
 
-assert(controller.includes("amazonImportedOrdersReadModelDisabledListControllerRoute"), "Step150-H disabled list route remains");
-assert(controller.includes("amazonImportedOrderDetailReadModelDisabledControllerRoute"), "Step150-H disabled detail route remains");
+const hasStep150HDisabledRoutes =
+  controller.includes("amazonImportedOrdersReadModelDisabledListControllerRoute") &&
+  controller.includes("amazonImportedOrderDetailReadModelDisabledControllerRoute");
+
+const hasStep150LMReadonlyRoutes =
+  controller.includes("amazonImportedOrdersReadModelReadonlyListControllerRoute") &&
+  controller.includes("amazonImportedOrderDetailReadModelReadonlyControllerRoute") &&
+  controller.includes("listAmazonImportedOrdersReadonly") &&
+  controller.includes("getAmazonImportedOrderDetailReadonly");
+
+assert(
+  hasStep150HDisabledRoutes || hasStep150LMReadonlyRoutes,
+  "Step150 imported orders read-model controller route remains either H-disabled or LM-readonly",
+);
+
+if (hasStep150LMReadonlyRoutes) {
+  assert(controller.includes("prisma: this.prismaService"), "Step150-LM readonly controller passes Prisma service explicitly");
+  assert(controller.includes("STEP150_LM_IMPORTED_ORDER_DETAIL_READ_MODEL_ORDER_ID_REQUIRED"), "Step150-LM detail route validates orderId");
+}
 
 assert(
   pkg.scripts["smoke:step150-i-amazon-imported-orders-read-model-query-design-contract"] ===

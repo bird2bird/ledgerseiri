@@ -287,7 +287,8 @@
     "smoke:step149-m-amazon-orders-historical-sync-disabled-plan-preview-endpoint": "node scripts/smoke-step149-m-amazon-orders-historical-sync-disabled-plan-preview-endpoint.js",
     "smoke:step150-h-amazon-imported-orders-read-model-disabled-controller-contract": "node scripts/smoke-step150-h-amazon-imported-orders-read-model-disabled-controller-contract.js",
     "smoke:step150-i-amazon-imported-orders-read-model-query-design-contract": "node scripts/smoke-step150-i-amazon-imported-orders-read-model-query-design-contract.js",
-    "smoke:step150-jk-amazon-imported-orders-read-model-test-double-mapper": "node scripts/smoke-step150-jk-amazon-imported-orders-read-model-test-double-mapper.js"
+    "smoke:step150-jk-amazon-imported-orders-read-model-test-double-mapper": "node scripts/smoke-step150-jk-amazon-imported-orders-read-model-test-double-mapper.js",
+    "smoke:step150-lm-amazon-imported-orders-read-model-readonly-controller": "node scripts/smoke-step150-lm-amazon-imported-orders-read-model-readonly-controller.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

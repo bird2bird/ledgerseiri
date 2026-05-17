@@ -30,14 +30,15 @@ import {
   type AmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewRouteResponse,
 } from './dto/amazon-sp-api-orders-historical-sync-disabled-plan-preview-controller-contract.dto';
 import {
-  assertAmazonImportedOrdersReadModelDisabledControllerContract,
-  buildAmazonImportedOrderDetailReadModelDisabledRouteResponse,
-  buildAmazonImportedOrdersReadModelDisabledListRouteResponse,
   type AmazonImportedOrderDetailReadModelControllerQuery,
-  type AmazonImportedOrderDetailReadModelDisabledRouteResponse,
   type AmazonImportedOrdersReadModelControllerQuery,
-  type AmazonImportedOrdersReadModelDisabledListRouteResponse,
 } from './dto/amazon-imported-orders-read-model-disabled-controller-contract.dto';
+import {
+  getAmazonImportedOrderDetailReadonly,
+  listAmazonImportedOrdersReadonly,
+  type AmazonImportedOrderReadonlyDetailResponse,
+  type AmazonImportedOrdersReadonlyListResponse,
+} from './amazon-imported-orders-read-model.readonly.service';
 import { createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble } from './amazon-sp-api-orders-historical-sync.repository.test-double';
 import { createAmazonSpApiOrdersHistoricalSyncWorkerDisabled } from './amazon-sp-api-orders-historical-sync.worker.disabled';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
@@ -570,67 +571,60 @@ export class ImportsController {
   }
 
 
-  // Step150-H: Amazon imported orders read-model disabled controller contract.
-  // These routes are guarded and company-scoped, but intentionally disabled by default.
-  // They do not query Prisma, do not call Amazon, do not create ImportJob/SyncJob, and do not write DB.
+  // Step150-LM: Amazon imported orders read-model guarded readonly controller activation.
+  // These routes read existing ImportJob / ImportStagingRow only.
+  // They do not call Amazon, do not create ImportJob/SyncJob, and do not write DB.
   @UseGuards(JwtAuthGuard)
   @Get('amazon-sp-api/orders/imported/read-model')
-  amazonImportedOrdersReadModelDisabledListControllerRoute(
+  async amazonImportedOrdersReadModelReadonlyListControllerRoute(
     @Req() req: Step122SAuthenticatedRequest,
     @Query() query: AmazonImportedOrdersReadModelControllerQuery,
-  ): AmazonImportedOrdersReadModelDisabledListRouteResponse {
+  ): Promise<AmazonImportedOrdersReadonlyListResponse> {
     const companyId = String(req.user?.companyId || '').trim();
 
     if (!companyId) {
       throw new ForbiddenException(
-        'STEP150_H_IMPORTED_ORDERS_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company to read imported Amazon orders.',
+        'STEP150_LM_IMPORTED_ORDERS_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company to read imported Amazon orders.',
       );
     }
 
-    const list = buildAmazonImportedOrdersReadModelDisabledListRouteResponse({
+    return listAmazonImportedOrdersReadonly({
+      prisma: this.prismaService,
       companyId,
       query,
     });
-    const detail = buildAmazonImportedOrderDetailReadModelDisabledRouteResponse({
-      companyId,
-      query: { orderId: query.orderId },
-    });
-
-    assertAmazonImportedOrdersReadModelDisabledControllerContract({ list, detail });
-
-    return list;
   }
 
-  // Step150-H: Amazon imported order detail read-model disabled controller contract.
-  // This route is contract-only and returns no order detail until a later explicit read-model implementation step.
+  // Step150-LM: Amazon imported order detail read-model guarded readonly controller activation.
+  // This route reads existing ImportJob / ImportStagingRow only and returns null detail when no order is found.
   @UseGuards(JwtAuthGuard)
   @Get('amazon-sp-api/orders/imported/read-model/detail')
-  amazonImportedOrderDetailReadModelDisabledControllerRoute(
+  async amazonImportedOrderDetailReadModelReadonlyControllerRoute(
     @Req() req: Step122SAuthenticatedRequest,
     @Query() query: AmazonImportedOrderDetailReadModelControllerQuery,
-  ): AmazonImportedOrderDetailReadModelDisabledRouteResponse {
+  ): Promise<AmazonImportedOrderReadonlyDetailResponse> {
     const companyId = String(req.user?.companyId || '').trim();
 
     if (!companyId) {
       throw new ForbiddenException(
-        'STEP150_H_IMPORTED_ORDER_DETAIL_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company to read imported Amazon order detail.',
+        'STEP150_LM_IMPORTED_ORDER_DETAIL_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company to read imported Amazon order detail.',
       );
     }
 
-    const list = buildAmazonImportedOrdersReadModelDisabledListRouteResponse({
-      companyId,
-      query: { orderId: query.orderId },
-    });
-    const detail = buildAmazonImportedOrderDetailReadModelDisabledRouteResponse({
-      companyId,
-      query,
-    });
+    const orderId = String(query.orderId || '').trim();
 
-    assertAmazonImportedOrdersReadModelDisabledControllerContract({ list, detail });
+    if (!orderId) {
+      throw new BadRequestException(
+        'STEP150_LM_IMPORTED_ORDER_DETAIL_READ_MODEL_ORDER_ID_REQUIRED: orderId is required.',
+      );
+    }
 
-    return detail;
+    return getAmazonImportedOrderDetailReadonly({
+      prisma: this.prismaService,
+      companyId,
+      orderId,
+    });
   }
-
 
   // Step122-O: Amazon SP-API sandbox ImportJob read-model readonly controller service-call implementation.
   // Step122-S: JWT guard is now enforced for this internal readonly endpoint.
