@@ -22,7 +22,13 @@ import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceSh
 import { AmazonSpApiSandboxReadModelPanelShell } from "@/components/app/imports/AmazonSpApiSandboxReadModelPanelShell";
 
 
-function AmazonOrdersConnectedServicesShell() {
+function AmazonOrdersConnectedServicesShell({
+  onFetchShell,
+  fetchShellMessage,
+}: {
+  onFetchShell: () => void;
+  fetchShellMessage: string;
+}) {
   return (
     <section
       data-testid="data-import-connected-services-shell"
@@ -38,7 +44,7 @@ function AmazonOrdersConnectedServicesShell() {
           </h2>
           <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">
             MoneyForward と同じ操作感で、連携済みサービスごとに取得状態・最終取得日時・明細一覧を確認します。
-            Step150-B は UI shell のみで、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
+            Step150-D は単一の「取得」入口を有効化しますが、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
           </p>
         </div>
 
@@ -95,7 +101,7 @@ function AmazonOrdersConnectedServicesShell() {
               data-testid="data-import-connected-service-amazon-orders-status"
               className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700"
             >
-              shell-only
+              取得準備
             </span>
           </div>
 
@@ -113,15 +119,24 @@ function AmazonOrdersConnectedServicesShell() {
             <button
               data-testid="data-import-connected-service-amazon-orders-fetch-button"
               type="button"
-              disabled
-              title="Step150-B は UI shell のみです。Step150-D 以降で取得処理を接続します。"
-              className="inline-flex cursor-not-allowed rounded-xl bg-slate-300 px-3 py-2 text-xs font-black text-white shadow-sm"
+              onClick={onFetchShell}
+              title="Step150-D は UI shell のみです。Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。"
+              className="inline-flex rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800"
             >
               取得
             </button>
           </div>
         </div>
       </div>
+
+      {fetchShellMessage ? (
+        <div
+          data-testid="data-import-connected-service-amazon-orders-fetch-shell-message"
+          className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-black leading-5 text-sky-800"
+        >
+          {fetchShellMessage}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -137,6 +152,7 @@ export default function DataImportPage() {
   const [meta, setMeta] = useState<ImportMetaResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [amazonOrdersFetchShellMessage, setAmazonOrdersFetchShellMessage] = useState("");
 
   async function load() {
     setLoading(true);
@@ -158,6 +174,17 @@ export default function DataImportPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  function handleAmazonOrdersConnectedServiceFetchShell() {
+    setAmazonOrdersFetchShellMessage(
+      "取得入口を選択しました。Step150-D は UI shell のみのため、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。下の Amazon注文取得 エリアで期間と取得準備を確認してください。"
+    );
+
+    if (typeof document !== "undefined") {
+      const target = document.querySelector('[data-testid="amazon-sp-api-simple-order-pull-card"]');
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
 
   const latestUpdatedAt = useMemo(() => {
     const values = jobs
@@ -191,7 +218,10 @@ export default function DataImportPage() {
   return (
     <main className="space-y-6">
       
-      <AmazonOrdersConnectedServicesShell />
+      <AmazonOrdersConnectedServicesShell
+        onFetchShell={handleAmazonOrdersConnectedServiceFetchShell}
+        fetchShellMessage={amazonOrdersFetchShellMessage}
+      />
 
       <AmazonSpApiConnectionStatusPanel />
       <AmazonSpApiOrdersDryRunPreviewPanel />
