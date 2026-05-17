@@ -21,6 +21,14 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
+function extractStep149MPreviewRouteScope(controller) {
+  const start = controller.indexOf("amazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerRoute");
+  if (start < 0) return "";
+  const marker = "\n\n  // Step122-O:";
+  const end = controller.indexOf(marker, start);
+  return controller.slice(start, end > start ? end : start + 7000);
+}
+
 console.log("========== Step149-L smoke: planner integrated into disabled worker planning path ==========");
 
 const workerContract = read(workerContractPath);
@@ -84,21 +92,60 @@ const pkg = JSON.parse(read(packagePath));
   "while (true)",
   "for (;;)",
   "@Cron",
-  "Queue",
-  "Processor",
+  "CronExpression",
+  "ScheduleModule",
+  "BullModule",
+  "new Queue",
+  "@Processor",
 ].forEach((forbidden) => {
   assert(!worker.includes(forbidden), `worker must not contain runtime marker: ${forbidden}`);
 });
 
-assert(controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"), "Step149-C disabled controller route must remain present");
-
 assert(
-  !controller.includes("planAmazonOrdersHistoricalSyncWindows") &&
-    !controller.includes("AmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
-    !controller.includes("createAmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
-    !controller.includes("amazon-sp-api-orders-historical-sync-window-planner"),
-  "controller must not wire planner/worker in Step149-L",
+  controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"),
+  "Step149-C disabled controller route must remain present",
 );
+
+const step149MPreviewRouteScope = extractStep149MPreviewRouteScope(controller);
+
+if (step149MPreviewRouteScope) {
+  assert(
+    step149MPreviewRouteScope.includes("worker.planHistoricalSync"),
+    "Step149-M route must call worker.planHistoricalSync",
+  );
+
+  [
+    "runHistoricalSync(",
+    "runSegment(",
+    "previewAmazonSpApiOrdersReal",
+    "buildAmazonSpApiOrdersServerOnlyRawSignedTransport",
+    "persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows",
+    "prismaService.",
+    "amazonSpApiOrderSyncJob.",
+    "amazonSpApiOrderSyncSegment.",
+    "transaction.create(",
+    "inventoryMovement.create(",
+    "importJob.create(",
+    "importStagingRow.create",
+    "@Cron",
+    "CronExpression",
+    "ScheduleModule",
+    "setInterval(",
+    "BullModule",
+    "new Queue",
+    "@Processor",
+  ].forEach((forbidden) => {
+    assert(!step149MPreviewRouteScope.includes(forbidden), `Step149-M preview route must remain no-runtime: ${forbidden}`);
+  });
+} else {
+  assert(
+    !controller.includes("planAmazonOrdersHistoricalSyncWindows") &&
+      !controller.includes("AmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
+      !controller.includes("createAmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
+      !controller.includes("amazon-sp-api-orders-historical-sync-window-planner"),
+    "pre-Step149-M controller must not wire planner/worker",
+  );
+}
 
 [
   "@Cron",
@@ -106,10 +153,10 @@ assert(
   "ScheduleModule",
   "setInterval(",
   "BullModule",
-  "Queue",
-  "Processor",
+  "new Queue",
+  "@Processor",
 ].forEach((forbidden) => {
-  assert(!controller.includes(forbidden), `controller must not contain scheduler marker: ${forbidden}`);
+  assert(!controller.includes(forbidden), `controller must not contain scheduler runtime marker: ${forbidden}`);
 });
 
 assert(

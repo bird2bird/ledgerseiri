@@ -23,6 +23,14 @@ import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './
 import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-orders-date-range.contract';
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
+import {
+  assertAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract,
+  buildAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract,
+  type AmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewRouteBody,
+  type AmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewRouteResponse,
+} from './dto/amazon-sp-api-orders-historical-sync-disabled-plan-preview-controller-contract.dto';
+import { createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble } from './amazon-sp-api-orders-historical-sync.repository.test-double';
+import { createAmazonSpApiOrdersHistoricalSyncWorkerDisabled } from './amazon-sp-api-orders-historical-sync.worker.disabled';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -438,6 +446,119 @@ export class ImportsController {
     );
   }
 
+
+
+  // Step149-M: Amazon Orders historical sync disabled planning preview endpoint.
+  // Guarded backend preview only: calls disabled worker planHistoricalSync(), never executes sync,
+  // never calls Amazon, never creates sync jobs/segments, and never writes ledger/inventory records.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/historical-sync/plan-preview')
+  async amazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewRouteBody,
+  ): Promise<AmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewRouteResponse> {
+    const companyId = String(req.user?.companyId || '').trim();
+    const normalizedStoreId = String(body?.storeId || '').trim();
+    const normalizedMarketplaceId = String(body?.marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = String(body?.region || 'JP').trim().toUpperCase();
+    const syncStartDate = String(body?.syncStartDate || '').trim();
+    const syncEndDate = String(body?.syncEndDate || '').trim();
+    const segmentDays =
+      typeof body?.segmentDays === 'number' && Number.isFinite(body.segmentDays)
+        ? body.segmentDays
+        : undefined;
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (!normalizedStoreId) {
+      throw new BadRequestException(
+        'STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_BAD_REQUEST: storeId is required.',
+      );
+    }
+
+    if (!normalizedMarketplaceId) {
+      throw new BadRequestException(
+        'STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_BAD_REQUEST: marketplaceId is required.',
+      );
+    }
+
+    if (!syncStartDate) {
+      throw new BadRequestException(
+        'STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_BAD_REQUEST: syncStartDate is required.',
+      );
+    }
+
+    if (!syncEndDate) {
+      throw new BadRequestException(
+        'STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_BAD_REQUEST: syncEndDate is required.',
+      );
+    }
+
+    const contract = assertAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract(
+      buildAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract(),
+    );
+
+    const repository = createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble();
+    const worker = createAmazonSpApiOrdersHistoricalSyncWorkerDisabled(repository);
+
+    let plan: ReturnType<typeof worker.planHistoricalSync>;
+
+    try {
+      plan = worker.planHistoricalSync({
+        companyId,
+        storeId: normalizedStoreId,
+        marketplaceId: normalizedMarketplaceId,
+        region: normalizedRegion,
+        syncStartDate,
+        syncEndDate,
+        requestedByUserId: req.user?.id || req.user?.userId || null,
+        segmentDays,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(
+        `STEP149_M_HISTORICAL_SYNC_PLAN_PREVIEW_BAD_REQUEST: ${message}`,
+      );
+    }
+
+    return {
+      source: 'amazon-sp-api-orders-historical-sync-disabled-plan-preview',
+      routeImplementedNow: true,
+      controllerRoute: contract.route,
+      guardedBy: contract.guardedBy,
+      companyScoped: true,
+      companyIdPresent: true,
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      syncStartDate,
+      syncEndDate,
+      segmentDays: segmentDays ?? null,
+      accepted: false,
+      disabled: true,
+      plan,
+      boundaries: {
+        callsDisabledWorkerPlan: contract.callsDisabledWorkerPlan,
+        callsRunHistoricalSync: contract.callsRunHistoricalSync,
+        callsRunSegment: contract.callsRunSegment,
+        callsAmazon: contract.callsAmazon,
+        writesDatabase: contract.writesDatabase,
+        writesSyncJob: contract.writesSyncJob,
+        writesSyncSegment: contract.writesSyncSegment,
+        writesImportJob: contract.writesImportJob,
+        writesImportStagingRow: contract.writesImportStagingRow,
+        writesTransaction: contract.writesTransaction,
+        writesInventoryMovement: contract.writesInventoryMovement,
+        startsScheduler: contract.startsScheduler,
+        startsQueue: contract.startsQueue,
+        frontendWiredNow: contract.frontendWiredNow,
+      },
+    };
+  }
 
 
   // Step122-O: Amazon SP-API sandbox ImportJob read-model readonly controller service-call implementation.

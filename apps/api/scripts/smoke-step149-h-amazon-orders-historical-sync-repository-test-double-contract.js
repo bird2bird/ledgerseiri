@@ -23,6 +23,14 @@ function read(file) {
   return fs.readFileSync(file, "utf8");
 }
 
+function extractStep149MPreviewRouteScope(controller) {
+  const start = controller.indexOf("amazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerRoute");
+  if (start < 0) return "";
+  const marker = "\n\n  // Step122-O:";
+  const end = controller.indexOf(marker, start);
+  return controller.slice(start, end > start ? end : start + 7000);
+}
+
 console.log("========== Step149-H smoke: repository test-double contract ==========");
 
 const contract = read(contractPath);
@@ -88,12 +96,72 @@ assert(
   "Step149-C disabled route must remain present",
 );
 
-assert(
-  !controller.includes("AmazonSpApiOrdersHistoricalSyncRepositoryTestDouble") &&
-    !controller.includes("createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble") &&
-    !controller.includes("AmazonSpApiOrdersHistoricalSyncRepository"),
-  "controller must not wire repository in Step149-H",
-);
+const step149MPreviewRouteScope = extractStep149MPreviewRouteScope(controller);
+
+if (step149MPreviewRouteScope) {
+  assert(
+    step149MPreviewRouteScope.includes("createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble"),
+    "Step149-M preview route may use test-double repository factory",
+  );
+  assert(
+    step149MPreviewRouteScope.includes("createAmazonSpApiOrdersHistoricalSyncWorkerDisabled"),
+    "Step149-M preview route may create disabled worker",
+  );
+  assert(
+    step149MPreviewRouteScope.includes("worker.planHistoricalSync"),
+    "Step149-M preview route must call worker.planHistoricalSync",
+  );
+
+  [
+    "new PrismaClient",
+    "createAmazonSpApiOrdersHistoricalSyncPrismaRepositoryDisabled",
+    "amazon-sp-api-orders-historical-sync.repository.prisma-disabled",
+    "runHistoricalSync(",
+    "runSegment(",
+    "repository.createSyncJob",
+    "repository.createSyncSegment",
+    "this.repository.createSyncJob",
+    "this.repository.createSyncSegment",
+    "previewAmazonSpApiOrdersReal",
+    "buildAmazonSpApiOrdersServerOnlyRawSignedTransport",
+    "persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows",
+    "prismaService.",
+    "amazonSpApiOrderSyncJob.",
+    "amazonSpApiOrderSyncSegment.",
+    "transaction.create(",
+    "inventoryMovement.create(",
+    "importJob.create(",
+    "importStagingRow.create",
+    "@Cron",
+    "CronExpression",
+    "ScheduleModule",
+    "setInterval(",
+    "BullModule",
+    "new Queue",
+    "@Processor",
+  ].forEach((forbidden) => {
+    assert(!step149MPreviewRouteScope.includes(forbidden), `Step149-M preview route must remain no-runtime: ${forbidden}`);
+  });
+} else {
+  assert(
+    !controller.includes("AmazonSpApiOrdersHistoricalSyncRepositoryTestDouble") &&
+      !controller.includes("createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble") &&
+      !controller.includes("AmazonSpApiOrdersHistoricalSyncRepository"),
+    "pre-Step149-M controller must not wire repository",
+  );
+}
+
+[
+  "@Cron",
+  "CronExpression",
+  "ScheduleModule",
+  "setInterval(",
+  "BullModule",
+  "new Queue",
+  "@Processor",
+].forEach((forbidden) => {
+  assert(!controller.includes(forbidden), `controller must not contain scheduler runtime marker: ${forbidden}`);
+});
 
 assert(
   pkg.scripts["smoke:step149-h-amazon-orders-historical-sync-repository-test-double-contract"] ===
@@ -101,7 +169,6 @@ assert(
   "package.json must register Step149-H smoke",
 );
 
-// Runtime test the test-double through ts-node/register. This stays in-memory and does not touch DB.
 require("ts-node/register/transpile-only");
 
 const {
