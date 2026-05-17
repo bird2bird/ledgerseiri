@@ -22,12 +22,48 @@ import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceSh
 import { AmazonSpApiSandboxReadModelPanelShell } from "@/components/app/imports/AmazonSpApiSandboxReadModelPanelShell";
 
 
+// Step151-B-FETCH-BUTTON-EXECUTION-CONTRACT:
+// Frontend-only guarded execution contract for the connected-service「取得」button.
+// This does not call preview/import/sync execution endpoints or any write endpoint.
+type AmazonOrdersFetchExecutionContractStatus =
+  | "idle"
+  | "preflight_required"
+  | "preview_required"
+  | "confirmation_required"
+  | "blocked";
+
+const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
+  {
+    key: "preflight_required",
+    label: "1. 事前確認",
+    description: "会社・店舗・marketplace・取得期間・接続状態を確認する段階です。Step151-Bでは実行しません。",
+  },
+  {
+    key: "preview_required",
+    label: "2. プレビュー",
+    description: "プレビューAPIで取得内容を確認する将来段階です。Step151-Bでは呼び出しません。",
+  },
+  {
+    key: "confirmation_required",
+    label: "3. 明示確認",
+    description: "ユーザー確認後にのみ ImportJob 作成へ進む将来段階です。Step151-Bでは作成しません。",
+  },
+  {
+    key: "blocked",
+    label: "4. 実行ガード",
+    description: "重複実行・未確認実行・範囲未固定・DB書き込みをブロックします。",
+  },
+] as const;
+
+
 function AmazonOrdersConnectedServicesShell({
   onFetchShell,
   fetchShellMessage,
+  executionContractStatus,
 }: {
   onFetchShell: () => void;
   fetchShellMessage: string;
+  executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
 }) {
   return (
     <section
@@ -44,7 +80,8 @@ function AmazonOrdersConnectedServicesShell({
           </h2>
           <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">
             MoneyForward と同じ操作感で、連携済みサービスごとに取得状態・最終取得日時・明細一覧を確認します。
-            Step150-D は単一の「取得」入口を有効化しますが、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
+            Step151-B は「取得」入口を guarded execution contract に更新しますが、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
+            Step150-D は UI shell のみです。
           </p>
         </div>
 
@@ -120,11 +157,83 @@ function AmazonOrdersConnectedServicesShell({
               data-testid="data-import-connected-service-amazon-orders-fetch-button"
               type="button"
               onClick={onFetchShell}
-              title="Step150-D は UI shell のみです。Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。"
+              title="Step151-B は実行契約のみです。プレビューAPI・インポート作成API・履歴同期API・DB書き込みは行いません。"
               className="inline-flex rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800"
             >
               取得
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        data-testid="data-import-connected-service-amazon-orders-execution-contract"
+        className="mt-4 rounded-3xl border border-indigo-200 bg-indigo-50 px-4 py-4"
+      >
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-700">
+              Step151-B Guarded Execution Contract
+            </div>
+            <h3 className="mt-1 text-sm font-black text-slate-950">
+              取得は preview → 明示確認 → ImportJob 作成の順に進めます
+            </h3>
+            <p
+              data-testid="data-import-connected-service-amazon-orders-execution-contract-copy"
+              className="mt-1 max-w-3xl text-xs font-bold leading-5 text-indigo-900"
+            >
+              このステップでは実行契約だけを表示します。プレビューAPI、インポート作成API、履歴同期API、Amazon API、DB書き込みは呼び出しません。
+            </p>
+          </div>
+          <span
+            data-testid="data-import-connected-service-amazon-orders-execution-contract-status"
+            className="inline-flex rounded-full border border-indigo-300 bg-white px-2.5 py-1 text-xs font-black text-indigo-700"
+          >
+            {executionContractStatus}
+          </span>
+        </div>
+
+        <div
+          data-testid="data-import-connected-service-amazon-orders-execution-contract-steps"
+          className="mt-3 grid gap-2 md:grid-cols-4"
+        >
+          {AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS.map((step) => (
+            <div
+              key={step.key}
+              data-testid={`data-import-connected-service-amazon-orders-execution-contract-step-${step.key}`}
+              className={`rounded-2xl border px-3 py-3 text-xs ${
+                executionContractStatus === step.key
+                  ? "border-indigo-500 bg-white text-indigo-900 shadow-sm"
+                  : "border-indigo-200 bg-white/70 text-indigo-800"
+              }`}
+            >
+              <div className="font-black">{step.label}</div>
+              <div className="mt-1 font-bold leading-5">{step.description}</div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          data-testid="data-import-connected-service-amazon-orders-execution-contract-boundaries"
+          className="mt-3 grid gap-2 md:grid-cols-3"
+        >
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            callsAmazon=false
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            createsImportJob=false
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            writesDatabase=false
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            writesTransaction=false
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            writesInventoryMovement=false
+          </div>
+          <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-900">
+            requiresExplicitConfirmation=true
           </div>
         </div>
       </div>
@@ -153,6 +262,10 @@ export default function DataImportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [amazonOrdersFetchShellMessage, setAmazonOrdersFetchShellMessage] = useState("");
+  const [
+    amazonOrdersFetchExecutionContractStatus,
+    setAmazonOrdersFetchExecutionContractStatus,
+  ] = useState<AmazonOrdersFetchExecutionContractStatus>("idle");
 
   async function load() {
     setLoading(true);
@@ -176,12 +289,13 @@ export default function DataImportPage() {
   }, []);
 
   function handleAmazonOrdersConnectedServiceFetchShell() {
+    setAmazonOrdersFetchExecutionContractStatus("preflight_required");
     setAmazonOrdersFetchShellMessage(
-      "取得入口を選択しました。Step150-D は UI shell のみのため、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。下の Amazon注文取得 エリアで期間と取得準備を確認してください。"
+      "取得入口を選択しました。Step151-B は guarded execution contract のみです。次の開発で preflight → preview → 明示確認 → ImportJob作成へ段階的に進めます。現時点ではプレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。Step150-D は UI shell のみです。"
     );
 
     if (typeof document !== "undefined") {
-      const target = document.querySelector('[data-testid="amazon-sp-api-simple-order-pull-card"]');
+      const target = document.querySelector('[data-testid="data-import-connected-service-amazon-orders-execution-contract"]');
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
@@ -221,6 +335,7 @@ export default function DataImportPage() {
       <AmazonOrdersConnectedServicesShell
         onFetchShell={handleAmazonOrdersConnectedServiceFetchShell}
         fetchShellMessage={amazonOrdersFetchShellMessage}
+        executionContractStatus={amazonOrdersFetchExecutionContractStatus}
       />
 
       <AmazonSpApiConnectionStatusPanel />

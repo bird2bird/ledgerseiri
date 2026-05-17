@@ -28,6 +28,9 @@ const pkg = JSON.parse(read(packagePath));
   "data-import-connected-service-amazon-orders-status",
   "data-import-connected-service-amazon-orders-view-link",
   "data-import-connected-service-amazon-orders-fetch-button",
+  "Step151-B-FETCH-BUTTON-EXECUTION-CONTRACT",
+  "data-import-connected-service-amazon-orders-execution-contract",
+  "data-import-connected-service-amazon-orders-execution-contract-status",
   "data-import-connected-service-amazon-orders-fetch-shell-message",
   "data-import-connected-service-amazon-orders-range-rule",
   "連携サービス一覧",
@@ -44,7 +47,7 @@ const pkg = JSON.parse(read(packagePath));
   "handleAmazonOrdersConnectedServiceFetchShell",
   "取得入口を選択しました",
   "target?.scrollIntoView",
-  "amazon-sp-api-simple-order-pull-card",
+  "data-import-connected-service-amazon-orders-execution-contract",
 ].forEach((needle) => {
   assert(page.includes(needle), `page contains marker: ${needle}`);
 });
