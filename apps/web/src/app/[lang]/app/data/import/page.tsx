@@ -295,6 +295,132 @@ function AmazonOrdersConnectedServicesShell({
             </div>
           ) : null}
         </div>
+
+        {/* Step151-F-PREVIEW-SHELL-NO-EXECUTION:
+            Show a review-only preview shell after guarded preflight is ready.
+            This shell does not call real-preview, does not create ImportJob,
+            and does not write DB / Transaction / InventoryMovement. */}
+        {preflightResult?.allowed && executionContractStatus === "preflight_ready" ? (
+          <div
+            data-testid="data-import-connected-service-amazon-orders-preview-shell"
+            className="mt-3 rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-xs font-bold leading-5 text-emerald-950"
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                  Step151-F Preview Shell
+                </div>
+                <h3 className="mt-1 text-sm font-black text-slate-950">
+                  プレビュー確認の準備ができました
+                </h3>
+                <p
+                  data-testid="data-import-connected-service-amazon-orders-preview-shell-copy"
+                  className="mt-1 max-w-3xl text-xs font-bold leading-5 text-emerald-900"
+                >
+                  この領域は preflight_ready 後の確認用 shell です。Step151-F では real-preview API、ImportJob 作成、DB 書き込みは実行しません。
+                </p>
+              </div>
+              <button
+                data-testid="data-import-connected-service-amazon-orders-preview-confirm-button"
+                type="button"
+                disabled
+                title="Step151-F は preview shell のみです。real-preview は Step151-G 以降で明示的に接続します。"
+                className="inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-800 opacity-70 shadow-sm"
+              >
+                プレビュー確認（次ステップ）
+              </button>
+            </div>
+
+            <div
+              data-testid="data-import-connected-service-amazon-orders-preview-shell-summary"
+              className="mt-4 grid gap-2 md:grid-cols-3"
+            >
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">取得期間</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-range">
+                  rangePreset={preflightResult.dateRange.rangePreset || "-"} / days={String(preflightResult.dateRange.days ?? "-")}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">開始日時</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-created-after">
+                  {preflightResult.dateRange.createdAfter || "-"}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">終了日時</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-created-before">
+                  {preflightResult.dateRange.createdBefore || "-"}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Store</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-store">
+                  {preflightResult.scope.storeId}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Marketplace</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-marketplace">
+                  {preflightResult.scope.marketplaceId}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Region</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-region">
+                  {preflightResult.scope.region}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Next action</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-next-action">
+                  {preflightResult.nextAction}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Guard status</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-guard-status">
+                  connected={String(preflightResult.connectionReadiness.connected)} / locked={String(preflightResult.dateRange.locked)}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">
+                <div className="text-[11px] font-black text-emerald-700">Execution boundary</div>
+                <div data-testid="data-import-connected-service-amazon-orders-preview-shell-boundary">
+                  callsRealPreview={String(preflightResult.boundaries.callsRealPreview)} / writesDatabase={String(preflightResult.boundaries.writesDatabase)}
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-testid="data-import-connected-service-amazon-orders-preview-shell-no-execution-boundaries"
+              className="mt-3 grid gap-2 md:grid-cols-5"
+            >
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+                callsRealPreview=false
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+                createsImportJob=false
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+                writesDatabase=false
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+                writesTransaction=false
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+                writesInventoryMovement=false
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {fetchShellMessage ? (
