@@ -598,6 +598,9 @@ function AmazonSpApiIncomeTransactionDryRunPanel(props: {
           className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-sky-700"
           data-testid="amazon-sp-api-income-transaction-dry-run-no-write-badge"
         >
+          <span className="ml-2 font-black text-emerald-700">
+            dryRun=true / writesDatabase=false / transactionWriteNow=false / inventoryWriteNow=false
+          </span>
           dry-run / no DB write
         </div>
       </div>
@@ -619,6 +622,51 @@ function AmazonSpApiIncomeTransactionDryRunPanel(props: {
 
       {data ? (
         <div className="mt-3 space-y-3" data-testid="amazon-sp-api-income-transaction-dry-run-loaded">
+          <div
+            className="grid gap-2 md:grid-cols-4"
+            data-testid="amazon-sp-api-income-transaction-dry-run-candidate-summary"
+          >
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+              <div className="text-[11px] font-black text-emerald-700">収入候補額</div>
+              <div className="mt-1 text-base font-black text-emerald-950">
+                {formatAmazonIncomeDryRunAmount(state.data?.summary.candidateAmountTotal ?? 0)}
+              </div>
+              <div className="mt-1 text-[10px] font-bold text-emerald-700">
+                {formatAmazonIncomeDryRunPolicy(state.data?.summary.amountPolicy)}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="text-[11px] font-black text-slate-500">商品価格</div>
+              <div className="mt-1 text-base font-black text-slate-950">
+                {formatAmazonIncomeDryRunAmount(state.data?.summary.itemPriceTotal ?? 0)}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="text-[11px] font-black text-slate-500">配送料</div>
+              <div className="mt-1 text-base font-black text-slate-950">
+                {formatAmazonIncomeDryRunAmount(state.data?.summary.shippingPriceTotal ?? 0)}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <div className="text-[11px] font-black text-amber-700">税額参考</div>
+              <div className="mt-1 text-base font-black text-amber-950">
+                {formatAmazonIncomeDryRunAmount(state.data?.summary.itemTaxTotal ?? 0)}
+              </div>
+              <div className="mt-1 text-[10px] font-bold text-amber-700">
+                収入候補額には加算しません
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="text-[11px] font-black text-slate-500">候補 / ブロック</div>
+              <div className="mt-1 text-sm font-black text-slate-950">
+                {state.data?.summary.previewableRows} / {state.data?.summary.blockedRows}
+              </div>
+              <div className="mt-1 text-[10px] font-bold text-slate-500">
+                missing amount: {state.data?.summary.missingAmountRows}
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-2 md:grid-cols-4">
             <div className="rounded-xl border border-slate-100 bg-white p-3">
               <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total rows</div>
@@ -671,6 +719,61 @@ function AmazonSpApiIncomeTransactionDryRunPanel(props: {
                     className="grid gap-2 px-3 py-2 text-xs text-slate-700 md:grid-cols-5"
                     data-testid="amazon-sp-api-income-transaction-dry-run-row"
                   >
+                      <div
+                        className="mt-3 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-[11px] font-bold text-slate-600 md:grid-cols-4"
+                        data-testid="amazon-sp-api-income-transaction-dry-run-row-candidate-detail"
+                      >
+                        <div>
+                          <div className="font-black text-slate-500">収入候補額</div>
+                          <div className="mt-1 text-sm font-black text-slate-950">
+                            {formatAmazonIncomeDryRunAmount(row.candidateAmount ?? row.amount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-black text-slate-500">商品価格 / 配送料</div>
+                          <div className="mt-1 text-sm font-black text-slate-950">
+                            {formatAmazonIncomeDryRunAmount(row.itemPriceAmount)} / {formatAmazonIncomeDryRunAmount(row.shippingPriceAmount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-black text-slate-500">税額参考</div>
+                          <div className="mt-1 text-sm font-black text-amber-700">
+                            {formatAmazonIncomeDryRunAmount(row.itemTaxAmount)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-black text-slate-500">注文状態 / 注文合計</div>
+                          <div className="mt-1 text-sm font-black text-slate-950">
+                            {row.orderStatus || "—"} / {formatAmazonIncomeDryRunAmount(row.orderTotalAmount)}
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="font-black text-slate-500">日時 / ASIN</div>
+                          <div className="mt-1 text-xs font-black text-slate-950">
+                            {formatAmazonIncomeDryRunDate(row.businessDate)} / {row.asin || "—"}
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="font-black text-slate-500">金額ポリシー</div>
+                          <div className="mt-1 text-xs font-black text-emerald-700">
+                            {formatAmazonIncomeDryRunPolicy(row.amountPolicy)}
+                          </div>
+                        </div>
+                        {hasAmazonIncomeDryRunBlockers(row) ? (
+                          <div className="md:col-span-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-rose-700">
+                            <span className="font-black">Blocked:</span> {row.blockers.join(", ")}
+                            <div className="mt-1 text-[10px] font-bold text-rose-600">
+                              例: MISSING_OR_INVALID_AMOUNT は金額ゼロ・欠落のため収入候補にできない行です。
+                            </div>
+                          </div>
+                        ) : null}
+                        {Array.isArray(row.warnings) && row.warnings.length > 0 ? (
+                          <div className="md:col-span-4 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-amber-700">
+                            <span className="font-black">Warnings:</span> {row.warnings.join(", ")}
+                          </div>
+                        ) : null}
+                      </div>
+
                     <div>
                       <span className="text-slate-400">Row</span> {row.rowNo ?? "-"}
                     </div>
@@ -1354,6 +1457,36 @@ function ImportJobDetailDrawer(props: {
     </div>,
     document.body
   );
+}
+
+
+function formatAmazonIncomeDryRunAmount(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return `¥${value.toLocaleString("ja-JP")}`;
+}
+
+function formatAmazonIncomeDryRunDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatAmazonIncomeDryRunPolicy(value: string | null | undefined): string {
+  if (value === "ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX") {
+    return "収入候補額 = 商品価格 + 配送料（税額は参考）";
+  }
+  return value || "—";
+}
+
+function hasAmazonIncomeDryRunBlockers(row: { blockers?: string[] | null }): boolean {
+  return Array.isArray(row.blockers) && row.blockers.length > 0;
 }
 
 export function ImportJobsTableCard(props: {

@@ -1009,6 +1009,15 @@ export type AmazonSpApiOrdersIncomeTransactionDryRunRow = {
   sellerSku: string | null;
   productSkuId: string | null;
   amount: number | null;
+  asin?: string | null;
+  title?: string | null;
+  itemPriceAmount?: number | null;
+  itemTaxAmount?: number | null;
+  shippingPriceAmount?: number | null;
+  candidateAmount?: number | null;
+  amountPolicy?: "ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX" | string;
+  orderStatus?: string | null;
+  orderTotalAmount?: number | null;
   currency: string;
   businessDate: string | null;
   businessMonth: string | null;
@@ -1036,6 +1045,11 @@ export type AmazonSpApiOrdersIncomeTransactionDryRunResponse = {
     existingTransactionRows: number;
     missingAmountRows: number;
     missingOrderIdentityRows: number;
+    itemPriceTotal?: number;
+    itemTaxTotal?: number;
+    shippingPriceTotal?: number;
+    candidateAmountTotal?: number;
+    amountPolicy?: "ITEM_PRICE_PLUS_SHIPPING_EXCLUDES_TAX" | string;
   };
   rows: AmazonSpApiOrdersIncomeTransactionDryRunRow[];
   guardrails: {
