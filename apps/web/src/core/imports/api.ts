@@ -1026,6 +1026,187 @@ export async function previewAmazonSpApiOrdersHistoricalSyncPlan(
 }
 
 
+// Step150-G-FRONTEND-AMAZON-IMPORTED-ORDERS-READ-MODEL-CONTRACT:
+// Frontend contract for a future read-only backend route that will list imported Amazon orders
+// from existing ImportJob / ImportStagingRow data. This helper must not call Amazon directly,
+// must not create ImportJob / SyncJob / SyncSegment, and must not write DB.
+export type AmazonImportedOrdersReadModelRangePreset = "7D" | "30D" | "90D" | "365D" | "CUSTOM";
+
+export type AmazonImportedOrdersReadModelListRequest = {
+  rangePreset?: AmazonImportedOrdersReadModelRangePreset;
+  startDate?: string;
+  endDate?: string;
+  orderId?: string;
+  status?: string;
+  content?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  cursor?: string;
+  limit?: number;
+};
+
+export type AmazonImportedOrdersReadModelOrderRow = {
+  orderId: string;
+  purchaseDate: string | null;
+  content: string;
+  amount: string | null;
+  currency: string | null;
+  service: "Amazon.co.jp" | string;
+  status: string;
+  itemCount: number;
+  marketplace: string | null;
+  skuStatus: "linked" | "alias-linked" | "unresolved" | "read-model-pending" | string;
+  importStatus: "imported" | "partial" | "failed" | "read-model-pending" | string;
+  importJobId: string | null;
+  stagingRowIds: string[];
+};
+
+export type AmazonImportedOrdersReadModelSummary = {
+  totalOrders: number;
+  totalItems: number;
+  unresolvedSkuCount: number;
+  linkedSkuCount: number;
+  aliasLinkedSkuCount: number;
+  currency: string | null;
+  amountTotal: string | null;
+};
+
+export type AmazonImportedOrdersReadModelPagination = {
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
+};
+
+export type AmazonImportedOrdersReadModelListResponse = {
+  source: "amazon-imported-orders-read-model" | string;
+  routeImplementedNow?: boolean;
+  readOnly: true;
+  companyScoped: true;
+  orders: AmazonImportedOrdersReadModelOrderRow[];
+  summary: AmazonImportedOrdersReadModelSummary;
+  pagination: AmazonImportedOrdersReadModelPagination;
+  boundaries: {
+    readsExistingImportJob: true;
+    readsExistingImportStagingRow: true;
+    callsAmazon: false;
+    createsImportJob: false;
+    createsSyncJob: false;
+    createsSyncSegment: false;
+    writesDatabase: false;
+    writesTransaction: false;
+    writesInventoryMovement: false;
+  };
+};
+
+export type AmazonImportedOrderDetailReadModelItemRow = {
+  orderItemId: string | null;
+  sellerSku: string | null;
+  asin: string | null;
+  title: string | null;
+  quantity: number | null;
+  itemPrice: string | null;
+  itemTax: string | null;
+  shippingPrice: string | null;
+  shippingTax: string | null;
+  promotionDiscount: string | null;
+  promotionDiscountTax: string | null;
+  currency: string | null;
+  skuReadiness: "linked" | "alias-linked" | "unresolved" | "read-model-pending" | string;
+};
+
+export type AmazonImportedOrderDetailReadModelResponse = {
+  source: "amazon-imported-order-detail-read-model" | string;
+  routeImplementedNow?: boolean;
+  readOnly: true;
+  companyScoped: true;
+  order: AmazonImportedOrdersReadModelOrderRow;
+  items: AmazonImportedOrderDetailReadModelItemRow[];
+  taxFeeSummary: {
+    itemTaxTotal: string | null;
+    shippingTaxTotal: string | null;
+    promotionDiscountTotal: string | null;
+    promotionDiscountTaxTotal: string | null;
+    amazonFeeTotal: string | null;
+    fbaFeeTotal: string | null;
+    settlementAmount: string | null;
+    currency: string | null;
+    financePermissionRequired: boolean;
+  };
+  inventoryReadiness: {
+    linkedRows: number;
+    aliasLinkedRows: number;
+    unresolvedRows: number;
+    auditHref: string | null;
+  };
+  importMetadata: {
+    importJobId: string | null;
+    importedAt: string | null;
+    stagingRowIds: string[];
+    sourceType: "amazon-sp-api-orders" | string;
+  };
+  boundaries: {
+    readsExistingImportJob: true;
+    readsExistingImportStagingRow: true;
+    callsAmazon: false;
+    createsImportJob: false;
+    createsSyncJob: false;
+    createsSyncSegment: false;
+    writesDatabase: false;
+    writesTransaction: false;
+    writesInventoryMovement: false;
+  };
+};
+
+export const AMAZON_IMPORTED_ORDERS_READ_MODEL_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/imported/read-model" as const;
+
+export const AMAZON_IMPORTED_ORDER_DETAIL_READ_MODEL_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/imported/read-model/detail" as const;
+
+export async function listAmazonImportedOrders(
+  params: AmazonImportedOrdersReadModelListRequest = {}
+): Promise<AmazonImportedOrdersReadModelListResponse> {
+  const query = new URLSearchParams();
+
+  if (params.rangePreset) query.set("rangePreset", params.rangePreset);
+  if (params.startDate) query.set("startDate", params.startDate);
+  if (params.endDate) query.set("endDate", params.endDate);
+  if (params.orderId) query.set("orderId", params.orderId);
+  if (params.status) query.set("status", params.status);
+  if (params.content) query.set("content", params.content);
+  if (params.minAmount !== undefined) query.set("minAmount", String(params.minAmount));
+  if (params.maxAmount !== undefined) query.set("maxAmount", String(params.maxAmount));
+  if (params.cursor) query.set("cursor", params.cursor);
+  if (params.limit !== undefined) query.set("limit", String(params.limit));
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const url = `${AMAZON_IMPORTED_ORDERS_READ_MODEL_ENDPOINT}${suffix}`;
+
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return readJson<AmazonImportedOrdersReadModelListResponse>(res, url);
+}
+
+export async function getAmazonImportedOrderDetail(
+  orderId: string
+): Promise<AmazonImportedOrderDetailReadModelResponse> {
+  const query = new URLSearchParams();
+  query.set("orderId", orderId);
+
+  const url = `${AMAZON_IMPORTED_ORDER_DETAIL_READ_MODEL_ENDPOINT}?${query.toString()}`;
+
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  return readJson<AmazonImportedOrderDetailReadModelResponse>(res, url);
+}
+
+
 // Step141-G2-FRONTEND-AMAZON-SP-API-STAGING-COMMIT-READINESS:
 // Frontend read helper for backend dry-run readiness endpoint.
 // This is review-only UI wiring. It does not create Transaction or InventoryMovement.
