@@ -579,7 +579,7 @@ export function AmazonSpApiConnectionStatusPanel() {
 
   async function previewHistoricalSyncPlan() {
     setHistoricalSyncPlanStatus("loading");
-    setHistoricalSyncPlanMessage("");
+    setHistoricalSyncPlanMessage("同期計画を作成しています。これは同期実行ではありません。");
     setHistoricalSyncPlanPreview(null);
 
     try {
@@ -597,14 +597,28 @@ export function AmazonSpApiConnectionStatusPanel() {
 
       const segmentCount = data.plan?.plannedSegments?.length ?? 0;
       const totalDays = data.plan?.normalizedRange?.totalDaysInclusive ?? "—";
+      const maxPages = data.plan?.paginationPolicy?.maxPagesPerSegment ?? "—";
       setHistoricalSyncPlanMessage(
-        `同期計画を作成しました（preview-only）。セグメント ${segmentCount} 件 / 対象日数 ${totalDays} 日。同期実行・DB書き込みは行っていません。`
+        `同期計画プレビューを作成しました。対象日数 ${totalDays} 日 / セグメント ${segmentCount} 件 / 最大ページ ${maxPages}。これは同期実行ではありません。`
       );
     } catch (err) {
       setHistoricalSyncPlanStatus("error");
       setHistoricalSyncPlanMessage(err instanceof Error ? err.message : String(err));
     }
   }
+
+  const historicalSyncPlanSegmentCount =
+    historicalSyncPlanPreview?.plan?.plannedSegments?.length ?? 0;
+  const historicalSyncPlanTotalDays =
+    historicalSyncPlanPreview?.plan?.normalizedRange?.totalDaysInclusive ?? "—";
+  const historicalSyncPlanMaxPages =
+    historicalSyncPlanPreview?.plan?.paginationPolicy?.maxPagesPerSegment ?? "—";
+  const historicalSyncPlanWillCreateJob =
+    historicalSyncPlanPreview?.plan?.wouldCreateSyncJob ?? false;
+  const historicalSyncPlanWillCallAmazon =
+    historicalSyncPlanPreview?.plan?.wouldCallAmazon ?? false;
+  const historicalSyncPlanWillWriteDatabase =
+    historicalSyncPlanPreview?.plan?.wouldWriteDatabase ?? false;
 
   return (
     <section
@@ -859,16 +873,22 @@ export function AmazonSpApiConnectionStatusPanel() {
                     Historical Sync Plan Preview
                   </div>
                   <h3 className="mt-1 text-base font-black text-slate-950">
-                    バックグラウンド取得の計画だけを確認
+                    バックグラウンド取得の計画プレビュー
                   </h3>
                   <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-indigo-900">
-                    Step149-N は preview-only です。同期実行・SyncJob作成・Amazon API取得・DB書き込みは行いません。
+                    これは同期実行ではありません。期間をセグメントに分割して表示するだけで、SyncJob作成・Amazon API取得・DB書き込みは行いません。
                   </p>
                   <div
                     data-testid="amazon-sp-api-historical-sync-plan-preview-range"
                     className="mt-2 text-[11px] font-bold text-indigo-800"
                   >
                     計画対象: {orderPullWindow.startDate} 〜 {orderPullWindow.endDate}
+                  </div>
+                  <div
+                    data-testid="amazon-sp-api-historical-sync-plan-preview-warning"
+                    className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-black leading-5 text-amber-800"
+                  >
+                    これは同期実行ではありません。SyncJob / SyncSegment は作成されず、Amazon API取得・DB書き込みも行いません。
                   </div>
                 </div>
 
@@ -880,7 +900,7 @@ export function AmazonSpApiConnectionStatusPanel() {
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
                 <button
                   data-testid="amazon-sp-api-historical-sync-plan-preview-button"
                   type="button"
@@ -888,7 +908,7 @@ export function AmazonSpApiConnectionStatusPanel() {
                   disabled={historicalSyncPlanStatus === "loading"}
                   className="inline-flex h-11 items-center justify-center rounded-2xl bg-indigo-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  同期計画をプレビュー
+                  {historicalSyncPlanStatus === "loading" ? "計画作成中..." : "同期計画をプレビュー"}
                 </button>
 
                 <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
@@ -899,9 +919,30 @@ export function AmazonSpApiConnectionStatusPanel() {
                 </div>
 
                 <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                  <div className="font-black text-slate-500">ジョブ作成</div>
+                  <div data-testid="amazon-sp-api-historical-sync-plan-preview-job-write" className="mt-1 font-black text-slate-950">
+                    {String(historicalSyncPlanWillCreateJob)}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                  <div className="font-black text-slate-500">Amazon取得</div>
+                  <div data-testid="amazon-sp-api-historical-sync-plan-preview-amazon-call" className="mt-1 font-black text-slate-950">
+                    {String(historicalSyncPlanWillCallAmazon)}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
                   <div className="font-black text-slate-500">DB書き込み</div>
                   <div data-testid="amazon-sp-api-historical-sync-plan-preview-db-write" className="mt-1 font-black text-slate-950">
-                    未実行
+                    {historicalSyncPlanWillWriteDatabase ? "実行予定" : "未実行"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                  <div className="font-black text-slate-500">状態</div>
+                  <div data-testid="amazon-sp-api-historical-sync-plan-preview-disabled-flag" className="mt-1 font-black text-slate-950">
+                    {historicalSyncPlanPreview ? String(historicalSyncPlanPreview.disabled) : "未作成"}
                   </div>
                 </div>
               </div>
@@ -922,8 +963,26 @@ export function AmazonSpApiConnectionStatusPanel() {
               {historicalSyncPlanPreview ? (
                 <div
                   data-testid="amazon-sp-api-historical-sync-plan-preview-summary"
-                  className="mt-3 grid gap-2 text-xs md:grid-cols-4"
+                  className="mt-3 grid gap-2 text-xs md:grid-cols-3 xl:grid-cols-6"
                 >
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">対象日数</div>
+                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-total-days" className="mt-1 font-black text-slate-950">
+                      {historicalSyncPlanTotalDays}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">セグメント</div>
+                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-segment-count" className="mt-1 font-black text-slate-950">
+                      {historicalSyncPlanSegmentCount}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">最大ページ/区間</div>
+                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-max-pages" className="mt-1 font-black text-slate-950">
+                      {historicalSyncPlanMaxPages}
+                    </div>
+                  </div>
                   <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
                     <div className="font-black text-slate-500">accepted</div>
                     <div className="mt-1 font-black text-slate-950">
@@ -937,25 +996,32 @@ export function AmazonSpApiConnectionStatusPanel() {
                     </div>
                   </div>
                   <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
-                    <div className="font-black text-slate-500">セグメント</div>
-                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-segment-count" className="mt-1 font-black text-slate-950">
-                      {historicalSyncPlanPreview.plan?.plannedSegments?.length ?? 0}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
-                    <div className="font-black text-slate-500">最大ページ/区間</div>
-                    <div className="mt-1 font-black text-slate-950">
-                      {historicalSyncPlanPreview.plan?.paginationPolicy?.maxPagesPerSegment ?? "—"}
+                    <div className="font-black text-slate-500">planningMode</div>
+                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-planning-mode" className="mt-1 break-words font-black text-slate-950">
+                      {historicalSyncPlanPreview.plan?.planningMode ?? "—"}
                     </div>
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <div
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-empty"
+                  className="mt-3 rounded-2xl border border-dashed border-indigo-200 bg-white/70 px-3 py-3 text-xs font-bold leading-5 text-indigo-800"
+                >
+                  まだ計画は作成されていません。期間を確認して「同期計画をプレビュー」を押してください。
+                </div>
+              )}
 
               {historicalSyncPlanPreview?.plan?.plannedSegments?.length ? (
                 <div
                   data-testid="amazon-sp-api-historical-sync-plan-preview-segment-list"
                   className="mt-3 overflow-hidden rounded-2xl border border-indigo-100 bg-white"
                 >
+                  <div
+                    data-testid="amazon-sp-api-historical-sync-plan-preview-segment-list-caption"
+                    className="border-b border-indigo-100 bg-white px-3 py-2 text-[11px] font-black text-indigo-800"
+                  >
+                    計画された取得区間（先頭6件を表示）。ここでは取得・保存は実行しません。
+                  </div>
                   <div className="grid grid-cols-[80px_1fr_1fr_90px] gap-2 border-b border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-800">
                     <div>#</div>
                     <div>createdAfter</div>

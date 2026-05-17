@@ -58,7 +58,18 @@ const backendController = read(backendControllerPath);
   "amazon-sp-api-historical-sync-plan-preview-segment-list",
   "amazon-sp-api-historical-sync-plan-preview-segment-row",
   "disabled / preview-only",
-  "同期実行・SyncJob作成・Amazon API取得・DB書き込みは行いません",
+  "SyncJob作成・Amazon API取得・DB書き込みは行いません",
+  "amazon-sp-api-historical-sync-plan-preview-warning",
+  "amazon-sp-api-historical-sync-plan-preview-job-write",
+  "amazon-sp-api-historical-sync-plan-preview-amazon-call",
+  "amazon-sp-api-historical-sync-plan-preview-disabled-flag",
+  "amazon-sp-api-historical-sync-plan-preview-total-days",
+  "amazon-sp-api-historical-sync-plan-preview-max-pages",
+  "amazon-sp-api-historical-sync-plan-preview-planning-mode",
+  "amazon-sp-api-historical-sync-plan-preview-empty",
+  "amazon-sp-api-historical-sync-plan-preview-segment-list-caption",
+  "これは同期実行ではありません",
+  "SyncJob / SyncSegment は作成されず",
 ].forEach((needle) => {
   assert(panel.includes(needle), `panel missing marker: ${needle}`);
 });
