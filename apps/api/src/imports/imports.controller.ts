@@ -22,6 +22,7 @@ import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-
 import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './amazon-sp-api-orders-real-importjob-persistence.service';
 import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-orders-date-range.contract';
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
+import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
 import { CommitImportDto } from './dto/commit-import.dto';
@@ -729,6 +730,25 @@ export class ImportsController {
     });
   }
 
+
+  // Step149-C: Amazon Orders historical/background sync controller-disabled route shell.
+  // This route is intentionally disabled. It does not call Amazon, create ImportJob,
+  // create ImportStagingRow, start a worker, create Transaction, or update Inventory.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/historical-sync')
+  async amazonSpApiOrdersHistoricalSyncDisabledControllerRoute(
+    @Req() req: { user?: { id?: string; companyId?: string } },
+    @Body() body: Record<string, unknown>,
+  ): Promise<AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse> {
+    const companyId = req.user?.companyId || null;
+    const requestedBy = req.user?.id || null;
+
+    return buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse({
+      companyId,
+      requestedBy,
+      body,
+    });
+  }
 
   // Step141-G1: Amazon SP-API Orders staging commit readiness / dry-run contract.
   // Read-only readiness endpoint for future explicit commit into Transaction / InventoryMovement.

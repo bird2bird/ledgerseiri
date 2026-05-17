@@ -89,13 +89,24 @@ const pkg = JSON.parse(read(packagePath));
 });
 
 [
-  "@Post('amazon-sp-api/orders/historical-sync'",
-  '@Post("amazon-sp-api/orders/historical-sync"',
-  "amazonSpApiOrdersHistoricalSyncControllerRoute",
   "AmazonSpApiOrdersHistoricalSyncArchitectureContract",
+  "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_ARCHITECTURE_CONTRACT",
 ].forEach((forbidden) => {
-  assert(!controller.includes(forbidden), `controller must not expose Step149-B route/import yet: ${forbidden}`);
+  assert(!controller.includes(forbidden), `controller must not import Step149-B architecture contract directly: ${forbidden}`);
 });
+
+// Step149-C is allowed to add a disabled route after Step149-B.
+// Step149-B architecture contract must remain contract-only and must not be used as runtime execution wiring.
+if (controller.includes("@Post('amazon-sp-api/orders/historical-sync')")) {
+  assert(
+    controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"),
+    "historical sync route, when present, must be the disabled Step149-C shell",
+  );
+  assert(
+    controller.includes("buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse"),
+    "historical sync route, when present, must return the disabled response contract",
+  );
+}
 
 assert(
   pkg.scripts["smoke:step149-b-amazon-orders-historical-sync-architecture-contract"] ===

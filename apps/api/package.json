@@ -273,7 +273,8 @@
     "smoke:step145-b5": "node scripts/smoke-step145-b5-header-row-item-flow-filters.js",
     "smoke:step147-b-income-candidate-read-model": "node scripts/smoke-step147-b-amazon-orders-income-candidate-read-model.js",
     "smoke:step148-b-amazon-orders-date-range-contract": "node scripts/smoke-step148-b-amazon-orders-date-range-contract.js",
-    "smoke:step149-b-amazon-orders-historical-sync-architecture-contract": "node scripts/smoke-step149-b-amazon-orders-historical-sync-architecture-contract.js"
+    "smoke:step149-b-amazon-orders-historical-sync-architecture-contract": "node scripts/smoke-step149-b-amazon-orders-historical-sync-architecture-contract.js",
+    "smoke:step149-c-amazon-orders-historical-sync-controller-disabled-route": "node scripts/smoke-step149-c-amazon-orders-historical-sync-controller-disabled-route.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
