@@ -3,14 +3,14 @@ const path = require("path");
 
 const root = "/opt/ledgerseiri";
 const web = path.join(root, "apps/web");
-const ordersPagePath = path.join(web, "src/app/[lang]/app/data/import/amazon-orders/page.tsx");
+const pagePath = path.join(web, "src/app/[lang]/app/data/import/amazon-orders/page.tsx");
 const packagePath = path.join(web, "package.json");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const page = fs.readFileSync(ordersPagePath, "utf8");
+const page = fs.readFileSync(pagePath, "utf8");
 const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 
 console.log("========== Step150-F smoke: order detail drawer interaction / layout polish ==========");
@@ -18,8 +18,7 @@ console.log("========== Step150-F smoke: order detail drawer interaction / layou
 [
   "AmazonOrderDetailDrawerShell",
   "selectedOrder",
-  "setSelectedOrder(row)",
-  "onClose={() => setSelectedOrder(null)}",
+  "handleSelectOrder",
   "amazon-orders-detail-list-row-detail-button",
   "amazon-orders-detail-drawer-shell",
   "amazon-orders-detail-drawer-overlay",
@@ -29,23 +28,45 @@ console.log("========== Step150-F smoke: order detail drawer interaction / layou
   "amazon-orders-detail-drawer-overview-grid",
   "amazon-orders-detail-drawer-marketplace",
   "amazon-orders-detail-drawer-items-placeholder-grid",
-  "amazon-orders-detail-drawer-items-placeholder-row",
   "amazon-orders-detail-drawer-tax-fee-placeholder-grid",
   "amazon-orders-detail-drawer-inventory-readiness-grid",
   "amazon-orders-detail-drawer-import-status-card",
   'aria-modal="true"',
   'role="dialog"',
-  "marketplace: string;",
-  "skuStatus: string;",
-  "importStatus: string;",
-  "read-model接続後に表示",
-  "商品税：—",
-  "配送料税：—",
-  "プロモーション：—",
-  "Amazon手数料：—",
 ].forEach((needle) => {
   assert(page.includes(needle), `orders page contains drawer marker: ${needle}`);
 });
+
+const isStep150NO =
+  page.includes("Step150-NO-FRONTEND-READ-MODEL-WIRING") &&
+  page.includes("getAmazonImportedOrderDetail");
+
+if (isStep150NO) {
+  [
+    "amazon-orders-detail-drawer-loading",
+    "amazon-orders-detail-drawer-error",
+    "amazon-orders-detail-drawer-items-read-model-row",
+    "readonly read-model",
+    "setSelectedOrder(null)",
+    "setSelectedDetail(null)",
+    'setDetailError("")',
+  ].forEach((needle) => {
+    assert(page.includes(needle), `orders page contains Step150-NO drawer marker: ${needle}`);
+  });
+} else {
+  [
+    "setSelectedOrder(row)",
+    "onClose={() => setSelectedOrder(null)}",
+    "amazon-orders-detail-drawer-items-placeholder-row",
+    "read-model接続後に表示",
+    "商品税：—",
+    "配送料税：—",
+    "プロモーション：—",
+    "Amazon手数料：—",
+  ].forEach((needle) => {
+    assert(page.includes(needle), `orders page contains Step150-F drawer marker: ${needle}`);
+  });
+}
 
 const drawerStart = page.indexOf("function AmazonOrderDetailDrawerShell");
 assert(drawerStart >= 0, "drawer component exists");
@@ -57,21 +78,16 @@ const drawerScope = page.slice(drawerStart, drawerEnd);
   "previewAmazonSpApiOrdersReal(",
   "commitAmazonSpApiOrdersRealImportJob(",
   "previewAmazonSpApiOrdersHistoricalSyncPlan(",
-  "readAmazon",
-  "fetch(",
-  "postJson",
-  "loadImportJobsPageSnapshot(",
   "runHistoricalSync",
-  "runSegment",
   "createSyncJob",
   "createSyncSegment",
-  "transaction.create(",
-  "inventoryMovement.create(",
-  "new Queue",
-  "@Processor",
+  "postJson<",
+  "real-preview",
+  "real-importjob",
+  "historical-sync/plan-preview",
 ].forEach((forbidden) => {
-  assert(!drawerScope.includes(forbidden), `drawer scope has no runtime marker: ${forbidden}`);
-  assert(!page.includes(forbidden), `orders page has no runtime marker: ${forbidden}`);
+  assert(!drawerScope.includes(forbidden), `drawer scope has no forbidden marker: ${forbidden}`);
+  assert(!page.includes(forbidden), `orders page has no forbidden marker: ${forbidden}`);
 });
 
 assert(

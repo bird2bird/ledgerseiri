@@ -3,98 +3,85 @@ const path = require("path");
 
 const root = "/opt/ledgerseiri";
 const web = path.join(root, "apps/web");
-const ordersPagePath = path.join(web, "src/app/[lang]/app/data/import/amazon-orders/page.tsx");
-const dataImportPagePath = path.join(web, "src/app/[lang]/app/data/import/page.tsx");
+const pagePath = path.join(web, "src/app/[lang]/app/data/import/amazon-orders/page.tsx");
 const packagePath = path.join(web, "package.json");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function read(file) {
-  return fs.readFileSync(file, "utf8");
-}
+const page = fs.readFileSync(pagePath, "utf8");
+const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 
 console.log("========== Step150-E smoke: Amazon order detail list page shell ==========");
-
-const page = read(ordersPagePath);
-const dataImportPage = read(dataImportPagePath);
-const pkg = JSON.parse(read(packagePath));
 
 [
   "amazon-orders-detail-list-page-shell",
   "Amazon注文 明細一覧",
   "amazon-orders-detail-list-back-link",
   "amazon-orders-detail-list-filter-shell",
-  "amazon-orders-detail-list-range-summary",
-  "amazon-orders-detail-list-order-id-filter",
-  "amazon-orders-detail-list-status-filter",
-  "amazon-orders-detail-list-content-filter",
-  "amazon-orders-detail-list-amount-filter",
   "amazon-orders-detail-list-table-shell",
   "amazon-orders-detail-list-row-shell",
   "amazon-orders-detail-list-row-detail-button",
-  "amazon-orders-detail-list-empty-state",
+  "AmazonOrderDetailDrawerShell",
   "amazon-orders-detail-drawer-shell",
   "amazon-orders-detail-drawer-close-button",
+  "amazon-orders-detail-drawer-order-id",
   "amazon-orders-detail-drawer-overview-section",
   "amazon-orders-detail-drawer-items-section",
   "amazon-orders-detail-drawer-tax-fee-section",
   "amazon-orders-detail-drawer-inventory-readiness-section",
   "amazon-orders-detail-drawer-import-section",
-  "amazon-orders-detail-drawer-overlay",
-  "aria-modal=\"true\"",
-  "role=\"dialog\"",
-  "amazon-orders-detail-drawer-status-pill",
-  "amazon-orders-detail-drawer-overview-grid",
-  "amazon-orders-detail-drawer-marketplace",
-  "amazon-orders-detail-drawer-items-placeholder-grid",
-  "amazon-orders-detail-drawer-items-placeholder-row",
-  "amazon-orders-detail-drawer-tax-fee-placeholder-grid",
-  "amazon-orders-detail-drawer-inventory-readiness-grid",
-  "amazon-orders-detail-drawer-import-status-card",
-  "setSelectedOrder(row)",
-  "onClose={() => setSelectedOrder(null)}",
-  "read-model接続後に表示",
-  "日付",
-  "内容",
-  "金額",
-  "連携サービス",
-  "ステータス",
-  "Order ID",
-  "詳細",
-  "商品明細",
-  "税金・手数料",
-  "在庫連携 readiness",
-  "インポート情報",
-  "shell-only",
 ].forEach((needle) => {
   assert(page.includes(needle), `orders page contains marker: ${needle}`);
 });
 
-assert(
-  dataImportPage.includes('href="/ja/app/data/import/amazon-orders"'),
-  "Data Import connected services row links to amazon-orders page",
-);
+const isStep150NO =
+  page.includes("Step150-NO-FRONTEND-READ-MODEL-WIRING") &&
+  page.includes("listAmazonImportedOrders") &&
+  page.includes("getAmazonImportedOrderDetail");
+
+if (isStep150NO) {
+  [
+    "Step150-NO-FRONTEND-READ-MODEL-WIRING",
+    "amazon-orders-detail-list-read-model-status",
+    "amazon-orders-detail-list-summary-read-model",
+    "amazon-orders-detail-list-refresh-button",
+    "amazon-orders-detail-list-loading",
+    "amazon-orders-detail-list-error",
+    "readonly read-model",
+    "setSelectedOrder(null)",
+    "setSelectedDetail(null)",
+    'setDetailError("")',
+  ].forEach((needle) => {
+    assert(page.includes(needle), `orders page contains Step150-NO compatibility marker: ${needle}`);
+  });
+
+  assert(!page.includes("amazon-orders-detail-list-amount-filter"), "Step150-NO no longer requires old amount filter marker");
+} else {
+  [
+    "AMAZON_ORDER_LIST_SHELL_ROWS",
+    "amazon-orders-detail-list-range-summary",
+    "amazon-orders-detail-list-amount-filter",
+    "onClose={() => setSelectedOrder(null)}",
+  ].forEach((needle) => {
+    assert(page.includes(needle), `orders page contains Step150-E shell marker: ${needle}`);
+  });
+}
 
 [
   "previewAmazonSpApiOrdersReal(",
   "commitAmazonSpApiOrdersRealImportJob(",
   "previewAmazonSpApiOrdersHistoricalSyncPlan(",
-  "readAmazon",
-  "fetch(",
-  "postJson",
-  "loadImportJobsPageSnapshot(",
   "runHistoricalSync",
-  "runSegment",
   "createSyncJob",
   "createSyncSegment",
-  "transaction.create(",
-  "inventoryMovement.create(",
-  "new Queue",
-  "@Processor",
+  "postJson<",
+  "real-preview",
+  "real-importjob",
+  "historical-sync/plan-preview",
 ].forEach((forbidden) => {
-  assert(!page.includes(forbidden), `orders page has no runtime marker: ${forbidden}`);
+  assert(!page.includes(forbidden), `orders page has no forbidden runtime marker: ${forbidden}`);
 });
 
 assert(

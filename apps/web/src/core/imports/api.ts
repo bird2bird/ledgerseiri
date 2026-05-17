@@ -1119,8 +1119,15 @@ export type AmazonImportedOrderDetailReadModelResponse = {
   routeImplementedNow?: boolean;
   readOnly: true;
   companyScoped: true;
-  order: AmazonImportedOrdersReadModelOrderRow;
-  items: AmazonImportedOrderDetailReadModelItemRow[];
+  order?: AmazonImportedOrdersReadModelOrderRow;
+  items?: AmazonImportedOrderDetailReadModelItemRow[];
+  detail?: {
+    order: AmazonImportedOrdersReadModelOrderRow;
+    items: AmazonImportedOrderDetailReadModelItemRow[];
+    taxFeeSummary: AmazonImportedOrderDetailReadModelResponse["taxFeeSummary"];
+    inventoryReadiness: AmazonImportedOrderDetailReadModelResponse["inventoryReadiness"];
+    importMetadata: AmazonImportedOrderDetailReadModelResponse["importMetadata"];
+  } | null;
   taxFeeSummary: {
     itemTaxTotal: string | null;
     shippingTaxTotal: string | null;

@@ -34,7 +34,9 @@
     "smoke:step150-d-connected-services-fetch-shell-behavior": "node scripts/smoke-step150-d-connected-services-fetch-shell-behavior.js",
     "smoke:step150-e-amazon-order-detail-list-page-shell": "node scripts/smoke-step150-e-amazon-order-detail-list-page-shell.js",
     "smoke:step150-f-amazon-order-detail-drawer-interaction-polish": "node scripts/smoke-step150-f-amazon-order-detail-drawer-interaction-polish.js",
-    "smoke:step150-g-amazon-imported-orders-read-model-helper-contract": "node scripts/smoke-step150-g-amazon-imported-orders-read-model-helper-contract.js"
+    "smoke:step150-g-amazon-imported-orders-read-model-helper-contract": "node scripts/smoke-step150-g-amazon-imported-orders-read-model-helper-contract.js",
+    "smoke:step150-no-amazon-imported-orders-read-model-page-wiring": "node scripts/smoke-step150-no-amazon-imported-orders-read-model-page-wiring.js",
+    "smoke:step150-no-amazon-imported-orders-read-model-runtime": "node scripts/smoke-step150-no-amazon-imported-orders-read-model-runtime.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

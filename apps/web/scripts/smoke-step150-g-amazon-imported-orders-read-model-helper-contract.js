@@ -116,12 +116,23 @@ async function main() {
     assert(!block.includes(forbidden), `Step150-G block has no forbidden marker: ${forbidden}`);
   });
 
-  [
-    "listAmazonImportedOrders(",
-    "getAmazonImportedOrderDetail(",
-  ].forEach((futureRuntime) => {
-    assert(!ordersPage.includes(futureRuntime), `orders page not yet wired to helper: ${futureRuntime}`);
-  });
+  const pageWiredToReadonlyReadModel =
+    ordersPage.includes("Step150-NO-FRONTEND-READ-MODEL-WIRING") &&
+    ordersPage.includes("listAmazonImportedOrders") &&
+    ordersPage.includes("getAmazonImportedOrderDetail");
+
+  if (pageWiredToReadonlyReadModel) {
+    assert(ordersPage.includes("readonly read-model"), "orders page documents readonly read-model wiring");
+    assert(!ordersPage.includes("previewAmazonSpApiOrdersReal("), "orders page does not call real preview");
+    assert(!ordersPage.includes("commitAmazonSpApiOrdersRealImportJob("), "orders page does not call real importjob");
+  } else {
+    [
+      "listAmazonImportedOrders(",
+      "getAmazonImportedOrderDetail(",
+    ].forEach((futureRuntime) => {
+      assert(!ordersPage.includes(futureRuntime), `orders page not yet wired to helper: ${futureRuntime}`);
+    });
+  }
 
   const calls = [];
   const listResponse = {
