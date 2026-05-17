@@ -25,7 +25,8 @@
     "smoke:step144-b-amazon-orders-grouped-staging-list": "node scripts/smoke-step144-b-amazon-orders-grouped-staging-list.js",
     "smoke:step145-d-count-display": "node scripts/smoke-step145-d-amazon-orders-count-display-polish.js",
     "smoke:step146-b-mixed-header-item-display": "node scripts/smoke-step146-b-amazon-orders-mixed-header-item-display.js",
-    "smoke:step147-c-income-dry-run-panel": "node scripts/smoke-step147-c-income-dry-run-panel-candidate-amount.js"
+    "smoke:step147-c-income-dry-run-panel": "node scripts/smoke-step147-c-income-dry-run-panel-candidate-amount.js",
+    "smoke:step148-c-amazon-orders-date-range-selector": "node scripts/smoke-step148-c-amazon-orders-date-range-selector.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

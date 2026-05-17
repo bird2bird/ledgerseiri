@@ -792,6 +792,9 @@ export type AmazonSpApiOrdersRealPreviewRequest = {
   region?: string;
   createdAfter: string;
   createdBefore?: string;
+  startDate?: string;
+  endDate?: string;
+  days?: number;
   orderStatuses?: string[];
   maxResultsPerPage?: number;
   realPreview: true;

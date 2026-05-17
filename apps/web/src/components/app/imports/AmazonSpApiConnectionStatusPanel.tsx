@@ -38,6 +38,119 @@ type BackendStatusDetail = AmazonSpApiConnectionStatusResponse | null;
 
 type OrderPullStepStatus = "idle" | "loading" | "success" | "error";
 
+
+type AmazonOrdersPullRangePreset = "7D" | "14D" | "30D" | "THIS_MONTH" | "LAST_MONTH" | "CUSTOM";
+
+const AMAZON_ORDER_PULL_RANGE_PRESETS: Array<{ value: AmazonOrdersPullRangePreset; label: string }> = [
+  { value: "7D", label: "最近7日" },
+  { value: "14D", label: "最近14日" },
+  { value: "30D", label: "最近30日" },
+  { value: "THIS_MONTH", label: "今月" },
+  { value: "LAST_MONTH", label: "先月" },
+  { value: "CUSTOM", label: "カスタム期間" },
+];
+
+type AmazonOrdersPullWindow = {
+  createdAfter: string;
+  createdBefore: string;
+  startDate: string;
+  endDate: string;
+  days?: number;
+  rangeMode: AmazonOrdersPullRangePreset;
+};
+
+function padAmazonOrderDatePart(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function toAmazonOrderDateInputValue(date: Date): string {
+  return [
+    date.getFullYear(),
+    padAmazonOrderDatePart(date.getMonth() + 1),
+    padAmazonOrderDatePart(date.getDate()),
+  ].join("-");
+}
+
+function parseAmazonOrderDateInputValue(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map((part) => Number(part));
+  const parsed = new Date(year, month - 1, day);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function addAmazonOrderDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function buildAmazonOrderPullWindowFromDateInputs(
+  startDate: string,
+  endDate: string,
+  rangeMode: AmazonOrdersPullRangePreset,
+  days?: number,
+): AmazonOrdersPullWindow {
+  return {
+    startDate,
+    endDate,
+    createdAfter: `${startDate}T00:00:00.000Z`,
+    createdBefore: `${endDate}T23:59:59.999Z`,
+    days,
+    rangeMode,
+  };
+}
+
+function buildAmazonOrderPullWindowFromPreset(
+  preset: AmazonOrdersPullRangePreset,
+  customStartDate: string,
+  customEndDate: string,
+  now = new Date(),
+): AmazonOrdersPullWindow {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (preset === "CUSTOM") {
+    const start = parseAmazonOrderDateInputValue(customStartDate);
+    const end = parseAmazonOrderDateInputValue(customEndDate);
+    if (start && end && start.getTime() <= end.getTime()) {
+      return buildAmazonOrderPullWindowFromDateInputs(customStartDate, customEndDate, preset);
+    }
+    return buildAmazonOrderPullWindowFromDateInputs(
+      toAmazonOrderDateInputValue(addAmazonOrderDays(today, -13)),
+      toAmazonOrderDateInputValue(today),
+      "14D",
+      14,
+    );
+  }
+
+  if (preset === "THIS_MONTH") {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return buildAmazonOrderPullWindowFromDateInputs(
+      toAmazonOrderDateInputValue(start),
+      toAmazonOrderDateInputValue(today),
+      preset,
+    );
+  }
+
+  if (preset === "LAST_MONTH") {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const end = new Date(today.getFullYear(), today.getMonth(), 0);
+    return buildAmazonOrderPullWindowFromDateInputs(
+      toAmazonOrderDateInputValue(start),
+      toAmazonOrderDateInputValue(end),
+      preset,
+    );
+  }
+
+  const days = preset === "7D" ? 7 : preset === "30D" ? 30 : 14;
+  const start = addAmazonOrderDays(today, -(days - 1));
+  return buildAmazonOrderPullWindowFromDateInputs(
+    toAmazonOrderDateInputValue(start),
+    toAmazonOrderDateInputValue(today),
+    preset,
+    days,
+  );
+}
+
 function buildDefaultAmazonOrderPullWindow() {
   const createdBefore = new Date();
   const createdAfter = new Date(createdBefore.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -237,7 +350,18 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [orderPreview, setOrderPreview] = React.useState<AmazonSpApiOrdersRealPreviewResponse | null>(null);
   const [orderImportJob, setOrderImportJob] =
     React.useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
-  const [orderPullWindow] = React.useState(() => buildDefaultAmazonOrderPullWindow());
+  const [orderPullRangePreset, setOrderPullRangePreset] = React.useState<AmazonOrdersPullRangePreset>("14D");
+  const defaultOrderPullWindow = React.useMemo(() => buildDefaultAmazonOrderPullWindow(), []);
+  const [customOrderPullStartDate, setCustomOrderPullStartDate] = React.useState(() =>
+    defaultOrderPullWindow.createdAfter.slice(0, 10),
+  );
+  const [customOrderPullEndDate, setCustomOrderPullEndDate] = React.useState(() =>
+    defaultOrderPullWindow.createdBefore.slice(0, 10),
+  );
+  const orderPullWindow = React.useMemo(
+    () => buildAmazonOrderPullWindowFromPreset(orderPullRangePreset, customOrderPullStartDate, customOrderPullEndDate),
+    [customOrderPullEndDate, customOrderPullStartDate, orderPullRangePreset],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -377,6 +501,9 @@ export function AmazonSpApiConnectionStatusPanel() {
         region: AMAZON_SP_API_DEFAULT_REGION,
         createdAfter: orderPullWindow.createdAfter,
         createdBefore: orderPullWindow.createdBefore,
+        startDate: orderPullWindow.startDate,
+        endDate: orderPullWindow.endDate,
+        days: orderPullWindow.days,
         orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
         maxResultsPerPage: 20,
         realPreview: true,
@@ -406,6 +533,9 @@ export function AmazonSpApiConnectionStatusPanel() {
         region: AMAZON_SP_API_DEFAULT_REGION,
         createdAfter: orderPullWindow.createdAfter,
         createdBefore: orderPullWindow.createdBefore,
+        startDate: orderPullWindow.startDate,
+        endDate: orderPullWindow.endDate,
+        days: orderPullWindow.days,
         orderStatuses: ["Shipped", "Unshipped", "PartiallyShipped"],
         maxResultsPerPage: 20,
         realPreview: true,
@@ -564,7 +694,77 @@ export function AmazonSpApiConnectionStatusPanel() {
             </div>
 
             <div className="mt-4 grid gap-2 md:grid-cols-3">
-              <button
+              
+              <div
+                data-testid="amazon-sp-api-orders-date-range-selector"
+                className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm"
+              >
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                        取得期間
+                      </div>
+                      <div
+                        data-testid="amazon-sp-api-orders-date-range-display"
+                        className="mt-1 text-sm font-bold text-slate-800"
+                      >
+                        {formatOrderPullWindow(orderPullWindow.createdAfter)} 〜{" "}
+                        {formatOrderPullWindow(orderPullWindow.createdBefore)}
+                      </div>
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-500">最大31日</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {AMAZON_ORDER_PULL_RANGE_PRESETS.map((item) => (
+                      <button
+                        key={item.value}
+                        data-testid={`amazon-sp-api-orders-date-range-preset-${item.value}`}
+                        type="button"
+                        onClick={() => setOrderPullRangePreset(item.value)}
+                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                          orderPullRangePreset === item.value
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {orderPullRangePreset === "CUSTOM" ? (
+                    <div
+                      data-testid="amazon-sp-api-orders-custom-date-range"
+                      className="grid grid-cols-1 gap-2 md:grid-cols-2"
+                    >
+                      <label className="text-xs font-bold text-slate-600">
+                        開始日
+                        <input
+                          data-testid="amazon-sp-api-orders-custom-start-date"
+                          type="date"
+                          value={customOrderPullStartDate}
+                          onChange={(event) => setCustomOrderPullStartDate(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-slate-600">
+                        終了日
+                        <input
+                          data-testid="amazon-sp-api-orders-custom-end-date"
+                          type="date"
+                          value={customOrderPullEndDate}
+                          onChange={(event) => setCustomOrderPullEndDate(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-emerald-400"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+<button
                 data-testid="amazon-sp-api-fetch-orders-button"
                 type="button"
                 onClick={() => void fetchAmazonOrdersPreview()}
