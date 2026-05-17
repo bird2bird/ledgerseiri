@@ -1385,3 +1385,117 @@ export async function fetchAmazonSpApiOrdersIncomeTransactionDryRun(args: {
   return data;
 }
 
+
+// Step151-D-FRONTEND-AMAZON-IMPORT-GUARDED-PREFLIGHT-HELPER:
+// Frontend helper for backend guarded preflight. This helper only calls the
+// preflight endpoint and must not call preview/importjob/historical-sync execution endpoints.
+export type AmazonSpApiOrdersGuardedImportPreflightRangePreset =
+  | "7D"
+  | "30D"
+  | "90D"
+  | "365D"
+  | "CUSTOM"
+  | string;
+
+export type AmazonSpApiOrdersGuardedImportPreflightRequest = {
+  storeId: string;
+  marketplaceId: string;
+  region: string;
+  createdAfter: string;
+  createdBefore: string;
+  rangePreset?: AmazonSpApiOrdersGuardedImportPreflightRangePreset;
+  explicitOperatorIntent?: boolean;
+};
+
+export type AmazonSpApiOrdersGuardedImportPreflightBlockReason =
+  | "COMPANY_REQUIRED"
+  | "STORE_ID_REQUIRED"
+  | "MARKETPLACE_ID_REQUIRED"
+  | "REGION_REQUIRED"
+  | "DATE_RANGE_REQUIRED"
+  | "DATE_RANGE_INVALID"
+  | "DATE_RANGE_TOO_LONG"
+  | "CONNECTION_NOT_CONNECTED"
+  | "CONNECTION_RECONNECT_REQUIRED"
+  | "CONNECTION_ACCESS_TOKEN_EXPIRED"
+  | "EXPLICIT_OPERATOR_INTENT_REQUIRED"
+  | string;
+
+export type AmazonSpApiOrdersGuardedImportPreflightNextAction =
+  | "CONNECT_AMAZON"
+  | "FIX_SCOPE"
+  | "FIX_DATE_RANGE"
+  | "CONFIRM_OPERATOR_INTENT"
+  | "READY_FOR_PREVIEW"
+  | string;
+
+export type AmazonSpApiOrdersGuardedImportPreflightResponse = {
+  source: "amazon-sp-api-orders-guarded-import-preflight" | string;
+  step: "Step151-C" | string;
+  routeImplementedNow: true;
+  controllerRoute: "POST /api/imports/amazon-sp-api/orders/guarded-import/preflight" | string;
+  guardedBy: "JwtAuthGuard" | string;
+  companyScoped: true;
+  allowed: boolean;
+  blocked: boolean;
+  reasons: AmazonSpApiOrdersGuardedImportPreflightBlockReason[];
+  nextAction: AmazonSpApiOrdersGuardedImportPreflightNextAction;
+  scope: {
+    companyIdPresent: true;
+    storeId: string;
+    marketplaceId: string;
+    region: string;
+  };
+  dateRange: {
+    createdAfter: string | null;
+    createdBefore: string | null;
+    rangePreset: string | null;
+    locked: boolean;
+    days: number | null;
+    maxAllowedDays: 365;
+  };
+  connectionReadiness: {
+    checked: true;
+    connected: boolean;
+    needsReconnect: boolean;
+    credentialPresent: boolean;
+    accessTokenCachePresent: boolean;
+    accessTokenExpired: boolean;
+    status: string;
+    readModelStatus: string;
+  };
+  confirmation: {
+    explicitOperatorIntent: boolean;
+    requiredForPreview: true;
+    requiredForImportJobCreation: true;
+  };
+  boundaries: {
+    callsAmazon: false;
+    callsRealPreview: false;
+    callsRealImportJob: false;
+    callsHistoricalSync: false;
+    queriesConnectionStatus: true;
+    createsImportJob: false;
+    createsImportStagingRow: false;
+    createsSyncJob: false;
+    createsSyncSegment: false;
+    writesDatabase: false;
+    writesTransaction: false;
+    writesInventoryMovement: false;
+    returnsRawAccessToken: false;
+    returnsRawRefreshToken: false;
+    returnsRawSecret: false;
+  };
+};
+
+export const AMAZON_SP_API_ORDERS_GUARDED_IMPORT_PREFLIGHT_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/guarded-import/preflight" as const;
+
+export async function preflightAmazonSpApiOrdersGuardedImport(
+  payload: AmazonSpApiOrdersGuardedImportPreflightRequest
+): Promise<AmazonSpApiOrdersGuardedImportPreflightResponse> {
+  return postJson<AmazonSpApiOrdersGuardedImportPreflightResponse>(
+    AMAZON_SP_API_ORDERS_GUARDED_IMPORT_PREFLIGHT_ENDPOINT,
+    payload
+  );
+}

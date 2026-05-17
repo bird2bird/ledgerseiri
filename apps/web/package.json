@@ -39,7 +39,9 @@
     "smoke:step150-no-amazon-imported-orders-read-model-runtime": "node scripts/smoke-step150-no-amazon-imported-orders-read-model-runtime.js",
     "smoke:step150-p-data-import-amazon-orders-navigation-closeout": "node scripts/smoke-step150-p-data-import-amazon-orders-navigation-closeout.js",
     "smoke:step150-p-amazon-orders-read-model-browser-runtime-closeout": "node scripts/smoke-step150-p-amazon-orders-read-model-browser-runtime-closeout.js",
-    "smoke:step151-b-data-import-fetch-button-execution-contract-no-execution": "node scripts/smoke-step151-b-data-import-fetch-button-execution-contract-no-execution.js"
+    "smoke:step151-b-data-import-fetch-button-execution-contract-no-execution": "node scripts/smoke-step151-b-data-import-fetch-button-execution-contract-no-execution.js",
+    "smoke:step151-d-amazon-import-preflight-helper-ui-no-execution": "node scripts/smoke-step151-d-amazon-import-preflight-helper-ui-no-execution.js",
+    "smoke:step151-d-amazon-import-preflight-runtime-no-execution": "node scripts/smoke-step151-d-amazon-import-preflight-runtime-no-execution.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

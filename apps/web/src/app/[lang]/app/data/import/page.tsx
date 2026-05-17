@@ -7,7 +7,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
-
+  preflightAmazonSpApiOrdersGuardedImport,
+  type AmazonSpApiOrdersGuardedImportPreflightResponse,
+} from "@/core/imports/api";
+import {
   loadImportJobsPageSnapshot,
   type ImportJobItem,
   type ImportMetaResponse,
@@ -21,13 +24,14 @@ import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaS
 import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceShell";
 import { AmazonSpApiSandboxReadModelPanelShell } from "@/components/app/imports/AmazonSpApiSandboxReadModelPanelShell";
 
-
 // Step151-B-FETCH-BUTTON-EXECUTION-CONTRACT:
 // Frontend-only guarded execution contract for the connected-service「取得」button.
 // This does not call preview/import/sync execution endpoints or any write endpoint.
 type AmazonOrdersFetchExecutionContractStatus =
   | "idle"
   | "preflight_required"
+  | "preflight_checking"
+  | "preflight_ready"
   | "preview_required"
   | "confirmation_required"
   | "blocked";
@@ -39,9 +43,19 @@ const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
     description: "会社・店舗・marketplace・取得期間・接続状態を確認する段階です。Step151-Bでは実行しません。",
   },
   {
+    key: "preflight_checking",
+    label: "1.5 事前確認中",
+    description: "Step151-Dで preflight endpoint だけを呼び出し、接続状態と取得条件を確認します。",
+  },
+  {
+    key: "preflight_ready",
+    label: "1.6 事前確認OK",
+    description: "preflight が READY_FOR_PREVIEW を返した状態です。Step151-Dでは preview は呼び出しません。",
+  },
+  {
     key: "preview_required",
     label: "2. プレビュー",
-    description: "プレビューAPIで取得内容を確認する将来段階です。Step151-Bでは呼び出しません。",
+    description: "プレビューAPIで取得内容を確認する将来段階です。Step151-Dでは呼び出しません。",
   },
   {
     key: "confirmation_required",
@@ -60,10 +74,14 @@ function AmazonOrdersConnectedServicesShell({
   onFetchShell,
   fetchShellMessage,
   executionContractStatus,
+  preflightResult,
+  preflightError,
 }: {
   onFetchShell: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
+  preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
+  preflightError: string;
 }) {
   return (
     <section
@@ -236,6 +254,47 @@ function AmazonOrdersConnectedServicesShell({
             requiresExplicitConfirmation=true
           </div>
         </div>
+
+        <div
+          data-testid="data-import-connected-service-amazon-orders-preflight-result"
+          className="mt-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 text-xs font-bold leading-5 text-indigo-900"
+        >
+          <div className="font-black">Preflight result</div>
+          {preflightResult ? (
+            <div className="mt-2 grid gap-2 md:grid-cols-3">
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-allowed">
+                allowed={String(preflightResult.allowed)}
+              </div>
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-next-action">
+                nextAction={preflightResult.nextAction}
+              </div>
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-reasons">
+                reasons={preflightResult.reasons.length ? preflightResult.reasons.join(",") : "none"}
+              </div>
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-connection">
+                connected={String(preflightResult.connectionReadiness.connected)}
+              </div>
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-date-range">
+                locked={String(preflightResult.dateRange.locked)}
+              </div>
+              <div data-testid="data-import-connected-service-amazon-orders-preflight-boundaries">
+                callsAmazon={String(preflightResult.boundaries.callsAmazon)} / createsImportJob={String(preflightResult.boundaries.createsImportJob)}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 text-indigo-700">
+              まだ preflight は実行されていません。
+            </div>
+          )}
+          {preflightError ? (
+            <div
+              data-testid="data-import-connected-service-amazon-orders-preflight-error"
+              className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800"
+            >
+              {preflightError}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {fetchShellMessage ? (
@@ -266,6 +325,9 @@ export default function DataImportPage() {
     amazonOrdersFetchExecutionContractStatus,
     setAmazonOrdersFetchExecutionContractStatus,
   ] = useState<AmazonOrdersFetchExecutionContractStatus>("idle");
+  const [amazonOrdersPreflightResult, setAmazonOrdersPreflightResult] =
+    useState<AmazonSpApiOrdersGuardedImportPreflightResponse | null>(null);
+  const [amazonOrdersPreflightError, setAmazonOrdersPreflightError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -288,15 +350,47 @@ export default function DataImportPage() {
     void load();
   }, []);
 
-  function handleAmazonOrdersConnectedServiceFetchShell() {
-    setAmazonOrdersFetchExecutionContractStatus("preflight_required");
+  async function handleAmazonOrdersConnectedServiceFetchShell() {
+    setAmazonOrdersFetchExecutionContractStatus("preflight_checking");
+    setAmazonOrdersPreflightResult(null);
+    setAmazonOrdersPreflightError("");
     setAmazonOrdersFetchShellMessage(
-      "取得入口を選択しました。Step151-B は guarded execution contract のみです。次の開発で preflight → preview → 明示確認 → ImportJob作成へ段階的に進めます。現時点ではプレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。Step150-D は UI shell のみです。"
+      "取得入口を選択しました。Step151-D は preflight endpoint だけを呼び出して、接続状態・取得範囲・明示確認の必要性を確認します。プレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。"
     );
 
     if (typeof document !== "undefined") {
       const target = document.querySelector('[data-testid="data-import-connected-service-amazon-orders-execution-contract"]');
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    try {
+      const now = new Date();
+      const createdBefore = now.toISOString();
+      const createdAfter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const response = await preflightAmazonSpApiOrdersGuardedImport({
+        storeId: "step151-d-ui-contract-store",
+        marketplaceId: "A1VC38T7YXB528",
+        region: "JP",
+        createdAfter,
+        createdBefore,
+        rangePreset: "7D",
+        explicitOperatorIntent: true,
+      });
+
+      setAmazonOrdersPreflightResult(response);
+      setAmazonOrdersFetchExecutionContractStatus(response.allowed ? "preflight_ready" : "blocked");
+      setAmazonOrdersFetchShellMessage(
+        response.allowed
+          ? "preflight が完了しました。次の段階は preview ですが、Step151-D では preview は呼び出しません。"
+          : `preflight は blocked です。nextAction=${response.nextAction} / reasons=${response.reasons.join(",") || "none"}`
+      );
+    } catch (err) {
+      setAmazonOrdersFetchExecutionContractStatus("blocked");
+      setAmazonOrdersPreflightError(err instanceof Error ? err.message : "preflight failed");
+      setAmazonOrdersFetchShellMessage(
+        "preflight に失敗しました。Step151-D は preview/import 実行には進みません。"
+      );
     }
   }
 
@@ -333,9 +427,11 @@ export default function DataImportPage() {
     <main className="space-y-6">
       
       <AmazonOrdersConnectedServicesShell
-        onFetchShell={handleAmazonOrdersConnectedServiceFetchShell}
+        onFetchShell={() => void handleAmazonOrdersConnectedServiceFetchShell()}
         fetchShellMessage={amazonOrdersFetchShellMessage}
         executionContractStatus={amazonOrdersFetchExecutionContractStatus}
+        preflightResult={amazonOrdersPreflightResult}
+        preflightError={amazonOrdersPreflightError}
       />
 
       <AmazonSpApiConnectionStatusPanel />

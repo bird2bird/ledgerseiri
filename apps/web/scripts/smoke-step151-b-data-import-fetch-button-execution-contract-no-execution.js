@@ -40,17 +40,40 @@ const pkg = JSON.parse(read(packagePath));
   "writesTransaction=false",
   "writesInventoryMovement=false",
   "requiresExplicitConfirmation=true",
-  "setAmazonOrdersFetchExecutionContractStatus(\"preflight_required\")",
+  "setAmazonOrdersFetchExecutionContractStatus",
 ].forEach((needle) => {
   assert(page.includes(needle), `Data Import page contains Step151-B marker: ${needle}`);
 });
+
+const isStep151D =
+  page.includes("preflightAmazonSpApiOrdersGuardedImport") &&
+  page.includes("setAmazonOrdersFetchExecutionContractStatus(\"preflight_checking\")") &&
+  page.includes("setAmazonOrdersFetchExecutionContractStatus(response.allowed ? \"preflight_ready\" : \"blocked\")");
+
+if (isStep151D) {
+  [
+    "preflight_checking",
+    "preflight_ready",
+    "preflightAmazonSpApiOrdersGuardedImport",
+    "data-import-connected-service-amazon-orders-preflight-result",
+    "data-import-connected-service-amazon-orders-preflight-allowed",
+    "data-import-connected-service-amazon-orders-preflight-next-action",
+    "data-import-connected-service-amazon-orders-preflight-boundaries",
+  ].forEach((needle) => {
+    assert(page.includes(needle), `Data Import page contains Step151-D compatibility marker: ${needle}`);
+  });
+} else {
+  assert(
+    page.includes("setAmazonOrdersFetchExecutionContractStatus(\"preflight_required\")"),
+    "Data Import page contains Step151-B preflight_required marker before Step151-D"
+  );
+}
 
 [
   "previewAmazonSpApiOrdersReal(",
   "commitAmazonSpApiOrdersRealImportJob(",
   "previewAmazonSpApiOrdersHistoricalSyncPlan(",
   "previewAmazonSpApiOrdersDryRun(",
-  "postJson<",
   "real-preview",
   "real-importjob",
   "historical-sync/plan-preview",
