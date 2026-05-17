@@ -39,6 +39,15 @@ import {
   type AmazonImportedOrderReadonlyDetailResponse,
   type AmazonImportedOrdersReadonlyListResponse,
 } from './amazon-imported-orders-read-model.readonly.service';
+import {
+  assertAmazonSpApiOrdersGuardedImportPreflightNoExecutionBoundaries,
+  buildAmazonSpApiOrdersGuardedImportPreflightResponse,
+  calculateAmazonSpApiOrdersGuardedImportPreflightDays,
+  normalizeAmazonSpApiOrdersGuardedImportPreflightRegion,
+  type AmazonSpApiOrdersGuardedImportPreflightBlockReason,
+  type AmazonSpApiOrdersGuardedImportPreflightResponse,
+  type AmazonSpApiOrdersGuardedImportPreflightRouteBody,
+} from './dto/amazon-sp-api-orders-guarded-import-preflight-contract.dto';
 import { createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble } from './amazon-sp-api-orders-historical-sync.repository.test-double';
 import { createAmazonSpApiOrdersHistoricalSyncWorkerDisabled } from './amazon-sp-api-orders-historical-sync.worker.disabled';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
@@ -916,6 +925,113 @@ export class ImportsController {
     });
   }
 
+
+  // Step151-C: Amazon Orders guarded import execution preflight contract.
+  // Preflight only: validates scope/date/connection readiness, never calls Amazon,
+  // never calls real-preview/real-importjob/historical-sync, and never writes DB.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/guarded-import/preflight')
+  async amazonSpApiOrdersGuardedImportPreflightControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersGuardedImportPreflightRouteBody,
+  ): Promise<AmazonSpApiOrdersGuardedImportPreflightResponse> {
+    const companyId = String(req.user?.companyId || '').trim();
+    const normalizedStoreId = String(body?.storeId || '').trim();
+    const normalizedMarketplaceId = String(body?.marketplaceId || 'A1VC38T7YXB528').trim();
+    const normalizedRegion = normalizeAmazonSpApiOrdersGuardedImportPreflightRegion(body?.region);
+    const normalizedCreatedAfter = String(body?.createdAfter || '').trim();
+    const normalizedCreatedBefore = String(body?.createdBefore || '').trim();
+    const rangePreset = String(body?.rangePreset || '').trim() || null;
+    const explicitOperatorIntent = body?.explicitOperatorIntent === true;
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_C_GUARDED_IMPORT_PREFLIGHT_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    const reasons: AmazonSpApiOrdersGuardedImportPreflightBlockReason[] = [];
+
+    if (!normalizedStoreId) {
+      reasons.push('STORE_ID_REQUIRED');
+    }
+
+    if (!normalizedMarketplaceId) {
+      reasons.push('MARKETPLACE_ID_REQUIRED');
+    }
+
+    if (!normalizedRegion) {
+      reasons.push('REGION_REQUIRED');
+    }
+
+    if (!normalizedCreatedAfter || !normalizedCreatedBefore) {
+      reasons.push('DATE_RANGE_REQUIRED');
+    }
+
+    const days = calculateAmazonSpApiOrdersGuardedImportPreflightDays({
+      createdAfter: normalizedCreatedAfter || null,
+      createdBefore: normalizedCreatedBefore || null,
+    });
+
+    if (normalizedCreatedAfter && normalizedCreatedBefore && days === null) {
+      reasons.push('DATE_RANGE_INVALID');
+    }
+
+    if (days !== null && days > 365) {
+      reasons.push('DATE_RANGE_TOO_LONG');
+    }
+
+    const connection = normalizedStoreId && normalizedMarketplaceId && normalizedRegion
+      ? await this.amazonSpApiTokenPersistenceService.readConnectionStatus({
+          companyId,
+          storeId: normalizedStoreId,
+          marketplaceId: normalizedMarketplaceId,
+          region: normalizedRegion,
+        })
+      : null;
+
+    const connectionReadiness = mapAmazonSpApiConnectionStatusForEndpoint(connection, {
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+    });
+
+    if (!connectionReadiness.connected) {
+      reasons.push('CONNECTION_NOT_CONNECTED');
+    }
+
+    if (connectionReadiness.needsReconnect) {
+      reasons.push('CONNECTION_RECONNECT_REQUIRED');
+    }
+
+    if (connectionReadiness.accessTokenExpired) {
+      reasons.push('CONNECTION_ACCESS_TOKEN_EXPIRED');
+    }
+
+    const response = buildAmazonSpApiOrdersGuardedImportPreflightResponse({
+      storeId: normalizedStoreId,
+      marketplaceId: normalizedMarketplaceId,
+      region: normalizedRegion,
+      createdAfter: normalizedCreatedAfter || null,
+      createdBefore: normalizedCreatedBefore || null,
+      rangePreset,
+      explicitOperatorIntent,
+      connection: {
+        connected: connectionReadiness.connected,
+        needsReconnect: connectionReadiness.needsReconnect,
+        credentialPresent: connectionReadiness.credentialPresent,
+        accessTokenCachePresent: connectionReadiness.accessTokenCachePresent,
+        accessTokenExpired: connectionReadiness.accessTokenExpired,
+        status: connectionReadiness.status,
+        readModelStatus: connectionReadiness.readModelStatus,
+      },
+      reasons,
+    });
+
+    assertAmazonSpApiOrdersGuardedImportPreflightNoExecutionBoundaries(response);
+
+    return response;
+  }
 
   // Step149-C: Amazon Orders historical/background sync controller-disabled route shell.
   // This route is intentionally disabled. It does not call Amazon, create ImportJob,
