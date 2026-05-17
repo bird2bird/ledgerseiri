@@ -281,7 +281,8 @@
     "smoke:step149-g-amazon-orders-historical-sync-prisma-client-model-availability": "node scripts/smoke-step149-g-amazon-orders-historical-sync-prisma-client-model-availability.js",
     "smoke:step149-h-amazon-orders-historical-sync-repository-test-double-contract": "node scripts/smoke-step149-h-amazon-orders-historical-sync-repository-test-double-contract.js",
     "smoke:step149-i-amazon-orders-historical-sync-prisma-repository-disabled-shell": "node scripts/smoke-step149-i-amazon-orders-historical-sync-prisma-repository-disabled-shell.js",
-    "smoke:step149-j-amazon-orders-historical-sync-disabled-worker-skeleton": "node scripts/smoke-step149-j-amazon-orders-historical-sync-disabled-worker-skeleton.js"
+    "smoke:step149-j-amazon-orders-historical-sync-disabled-worker-skeleton": "node scripts/smoke-step149-j-amazon-orders-historical-sync-disabled-worker-skeleton.js",
+    "smoke:step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor": "node scripts/smoke-step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
