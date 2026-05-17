@@ -938,6 +938,94 @@ export async function commitAmazonSpApiOrdersRealImportJob(
 }
 
 
+export type AmazonSpApiOrdersHistoricalSyncPlanPreviewRequest = {
+  storeId: string;
+  marketplaceId: string;
+  region: string;
+  syncStartDate: string;
+  syncEndDate: string;
+  segmentDays?: number;
+};
+
+export type AmazonSpApiOrdersHistoricalSyncPlanPreviewSegment = {
+  segmentIndex: number;
+  createdAfter: string;
+  createdBefore: string;
+  segmentDaysInclusive: number;
+};
+
+export type AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse = {
+  source?: "amazon-sp-api-orders-historical-sync-disabled-plan-preview" | string;
+  routeImplementedNow?: true;
+  controllerRoute?: "POST /api/imports/amazon-sp-api/orders/historical-sync/plan-preview" | string;
+  guardedBy?: "JwtAuthGuard" | string;
+  companyScoped?: boolean;
+  companyIdPresent?: boolean;
+  storeId?: string;
+  marketplaceId?: string;
+  region?: string;
+  syncStartDate?: string;
+  syncEndDate?: string;
+  segmentDays?: number | null;
+  accepted: false;
+  disabled: true;
+  plan?: {
+    accepted: false;
+    disabled: true;
+    reason?: "STEP149_J_WORKER_DISABLED_BY_DEFAULT" | string;
+    executionMode?: "worker_disabled" | string;
+    planningMode?: "planner_integrated_but_runtime_disabled" | string;
+    wouldCreateSyncJob?: false;
+    wouldCreateSegments?: false;
+    wouldCallAmazon?: false;
+    wouldWriteDatabase?: false;
+    normalizedRange?: {
+      syncStartDateIso: string;
+      syncEndDateIso: string;
+      segmentDays: number;
+      maxSegmentDays: number;
+      totalDaysInclusive: number;
+    };
+    paginationPolicy?: {
+      maxPagesPerSegment: number;
+      startsWithNextToken: null;
+      nextTokenRequiredForFollowupPage: true;
+      stopWhenNextTokenMissing: true;
+      stopWhenPageLimitReached: true;
+    };
+    plannedSegments?: AmazonSpApiOrdersHistoricalSyncPlanPreviewSegment[];
+  };
+  boundaries?: {
+    callsDisabledWorkerPlan?: true;
+    callsRunHistoricalSync?: false;
+    callsRunSegment?: false;
+    callsAmazon?: false;
+    writesDatabase?: false;
+    writesSyncJob?: false;
+    writesSyncSegment?: false;
+    writesImportJob?: false;
+    writesImportStagingRow?: false;
+    writesTransaction?: false;
+    writesInventoryMovement?: false;
+    startsScheduler?: false;
+    startsQueue?: false;
+    frontendWiredNow?: false;
+  };
+};
+
+export const AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/historical-sync/plan-preview" as const;
+
+export async function previewAmazonSpApiOrdersHistoricalSyncPlan(
+  payload: AmazonSpApiOrdersHistoricalSyncPlanPreviewRequest
+): Promise<AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse> {
+  return postJson<AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse>(
+    AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT,
+    payload
+  );
+}
+
+
 // Step141-G2-FRONTEND-AMAZON-SP-API-STAGING-COMMIT-READINESS:
 // Frontend read helper for backend dry-run readiness endpoint.
 // This is review-only UI wiring. It does not create Transaction or InventoryMovement.

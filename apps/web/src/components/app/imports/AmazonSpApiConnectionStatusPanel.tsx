@@ -7,12 +7,14 @@ import {
   AMAZON_SP_API_DEFAULT_STORE_ID,
   commitAmazonSpApiOrdersRealImportJob,
   previewAmazonSpApiOrdersReal,
+  previewAmazonSpApiOrdersHistoricalSyncPlan,
   readAmazonSpApiConnectionStatus,
   requestAmazonSpApiAuthorizationUrl,
   type AmazonSpApiAuthorizationUrlResponse,
   type AmazonSpApiConnectionStatusResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
+  type AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse,
 } from "@/core/imports/api";
 
 type PanelStatus =
@@ -37,6 +39,8 @@ type LastAuthorizationState = {
 type BackendStatusDetail = AmazonSpApiConnectionStatusResponse | null;
 
 type OrderPullStepStatus = "idle" | "loading" | "success" | "error";
+
+type HistoricalSyncPlanPreviewStatus = "idle" | "loading" | "success" | "error";
 
 
 type AmazonOrdersPullRangePreset = "7D" | "14D" | "30D" | "THIS_MONTH" | "LAST_MONTH" | "CUSTOM";
@@ -166,6 +170,20 @@ function getOrderPullStatusClass(status: OrderPullStepStatus) {
   if (status === "error") return "border-rose-200 bg-rose-50 text-rose-700";
   if (status === "loading") return "border-violet-200 bg-violet-50 text-violet-700";
   return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function getHistoricalSyncPlanStatusClass(status: HistoricalSyncPlanPreviewStatus) {
+  if (status === "success") return "border-indigo-200 bg-indigo-50 text-indigo-700";
+  if (status === "error") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (status === "loading") return "border-violet-200 bg-violet-50 text-violet-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function getHistoricalSyncPlanStatusLabel(status: HistoricalSyncPlanPreviewStatus) {
+  if (status === "loading") return "計画作成中";
+  if (status === "success") return "計画プレビュー済み";
+  if (status === "error") return "計画エラー";
+  return "未作成";
 }
 
 function formatOrderPullWindow(value: string) {
@@ -350,6 +368,11 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [orderPreview, setOrderPreview] = React.useState<AmazonSpApiOrdersRealPreviewResponse | null>(null);
   const [orderImportJob, setOrderImportJob] =
     React.useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
+  const [historicalSyncPlanStatus, setHistoricalSyncPlanStatus] =
+    React.useState<HistoricalSyncPlanPreviewStatus>("idle");
+  const [historicalSyncPlanMessage, setHistoricalSyncPlanMessage] = React.useState("");
+  const [historicalSyncPlanPreview, setHistoricalSyncPlanPreview] =
+    React.useState<AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse | null>(null);
   const [orderPullRangePreset, setOrderPullRangePreset] = React.useState<AmazonOrdersPullRangePreset>("14D");
   const defaultOrderPullWindow = React.useMemo(() => buildDefaultAmazonOrderPullWindow(), []);
   const [customOrderPullStartDate, setCustomOrderPullStartDate] = React.useState(() =>
@@ -551,6 +574,35 @@ export function AmazonSpApiConnectionStatusPanel() {
     } catch (err) {
       setOrderPullStatus("error");
       setOrderPullMessage(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function previewHistoricalSyncPlan() {
+    setHistoricalSyncPlanStatus("loading");
+    setHistoricalSyncPlanMessage("");
+    setHistoricalSyncPlanPreview(null);
+
+    try {
+      const data = await previewAmazonSpApiOrdersHistoricalSyncPlan({
+        storeId: AMAZON_SP_API_DEFAULT_STORE_ID,
+        marketplaceId: AMAZON_SP_API_DEFAULT_MARKETPLACE_ID,
+        region: AMAZON_SP_API_DEFAULT_REGION,
+        syncStartDate: orderPullWindow.startDate,
+        syncEndDate: orderPullWindow.endDate,
+        segmentDays: orderPullWindow.days && orderPullWindow.days <= 31 ? orderPullWindow.days : undefined,
+      });
+
+      setHistoricalSyncPlanPreview(data);
+      setHistoricalSyncPlanStatus("success");
+
+      const segmentCount = data.plan?.plannedSegments?.length ?? 0;
+      const totalDays = data.plan?.normalizedRange?.totalDaysInclusive ?? "—";
+      setHistoricalSyncPlanMessage(
+        `同期計画を作成しました（preview-only）。セグメント ${segmentCount} 件 / 対象日数 ${totalDays} 日。同期実行・DB書き込みは行っていません。`
+      );
+    } catch (err) {
+      setHistoricalSyncPlanStatus("error");
+      setHistoricalSyncPlanMessage(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -795,6 +847,135 @@ export function AmazonSpApiConnectionStatusPanel() {
               >
                 3. Import Centerで確認
               </a>
+            </div>
+
+            <div
+              data-testid="amazon-sp-api-historical-sync-plan-preview-card"
+              className="mt-4 rounded-3xl border border-indigo-200 bg-indigo-50 px-4 py-4 shadow-sm"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-wide text-indigo-700">
+                    Historical Sync Plan Preview
+                  </div>
+                  <h3 className="mt-1 text-base font-black text-slate-950">
+                    バックグラウンド取得の計画だけを確認
+                  </h3>
+                  <p className="mt-1 max-w-3xl text-xs font-bold leading-5 text-indigo-900">
+                    Step149-N は preview-only です。同期実行・SyncJob作成・Amazon API取得・DB書き込みは行いません。
+                  </p>
+                  <div
+                    data-testid="amazon-sp-api-historical-sync-plan-preview-range"
+                    className="mt-2 text-[11px] font-bold text-indigo-800"
+                  >
+                    計画対象: {orderPullWindow.startDate} 〜 {orderPullWindow.endDate}
+                  </div>
+                </div>
+
+                <span
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-status"
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${getHistoricalSyncPlanStatusClass(historicalSyncPlanStatus)}`}
+                >
+                  {getHistoricalSyncPlanStatusLabel(historicalSyncPlanStatus)}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-2 md:grid-cols-3">
+                <button
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-button"
+                  type="button"
+                  onClick={() => void previewHistoricalSyncPlan()}
+                  disabled={historicalSyncPlanStatus === "loading"}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-indigo-700 px-4 text-sm font-black text-white shadow-sm transition hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  同期計画をプレビュー
+                </button>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                  <div className="font-black text-slate-500">実行状態</div>
+                  <div data-testid="amazon-sp-api-historical-sync-plan-preview-execution" className="mt-1 font-black text-slate-950">
+                    disabled / preview-only
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2 text-xs">
+                  <div className="font-black text-slate-500">DB書き込み</div>
+                  <div data-testid="amazon-sp-api-historical-sync-plan-preview-db-write" className="mt-1 font-black text-slate-950">
+                    未実行
+                  </div>
+                </div>
+              </div>
+
+              {historicalSyncPlanMessage ? (
+                <div
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-message"
+                  className={`mt-3 rounded-2xl border px-3 py-2 text-xs font-bold leading-5 ${
+                    historicalSyncPlanStatus === "error"
+                      ? "border-rose-200 bg-white text-rose-700"
+                      : "border-indigo-200 bg-white text-indigo-800"
+                  }`}
+                >
+                  {historicalSyncPlanMessage}
+                </div>
+              ) : null}
+
+              {historicalSyncPlanPreview ? (
+                <div
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-summary"
+                  className="mt-3 grid gap-2 text-xs md:grid-cols-4"
+                >
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">accepted</div>
+                    <div className="mt-1 font-black text-slate-950">
+                      {String(historicalSyncPlanPreview.accepted)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">disabled</div>
+                    <div className="mt-1 font-black text-slate-950">
+                      {String(historicalSyncPlanPreview.disabled)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">セグメント</div>
+                    <div data-testid="amazon-sp-api-historical-sync-plan-preview-segment-count" className="mt-1 font-black text-slate-950">
+                      {historicalSyncPlanPreview.plan?.plannedSegments?.length ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white px-3 py-2">
+                    <div className="font-black text-slate-500">最大ページ/区間</div>
+                    <div className="mt-1 font-black text-slate-950">
+                      {historicalSyncPlanPreview.plan?.paginationPolicy?.maxPagesPerSegment ?? "—"}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {historicalSyncPlanPreview?.plan?.plannedSegments?.length ? (
+                <div
+                  data-testid="amazon-sp-api-historical-sync-plan-preview-segment-list"
+                  className="mt-3 overflow-hidden rounded-2xl border border-indigo-100 bg-white"
+                >
+                  <div className="grid grid-cols-[80px_1fr_1fr_90px] gap-2 border-b border-indigo-100 bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-800">
+                    <div>#</div>
+                    <div>createdAfter</div>
+                    <div>createdBefore</div>
+                    <div>days</div>
+                  </div>
+                  {historicalSyncPlanPreview.plan.plannedSegments.slice(0, 6).map((segment) => (
+                    <div
+                      key={segment.segmentIndex}
+                      data-testid="amazon-sp-api-historical-sync-plan-preview-segment-row"
+                      className="grid grid-cols-[80px_1fr_1fr_90px] gap-2 border-b border-indigo-50 px-3 py-2 text-[11px] font-bold text-slate-700 last:border-b-0"
+                    >
+                      <div>{segment.segmentIndex}</div>
+                      <div>{formatOrderPullWindow(segment.createdAfter)}</div>
+                      <div>{formatOrderPullWindow(segment.createdBefore)}</div>
+                      <div>{segment.segmentDaysInclusive}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             {orderPullMessage ? (
