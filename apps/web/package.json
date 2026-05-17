@@ -28,7 +28,8 @@
     "smoke:step147-c-income-dry-run-panel": "node scripts/smoke-step147-c-income-dry-run-panel-candidate-amount.js",
     "smoke:step148-c-amazon-orders-date-range-selector": "node scripts/smoke-step148-c-amazon-orders-date-range-selector.js",
     "smoke:step149-n-amazon-orders-historical-sync-disabled-plan-preview-ui": "node scripts/smoke-step149-n-amazon-orders-historical-sync-disabled-plan-preview-ui.js",
-    "smoke:step149-o-amazon-orders-historical-sync-disabled-plan-preview-runtime": "node scripts/smoke-step149-o-amazon-orders-historical-sync-disabled-plan-preview-runtime.js"
+    "smoke:step149-o-amazon-orders-historical-sync-disabled-plan-preview-runtime": "node scripts/smoke-step149-o-amazon-orders-historical-sync-disabled-plan-preview-runtime.js",
+    "smoke:step150-b-data-import-connected-services-shell": "node scripts/smoke-step150-b-data-import-connected-services-shell.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

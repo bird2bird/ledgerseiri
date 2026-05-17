@@ -21,6 +21,112 @@ import { ImportJobsMetaSummaryCard } from "@/components/app/jobs/ImportJobsMetaS
 import { ImportWorkspaceShell } from "@/components/app/imports/ImportWorkspaceShell";
 import { AmazonSpApiSandboxReadModelPanelShell } from "@/components/app/imports/AmazonSpApiSandboxReadModelPanelShell";
 
+
+function AmazonOrdersConnectedServicesShell() {
+  return (
+    <section
+      data-testid="data-import-connected-services-shell"
+      className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm ring-1 ring-slate-100"
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Connected Services
+          </div>
+          <h2 className="mt-1 text-xl font-black text-slate-950">
+            連携サービス一覧
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">
+            MoneyForward と同じ操作感で、連携済みサービスごとに取得状態・最終取得日時・明細一覧を確認します。
+            Step150-B は UI shell のみで、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
+          </p>
+        </div>
+
+        <div
+          data-testid="data-import-connected-services-default-range"
+          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black text-emerald-800"
+        >
+          既定の取得期間：最近7日
+        </div>
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200">
+        <div className="grid grid-cols-[minmax(260px,1.8fr)_150px_160px_140px_120px_120px] gap-0 bg-slate-50 text-xs font-black text-slate-500">
+          <div className="border-r border-slate-200 px-4 py-3">連携サービス名</div>
+          <div className="border-r border-slate-200 px-4 py-3 text-right">資産 / 対象</div>
+          <div className="border-r border-slate-200 px-4 py-3">最終取得日時</div>
+          <div className="border-r border-slate-200 px-4 py-3">取得状態</div>
+          <div className="border-r border-slate-200 px-4 py-3 text-center">明細一覧</div>
+          <div className="px-4 py-3 text-center">操作</div>
+        </div>
+
+        <div
+          data-testid="data-import-connected-service-amazon-orders-row"
+          className="grid grid-cols-[minmax(260px,1.8fr)_150px_160px_140px_120px_120px] gap-0 border-t border-slate-200 bg-white text-sm"
+        >
+          <div className="border-r border-slate-200 px-4 py-4">
+            <div className="font-black text-slate-950">
+              Amazon.co.jp（出品者アカウント）
+            </div>
+            <div className="mt-1 text-xs font-bold text-slate-500">
+              注文・商品明細・SKU連携・在庫扣減準備
+            </div>
+            <div
+              data-testid="data-import-connected-service-amazon-orders-range-rule"
+              className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-600"
+            >
+              期間：7日 / 30日 / 90日 / 365日 / カスタム
+            </div>
+          </div>
+
+          <div className="border-r border-slate-200 px-4 py-4 text-right font-bold text-slate-700">
+            Orders
+          </div>
+
+          <div
+            data-testid="data-import-connected-service-amazon-orders-last-fetched"
+            className="border-r border-slate-200 px-4 py-4 text-xs font-bold leading-5 text-slate-600"
+          >
+            未取得
+          </div>
+
+          <div className="border-r border-slate-200 px-4 py-4">
+            <span
+              data-testid="data-import-connected-service-amazon-orders-status"
+              className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700"
+            >
+              shell-only
+            </span>
+          </div>
+
+          <div className="border-r border-slate-200 px-4 py-4 text-center">
+            <a
+              data-testid="data-import-connected-service-amazon-orders-view-link"
+              href="/ja/app/data/import/amazon-orders"
+              className="inline-flex rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-sky-700 shadow-sm hover:bg-sky-50"
+            >
+              閲覧
+            </a>
+          </div>
+
+          <div className="px-4 py-4 text-center">
+            <button
+              data-testid="data-import-connected-service-amazon-orders-fetch-button"
+              type="button"
+              disabled
+              title="Step150-B は UI shell のみです。Step150-D 以降で取得処理を接続します。"
+              className="inline-flex cursor-not-allowed rounded-xl bg-slate-300 px-3 py-2 text-xs font-black text-white shadow-sm"
+            >
+              取得
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
 export default function DataImportPage() {
   const params = useParams<{ lang: string }>();
   const searchParams = useSearchParams();
@@ -85,6 +191,8 @@ export default function DataImportPage() {
   return (
     <main className="space-y-6">
       
+      <AmazonOrdersConnectedServicesShell />
+
       <AmazonSpApiConnectionStatusPanel />
       <AmazonSpApiOrdersDryRunPreviewPanel />
       <AmazonSpApiOrdersProductionCloseoutPanel />
