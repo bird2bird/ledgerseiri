@@ -275,7 +275,8 @@
     "smoke:step148-b-amazon-orders-date-range-contract": "node scripts/smoke-step148-b-amazon-orders-date-range-contract.js",
     "smoke:step149-b-amazon-orders-historical-sync-architecture-contract": "node scripts/smoke-step149-b-amazon-orders-historical-sync-architecture-contract.js",
     "smoke:step149-c-amazon-orders-historical-sync-controller-disabled-route": "node scripts/smoke-step149-c-amazon-orders-historical-sync-controller-disabled-route.js",
-    "smoke:step149-d-amazon-orders-historical-sync-schema-decision-contract": "node scripts/smoke-step149-d-amazon-orders-historical-sync-schema-decision-contract.js"
+    "smoke:step149-d-amazon-orders-historical-sync-schema-decision-contract": "node scripts/smoke-step149-d-amazon-orders-historical-sync-schema-decision-contract.js",
+    "smoke:step149-e-amazon-orders-historical-sync-prisma-migration-contract": "node scripts/smoke-step149-e-amazon-orders-historical-sync-prisma-migration-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
