@@ -43,14 +43,13 @@ type OrderPullStepStatus = "idle" | "loading" | "success" | "error";
 type HistoricalSyncPlanPreviewStatus = "idle" | "loading" | "success" | "error";
 
 
-type AmazonOrdersPullRangePreset = "7D" | "14D" | "30D" | "THIS_MONTH" | "LAST_MONTH" | "CUSTOM";
+type AmazonOrdersPullRangePreset = "7D" | "30D" | "90D" | "365D" | "CUSTOM";
 
 const AMAZON_ORDER_PULL_RANGE_PRESETS: Array<{ value: AmazonOrdersPullRangePreset; label: string }> = [
   { value: "7D", label: "最近7日" },
-  { value: "14D", label: "最近14日" },
   { value: "30D", label: "最近30日" },
-  { value: "THIS_MONTH", label: "今月" },
-  { value: "LAST_MONTH", label: "先月" },
+  { value: "90D", label: "最近90日" },
+  { value: "365D", label: "最近365日" },
   { value: "CUSTOM", label: "カスタム期間" },
 ];
 
@@ -104,6 +103,14 @@ function buildAmazonOrderPullWindowFromDateInputs(
   };
 }
 
+function getAmazonOrderPullRangePresetDays(preset: AmazonOrdersPullRangePreset): number | null {
+  if (preset === "7D") return 7;
+  if (preset === "30D") return 30;
+  if (preset === "90D") return 90;
+  if (preset === "365D") return 365;
+  return null;
+}
+
 function buildAmazonOrderPullWindowFromPreset(
   preset: AmazonOrdersPullRangePreset,
   customStartDate: string,
@@ -118,34 +125,10 @@ function buildAmazonOrderPullWindowFromPreset(
     if (start && end && start.getTime() <= end.getTime()) {
       return buildAmazonOrderPullWindowFromDateInputs(customStartDate, customEndDate, preset);
     }
-    return buildAmazonOrderPullWindowFromDateInputs(
-      toAmazonOrderDateInputValue(addAmazonOrderDays(today, -13)),
-      toAmazonOrderDateInputValue(today),
-      "14D",
-      14,
-    );
+    return buildAmazonOrderPullWindowFromPreset("7D", customStartDate, customEndDate, now);
   }
 
-  if (preset === "THIS_MONTH") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return buildAmazonOrderPullWindowFromDateInputs(
-      toAmazonOrderDateInputValue(start),
-      toAmazonOrderDateInputValue(today),
-      preset,
-    );
-  }
-
-  if (preset === "LAST_MONTH") {
-    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const end = new Date(today.getFullYear(), today.getMonth(), 0);
-    return buildAmazonOrderPullWindowFromDateInputs(
-      toAmazonOrderDateInputValue(start),
-      toAmazonOrderDateInputValue(end),
-      preset,
-    );
-  }
-
-  const days = preset === "7D" ? 7 : preset === "30D" ? 30 : 14;
+  const days = getAmazonOrderPullRangePresetDays(preset) ?? 7;
   const start = addAmazonOrderDays(today, -(days - 1));
   return buildAmazonOrderPullWindowFromDateInputs(
     toAmazonOrderDateInputValue(start),
@@ -155,14 +138,8 @@ function buildAmazonOrderPullWindowFromPreset(
   );
 }
 
-function buildDefaultAmazonOrderPullWindow() {
-  const createdBefore = new Date();
-  const createdAfter = new Date(createdBefore.getTime() - 14 * 24 * 60 * 60 * 1000);
-
-  return {
-    createdAfter: createdAfter.toISOString(),
-    createdBefore: createdBefore.toISOString(),
-  };
+function buildDefaultAmazonOrderPullWindow(now = new Date()) {
+  return buildAmazonOrderPullWindowFromPreset("7D", "", "", now);
 }
 
 function getOrderPullStatusClass(status: OrderPullStepStatus) {
@@ -373,7 +350,7 @@ export function AmazonSpApiConnectionStatusPanel() {
   const [historicalSyncPlanMessage, setHistoricalSyncPlanMessage] = React.useState("");
   const [historicalSyncPlanPreview, setHistoricalSyncPlanPreview] =
     React.useState<AmazonSpApiOrdersHistoricalSyncPlanPreviewResponse | null>(null);
-  const [orderPullRangePreset, setOrderPullRangePreset] = React.useState<AmazonOrdersPullRangePreset>("14D");
+  const [orderPullRangePreset, setOrderPullRangePreset] = React.useState<AmazonOrdersPullRangePreset>("7D");
   const defaultOrderPullWindow = React.useMemo(() => buildDefaultAmazonOrderPullWindow(), []);
   const [customOrderPullStartDate, setCustomOrderPullStartDate] = React.useState(() =>
     defaultOrderPullWindow.createdAfter.slice(0, 10),
