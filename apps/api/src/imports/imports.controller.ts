@@ -20,6 +20,7 @@ import { AmazonSpApiOrdersAccessTokenDecryptor } from './amazon-sp-api-orders-ac
 import { refreshAmazonSpApiOrdersAccessTokenCache } from './amazon-sp-api-orders-lwa-refresh.service';
 import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-sp-api-orders-real-preview-production.verifier';
 import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './amazon-sp-api-orders-real-importjob-persistence.service';
+import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-orders-date-range.contract';
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
 import { DetectMonthConflictsDto } from './dto/detect-month-conflicts.dto';
 import { PreviewImportDto } from './dto/preview-import.dto';
@@ -865,8 +866,27 @@ export class ImportsController {
       throw new BadRequestException('storeId is required for Amazon SP-API Orders real ImportJob persistence.');
     }
 
-    const realPreview = await this.amazonSpApiOrdersRealPreviewControllerRoute(req, {
+    
+    const dateRangeRequestBody = body as Record<string, unknown>;
+    const resolvedDateRange = resolveAmazonSpApiOrdersDateRangeForRequest({
+      days: dateRangeRequestBody.days,
+      startDate: dateRangeRequestBody.startDate,
+      endDate: dateRangeRequestBody.endDate,
+      createdAfter: dateRangeRequestBody.createdAfter,
+      createdBefore: dateRangeRequestBody.createdBefore,
+      now: new Date(),
+      maxDays: 31,
+      defaultDays: 14,
+    });
+
+    if (!resolvedDateRange.ok) {
+      throw new BadRequestException(resolvedDateRange.message);
+    }
+
+const realPreview = await this.amazonSpApiOrdersRealPreviewControllerRoute(req, {
       ...body,
+      createdAfter: resolvedDateRange.createdAfter,
+      createdBefore: resolvedDateRange.createdBefore,
       storeId: normalizedStoreId,
       marketplaceId: normalizedMarketplaceId,
       region: normalizedRegion,
