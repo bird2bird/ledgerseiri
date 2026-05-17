@@ -278,7 +278,8 @@
     "smoke:step149-d-amazon-orders-historical-sync-schema-decision-contract": "node scripts/smoke-step149-d-amazon-orders-historical-sync-schema-decision-contract.js",
     "smoke:step149-e-amazon-orders-historical-sync-prisma-migration-contract": "node scripts/smoke-step149-e-amazon-orders-historical-sync-prisma-migration-contract.js",
     "smoke:step149-f-amazon-orders-historical-sync-create-only-prisma-schema-migration": "node scripts/smoke-step149-f-amazon-orders-historical-sync-create-only-prisma-schema-migration.js",
-    "smoke:step149-g-amazon-orders-historical-sync-prisma-client-model-availability": "node scripts/smoke-step149-g-amazon-orders-historical-sync-prisma-client-model-availability.js"
+    "smoke:step149-g-amazon-orders-historical-sync-prisma-client-model-availability": "node scripts/smoke-step149-g-amazon-orders-historical-sync-prisma-client-model-availability.js",
+    "smoke:step149-h-amazon-orders-historical-sync-repository-test-double-contract": "node scripts/smoke-step149-h-amazon-orders-historical-sync-repository-test-double-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
