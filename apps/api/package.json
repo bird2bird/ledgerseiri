@@ -282,7 +282,8 @@
     "smoke:step149-h-amazon-orders-historical-sync-repository-test-double-contract": "node scripts/smoke-step149-h-amazon-orders-historical-sync-repository-test-double-contract.js",
     "smoke:step149-i-amazon-orders-historical-sync-prisma-repository-disabled-shell": "node scripts/smoke-step149-i-amazon-orders-historical-sync-prisma-repository-disabled-shell.js",
     "smoke:step149-j-amazon-orders-historical-sync-disabled-worker-skeleton": "node scripts/smoke-step149-j-amazon-orders-historical-sync-disabled-worker-skeleton.js",
-    "smoke:step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor": "node scripts/smoke-step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor.js"
+    "smoke:step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor": "node scripts/smoke-step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor.js",
+    "smoke:step149-l-amazon-orders-historical-sync-disabled-worker-planner-integration": "node scripts/smoke-step149-l-amazon-orders-historical-sync-disabled-worker-planner-integration.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

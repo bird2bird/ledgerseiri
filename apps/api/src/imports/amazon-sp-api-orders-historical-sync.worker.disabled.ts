@@ -9,6 +9,7 @@ import {
 import type {
   AmazonSpApiOrdersHistoricalSyncRepository,
 } from './dto/amazon-sp-api-orders-historical-sync-repository-contract.dto';
+import { planAmazonOrdersHistoricalSyncWindows } from './amazon-sp-api-orders-historical-sync-window-planner';
 
 const STEP149_J_DISABLED_REASON = 'STEP149_J_WORKER_DISABLED_BY_DEFAULT' as const;
 
@@ -23,17 +24,26 @@ export class AmazonSpApiOrdersHistoricalSyncWorkerDisabled {
     );
   }
 
-  planHistoricalSync(_input: AmazonSpApiOrdersHistoricalSyncPlanInput): AmazonSpApiOrdersHistoricalSyncPlanResult {
+  planHistoricalSync(input: AmazonSpApiOrdersHistoricalSyncPlanInput): AmazonSpApiOrdersHistoricalSyncPlanResult {
+    const windowPlan = planAmazonOrdersHistoricalSyncWindows({
+      syncStartDate: input.syncStartDate,
+      syncEndDate: input.syncEndDate,
+      segmentDays: input.segmentDays,
+    });
+
     return {
       accepted: false,
       disabled: true,
       reason: STEP149_J_DISABLED_REASON,
       executionMode: 'worker_disabled',
+      planningMode: 'planner_integrated_but_runtime_disabled',
       wouldCreateSyncJob: false,
       wouldCreateSegments: false,
       wouldCallAmazon: false,
       wouldWriteDatabase: false,
-      plannedSegments: [],
+      normalizedRange: windowPlan.normalizedRange,
+      paginationPolicy: windowPlan.paginationPolicy,
+      plannedSegments: windowPlan.segments,
     };
   }
 

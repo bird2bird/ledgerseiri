@@ -106,11 +106,53 @@ assert(
   "Step149-J disabled worker must remain present",
 );
 
-assert(
-  !worker.includes("planAmazonOrdersHistoricalSyncWindows") &&
+const workerHasPlannerIntegration = worker.includes("planAmazonOrdersHistoricalSyncWindows");
+
+if (workerHasPlannerIntegration) {
+  [
+    "planningMode: 'planner_integrated_but_runtime_disabled'",
+    "wouldCreateSyncJob: false",
+    "wouldCreateSegments: false",
+    "wouldCallAmazon: false",
+    "wouldWriteDatabase: false",
+    "normalizedRange: windowPlan.normalizedRange",
+    "paginationPolicy: windowPlan.paginationPolicy",
+    "plannedSegments: windowPlan.segments",
+  ].forEach((needle) => {
+    assert(worker.includes(needle), `post-Step149-L worker planner integration missing marker: ${needle}`);
+  });
+
+  [
+    "repository.createSyncJob",
+    "repository.createSyncSegment",
+    "this.repository.createSyncJob",
+    "this.repository.createSyncSegment",
+    "this.repository.getSyncJobById",
+    "this.repository.listSyncSegmentsByJobId",
+    "previewAmazonSpApiOrdersReal",
+    "buildAmazonSpApiOrdersServerOnlyRawSignedTransport",
+    "PrismaClient",
+    "amazonSpApiOrderSyncJob.",
+    "amazonSpApiOrderSyncSegment.",
+    "transaction.create(",
+    "inventoryMovement.create(",
+    "importJob.create(",
+    "importStagingRow.create",
+    "setInterval(",
+    "while (true)",
+    "for (;;)",
+    "@Cron",
+    "Queue",
+    "Processor",
+  ].forEach((forbidden) => {
+    assert(!worker.includes(forbidden), `post-Step149-L worker must remain no-runtime: ${forbidden}`);
+  });
+} else {
+  assert(
     !worker.includes("advancePaginationCursor"),
-  "Step149-K planner must not be wired into worker runtime yet",
-);
+    "pre-Step149-L worker must not wire pagination cursor",
+  );
+}
 
 assert(
   controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"),
@@ -120,9 +162,23 @@ assert(
 assert(
   !controller.includes("planAmazonOrdersHistoricalSyncWindows") &&
     !controller.includes("advancePaginationCursor") &&
-    !controller.includes("amazon-sp-api-orders-historical-sync-window-planner"),
-  "Step149-K planner must not be wired into controller",
+    !controller.includes("amazon-sp-api-orders-historical-sync-window-planner") &&
+    !controller.includes("AmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
+    !controller.includes("createAmazonSpApiOrdersHistoricalSyncWorkerDisabled"),
+  "planner/worker must not be wired into controller",
 );
+
+[
+  "@Cron",
+  "CronExpression",
+  "ScheduleModule",
+  "setInterval(",
+  "BullModule",
+  "Queue",
+  "Processor",
+].forEach((forbidden) => {
+  assert(!controller.includes(forbidden), `controller must not contain scheduler marker: ${forbidden}`);
+});
 
 assert(
   pkg.scripts["smoke:step149-k-amazon-orders-historical-sync-window-planner-pagination-cursor"] ===
@@ -139,7 +195,6 @@ const {
   advancePaginationCursor,
 } = require("../src/imports/amazon-sp-api-orders-historical-sync-window-planner");
 
-// 1-day range
 const oneDay = planAmazonOrdersHistoricalSyncWindows({
   syncStartDate: "2026-01-01",
   syncEndDate: "2026-01-01",
@@ -149,7 +204,6 @@ assert(oneDay.segments[0].segmentDaysInclusive === 1, "1-day segmentDaysInclusiv
 assert(oneDay.segments[0].createdAfter === "2026-01-01T00:00:00.000Z", "1-day createdAfter mismatch");
 assert(oneDay.segments[0].createdBefore === "2026-01-01T23:59:59.999Z", "1-day createdBefore mismatch");
 
-// 7-day default range
 const sevenDays = planAmazonOrdersHistoricalSyncWindows({
   syncStartDate: "2026-01-01",
   syncEndDate: "2026-01-07",
@@ -157,7 +211,6 @@ const sevenDays = planAmazonOrdersHistoricalSyncWindows({
 assert(sevenDays.segments.length === 1, "7-day range should produce one segment");
 assert(sevenDays.normalizedRange.segmentDays === 7, "default segmentDays should be 7");
 
-// 31-day max segment range with explicit segmentDays=31
 const thirtyOne = planAmazonOrdersHistoricalSyncWindows({
   syncStartDate: "2026-01-01",
   syncEndDate: "2026-01-31",
@@ -166,7 +219,6 @@ const thirtyOne = planAmazonOrdersHistoricalSyncWindows({
 assert(thirtyOne.segments.length === 1, "31-day segment should fit one segment");
 assert(thirtyOne.segments[0].segmentDaysInclusive === 31, "31-day segmentDaysInclusive mismatch");
 
-// >31-day split by default 7-day windows
 const fortyDays = planAmazonOrdersHistoricalSyncWindows({
   syncStartDate: "2026-01-01",
   syncEndDate: "2026-02-09",
@@ -177,7 +229,6 @@ assert(fortyDays.segments[5].segmentIndex === 5, "last segment index mismatch");
 assert(fortyDays.segments[5].createdAfter === "2026-02-05T00:00:00.000Z", "last segment createdAfter mismatch");
 assert(fortyDays.segments[5].createdBefore === "2026-02-09T23:59:59.999Z", "last segment createdBefore mismatch");
 
-// Normalization
 const normalized = normalizeHistoricalSyncDateRange({
   syncStartDate: "2026-03-01",
   syncEndDate: "2026-03-10",
@@ -186,7 +237,6 @@ const normalized = normalizeHistoricalSyncDateRange({
 assert(normalized.totalDaysInclusive === 10, "normalized totalDaysInclusive mismatch");
 assert(normalized.segmentDays === 5, "normalized segmentDays mismatch");
 
-// Invalid ranges
 assertThrows(
   () => normalizeHistoricalSyncDateRange({ syncStartDate: "2026/01/01", syncEndDate: "2026-01-02" }),
   "STEP149_K_INVALID_SYNC_START_DATE",
@@ -208,7 +258,6 @@ assertThrows(
   "STEP149_K_INVALID_MAX_PAGES_PER_SEGMENT",
 );
 
-// Pagination cursor
 let cursor = buildInitialPaginationCursor({
   segmentIndex: 0,
   maxPagesPerSegment: 2,

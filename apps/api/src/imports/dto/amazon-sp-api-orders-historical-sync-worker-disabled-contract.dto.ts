@@ -1,6 +1,11 @@
 import type {
   AmazonSpApiOrdersHistoricalSyncRepositoryContract,
 } from './amazon-sp-api-orders-historical-sync-repository-contract.dto';
+import type {
+  AmazonSpApiOrdersHistoricalSyncNormalizedDateRange,
+  AmazonSpApiOrdersHistoricalSyncPaginationPolicy,
+  AmazonSpApiOrdersHistoricalSyncWindowSegment,
+} from './amazon-sp-api-orders-historical-sync-window-planner-contract.dto';
 
 export type AmazonSpApiOrdersHistoricalSyncWorkerExecutionMode =
   | 'worker_disabled'
@@ -21,22 +26,22 @@ export type AmazonSpApiOrdersHistoricalSyncPlanInput = {
   readonly segmentDays?: number;
 };
 
-export type AmazonSpApiOrdersHistoricalSyncPlannedSegment = {
-  readonly segmentIndex: number;
-  readonly createdAfter: string;
-  readonly createdBefore: string;
-};
+export type AmazonSpApiOrdersHistoricalSyncPlannedSegment =
+  AmazonSpApiOrdersHistoricalSyncWindowSegment;
 
 export type AmazonSpApiOrdersHistoricalSyncPlanResult = {
   readonly accepted: false;
   readonly disabled: true;
   readonly reason: AmazonSpApiOrdersHistoricalSyncWorkerDisabledReason;
   readonly executionMode: 'worker_disabled';
+  readonly planningMode: 'planner_integrated_but_runtime_disabled';
   readonly wouldCreateSyncJob: false;
   readonly wouldCreateSegments: false;
   readonly wouldCallAmazon: false;
   readonly wouldWriteDatabase: false;
-  readonly plannedSegments: readonly AmazonSpApiOrdersHistoricalSyncPlannedSegment[];
+  readonly normalizedRange: AmazonSpApiOrdersHistoricalSyncNormalizedDateRange;
+  readonly paginationPolicy: AmazonSpApiOrdersHistoricalSyncPaginationPolicy;
+  readonly plannedSegments: readonly AmazonSpApiOrdersHistoricalSyncWindowSegment[];
 };
 
 export type AmazonSpApiOrdersHistoricalSyncWorkerRunResult = {
@@ -69,6 +74,7 @@ export type AmazonSpApiOrdersHistoricalSyncWorkerBoundaries = {
   readonly noInfiniteLoopNow: true;
   readonly noSetIntervalNow: true;
   readonly noQueueConsumerNow: true;
+  readonly plannerIntegratedIntoDisabledPlan: true;
 };
 
 export type AmazonSpApiOrdersHistoricalSyncWorkerDisabledContract = {
@@ -118,6 +124,7 @@ export function buildAmazonSpApiOrdersHistoricalSyncWorkerDisabledContract(
       noInfiniteLoopNow: true,
       noSetIntervalNow: true,
       noQueueConsumerNow: true,
+      plannerIntegratedIntoDisabledPlan: true,
     },
   };
 }
@@ -173,7 +180,8 @@ export function assertAmazonSpApiOrdersHistoricalSyncWorkerDisabledContract(
     !boundaries.noInventoryMovementWriteNow ||
     !boundaries.noInfiniteLoopNow ||
     !boundaries.noSetIntervalNow ||
-    !boundaries.noQueueConsumerNow
+    !boundaries.noQueueConsumerNow ||
+    !boundaries.plannerIntegratedIntoDisabledPlan
   ) {
     throw new Error('STEP149_J_BOUNDARIES_MUST_ALL_REMAIN_DISABLED');
   }

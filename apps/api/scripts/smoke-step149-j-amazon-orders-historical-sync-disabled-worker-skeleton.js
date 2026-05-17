@@ -67,6 +67,8 @@ const pkg = JSON.parse(read(packagePath));
   "noInfiniteLoopNow: true",
   "noSetIntervalNow: true",
   "noQueueConsumerNow: true",
+  "plannerIntegratedIntoDisabledPlan: true",
+  "planningMode: 'planner_integrated_but_runtime_disabled'",
 ].forEach((needle) => {
   assert(workerContract.includes(needle), `worker contract missing marker: ${needle}`);
 });
@@ -79,6 +81,11 @@ const pkg = JSON.parse(read(packagePath));
   "runHistoricalSync",
   "runSegment",
   "disabledRunResult",
+  "planAmazonOrdersHistoricalSyncWindows",
+  "planningMode: 'planner_integrated_but_runtime_disabled'",
+  "normalizedRange: windowPlan.normalizedRange",
+  "paginationPolicy: windowPlan.paginationPolicy",
+  "plannedSegments: windowPlan.segments",
   "accepted: false",
   "disabled: true",
   "callsRepository: false",
@@ -119,31 +126,16 @@ const pkg = JSON.parse(read(packagePath));
   assert(!worker.includes(forbidden), `worker skeleton must not contain forbidden marker: ${forbidden}`);
 });
 
-assert(
-  repositoryContract.includes("AmazonSpApiOrdersHistoricalSyncRepository"),
-  "Step149-H repository boundary must exist",
-);
-
-assert(
-  testDoubleRepository.includes("createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble"),
-  "Step149-H test-double repository must exist",
-);
-
-assert(
-  prismaDisabledRepository.includes("createAmazonSpApiOrdersHistoricalSyncPrismaRepositoryDisabled"),
-  "Step149-I disabled Prisma repository shell must exist",
-);
-
-assert(
-  controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"),
-  "Step149-C disabled controller route must remain present",
-);
+assert(repositoryContract.includes("AmazonSpApiOrdersHistoricalSyncRepository"), "Step149-H repository boundary must exist");
+assert(testDoubleRepository.includes("createAmazonSpApiOrdersHistoricalSyncRepositoryTestDouble"), "Step149-H test-double repository must exist");
+assert(prismaDisabledRepository.includes("createAmazonSpApiOrdersHistoricalSyncPrismaRepositoryDisabled"), "Step149-I disabled Prisma repository shell must exist");
+assert(controller.includes("amazonSpApiOrdersHistoricalSyncDisabledControllerRoute"), "Step149-C disabled controller route must remain present");
 
 assert(
   !controller.includes("AmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
     !controller.includes("createAmazonSpApiOrdersHistoricalSyncWorkerDisabled") &&
     !controller.includes("amazon-sp-api-orders-historical-sync.worker.disabled"),
-  "controller must not wire worker in Step149-J",
+  "controller must not wire worker in Step149-J/L",
 );
 
 [
@@ -182,6 +174,7 @@ const {
   assert(worker.contract.boundaries.noRepositoryRuntimeCallNow === true, "worker must not call repository now");
   assert(worker.contract.boundaries.noAmazonCallNow === true, "worker must not call Amazon now");
   assert(worker.contract.boundaries.noDatabaseWriteNow === true, "worker must not write DB now");
+  assert(worker.contract.boundaries.plannerIntegratedIntoDisabledPlan === true, "worker should expose planner integration");
 
   const plan = worker.planHistoricalSync({
     companyId: "company_001",
@@ -196,11 +189,16 @@ const {
 
   assert(plan.accepted === false, "plan should be rejected while disabled");
   assert(plan.disabled === true, "plan should be disabled");
+  assert(plan.planningMode === "planner_integrated_but_runtime_disabled", "disabled plan should expose planner integration mode");
   assert(plan.wouldCreateSyncJob === false, "plan must not create sync job");
   assert(plan.wouldCreateSegments === false, "plan must not create segments");
   assert(plan.wouldCallAmazon === false, "plan must not call Amazon");
   assert(plan.wouldWriteDatabase === false, "plan must not write DB");
-  assert(Array.isArray(plan.plannedSegments) && plan.plannedSegments.length === 0, "disabled plan should not produce segments");
+  assert(plan.normalizedRange && plan.normalizedRange.segmentDays === 7, "disabled plan should include normalized range");
+  assert(plan.paginationPolicy && plan.paginationPolicy.maxPagesPerSegment === 50, "disabled plan should include pagination policy");
+  assert(Array.isArray(plan.plannedSegments) && plan.plannedSegments.length === 5, "disabled plan should produce planning-only segments for January 2026");
+  assert(plan.plannedSegments[0].createdAfter === "2026-01-01T00:00:00.000Z", "disabled plan first segment start mismatch");
+  assert(plan.plannedSegments[4].createdBefore === "2026-01-31T23:59:59.999Z", "disabled plan last segment end mismatch");
 
   const run = await worker.runHistoricalSync({
     companyId: "company_001",
@@ -232,6 +230,9 @@ const {
   assert(segmentRun.callsRepository === false, "segment run must not call repository");
   assert(segmentRun.callsAmazon === false, "segment run must not call Amazon");
   assert(segmentRun.writesDatabase === false, "segment run must not write DB");
+
+  const jobs = await repository.listSyncJobsByCompany({ companyId: "company_001" });
+  assert(jobs.length === 0, "planning path must not create repository jobs");
 
   console.log("[SMOKE_OK] Step149-J disabled worker skeleton smoke passed");
 })().catch((error) => {
