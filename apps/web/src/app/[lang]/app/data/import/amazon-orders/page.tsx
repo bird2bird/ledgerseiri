@@ -12,6 +12,9 @@ type AmazonOrderListShellRow = {
   service: string;
   status: string;
   itemCount: number;
+  marketplace: string;
+  skuStatus: string;
+  importStatus: string;
 };
 
 const AMAZON_ORDER_LIST_SHELL_ROWS: AmazonOrderListShellRow[] = [
@@ -23,6 +26,9 @@ const AMAZON_ORDER_LIST_SHELL_ROWS: AmazonOrderListShellRow[] = [
     service: "Amazon.co.jp",
     status: "shell-only",
     itemCount: 0,
+    marketplace: "Amazon.co.jp",
+    skuStatus: "read-model接続待ち",
+    importStatus: "ImportJob未接続",
   },
 ];
 
@@ -36,10 +42,20 @@ function AmazonOrderDetailDrawerShell({
   if (!selectedOrder) return null;
 
   return (
-    <aside
-      data-testid="amazon-orders-detail-drawer-shell"
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl"
-    >
+    <>
+      <button
+        data-testid="amazon-orders-detail-drawer-overlay"
+        type="button"
+        aria-label="注文詳細を閉じる"
+        onClick={onClose}
+        className="fixed inset-0 z-30 bg-slate-950/20"
+      />
+      <aside
+        data-testid="amazon-orders-detail-drawer-shell"
+        aria-modal="true"
+        role="dialog"
+        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl"
+      >
       <div className="border-b border-slate-200 px-6 py-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -55,6 +71,12 @@ function AmazonOrderDetailDrawerShell({
             >
               {selectedOrder.orderId}
             </p>
+            <span
+              data-testid="amazon-orders-detail-drawer-status-pill"
+              className="mt-3 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700"
+            >
+              {selectedOrder.status}
+            </span>
           </div>
 
           <button
@@ -74,20 +96,25 @@ function AmazonOrderDetailDrawerShell({
           className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
         >
           <h3 className="text-sm font-black text-slate-900">注文概要</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-            <div>
+          <div
+            data-testid="amazon-orders-detail-drawer-overview-grid"
+            className="mt-3 grid grid-cols-2 gap-3 text-xs"
+          >
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
               <div className="font-black text-slate-400">Purchase Date</div>
               <div className="mt-1 font-bold text-slate-700">{selectedOrder.purchaseDate}</div>
             </div>
-            <div>
-              <div className="font-black text-slate-400">Status</div>
-              <div className="mt-1 font-bold text-slate-700">{selectedOrder.status}</div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+              <div className="font-black text-slate-400">Marketplace</div>
+              <div data-testid="amazon-orders-detail-drawer-marketplace" className="mt-1 font-bold text-slate-700">
+                {selectedOrder.marketplace}
+              </div>
             </div>
-            <div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
               <div className="font-black text-slate-400">Amount</div>
               <div className="mt-1 font-bold text-slate-700">{selectedOrder.amount}</div>
             </div>
-            <div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
               <div className="font-black text-slate-400">Items</div>
               <div className="mt-1 font-bold text-slate-700">{selectedOrder.itemCount}</div>
             </div>
@@ -100,8 +127,28 @@ function AmazonOrderDetailDrawerShell({
         >
           <h3 className="text-sm font-black text-slate-900">商品明細</h3>
           <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-            Step150-E は shell のみです。SKU / ASIN / quantity / item price / item tax / shipping tax は、後続の read-model 接続後に表示します。
+            Step150-F は drawer layout polish です。後続の read-model 接続後に明細を表示します。
           </p>
+          <div
+            data-testid="amazon-orders-detail-drawer-items-placeholder-grid"
+            className="mt-3 overflow-hidden rounded-2xl border border-slate-200"
+          >
+            <div className="grid grid-cols-[1fr_90px_90px_90px] bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-500">
+              <div>SKU / ASIN</div>
+              <div>数量</div>
+              <div>商品税</div>
+              <div>配送税</div>
+            </div>
+            <div
+              data-testid="amazon-orders-detail-drawer-items-placeholder-row"
+              className="grid grid-cols-[1fr_90px_90px_90px] border-t border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-600"
+            >
+              <div>read-model接続後に表示</div>
+              <div>—</div>
+              <div>—</div>
+              <div>—</div>
+            </div>
+          </div>
         </section>
 
         <section
@@ -112,6 +159,15 @@ function AmazonOrderDetailDrawerShell({
           <p className="mt-2 text-xs font-bold leading-5 text-amber-800">
             商品税、配送料税、プロモーション、Amazon手数料、FBA費用、返金、決済金額は、権限承認と finance/read-model 接続後に表示します。
           </p>
+          <div
+            data-testid="amazon-orders-detail-drawer-tax-fee-placeholder-grid"
+            className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black text-amber-900"
+          >
+            <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">商品税：—</div>
+            <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">配送料税：—</div>
+            <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">プロモーション：—</div>
+            <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">Amazon手数料：—</div>
+          </div>
         </section>
 
         <section
@@ -122,6 +178,13 @@ function AmazonOrderDetailDrawerShell({
           <p className="mt-2 text-xs font-bold leading-5 text-emerald-800">
             SKU link / alias / unresolved / inventory audit link は、既存の ImportJob / StagingRow read-model 接続後に表示します。
           </p>
+          <div
+            data-testid="amazon-orders-detail-drawer-inventory-readiness-grid"
+            className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-black text-emerald-900"
+          >
+            <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">SKU状態：{selectedOrder.skuStatus}</div>
+            <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2">監査リンク：後続接続</div>
+          </div>
         </section>
 
         <section
@@ -132,9 +195,16 @@ function AmazonOrderDetailDrawerShell({
           <p className="mt-2 text-xs font-bold leading-5 text-sky-800">
             ImportJob ID、ImportStagingRow、取得日時、監査リンクは後続ステップで接続します。
           </p>
+          <div
+            data-testid="amazon-orders-detail-drawer-import-status-card"
+            className="mt-3 rounded-2xl border border-sky-200 bg-white px-3 py-2 text-[11px] font-black text-sky-900"
+          >
+            {selectedOrder.importStatus}
+          </div>
         </section>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 

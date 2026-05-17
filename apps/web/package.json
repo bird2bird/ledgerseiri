@@ -32,7 +32,8 @@
     "smoke:step150-b-data-import-connected-services-shell": "node scripts/smoke-step150-b-data-import-connected-services-shell.js",
     "smoke:step150-c-amazon-orders-range-selector-standardization": "node scripts/smoke-step150-c-amazon-orders-range-selector-standardization.js",
     "smoke:step150-d-connected-services-fetch-shell-behavior": "node scripts/smoke-step150-d-connected-services-fetch-shell-behavior.js",
-    "smoke:step150-e-amazon-order-detail-list-page-shell": "node scripts/smoke-step150-e-amazon-order-detail-list-page-shell.js"
+    "smoke:step150-e-amazon-order-detail-list-page-shell": "node scripts/smoke-step150-e-amazon-order-detail-list-page-shell.js",
+    "smoke:step150-f-amazon-order-detail-drawer-interaction-polish": "node scripts/smoke-step150-f-amazon-order-detail-drawer-interaction-polish.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
