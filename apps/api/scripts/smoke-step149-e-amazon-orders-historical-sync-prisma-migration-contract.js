@@ -112,10 +112,26 @@ assert(
 });
 
 const schemaDiff = gitDiffNameOnly("apps/api/prisma/schema.prisma prisma/schema.prisma");
-assert(schemaDiff === "", `Step149-E must not modify schema.prisma. Diff found: ${schemaDiff}`);
-
 const migrationDiff = gitDiffNameOnly("apps/api/prisma/migrations prisma/migrations");
-assert(migrationDiff === "", `Step149-E must not create migration files. Diff found: ${migrationDiff}`);
+const step149FMigrationFilePresent =
+  fs.existsSync(path.join(api, "prisma/migrations")) &&
+  fs
+    .readdirSync(path.join(api, "prisma/migrations"))
+    .some((name) =>
+      name.includes("add_amazon_sp_api_order_sync_jobs") &&
+      fs.existsSync(path.join(api, "prisma/migrations", name, "migration.sql")),
+    );
+const step149FCreateOnlyPatchPresent =
+  fs.existsSync(path.join(api, "scripts/smoke-step149-f-amazon-orders-historical-sync-create-only-prisma-schema-migration.js")) &&
+  schemaDiff.includes("apps/api/prisma/schema.prisma") &&
+  step149FMigrationFilePresent;
+
+if (!step149FCreateOnlyPatchPresent) {
+  assert(schemaDiff === "", `This step must not modify schema.prisma before Step149-F. Diff found: ${schemaDiff}`);
+  assert(migrationDiff === "", `This step must not create migration files before Step149-F. Diff found: ${migrationDiff}`);
+} else {
+  console.log("[INFO] Step149-F create-only schema/migration patch detected; earlier Step149 contract smoke remains compatible.");
+}
 
 assert(
   pkg.scripts["smoke:step149-e-amazon-orders-historical-sync-prisma-migration-contract"] ===

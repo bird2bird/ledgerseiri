@@ -54,6 +54,9 @@ model Company {
   amazonSpApiConnections      AmazonSpApiConnection[]
   amazonSpApiConnectionAudits AmazonSpApiConnectionAudit[]
 
+
+  amazonSpApiOrderSyncJobs     AmazonSpApiOrderSyncJob[]     @relation("CompanyAmazonSpApiOrderSyncJobs")
+  amazonSpApiOrderSyncSegments AmazonSpApiOrderSyncSegment[]  @relation("CompanyAmazonSpApiOrderSyncSegments")
 }
 
 model Store {
@@ -459,6 +462,15 @@ model ImportJob {
   @@index([companyId, createdAt])
   @@index([domain, status])
   @@index([companyId, module, createdAt])
+
+  amazonSpApiOrderSyncJobId       String?
+  amazonSpApiOrderSyncSegmentId   String?
+  amazonSpApiOrderSyncJob         AmazonSpApiOrderSyncJob?      @relation("AmazonSpApiOrderSyncJobImportJobs", fields: [amazonSpApiOrderSyncJobId], references: [id], onDelete: SetNull)
+  amazonSpApiOrderSyncSegment     AmazonSpApiOrderSyncSegment?  @relation("AmazonSpApiOrderSyncSegmentImportJobs", fields: [amazonSpApiOrderSyncSegmentId], references: [id], onDelete: SetNull)
+  createdForAmazonSpApiSegments   AmazonSpApiOrderSyncSegment[] @relation("AmazonSpApiOrderSyncSegmentCreatedImportJob")
+
+  @@index([amazonSpApiOrderSyncJobId])
+  @@index([amazonSpApiOrderSyncSegmentId])
 }
 
 model ImportStagingRow {
@@ -901,4 +913,86 @@ model AmazonSpApiConnectionAudit {
   @@index([connectionId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+enum AmazonSpApiOrderSyncJobStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  SUCCEEDED
+  PARTIAL_FAILED
+  FAILED
+  CANCELLED
+}
+
+enum AmazonSpApiOrderSyncSegmentStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  RETRYABLE_FAILED
+  FAILED
+  SKIPPED
+}
+
+model AmazonSpApiOrderSyncJob {
+  id                     String                         @id @default(cuid())
+  companyId              String
+  storeId                String
+  marketplaceId          String
+  region                 String                         @default("JP")
+  requestedStartDate     DateTime
+  requestedEndDate       DateTime
+  status                 AmazonSpApiOrderSyncJobStatus  @default(PENDING)
+  totalSegments          Int                            @default(0)
+  completedSegments      Int                            @default(0)
+  failedSegments         Int                            @default(0)
+  lastCompletedWindowEnd DateTime?
+  lastErrorCode          String?
+  lastErrorMessage       String?
+  createdByUserId        String?
+  createdAt              DateTime                       @default(now())
+  startedAt              DateTime?
+  finishedAt             DateTime?
+  updatedAt              DateTime                       @updatedAt
+
+  company                Company                        @relation("CompanyAmazonSpApiOrderSyncJobs", fields: [companyId], references: [id], onDelete: Cascade)
+  segments               AmazonSpApiOrderSyncSegment[]  @relation("AmazonSpApiOrderSyncJobSegments")
+  importJobs             ImportJob[]                    @relation("AmazonSpApiOrderSyncJobImportJobs")
+
+  @@index([companyId, storeId, marketplaceId, status])
+  @@index([companyId, createdAt])
+  @@index([companyId, requestedStartDate, requestedEndDate])
+}
+
+model AmazonSpApiOrderSyncSegment {
+  id                 String                              @id @default(cuid())
+  syncJobId          String
+  companyId          String
+  storeId            String
+  marketplaceId      String
+  segmentIndex       Int
+  createdAfter       DateTime
+  createdBefore      DateTime
+  status             AmazonSpApiOrderSyncSegmentStatus   @default(PENDING)
+  nextToken          String?
+  pagesFetched       Int                                 @default(0)
+  ordersFetched      Int                                 @default(0)
+  itemsFetched       Int                                 @default(0)
+  retryAttempts      Int                                 @default(0)
+  lastErrorCode      String?
+  lastErrorMessage   String?
+  createdImportJobId String?
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  updatedAt          DateTime                            @updatedAt
+
+  syncJob            AmazonSpApiOrderSyncJob             @relation("AmazonSpApiOrderSyncJobSegments", fields: [syncJobId], references: [id], onDelete: Cascade)
+  company            Company                             @relation("CompanyAmazonSpApiOrderSyncSegments", fields: [companyId], references: [id], onDelete: Cascade)
+  createdImportJob   ImportJob?                          @relation("AmazonSpApiOrderSyncSegmentCreatedImportJob", fields: [createdImportJobId], references: [id], onDelete: SetNull)
+  importJobs         ImportJob[]                         @relation("AmazonSpApiOrderSyncSegmentImportJobs")
+
+  @@unique([syncJobId, segmentIndex])
+  @@index([syncJobId, status])
+  @@index([companyId, storeId, marketplaceId, createdAfter, createdBefore])
+  @@index([createdImportJobId])
 }
