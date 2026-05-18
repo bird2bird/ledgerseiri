@@ -199,8 +199,54 @@ assertIncludes(page, "response.writesDatabase !== false", "frontend validates wr
 assertIncludes(page, "response.importJobWriteNow !== false", "frontend validates importJobWriteNow=false");
 assertIncludes(page, "response.transactionWriteNow !== false", "frontend validates transactionWriteNow=false");
 assertIncludes(page, "response.inventoryWriteNow !== false", "frontend validates inventoryWriteNow=false");
-assertNotIncludes(page, "commitAmazonSpApiOrdersRealImportJob(", "frontend does not call real-importjob");
 assertNotIncludes(page, "previewAmazonSpApiOrdersHistoricalSyncPlan(", "frontend does not call historical sync");
+
+console.log("========== Step151-H frontend boundary after Step151-J ==========");
+
+function extractPageFunction(source, functionName) {
+  const marker = `function ${functionName}`;
+  const start = source.indexOf(marker);
+  if (start < 0) {
+    throw new Error(`[FAIL] Page function not found: ${functionName}`);
+  }
+
+  const braceStart = source.indexOf("{", start);
+  if (braceStart < 0) {
+    throw new Error(`[FAIL] Page function body not found: ${functionName}`);
+  }
+
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i += 1) {
+    if (source[i] === "{") depth += 1;
+    if (source[i] === "}") depth -= 1;
+    if (depth === 0) return source.slice(start, i + 1);
+  }
+
+  throw new Error(`[FAIL] Page function body did not close: ${functionName}`);
+}
+
+const fetchShellHandler = extractPageFunction(page, "handleAmazonOrdersConnectedServiceFetchShell");
+const realPreviewHandler = extractPageFunction(page, "handleAmazonOrdersRealPreviewShell");
+const realImportJobCommitHandler = page.includes("function handleAmazonOrdersRealImportJobCommitShell")
+  ? extractPageFunction(page, "handleAmazonOrdersRealImportJobCommitShell")
+  : "";
+
+assertIncludes(fetchShellHandler, "preflightAmazonSpApiOrdersGuardedImport", "fetch handler still calls guarded preflight");
+assertNotIncludes(fetchShellHandler, "previewAmazonSpApiOrdersReal", "fetch handler does not call real-preview");
+assertNotIncludes(fetchShellHandler, "commitAmazonSpApiOrdersRealImportJob", "fetch handler does not call real-importjob");
+
+assertIncludes(realPreviewHandler, "previewAmazonSpApiOrdersReal", "real-preview handler calls real-preview");
+assertNotIncludes(realPreviewHandler, "commitAmazonSpApiOrdersRealImportJob", "real-preview handler does not call real-importjob");
+assertNotIncludes(realPreviewHandler, "previewAmazonSpApiOrdersHistoricalSyncPlan", "real-preview handler does not call historical sync");
+
+// Step151-J and later allow real-importjob only in the explicit confirmation handler.
+// Step151-H remains a real-preview no-DB runtime smoke, so it checks layering instead of globally banning the symbol.
+if (realImportJobCommitHandler) {
+  assertIncludes(realImportJobCommitHandler, "commitAmazonSpApiOrdersRealImportJob", "confirmation handler may call real-importjob after Step151-J");
+  assertNotIncludes(realImportJobCommitHandler, "previewAmazonSpApiOrdersHistoricalSyncPlan", "confirmation handler does not call historical sync");
+  assertIncludes(realImportJobCommitHandler, "controllerWritesTransaction !== false", "confirmation handler validates no Transaction write");
+  assertIncludes(realImportJobCommitHandler, "controllerWritesInventory !== false", "confirmation handler validates no Inventory write");
+}
 
 console.log("========== Step151-H FIX2 source verification: web API helper ==========");
 

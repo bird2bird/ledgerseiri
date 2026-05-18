@@ -290,7 +290,8 @@
     "smoke:step150-jk-amazon-imported-orders-read-model-test-double-mapper": "node scripts/smoke-step150-jk-amazon-imported-orders-read-model-test-double-mapper.js",
     "smoke:step150-lm-amazon-imported-orders-read-model-readonly-controller": "node scripts/smoke-step150-lm-amazon-imported-orders-read-model-readonly-controller.js",
     "smoke:step151-c-amazon-orders-guarded-import-preflight-contract": "node scripts/smoke-step151-c-amazon-orders-guarded-import-preflight-contract.js",
-    "smoke:step151-h:amazon-orders-real-preview-runtime-no-db": "node scripts/smoke-step151-h-amazon-orders-real-preview-runtime-no-db.js"
+    "smoke:step151-h:amazon-orders-real-preview-runtime-no-db": "node scripts/smoke-step151-h-amazon-orders-real-preview-runtime-no-db.js",
+    "smoke:step151-k:amazon-orders-real-importjob-runtime-db-persistence": "node scripts/smoke-step151-k-amazon-orders-real-importjob-runtime-db-persistence.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
