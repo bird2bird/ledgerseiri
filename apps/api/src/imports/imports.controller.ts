@@ -23,6 +23,8 @@ import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './
 import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-orders-date-range.contract';
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
 import { projectAmazonSpApiOrdersReadyRowsToTransactionDryRun } from './amazon-sp-api-orders-transaction-dry-run-projection.service';
+import { projectAmazonSpApiOrdersCombinedDryRun } from './amazon-sp-api-orders-combined-dry-run-projection.service';
+import { projectAmazonSpApiOrdersReadyRowsToInventoryDryRun } from './amazon-sp-api-orders-inventory-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
   assertAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract,
@@ -146,6 +148,16 @@ type AmazonSpApiOrdersStagingCommitReadinessRouteBody = {
 };
 
 type AmazonSpApiOrdersTransactionDryRunProjectionRouteBody = {
+  importJobId?: string;
+  dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersInventoryDryRunProjectionRouteBody = {
+  importJobId?: string;
+  dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersCombinedDryRunProjectionRouteBody = {
   importJobId?: string;
   dryRun?: boolean;
 };
@@ -1061,6 +1073,77 @@ export class ImportsController {
   // Step141-G1: Amazon SP-API Orders staging commit readiness / dry-run contract.
   // Read-only readiness endpoint for future explicit commit into Transaction / InventoryMovement.
   // This endpoint must not create Transaction, InventoryMovement, InventoryBalance, or mutate ImportStagingRow.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/inventory-dry-run-projection')
+  async amazonSpApiOrdersInventoryDryRunProjectionControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersInventoryDryRunProjectionRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_P_INVENTORY_PROJECTION_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP151_P_INVENTORY_PROJECTION_DRY_RUN_REQUIRED: dryRun must be true.',
+      );
+    }
+
+    const result = await projectAmazonSpApiOrdersReadyRowsToInventoryDryRun({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
+    });
+
+    return {
+      ...result,
+      step151PInventoryProjectionRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/combined-dry-run-projection')
+  async amazonSpApiOrdersCombinedDryRunProjectionControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersCombinedDryRunProjectionRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_Q_COMBINED_PROJECTION_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP151_Q_COMBINED_PROJECTION_DRY_RUN_REQUIRED: dryRun must be true.',
+      );
+    }
+
+    const result = await projectAmazonSpApiOrdersCombinedDryRun({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
+    });
+
+    return {
+      ...result,
+      step151QCombinedProjectionRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+    };
+  }
+
+
   @UseGuards(JwtAuthGuard)
   @Post('amazon-sp-api/orders/transaction-dry-run-projection')
   async amazonSpApiOrdersTransactionDryRunProjectionControllerRoute(

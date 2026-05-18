@@ -14,6 +14,8 @@ import {
   getAmazonImportedOrderDetail,
   readAmazonSpApiOrdersStagingCommitReadiness,
   readAmazonSpApiOrdersTransactionDryRunProjection,
+  readAmazonSpApiOrdersInventoryDryRunProjection,
+  readAmazonSpApiOrdersCombinedDryRunProjection,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
@@ -21,6 +23,8 @@ import {
   type AmazonImportedOrderDetailReadModelResponse,
   type AmazonSpApiOrdersStagingCommitReadinessResponse,
   type AmazonSpApiOrdersTransactionDryRunProjectionResponse,
+  type AmazonSpApiOrdersInventoryDryRunProjectionResponse,
+  type AmazonSpApiOrdersCombinedDryRunProjectionResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -107,10 +111,15 @@ function AmazonOrdersConnectedServicesShell({
   transactionDryRunProjection,
   transactionDryRunProjectionLoading,
   transactionDryRunProjectionError,
+  inventoryDryRunProjection,
+  combinedDryRunProjection,
+  combinedDryRunProjectionLoading,
+  combinedDryRunProjectionError,
   onImportedReadModelRefresh,
   onImportedReadModelOpenDetail,
   onStagingCommitReadinessRefresh,
   onTransactionDryRunProjectionRefresh,
+  onCombinedDryRunProjectionRefresh,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
@@ -119,6 +128,7 @@ function AmazonOrdersConnectedServicesShell({
   onImportedReadModelOpenDetail: (orderId: string) => void;
   onStagingCommitReadinessRefresh: () => void;
   onTransactionDryRunProjectionRefresh: () => void;
+  onCombinedDryRunProjectionRefresh: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -140,6 +150,10 @@ function AmazonOrdersConnectedServicesShell({
   transactionDryRunProjection: AmazonSpApiOrdersTransactionDryRunProjectionResponse | null;
   transactionDryRunProjectionLoading: boolean;
   transactionDryRunProjectionError: string;
+  inventoryDryRunProjection: AmazonSpApiOrdersInventoryDryRunProjectionResponse | null;
+  combinedDryRunProjection: AmazonSpApiOrdersCombinedDryRunProjectionResponse | null;
+  combinedDryRunProjectionLoading: boolean;
+  combinedDryRunProjectionError: string;
 }) {
   const importedReadModelOrders = importedReadModelList?.orders ?? [];
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
@@ -182,6 +196,10 @@ function AmazonOrdersConnectedServicesShell({
   const transactionProjectionExcluded = transactionDryRunProjection?.excluded ?? [];
   const transactionProjectionPreviewDrafts = transactionProjectionDrafts.slice(0, 5);
   const transactionProjectionPreviewExcluded = transactionProjectionExcluded.slice(0, 5);
+  const inventoryProjectionDrafts = inventoryDryRunProjection?.drafts ?? combinedDryRunProjection?.inventory?.drafts ?? [];
+  const inventoryProjectionExcluded = inventoryDryRunProjection?.excluded ?? combinedDryRunProjection?.inventory?.excluded ?? [];
+  const inventoryProjectionPreviewDrafts = inventoryProjectionDrafts.slice(0, 5);
+  const inventoryProjectionPreviewExcluded = inventoryProjectionExcluded.slice(0, 5);
 
   return (
     <section
@@ -1018,6 +1036,146 @@ function AmazonOrdersConnectedServicesShell({
                       )}
                     </div>
 
+                    {/* Step151-PQ-INVENTORY-COMBINED-DRY-RUN-PROJECTION-UI:
+                        Project future InventoryMovement drafts and show combined
+                        Transaction / Inventory preview. This is dry-run only. */}
+                    <div
+                      data-testid="data-import-connected-service-amazon-orders-combined-projection-panel"
+                      className="mt-4 rounded-3xl border border-orange-200 bg-orange-50 px-4 py-4 text-xs font-bold leading-5 text-orange-950"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-700">
+                            Step151-PQ Combined Transaction / Inventory Preview
+                          </div>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">
+                            Transaction / InventoryMovement combined dry-run
+                          </h3>
+                          <p
+                            data-testid="data-import-connected-service-amazon-orders-combined-projection-copy"
+                            className="mt-1 max-w-3xl text-xs font-bold leading-5 text-orange-900"
+                          >
+                            readiness=READY の行から、収入 Transaction draft と在庫減算 InventoryMovement draft を同時に確認します。この段階ではどちらも書き込みません。
+                          </p>
+                        </div>
+                        <button
+                          data-testid="data-import-connected-service-amazon-orders-combined-projection-refresh-button"
+                          type="button"
+                          onClick={onCombinedDryRunProjectionRefresh}
+                          disabled={!realImportJobCommitResult?.importJobId || combinedDryRunProjectionLoading}
+                          className="inline-flex rounded-xl border border-orange-300 bg-white px-4 py-2 text-xs font-black text-orange-800 shadow-sm transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {combinedDryRunProjectionLoading ? "計算中..." : "Transaction/Inventory preview"}
+                        </button>
+                      </div>
+
+                      {combinedDryRunProjectionError ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-combined-projection-error"
+                          className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                        >
+                          {combinedDryRunProjectionError}
+                        </div>
+                      ) : null}
+
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-combined-projection-boundaries"
+                        className="mt-3 grid gap-2 md:grid-cols-4"
+                      >
+                        <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2 font-black">
+                          writesDatabase=false
+                        </div>
+                        <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2 font-black">
+                          createsTransactionNow=false
+                        </div>
+                        <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2 font-black">
+                          createsInventoryMovementNow=false
+                        </div>
+                        <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2 font-black">
+                          historicalSyncNow=false
+                        </div>
+                      </div>
+
+                      {combinedDryRunProjection ? (
+                        <>
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-combined-projection-summary"
+                            className="mt-4 grid gap-2 md:grid-cols-4"
+                          >
+                            <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-orange-700">Transaction drafts</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-combined-projection-transaction-rows">
+                                {String(combinedDryRunProjection.combined.transactionDraftRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-orange-700">Inventory drafts</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-combined-projection-inventory-rows">
+                                {String(combinedDryRunProjection.combined.inventoryMovementDraftRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-orange-700">Amount total</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-combined-projection-amount-total">
+                                {String(combinedDryRunProjection.combined.amountTotal)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-orange-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-orange-700">Quantity total</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-combined-projection-quantity-total">
+                                {String(combinedDryRunProjection.combined.quantityTotal)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-inventory-projection-drafts"
+                            className="mt-3 grid gap-2"
+                          >
+                            {inventoryProjectionPreviewDrafts.map((draft) => (
+                              <div
+                                key={draft.stagingRowId}
+                                data-testid="data-import-connected-service-amazon-orders-inventory-projection-draft-row"
+                                className="rounded-2xl border border-orange-200 bg-white px-3 py-2"
+                              >
+                                <div className="font-black text-slate-950">
+                                  SKU={draft.productSkuCode || draft.productSkuId} / quantity={draft.quantity} / movementType={draft.movementType}
+                                </div>
+                                <div className="mt-1 text-orange-900">
+                                  sourceRow={draft.evidenceSourceRowNo} / order={draft.sourceOrderId || "-"} / dedupeKey={draft.dedupeKey}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-combined-projection-excluded-rows"
+                            className="mt-3 rounded-2xl border border-orange-200 bg-white px-3 py-3"
+                          >
+                            <div className="text-[11px] font-black text-orange-700">Blocked rows excluded from projection</div>
+                            {inventoryProjectionPreviewExcluded.length ? (
+                              <div className="mt-2 grid gap-2">
+                                {inventoryProjectionPreviewExcluded.map((row) => (
+                                  <div key={row.stagingRowId} className="rounded-xl border border-orange-100 bg-orange-50 px-3 py-2">
+                                    rowNo={row.rowNo} / sku={row.sellerSku || "-"} / reasons={(row.excludedReasons || []).join(",") || "none"}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-orange-900">none</div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-combined-projection-empty"
+                          className="mt-3 rounded-2xl border border-orange-200 bg-white px-3 py-2 text-orange-800"
+                        >
+                          まだ combined preview は計算されていません。ImportJob 作成後に自動計算されます。
+                        </div>
+                      )}
+                    </div>
+
                     {/* Step151-O-TRANSACTION-DRY-RUN-PROJECTION-UI:
                         Project future Transaction drafts from readiness READY rows only.
                         This is dry-run only and must not create Transaction or InventoryMovement. */}
@@ -1380,6 +1538,12 @@ export default function DataImportPage() {
     useState<AmazonSpApiOrdersTransactionDryRunProjectionResponse | null>(null);
   const [amazonOrdersTransactionDryRunProjectionLoading, setAmazonOrdersTransactionDryRunProjectionLoading] = useState(false);
   const [amazonOrdersTransactionDryRunProjectionError, setAmazonOrdersTransactionDryRunProjectionError] = useState("");
+  const [amazonOrdersInventoryDryRunProjection, setAmazonOrdersInventoryDryRunProjection] =
+    useState<AmazonSpApiOrdersInventoryDryRunProjectionResponse | null>(null);
+  const [amazonOrdersCombinedDryRunProjection, setAmazonOrdersCombinedDryRunProjection] =
+    useState<AmazonSpApiOrdersCombinedDryRunProjectionResponse | null>(null);
+  const [amazonOrdersCombinedDryRunProjectionLoading, setAmazonOrdersCombinedDryRunProjectionLoading] = useState(false);
+  const [amazonOrdersCombinedDryRunProjectionError, setAmazonOrdersCombinedDryRunProjectionError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -1423,6 +1587,10 @@ export default function DataImportPage() {
     setAmazonOrdersTransactionDryRunProjection(null);
     setAmazonOrdersTransactionDryRunProjectionError("");
     setAmazonOrdersTransactionDryRunProjectionLoading(false);
+    setAmazonOrdersInventoryDryRunProjection(null);
+    setAmazonOrdersCombinedDryRunProjection(null);
+    setAmazonOrdersCombinedDryRunProjectionError("");
+    setAmazonOrdersCombinedDryRunProjectionLoading(false);
     setAmazonOrdersImportedReadModelList(null);
     setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
@@ -1434,6 +1602,10 @@ export default function DataImportPage() {
     setAmazonOrdersTransactionDryRunProjection(null);
     setAmazonOrdersTransactionDryRunProjectionError("");
     setAmazonOrdersTransactionDryRunProjectionLoading(false);
+    setAmazonOrdersInventoryDryRunProjection(null);
+    setAmazonOrdersCombinedDryRunProjection(null);
+    setAmazonOrdersCombinedDryRunProjectionError("");
+    setAmazonOrdersCombinedDryRunProjectionLoading(false);
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。まず preflight で接続状態・取得範囲・明示確認の必要性を確認します。"
     );
@@ -1684,6 +1856,54 @@ export default function DataImportPage() {
     }
   }
 
+  async function refreshAmazonOrdersCombinedDryRunProjection(importJobId?: string | null) {
+    const normalizedImportJobId = String(importJobId || "").trim();
+
+    if (!normalizedImportJobId) {
+      setAmazonOrdersCombinedDryRunProjectionError("ImportJob ID がないため combined preview を確認できません。");
+      return;
+    }
+
+    setAmazonOrdersCombinedDryRunProjectionLoading(true);
+    setAmazonOrdersCombinedDryRunProjectionError("");
+
+    try {
+      const [inventory, combined] = await Promise.all([
+        readAmazonSpApiOrdersInventoryDryRunProjection(normalizedImportJobId),
+        readAmazonSpApiOrdersCombinedDryRunProjection(normalizedImportJobId),
+      ]);
+
+      if (
+        inventory.writesDatabase !== false ||
+        inventory.inventoryWriteNow !== false ||
+        inventory.createsInventoryMovementNow !== false ||
+        inventory.createsTransactionNow !== false
+      ) {
+        throw new Error("inventory dry-run projection must not write DB / Transaction / InventoryMovement.");
+      }
+
+      if (
+        combined.writesDatabase !== false ||
+        combined.transactionWriteNow !== false ||
+        combined.inventoryWriteNow !== false ||
+        combined.createsTransactionNow !== false ||
+        combined.createsInventoryMovementNow !== false ||
+        combined.historicalSyncNow !== false
+      ) {
+        throw new Error("combined dry-run projection must keep all write boundaries false.");
+      }
+
+      setAmazonOrdersInventoryDryRunProjection(inventory);
+      setAmazonOrdersCombinedDryRunProjection(combined);
+    } catch (err) {
+      setAmazonOrdersCombinedDryRunProjectionError(err instanceof Error ? err.message : "combined dry-run projection failed");
+      setAmazonOrdersInventoryDryRunProjection(null);
+      setAmazonOrdersCombinedDryRunProjection(null);
+    } finally {
+      setAmazonOrdersCombinedDryRunProjectionLoading(false);
+    }
+  }
+
   async function handleAmazonOrdersRealImportJobCommitShell() {
     if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
       setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
@@ -1738,6 +1958,7 @@ export default function DataImportPage() {
       await refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult));
       await refreshAmazonOrdersStagingCommitReadiness(response.importJobId);
       await refreshAmazonOrdersTransactionDryRunProjection(response.importJobId);
+      await refreshAmazonOrdersCombinedDryRunProjection(response.importJobId);
     } catch (err) {
       setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
       setAmazonOrdersFetchShellMessage(
@@ -1805,10 +2026,15 @@ export default function DataImportPage() {
         transactionDryRunProjection={amazonOrdersTransactionDryRunProjection}
         transactionDryRunProjectionLoading={amazonOrdersTransactionDryRunProjectionLoading}
         transactionDryRunProjectionError={amazonOrdersTransactionDryRunProjectionError}
+        inventoryDryRunProjection={amazonOrdersInventoryDryRunProjection}
+        combinedDryRunProjection={amazonOrdersCombinedDryRunProjection}
+        combinedDryRunProjectionLoading={amazonOrdersCombinedDryRunProjectionLoading}
+        combinedDryRunProjectionError={amazonOrdersCombinedDryRunProjectionError}
         onImportedReadModelRefresh={() => void refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult))}
         onImportedReadModelOpenDetail={(orderId) => void openAmazonOrdersImportedReadModelDetail(orderId)}
         onStagingCommitReadinessRefresh={() => void refreshAmazonOrdersStagingCommitReadiness(amazonOrdersRealImportJobCommitResult?.importJobId)}
         onTransactionDryRunProjectionRefresh={() => void refreshAmazonOrdersTransactionDryRunProjection(amazonOrdersRealImportJobCommitResult?.importJobId)}
+        onCombinedDryRunProjectionRefresh={() => void refreshAmazonOrdersCombinedDryRunProjection(amazonOrdersRealImportJobCommitResult?.importJobId)}
       />
 
       <AmazonSpApiConnectionStatusPanel />

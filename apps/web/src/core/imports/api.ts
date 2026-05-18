@@ -1580,3 +1580,128 @@ export async function readAmazonSpApiOrdersTransactionDryRunProjection(
     },
   );
 }
+
+// Step151-PQ: Amazon Orders Inventory dry-run projection + combined preview.
+export type AmazonSpApiOrdersInventoryMovementDraftProjection = {
+  stagingRowId: string;
+  rowNo: number;
+  movementDate: string;
+  businessMonth: string | null;
+  productSkuId: string;
+  productSkuCode: string | null;
+  sellerSku: string | null;
+  asin: string | null;
+  quantity: number;
+  movementType: "SALE";
+  direction: "OUT";
+  source: "amazon-sp-api-orders";
+  sourceOrderId: string | null;
+  sourceOrderItemId: string | null;
+  evidenceType: "ImportStagingRow";
+  evidenceImportJobId: string;
+  evidenceStagingRowId: string;
+  evidenceSourceRowNo: number;
+  dedupeKey: string;
+};
+
+export type AmazonSpApiOrdersInventoryDryRunExcludedRow = {
+  stagingRowId: string;
+  rowNo: number;
+  amazonOrderId: string | null;
+  orderItemId: string | null;
+  sellerSku: string | null;
+  readiness: "READY" | "BLOCKED";
+  excludedReasons: string[];
+  warnings: string[];
+};
+
+export type AmazonSpApiOrdersInventoryDryRunProjectionResponse = {
+  source: "amazon-sp-api-orders-inventory-dry-run-projection";
+  routeImplementedNow: true;
+  route: "/api/imports/amazon-sp-api/orders/inventory-dry-run-projection";
+  guardedBy: "JwtAuthGuard";
+  companyScoped: true;
+  dryRun: true;
+  importJobId: string;
+  readinessSource: "amazon-sp-api-orders-staging-commit-readiness";
+  writesDatabase: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  createsTransactionNow: false;
+  createsInventoryMovementNow: false;
+  historicalSyncNow: false;
+  totalReadinessRows: number;
+  projectedInventoryMovementRows: number;
+  excludedRows: number;
+  quantityTotal: number;
+  drafts: AmazonSpApiOrdersInventoryMovementDraftProjection[];
+  excluded: AmazonSpApiOrdersInventoryDryRunExcludedRow[];
+  blockers: string[];
+  warnings: string[];
+  step151PInventoryProjectionRouteActive?: true;
+  controllerWritesDatabase?: false;
+  controllerWritesTransaction?: false;
+  controllerWritesInventoryMovement?: false;
+};
+
+export type AmazonSpApiOrdersCombinedDryRunProjectionResponse = {
+  source: "amazon-sp-api-orders-combined-dry-run-projection";
+  routeImplementedNow: true;
+  route: "/api/imports/amazon-sp-api/orders/combined-dry-run-projection";
+  guardedBy: "JwtAuthGuard";
+  companyScoped: true;
+  dryRun: true;
+  importJobId: string;
+  writesDatabase: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  createsTransactionNow: false;
+  createsInventoryMovementNow: false;
+  historicalSyncNow: false;
+  transaction: AmazonSpApiOrdersTransactionDryRunProjectionResponse;
+  inventory: AmazonSpApiOrdersInventoryDryRunProjectionResponse;
+  combined: {
+    transactionDraftRows: number;
+    inventoryMovementDraftRows: number;
+    transactionExcludedRows: number;
+    inventoryExcludedRows: number;
+    amountTotal: number;
+    quantityTotal: number;
+    blockers: string[];
+    warnings: string[];
+  };
+  step151QCombinedProjectionRouteActive?: true;
+  controllerWritesDatabase?: false;
+  controllerWritesTransaction?: false;
+  controllerWritesInventoryMovement?: false;
+};
+
+export const AMAZON_SP_API_ORDERS_INVENTORY_DRY_RUN_PROJECTION_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/inventory-dry-run-projection";
+
+export const AMAZON_SP_API_ORDERS_COMBINED_DRY_RUN_PROJECTION_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/combined-dry-run-projection";
+
+export async function readAmazonSpApiOrdersInventoryDryRunProjection(
+  importJobId: string,
+): Promise<AmazonSpApiOrdersInventoryDryRunProjectionResponse> {
+  return postJson<AmazonSpApiOrdersInventoryDryRunProjectionResponse>(
+    AMAZON_SP_API_ORDERS_INVENTORY_DRY_RUN_PROJECTION_ENDPOINT,
+    {
+      importJobId,
+      dryRun: true,
+    },
+  );
+}
+
+export async function readAmazonSpApiOrdersCombinedDryRunProjection(
+  importJobId: string,
+): Promise<AmazonSpApiOrdersCombinedDryRunProjectionResponse> {
+  return postJson<AmazonSpApiOrdersCombinedDryRunProjectionResponse>(
+    AMAZON_SP_API_ORDERS_COMBINED_DRY_RUN_PROJECTION_ENDPOINT,
+    {
+      importJobId,
+      dryRun: true,
+    },
+  );
+}
