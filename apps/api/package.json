@@ -298,7 +298,8 @@
     "smoke:step151-r:amazon-orders-final-commit-review-runtime": "node scripts/smoke-step151-r-amazon-orders-final-commit-review-runtime.js",
     "smoke:step151-r-c:amazon-orders-final-review-closeout": "node scripts/smoke-step151-r-c-amazon-orders-final-review-closeout.js",
     "smoke:step151-s-a:amazon-orders-transaction-commit-disabled-contract": "node scripts/smoke-step151-s-a-amazon-orders-transaction-commit-disabled-contract.js",
-    "smoke:step151-s-b:amazon-orders-transaction-real-write-contract": "node scripts/smoke-step151-s-b-amazon-orders-transaction-real-write-contract.js"
+    "smoke:step151-s-b:amazon-orders-transaction-real-write-contract": "node scripts/smoke-step151-s-b-amazon-orders-transaction-real-write-contract.js",
+    "smoke:step151-s-c:amazon-orders-transaction-real-write-runtime": "npm run build && node scripts/smoke-step151-s-c-amazon-orders-transaction-real-write-runtime.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
