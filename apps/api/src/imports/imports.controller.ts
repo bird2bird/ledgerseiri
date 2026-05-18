@@ -25,6 +25,7 @@ import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api
 import { projectAmazonSpApiOrdersReadyRowsToTransactionDryRun } from './amazon-sp-api-orders-transaction-dry-run-projection.service';
 import { projectAmazonSpApiOrdersCombinedDryRun } from './amazon-sp-api-orders-combined-dry-run-projection.service';
 import { reviewAmazonSpApiOrdersFinalCommit } from './amazon-sp-api-orders-final-commit-review.service';
+import { buildAmazonSpApiOrdersTransactionCommitDisabledResult } from './amazon-sp-api-orders-transaction-commit.disabled.service';
 import { projectAmazonSpApiOrdersReadyRowsToInventoryDryRun } from './amazon-sp-api-orders-inventory-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
@@ -167,6 +168,13 @@ type AmazonSpApiOrdersFinalCommitReviewRouteBody = {
   importJobId?: string;
   dryRun?: boolean;
   reviewOnly?: boolean;
+};
+
+type AmazonSpApiOrdersTransactionCommitDisabledRouteBody = {
+  importJobId?: string;
+  explicitOperatorConfirmation?: boolean;
+  finalReviewAccepted?: boolean;
+  dryRun?: boolean;
 };
 
 type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>> & {
@@ -1147,6 +1155,51 @@ export class ImportsController {
       controllerWritesDatabase: false as const,
       controllerWritesTransaction: false as const,
       controllerWritesInventoryMovement: false as const,
+    };
+  }
+
+
+  // Step151-S-A: Amazon Orders income Transaction commit disabled contract.
+  // This route is intentionally disabled. It validates the future explicit commit
+  // contract only and must not create Transaction, InventoryMovement, expense,
+  // settlement, bank reconciliation, or historical sync records.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/transaction-commit')
+  async amazonSpApiOrdersTransactionCommitDisabledControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersTransactionCommitDisabledRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_S_TRANSACTION_COMMIT_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun === false) {
+      throw new BadRequestException(
+        'STEP151_S_TRANSACTION_COMMIT_DISABLED_DRY_RUN_ONLY: Step151-S-A keeps transaction commit disabled.',
+      );
+    }
+
+    const result = await buildAmazonSpApiOrdersTransactionCommitDisabledResult({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
+      explicitOperatorConfirmation: body?.explicitOperatorConfirmation === true,
+      finalReviewAccepted: body?.finalReviewAccepted === true,
+    });
+
+    return {
+      ...result,
+      step151SATransactionCommitDisabledRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+      controllerCreatesTransactionNow: false as const,
+      controllerCreatesInventoryMovementNow: false as const,
+      controllerCreatesExpenseTransactionNow: false as const,
     };
   }
 
