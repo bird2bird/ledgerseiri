@@ -472,6 +472,7 @@ function AmazonOrdersConnectedServicesShell({
               ) : null}
 
               {realPreviewResult ? (
+                <>
                 <div
                   data-testid="data-import-connected-service-amazon-orders-real-preview-summary"
                   className="mt-4 grid gap-2 md:grid-cols-4"
@@ -532,6 +533,101 @@ function AmazonOrdersConnectedServicesShell({
                     </div>
                   </div>
                 </div>
+
+                {/* Step151-I-IMPORT-CONFIRMATION-SHELL-NO-EXECUTION:
+                    Show an explicit import confirmation shell after real-preview succeeds.
+                    This shell does not call real-importjob and does not create ImportJob,
+                    ImportStagingRow, Transaction, or InventoryMovement. */}
+                <div
+                  data-testid="data-import-connected-service-amazon-orders-import-confirmation-shell"
+                  className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-xs font-bold leading-5 text-amber-950"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+                        Step151-I Import Confirmation Shell
+                      </div>
+                      <h3 className="mt-1 text-sm font-black text-slate-950">
+                        取込作成の確認
+                      </h3>
+                      <p
+                        data-testid="data-import-connected-service-amazon-orders-import-confirmation-copy"
+                        className="mt-1 max-w-3xl text-xs font-bold leading-5 text-amber-900"
+                      >
+                        real-preview の結果を確認しました。次の Step151-J では明示確認後に ImportJob / ImportStagingRow を作成します。Step151-I ではまだ DB 書き込みを実行しません。
+                      </p>
+                    </div>
+
+                    <button
+                      data-testid="data-import-connected-service-amazon-orders-import-confirm-button"
+                      type="button"
+                      disabled
+                      title="Step151-I は確認 shell のみです。real-importjob は Step151-J 以降で明示的に接続します。"
+                      className="inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-800 opacity-70 shadow-sm"
+                    >
+                      取込作成（次ステップ）
+                    </button>
+                  </div>
+
+                  <div
+                    data-testid="data-import-connected-service-amazon-orders-import-confirmation-summary"
+                    className="mt-4 grid gap-2 md:grid-cols-4"
+                  >
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">
+                      <div className="text-[11px] font-black text-amber-700">書き込み予定注文数</div>
+                      <div data-testid="data-import-connected-service-amazon-orders-import-confirmation-orders">
+                        {String(realPreviewResult.validationSummary?.totalOrders ?? realPreviewResult.normalizedOrders?.length ?? 0)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">
+                      <div className="text-[11px] font-black text-amber-700">書き込み予定明細数</div>
+                      <div data-testid="data-import-connected-service-amazon-orders-import-confirmation-items">
+                        {String(realPreviewResult.validationSummary?.totalOrderItems ?? realPreviewResult.normalizedOrderItems?.length ?? 0)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">
+                      <div className="text-[11px] font-black text-amber-700">未解決 SKU</div>
+                      <div data-testid="data-import-connected-service-amazon-orders-import-confirmation-unresolved-sku">
+                        {String(realPreviewResult.skuResolutionSummary?.unresolvedSkuCount ?? 0)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2">
+                      <div className="text-[11px] font-black text-amber-700">予定金額</div>
+                      <div data-testid="data-import-connected-service-amazon-orders-import-confirmation-amount">
+                        {String(realPreviewResult.transactionImpactPreview?.totalPreviewAmount ?? realPreviewResult.productionVerification?.incomePreviewAmount ?? "-")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    data-testid="data-import-connected-service-amazon-orders-import-confirmation-boundaries"
+                    className="mt-3 grid gap-2 md:grid-cols-4"
+                  >
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black">
+                      nextCreatesImportJob=true
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black">
+                      nextCreatesImportStagingRow=true
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black">
+                      stillCreatesTransaction=false
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black">
+                      stillWritesInventoryMovement=false
+                    </div>
+                  </div>
+
+                  <div
+                    data-testid="data-import-connected-service-amazon-orders-import-confirmation-no-execution"
+                    className="mt-3 rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black text-amber-900"
+                  >
+                    Step151-I no-execution: commitAmazonSpApiOrdersRealImportJob is not called in this step.
+                  </div>
+                </div>
+                </>
               ) : (
                 <div
                   data-testid="data-import-connected-service-amazon-orders-real-preview-empty"
