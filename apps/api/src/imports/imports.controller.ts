@@ -24,6 +24,7 @@ import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-ord
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
 import { projectAmazonSpApiOrdersReadyRowsToTransactionDryRun } from './amazon-sp-api-orders-transaction-dry-run-projection.service';
 import { projectAmazonSpApiOrdersCombinedDryRun } from './amazon-sp-api-orders-combined-dry-run-projection.service';
+import { reviewAmazonSpApiOrdersFinalCommit } from './amazon-sp-api-orders-final-commit-review.service';
 import { projectAmazonSpApiOrdersReadyRowsToInventoryDryRun } from './amazon-sp-api-orders-inventory-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
@@ -160,6 +161,12 @@ type AmazonSpApiOrdersInventoryDryRunProjectionRouteBody = {
 type AmazonSpApiOrdersCombinedDryRunProjectionRouteBody = {
   importJobId?: string;
   dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersFinalCommitReviewRouteBody = {
+  importJobId?: string;
+  dryRun?: boolean;
+  reviewOnly?: boolean;
 };
 
 type AmazonSpApiOrdersRealPreviewRouteResponse = Awaited<ReturnType<typeof previewAmazonSpApiOrdersRealNoPersistence>> & {
@@ -1140,6 +1147,50 @@ export class ImportsController {
       controllerWritesDatabase: false as const,
       controllerWritesTransaction: false as const,
       controllerWritesInventoryMovement: false as const,
+    };
+  }
+
+
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/final-commit-review')
+  async amazonSpApiOrdersFinalCommitReviewControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersFinalCommitReviewRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_R_FINAL_COMMIT_REVIEW_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP151_R_FINAL_COMMIT_REVIEW_DRY_RUN_REQUIRED: dryRun must be true.',
+      );
+    }
+
+    if (body?.reviewOnly === false) {
+      throw new BadRequestException(
+        'STEP151_R_FINAL_COMMIT_REVIEW_ONLY_REQUIRED: reviewOnly must not be false.',
+      );
+    }
+
+    const result = await reviewAmazonSpApiOrdersFinalCommit({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
+    });
+
+    return {
+      ...result,
+      step151RFinalCommitReviewRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+      controllerCreatesTransactionNow: false as const,
+      controllerCreatesInventoryMovementNow: false as const,
     };
   }
 

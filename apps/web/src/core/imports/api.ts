@@ -1705,3 +1705,64 @@ export async function readAmazonSpApiOrdersCombinedDryRunProjection(
     },
   );
 }
+// Step151-R-FRONTEND-AMAZON-ORDERS-FINAL-COMMIT-REVIEW:
+// Frontend helper for backend final commit review.
+// This is review-only and must not create Transaction or InventoryMovement.
+export type AmazonSpApiOrdersFinalCommitReviewResponse = {
+  source: "amazon-sp-api-orders-final-commit-review" | string;
+  routeImplementedNow: true;
+  route: "/api/imports/amazon-sp-api/orders/final-commit-review" | string;
+  guardedBy: "JwtAuthGuard" | string;
+  companyScoped: true;
+  dryRun: true;
+  reviewOnly: true;
+  importJobId: string;
+
+  writesDatabase: false;
+  transactionWriteNow: false;
+  inventoryWriteNow: false;
+  createsTransactionNow: false;
+  createsInventoryMovementNow: false;
+  historicalSyncNow: false;
+
+  requiresExplicitConfirmation: true;
+  finalCanCommit: boolean;
+
+  willCreateTransactionRows: number;
+  willCreateInventoryMovementRows: number;
+  blockedRows: number;
+  transactionExcludedRows: number;
+  inventoryExcludedRows: number;
+  amountTotal: number;
+  quantityTotal: number;
+
+  blockers: string[];
+  warnings: string[];
+
+  transactionDraftsPreview: Array<Record<string, unknown>>;
+  inventoryDraftsPreview: Array<Record<string, unknown>>;
+  combined: AmazonSpApiOrdersCombinedDryRunProjectionResponse;
+
+  step151RFinalCommitReviewRouteActive?: true;
+  controllerWritesDatabase?: false;
+  controllerWritesTransaction?: false;
+  controllerWritesInventoryMovement?: false;
+  controllerCreatesTransactionNow?: false;
+  controllerCreatesInventoryMovementNow?: false;
+};
+
+export const AMAZON_SP_API_ORDERS_FINAL_COMMIT_REVIEW_ENDPOINT =
+  "/api/imports/amazon-sp-api/orders/final-commit-review" as const;
+
+export async function readAmazonSpApiOrdersFinalCommitReview(
+  importJobId: string,
+): Promise<AmazonSpApiOrdersFinalCommitReviewResponse> {
+  return postJson<AmazonSpApiOrdersFinalCommitReviewResponse>(
+    AMAZON_SP_API_ORDERS_FINAL_COMMIT_REVIEW_ENDPOINT,
+    {
+      importJobId,
+      dryRun: true,
+      reviewOnly: true,
+    },
+  );
+}
