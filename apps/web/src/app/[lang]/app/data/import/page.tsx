@@ -10,9 +10,13 @@ import {
   preflightAmazonSpApiOrdersGuardedImport,
   previewAmazonSpApiOrdersReal,
   commitAmazonSpApiOrdersRealImportJob,
+  listAmazonImportedOrders,
+  getAmazonImportedOrderDetail,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
+  type AmazonImportedOrdersReadModelListResponse,
+  type AmazonImportedOrderDetailReadModelResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -88,10 +92,19 @@ function AmazonOrdersConnectedServicesShell({
   realImportJobCommitResult,
   realImportJobCommitLoading,
   realImportJobCommitError,
+  importedReadModelList,
+  importedReadModelDetail,
+  importedReadModelLoading,
+  importedReadModelError,
+  importedReadModelSelectedOrderId,
+  onImportedReadModelRefresh,
+  onImportedReadModelOpenDetail,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
   onImportCommitShell: () => void;
+  onImportedReadModelRefresh: () => void;
+  onImportedReadModelOpenDetail: (orderId: string) => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -102,7 +115,19 @@ function AmazonOrdersConnectedServicesShell({
   realImportJobCommitResult: AmazonSpApiOrdersRealImportJobCommitResponse | null;
   realImportJobCommitLoading: boolean;
   realImportJobCommitError: string;
+  importedReadModelList: AmazonImportedOrdersReadModelListResponse | null;
+  importedReadModelDetail: AmazonImportedOrderDetailReadModelResponse | null;
+  importedReadModelLoading: boolean;
+  importedReadModelError: string;
+  importedReadModelSelectedOrderId: string;
 }) {
+  const importedReadModelOrders = importedReadModelList?.orders ?? [];
+  const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
+  const importedReadModelDetailOrder =
+    importedReadModelDetail?.order ?? importedReadModelDetail?.detail?.order ?? null;
+  const importedReadModelDetailItems =
+    importedReadModelDetail?.items ?? importedReadModelDetail?.detail?.items ?? [];
+
   return (
     <section
       data-testid="data-import-connected-services-shell"
@@ -740,6 +765,156 @@ function AmazonOrdersConnectedServicesShell({
                         まだ ImportJob は作成されていません。「取込作成」を押すと ImportJob / ImportStagingRow のみを作成します。
                       </div>
                     )}
+
+                    {/* Step151-L-IMPORTED-ORDERS-READ-MODEL-REFRESH-UI:
+                        After real-importjob commit succeeds, refresh the imported orders read-model.
+                        This reads existing ImportJob / ImportStagingRow only and must not create
+                        Transaction, InventoryMovement, historical sync, or any DB write. */}
+                    <div
+                      data-testid="data-import-connected-service-amazon-orders-imported-read-model-panel"
+                      className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50 px-4 py-4 text-xs font-bold leading-5 text-cyan-950"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-700">
+                            Step151-L Imported Orders Read Model
+                          </div>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">
+                            取込後の注文 read-model
+                          </h3>
+                          <p
+                            data-testid="data-import-connected-service-amazon-orders-imported-read-model-copy"
+                            className="mt-1 max-w-3xl text-xs font-bold leading-5 text-cyan-900"
+                          >
+                            ImportJob 作成後に既存の ImportJob / ImportStagingRow から read-model を再取得します。Transaction 作成・InventoryMovement 書き込み・historical sync は行いません。
+                          </p>
+                        </div>
+                        <button
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-refresh-button"
+                          type="button"
+                          onClick={onImportedReadModelRefresh}
+                          disabled={!realImportJobCommitResult?.importJobId || importedReadModelLoading}
+                          className="inline-flex rounded-xl border border-cyan-300 bg-white px-4 py-2 text-xs font-black text-cyan-800 shadow-sm transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {importedReadModelLoading ? "再読込中..." : "取込済み注文を再読込"}
+                        </button>
+                      </div>
+
+                      {importedReadModelError ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-error"
+                          className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                        >
+                          {importedReadModelError}
+                        </div>
+                      ) : null}
+
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-imported-read-model-boundaries"
+                        className="mt-3 grid gap-2 md:grid-cols-5"
+                      >
+                        <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2 font-black">
+                          readsExistingImportJob=true
+                        </div>
+                        <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2 font-black">
+                          readsExistingImportStagingRow=true
+                        </div>
+                        <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2 font-black">
+                          writesDatabase=false
+                        </div>
+                        <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2 font-black">
+                          writesTransaction=false
+                        </div>
+                        <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2 font-black">
+                          writesInventoryMovement=false
+                        </div>
+                      </div>
+
+                      {importedReadModelList ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-summary"
+                          className="mt-4 grid gap-2 md:grid-cols-4"
+                        >
+                          <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                            <div className="text-[11px] font-black text-cyan-700">Orders</div>
+                            <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-total-orders">
+                              {String(importedReadModelList.summary?.totalOrders ?? importedReadModelOrders.length)}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                            <div className="text-[11px] font-black text-cyan-700">Items</div>
+                            <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-total-items">
+                              {String(importedReadModelList.summary?.totalItems ?? 0)}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                            <div className="text-[11px] font-black text-cyan-700">Unresolved SKU</div>
+                            <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-unresolved-sku">
+                              {String(importedReadModelList.summary?.unresolvedSkuCount ?? 0)}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                            <div className="text-[11px] font-black text-cyan-700">Amount total</div>
+                            <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-amount-total">
+                              {String(importedReadModelList.summary?.amountTotal ?? "-")}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-empty"
+                          className="mt-3 rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-cyan-800"
+                        >
+                          まだ read-model は再取得されていません。ImportJob 作成後に自動更新されます。
+                        </div>
+                      )}
+
+                      {importedReadModelFirstOrder ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-first-order"
+                          className="mt-3 rounded-2xl border border-cyan-200 bg-white px-3 py-3"
+                        >
+                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <div className="text-[11px] font-black text-cyan-700">Latest imported order</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-first-order-id" className="font-black text-slate-950">
+                                {importedReadModelFirstOrder.orderId}
+                              </div>
+                              <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-first-order-meta" className="mt-1 text-cyan-900">
+                                {importedReadModelFirstOrder.content} / {String(importedReadModelFirstOrder.amount ?? "-")} {importedReadModelFirstOrder.currency || ""}
+                              </div>
+                            </div>
+                            <button
+                              data-testid="data-import-connected-service-amazon-orders-imported-read-model-detail-button"
+                              type="button"
+                              onClick={() => onImportedReadModelOpenDetail(importedReadModelFirstOrder.orderId)}
+                              disabled={importedReadModelLoading}
+                              className="inline-flex rounded-xl border border-cyan-300 bg-cyan-700 px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              明細確認
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {importedReadModelDetail ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-imported-read-model-detail"
+                          className="mt-3 rounded-2xl border border-cyan-200 bg-white px-3 py-3"
+                        >
+                          <div className="text-[11px] font-black text-cyan-700">Detail</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-detail-order-id" className="font-black text-slate-950">
+                            {importedReadModelDetailOrder?.orderId || importedReadModelSelectedOrderId || "-"}
+                          </div>
+                          <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-detail-item-count" className="mt-1 text-cyan-900">
+                            items={String(importedReadModelDetailItems.length)}
+                          </div>
+                          <div data-testid="data-import-connected-service-amazon-orders-imported-read-model-detail-boundary" className="mt-2 text-cyan-900">
+                            readOnly={String(importedReadModelDetail.readOnly)} / writesDatabase={String(importedReadModelDetail.boundaries?.writesDatabase)}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 </>
@@ -795,6 +970,13 @@ export default function DataImportPage() {
     useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
   const [amazonOrdersRealImportJobCommitLoading, setAmazonOrdersRealImportJobCommitLoading] = useState(false);
   const [amazonOrdersRealImportJobCommitError, setAmazonOrdersRealImportJobCommitError] = useState("");
+  const [amazonOrdersImportedReadModelList, setAmazonOrdersImportedReadModelList] =
+    useState<AmazonImportedOrdersReadModelListResponse | null>(null);
+  const [amazonOrdersImportedReadModelDetail, setAmazonOrdersImportedReadModelDetail] =
+    useState<AmazonImportedOrderDetailReadModelResponse | null>(null);
+  const [amazonOrdersImportedReadModelLoading, setAmazonOrdersImportedReadModelLoading] = useState(false);
+  const [amazonOrdersImportedReadModelError, setAmazonOrdersImportedReadModelError] = useState("");
+  const [amazonOrdersImportedReadModelSelectedOrderId, setAmazonOrdersImportedReadModelSelectedOrderId] = useState("");
 
   async function load() {
     setLoading(true);
@@ -827,6 +1009,16 @@ export default function DataImportPage() {
     setAmazonOrdersRealImportJobCommitResult(null);
     setAmazonOrdersRealImportJobCommitError("");
     setAmazonOrdersRealImportJobCommitLoading(false);
+    setAmazonOrdersImportedReadModelList(null);
+    setAmazonOrdersImportedReadModelDetail(null);
+    setAmazonOrdersImportedReadModelError("");
+    setAmazonOrdersImportedReadModelLoading(false);
+    setAmazonOrdersImportedReadModelSelectedOrderId("");
+    setAmazonOrdersImportedReadModelList(null);
+    setAmazonOrdersImportedReadModelDetail(null);
+    setAmazonOrdersImportedReadModelError("");
+    setAmazonOrdersImportedReadModelLoading(false);
+    setAmazonOrdersImportedReadModelSelectedOrderId("");
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。Step151-D は preflight endpoint だけを呼び出して、接続状態・取得範囲・明示確認の必要性を確認します。プレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。"
     );
@@ -929,6 +1121,85 @@ export default function DataImportPage() {
     }
   }
 
+  function deriveAmazonOrdersFirstPreviewOrderId(result: AmazonSpApiOrdersRealPreviewResponse | null): string {
+    const firstOrder = (result?.normalizedOrders as Array<Record<string, unknown>> | undefined)?.[0];
+    const orderId = firstOrder?.amazonOrderId ?? firstOrder?.AmazonOrderId ?? firstOrder?.orderId;
+    return typeof orderId === "string" ? orderId : "";
+  }
+
+  async function refreshAmazonOrdersImportedReadModel(orderIdHint?: string) {
+    setAmazonOrdersImportedReadModelLoading(true);
+    setAmazonOrdersImportedReadModelError("");
+
+    try {
+      const list = await listAmazonImportedOrders({
+        orderId: orderIdHint || undefined,
+        limit: 10,
+      });
+
+      if (list.boundaries?.writesDatabase !== false) {
+        throw new Error("imported orders read-model must keep writesDatabase=false.");
+      }
+      if (list.boundaries?.writesTransaction !== false) {
+        throw new Error("imported orders read-model must keep writesTransaction=false.");
+      }
+      if (list.boundaries?.writesInventoryMovement !== false) {
+        throw new Error("imported orders read-model must keep writesInventoryMovement=false.");
+      }
+
+      setAmazonOrdersImportedReadModelList(list);
+
+      const selectedOrder =
+        list.orders.find((order) => orderIdHint && order.orderId === orderIdHint) ??
+        list.orders[0] ??
+        null;
+
+      if (selectedOrder?.orderId) {
+        setAmazonOrdersImportedReadModelSelectedOrderId(selectedOrder.orderId);
+        await openAmazonOrdersImportedReadModelDetail(selectedOrder.orderId);
+      } else {
+        setAmazonOrdersImportedReadModelSelectedOrderId("");
+        setAmazonOrdersImportedReadModelDetail(null);
+      }
+    } catch (err) {
+      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders read-model refresh failed");
+      setAmazonOrdersImportedReadModelList(null);
+      setAmazonOrdersImportedReadModelDetail(null);
+      setAmazonOrdersImportedReadModelSelectedOrderId("");
+    } finally {
+      setAmazonOrdersImportedReadModelLoading(false);
+    }
+  }
+
+  async function openAmazonOrdersImportedReadModelDetail(orderId: string) {
+    if (!orderId) return;
+
+    setAmazonOrdersImportedReadModelLoading(true);
+    setAmazonOrdersImportedReadModelError("");
+    setAmazonOrdersImportedReadModelSelectedOrderId(orderId);
+
+    try {
+      const detail = await getAmazonImportedOrderDetail(orderId);
+
+      if (detail.boundaries?.writesDatabase !== false) {
+        throw new Error("imported order detail read-model must keep writesDatabase=false.");
+      }
+      if (detail.boundaries?.writesTransaction !== false) {
+        throw new Error("imported order detail read-model must keep writesTransaction=false.");
+      }
+      if (detail.boundaries?.writesInventoryMovement !== false) {
+        throw new Error("imported order detail read-model must keep writesInventoryMovement=false.");
+      }
+
+      setAmazonOrdersImportedReadModelDetail(detail);
+    } catch (err) {
+      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported order detail read-model failed");
+      setAmazonOrdersImportedReadModelDetail(null);
+    } finally {
+      setAmazonOrdersImportedReadModelLoading(false);
+    }
+  }
+
   async function handleAmazonOrdersRealImportJobCommitShell() {
     if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
       setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
@@ -978,6 +1249,9 @@ export default function DataImportPage() {
       setAmazonOrdersFetchShellMessage(
         `ImportJob を作成しました。importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")}`
       );
+
+      await load();
+      await refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult));
     } catch (err) {
       setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
       setAmazonOrdersFetchShellMessage(
@@ -1034,6 +1308,13 @@ export default function DataImportPage() {
         realImportJobCommitResult={amazonOrdersRealImportJobCommitResult}
         realImportJobCommitLoading={amazonOrdersRealImportJobCommitLoading}
         realImportJobCommitError={amazonOrdersRealImportJobCommitError}
+        importedReadModelList={amazonOrdersImportedReadModelList}
+        importedReadModelDetail={amazonOrdersImportedReadModelDetail}
+        importedReadModelLoading={amazonOrdersImportedReadModelLoading}
+        importedReadModelError={amazonOrdersImportedReadModelError}
+        importedReadModelSelectedOrderId={amazonOrdersImportedReadModelSelectedOrderId}
+        onImportedReadModelRefresh={() => void refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult))}
+        onImportedReadModelOpenDetail={(orderId) => void openAmazonOrdersImportedReadModelDetail(orderId)}
       />
 
       <AmazonSpApiConnectionStatusPanel />

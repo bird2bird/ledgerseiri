@@ -46,7 +46,8 @@
     "smoke:step151-f:amazon-import-preview-shell-no-execution": "node scripts/smoke-step151-f-amazon-import-preview-shell-no-execution.js",
     "smoke:step151-g:amazon-import-real-preview-no-db": "node scripts/smoke-step151-g-amazon-import-real-preview-no-db.js",
     "smoke:step151-i:amazon-import-confirmation-shell-no-execution": "node scripts/smoke-step151-i-amazon-import-confirmation-shell-no-execution.js",
-    "smoke:step151-j:amazon-import-real-importjob-commit-ui": "node scripts/smoke-step151-j-amazon-import-real-importjob-commit-ui.js"
+    "smoke:step151-j:amazon-import-real-importjob-commit-ui": "node scripts/smoke-step151-j-amazon-import-real-importjob-commit-ui.js",
+    "smoke:step151-l:amazon-import-read-model-refresh-ui": "node scripts/smoke-step151-l-amazon-import-read-model-refresh-ui.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
