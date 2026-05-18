@@ -16,6 +16,7 @@ import {
   readAmazonSpApiOrdersTransactionDryRunProjection,
   readAmazonSpApiOrdersInventoryDryRunProjection,
   readAmazonSpApiOrdersCombinedDryRunProjection,
+  readAmazonSpApiOrdersFinalCommitReview,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
@@ -25,6 +26,7 @@ import {
   type AmazonSpApiOrdersTransactionDryRunProjectionResponse,
   type AmazonSpApiOrdersInventoryDryRunProjectionResponse,
   type AmazonSpApiOrdersCombinedDryRunProjectionResponse,
+  type AmazonSpApiOrdersFinalCommitReviewResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -115,11 +117,15 @@ function AmazonOrdersConnectedServicesShell({
   combinedDryRunProjection,
   combinedDryRunProjectionLoading,
   combinedDryRunProjectionError,
+  finalCommitReview,
+  finalCommitReviewLoading,
+  finalCommitReviewError,
   onImportedReadModelRefresh,
   onImportedReadModelOpenDetail,
   onStagingCommitReadinessRefresh,
   onTransactionDryRunProjectionRefresh,
   onCombinedDryRunProjectionRefresh,
+  onFinalCommitReviewRefresh,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
@@ -129,6 +135,7 @@ function AmazonOrdersConnectedServicesShell({
   onStagingCommitReadinessRefresh: () => void;
   onTransactionDryRunProjectionRefresh: () => void;
   onCombinedDryRunProjectionRefresh: () => void;
+  onFinalCommitReviewRefresh: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -154,6 +161,9 @@ function AmazonOrdersConnectedServicesShell({
   combinedDryRunProjection: AmazonSpApiOrdersCombinedDryRunProjectionResponse | null;
   combinedDryRunProjectionLoading: boolean;
   combinedDryRunProjectionError: string;
+  finalCommitReview: AmazonSpApiOrdersFinalCommitReviewResponse | null;
+  finalCommitReviewLoading: boolean;
+  finalCommitReviewError: string;
 }) {
   const importedReadModelOrders = importedReadModelList?.orders ?? [];
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
@@ -200,6 +210,10 @@ function AmazonOrdersConnectedServicesShell({
   const inventoryProjectionExcluded = inventoryDryRunProjection?.excluded ?? combinedDryRunProjection?.inventory?.excluded ?? [];
   const inventoryProjectionPreviewDrafts = inventoryProjectionDrafts.slice(0, 5);
   const inventoryProjectionPreviewExcluded = inventoryProjectionExcluded.slice(0, 5);
+  const finalCommitReviewTransactionPreviewRows = finalCommitReview?.transactionDraftsPreview ?? [];
+  const finalCommitReviewInventoryPreviewRows = finalCommitReview?.inventoryDraftsPreview ?? [];
+  const finalCommitReviewBlockers = finalCommitReview?.blockers ?? [];
+  const finalCommitReviewWarnings = finalCommitReview?.warnings ?? [];
 
   return (
     <section
@@ -1176,6 +1190,198 @@ function AmazonOrdersConnectedServicesShell({
                       )}
                     </div>
 
+                    {/* Step151-R-B-FINAL-COMMIT-REVIEW-UI:
+                        Final pre-commit review panel. This is review-only and must not
+                        create Transaction or InventoryMovement. */}
+                    <div
+                      data-testid="data-import-connected-service-amazon-orders-final-commit-review-panel"
+                      className="mt-4 rounded-3xl border border-red-200 bg-red-50 px-4 py-4 text-xs font-bold leading-5 text-red-950"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-red-700">
+                            Step151-R Final Commit Review
+                          </div>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">
+                            最終反映前レビュー
+                          </h3>
+                          <p
+                            data-testid="data-import-connected-service-amazon-orders-final-commit-review-copy"
+                            className="mt-1 max-w-3xl text-xs font-bold leading-5 text-red-900"
+                          >
+                            Transaction / InventoryMovement を実際に作成する前の最終確認です。この画面では dry-run 結果のみを表示し、DB 書き込みは行いません。
+                          </p>
+                        </div>
+                        <button
+                          data-testid="data-import-connected-service-amazon-orders-final-commit-review-refresh-button"
+                          type="button"
+                          onClick={onFinalCommitReviewRefresh}
+                          disabled={!realImportJobCommitResult?.importJobId || finalCommitReviewLoading}
+                          className="inline-flex rounded-xl border border-red-300 bg-white px-4 py-2 text-xs font-black text-red-800 shadow-sm transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {finalCommitReviewLoading ? "確認中..." : "最終レビュー"}
+                        </button>
+                      </div>
+
+                      {finalCommitReviewError ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-final-commit-review-error"
+                          className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                        >
+                          {finalCommitReviewError}
+                        </div>
+                      ) : null}
+
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-final-commit-review-boundaries"
+                        className="mt-3 grid gap-2 md:grid-cols-5"
+                      >
+                        <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 font-black">
+                          reviewOnly=true
+                        </div>
+                        <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 font-black">
+                          writesDatabase=false
+                        </div>
+                        <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 font-black">
+                          createsTransactionNow=false
+                        </div>
+                        <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 font-black">
+                          createsInventoryMovementNow=false
+                        </div>
+                        <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 font-black">
+                          requiresExplicitConfirmation=true
+                        </div>
+                      </div>
+
+                      {finalCommitReview ? (
+                        <>
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-final-commit-review-summary"
+                            className="mt-4 grid gap-2 md:grid-cols-4"
+                          >
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Final can commit</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-can-commit">
+                                {String(finalCommitReview.finalCanCommit)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Transaction rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-transaction-rows">
+                                {String(finalCommitReview.willCreateTransactionRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Inventory rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-inventory-rows">
+                                {String(finalCommitReview.willCreateInventoryMovementRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Blocked rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-blocked-rows">
+                                {String(finalCommitReview.blockedRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Amount total</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-amount-total">
+                                {String(finalCommitReview.amountTotal)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Quantity total</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-quantity-total">
+                                {String(finalCommitReview.quantityTotal)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Dry run</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-dry-run">
+                                {String(finalCommitReview.dryRun)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-red-700">Review only</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-final-commit-review-review-only">
+                                {String(finalCommitReview.reviewOnly)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-final-commit-review-blockers"
+                            className="mt-3 rounded-2xl border border-red-200 bg-white px-3 py-3"
+                          >
+                            <div className="text-[11px] font-black text-red-700">Blockers / warnings</div>
+                            <div className="mt-1 text-red-900">
+                              blockers={finalCommitReviewBlockers.length ? finalCommitReviewBlockers.join(", ") : "none"}
+                            </div>
+                            <div className="mt-1 text-red-900">
+                              warnings={finalCommitReviewWarnings.length ? finalCommitReviewWarnings.join(", ") : "none"}
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-final-commit-review-preview-rows"
+                            className="mt-3 grid gap-2 md:grid-cols-2"
+                          >
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-3">
+                              <div className="text-[11px] font-black text-red-700">Transaction preview</div>
+                              {finalCommitReviewTransactionPreviewRows.length ? (
+                                <div className="mt-2 grid gap-2">
+                                  {finalCommitReviewTransactionPreviewRows.slice(0, 3).map((draft, index) => (
+                                    <div
+                                      key={`${String(draft.stagingRowId || index)}-transaction`}
+                                      data-testid="data-import-connected-service-amazon-orders-final-commit-review-transaction-preview-row"
+                                      className="rounded-xl border border-red-100 bg-red-50 px-3 py-2"
+                                    >
+                                      amount={String(draft.amount ?? "-")} / order={String(draft.sourceOrderId ?? "-")} / row={String(draft.evidenceSourceRowNo ?? "-")}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-red-900">none</div>
+                              )}
+                            </div>
+
+                            <div className="rounded-2xl border border-red-200 bg-white px-3 py-3">
+                              <div className="text-[11px] font-black text-red-700">Inventory preview</div>
+                              {finalCommitReviewInventoryPreviewRows.length ? (
+                                <div className="mt-2 grid gap-2">
+                                  {finalCommitReviewInventoryPreviewRows.slice(0, 3).map((draft, index) => (
+                                    <div
+                                      key={`${String(draft.stagingRowId || index)}-inventory`}
+                                      data-testid="data-import-connected-service-amazon-orders-final-commit-review-inventory-preview-row"
+                                      className="rounded-xl border border-red-100 bg-red-50 px-3 py-2"
+                                    >
+                                      sku={String(draft.productSkuCode || draft.productSkuId || "-")} / quantity={String(draft.quantity ?? "-")} / row={String(draft.evidenceSourceRowNo ?? "-")}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="mt-1 text-red-900">none</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-final-commit-review-no-write-notice"
+                            className="mt-3 rounded-2xl border border-red-200 bg-white px-3 py-2 font-black text-red-900"
+                          >
+                            この Step151-R-B では最終レビューのみです。実際の Transaction / InventoryMovement 作成ボタンはまだ出しません。
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-final-commit-review-empty"
+                          className="mt-3 rounded-2xl border border-red-200 bg-white px-3 py-2 text-red-800"
+                        >
+                          まだ final commit review は実行されていません。ImportJob 作成後に最終レビューできます。
+                        </div>
+                      )}
+                    </div>
+
                     {/* Step151-O-TRANSACTION-DRY-RUN-PROJECTION-UI:
                         Project future Transaction drafts from readiness READY rows only.
                         This is dry-run only and must not create Transaction or InventoryMovement. */}
@@ -1544,6 +1750,10 @@ export default function DataImportPage() {
     useState<AmazonSpApiOrdersCombinedDryRunProjectionResponse | null>(null);
   const [amazonOrdersCombinedDryRunProjectionLoading, setAmazonOrdersCombinedDryRunProjectionLoading] = useState(false);
   const [amazonOrdersCombinedDryRunProjectionError, setAmazonOrdersCombinedDryRunProjectionError] = useState("");
+  const [amazonOrdersFinalCommitReview, setAmazonOrdersFinalCommitReview] =
+    useState<AmazonSpApiOrdersFinalCommitReviewResponse | null>(null);
+  const [amazonOrdersFinalCommitReviewLoading, setAmazonOrdersFinalCommitReviewLoading] = useState(false);
+  const [amazonOrdersFinalCommitReviewError, setAmazonOrdersFinalCommitReviewError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -1591,6 +1801,9 @@ export default function DataImportPage() {
     setAmazonOrdersCombinedDryRunProjection(null);
     setAmazonOrdersCombinedDryRunProjectionError("");
     setAmazonOrdersCombinedDryRunProjectionLoading(false);
+    setAmazonOrdersFinalCommitReview(null);
+    setAmazonOrdersFinalCommitReviewError("");
+    setAmazonOrdersFinalCommitReviewLoading(false);
     setAmazonOrdersImportedReadModelList(null);
     setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
@@ -1904,6 +2117,45 @@ export default function DataImportPage() {
     }
   }
 
+  async function refreshAmazonOrdersFinalCommitReview(importJobId?: string | null) {
+    const normalizedImportJobId = String(importJobId || "").trim();
+
+    if (!normalizedImportJobId) {
+      setAmazonOrdersFinalCommitReviewError("ImportJob ID がないため final commit review を確認できません。");
+      return;
+    }
+
+    setAmazonOrdersFinalCommitReviewLoading(true);
+    setAmazonOrdersFinalCommitReviewError("");
+
+    try {
+      const review = await readAmazonSpApiOrdersFinalCommitReview(normalizedImportJobId);
+
+      if (review.writesDatabase !== false) {
+        throw new Error("final commit review must keep writesDatabase=false.");
+      }
+      if (review.transactionWriteNow !== false || review.createsTransactionNow !== false) {
+        throw new Error("final commit review must not create Transaction.");
+      }
+      if (review.inventoryWriteNow !== false || review.createsInventoryMovementNow !== false) {
+        throw new Error("final commit review must not create InventoryMovement.");
+      }
+      if (review.historicalSyncNow !== false) {
+        throw new Error("final commit review must not run historical sync.");
+      }
+      if (review.reviewOnly !== true || review.dryRun !== true) {
+        throw new Error("final commit review must remain reviewOnly dryRun.");
+      }
+
+      setAmazonOrdersFinalCommitReview(review);
+    } catch (err) {
+      setAmazonOrdersFinalCommitReviewError(err instanceof Error ? err.message : "final commit review failed");
+      setAmazonOrdersFinalCommitReview(null);
+    } finally {
+      setAmazonOrdersFinalCommitReviewLoading(false);
+    }
+  }
+
   async function handleAmazonOrdersRealImportJobCommitShell() {
     if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
       setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
@@ -1959,6 +2211,7 @@ export default function DataImportPage() {
       await refreshAmazonOrdersStagingCommitReadiness(response.importJobId);
       await refreshAmazonOrdersTransactionDryRunProjection(response.importJobId);
       await refreshAmazonOrdersCombinedDryRunProjection(response.importJobId);
+      await refreshAmazonOrdersFinalCommitReview(response.importJobId);
     } catch (err) {
       setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
       setAmazonOrdersFetchShellMessage(
@@ -2030,11 +2283,15 @@ export default function DataImportPage() {
         combinedDryRunProjection={amazonOrdersCombinedDryRunProjection}
         combinedDryRunProjectionLoading={amazonOrdersCombinedDryRunProjectionLoading}
         combinedDryRunProjectionError={amazonOrdersCombinedDryRunProjectionError}
+        finalCommitReview={amazonOrdersFinalCommitReview}
+        finalCommitReviewLoading={amazonOrdersFinalCommitReviewLoading}
+        finalCommitReviewError={amazonOrdersFinalCommitReviewError}
         onImportedReadModelRefresh={() => void refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult))}
         onImportedReadModelOpenDetail={(orderId) => void openAmazonOrdersImportedReadModelDetail(orderId)}
         onStagingCommitReadinessRefresh={() => void refreshAmazonOrdersStagingCommitReadiness(amazonOrdersRealImportJobCommitResult?.importJobId)}
         onTransactionDryRunProjectionRefresh={() => void refreshAmazonOrdersTransactionDryRunProjection(amazonOrdersRealImportJobCommitResult?.importJobId)}
         onCombinedDryRunProjectionRefresh={() => void refreshAmazonOrdersCombinedDryRunProjection(amazonOrdersRealImportJobCommitResult?.importJobId)}
+        onFinalCommitReviewRefresh={() => void refreshAmazonOrdersFinalCommitReview(amazonOrdersRealImportJobCommitResult?.importJobId)}
       />
 
       <AmazonSpApiConnectionStatusPanel />
