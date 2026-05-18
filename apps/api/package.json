@@ -297,7 +297,8 @@
     "smoke:step151-pq:amazon-orders-inventory-combined-projection-runtime": "node scripts/smoke-step151-pq-amazon-orders-inventory-combined-projection-runtime.js",
     "smoke:step151-r:amazon-orders-final-commit-review-runtime": "node scripts/smoke-step151-r-amazon-orders-final-commit-review-runtime.js",
     "smoke:step151-r-c:amazon-orders-final-review-closeout": "node scripts/smoke-step151-r-c-amazon-orders-final-review-closeout.js",
-    "smoke:step151-s-a:amazon-orders-transaction-commit-disabled-contract": "node scripts/smoke-step151-s-a-amazon-orders-transaction-commit-disabled-contract.js"
+    "smoke:step151-s-a:amazon-orders-transaction-commit-disabled-contract": "node scripts/smoke-step151-s-a-amazon-orders-transaction-commit-disabled-contract.js",
+    "smoke:step151-s-b:amazon-orders-transaction-real-write-contract": "node scripts/smoke-step151-s-b-amazon-orders-transaction-real-write-contract.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

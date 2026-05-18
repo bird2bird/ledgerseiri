@@ -26,6 +26,7 @@ import { projectAmazonSpApiOrdersReadyRowsToTransactionDryRun } from './amazon-s
 import { projectAmazonSpApiOrdersCombinedDryRun } from './amazon-sp-api-orders-combined-dry-run-projection.service';
 import { reviewAmazonSpApiOrdersFinalCommit } from './amazon-sp-api-orders-final-commit-review.service';
 import { buildAmazonSpApiOrdersTransactionCommitDisabledResult } from './amazon-sp-api-orders-transaction-commit.disabled.service';
+import { commitAmazonSpApiOrdersIncomeTransactions } from './amazon-sp-api-orders-transaction-commit.service';
 import { projectAmazonSpApiOrdersReadyRowsToInventoryDryRun } from './amazon-sp-api-orders-inventory-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
@@ -171,6 +172,13 @@ type AmazonSpApiOrdersFinalCommitReviewRouteBody = {
 };
 
 type AmazonSpApiOrdersTransactionCommitDisabledRouteBody = {
+  importJobId?: string;
+  explicitOperatorConfirmation?: boolean;
+  finalReviewAccepted?: boolean;
+  dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersTransactionCommitRouteBody = {
   importJobId?: string;
   explicitOperatorConfirmation?: boolean;
   finalReviewAccepted?: boolean;
@@ -1159,15 +1167,18 @@ export class ImportsController {
   }
 
 
-  // Step151-S-A: Amazon Orders income Transaction commit disabled contract.
-  // This route is intentionally disabled. It validates the future explicit commit
-  // contract only and must not create Transaction, InventoryMovement, expense,
-  // settlement, bank reconciliation, or historical sync records.
+  // Step151-S-B: Amazon Orders income Transaction real-write route.
+  // Scope is intentionally narrow:
+  // - create income Transaction only
+  // - do not create InventoryMovement
+  // - do not create Expense Transaction
+  // - do not import settlement/fees
+  // - do not run bank reconciliation
   @UseGuards(JwtAuthGuard)
   @Post('amazon-sp-api/orders/transaction-commit')
-  async amazonSpApiOrdersTransactionCommitDisabledControllerRoute(
+  async amazonSpApiOrdersTransactionCommitControllerRoute(
     @Req() req: Step122SAuthenticatedRequest,
-    @Body() body: AmazonSpApiOrdersTransactionCommitDisabledRouteBody,
+    @Body() body: AmazonSpApiOrdersTransactionCommitRouteBody,
   ) {
     const companyId = String(req.user?.companyId || '').trim();
 
@@ -1177,13 +1188,17 @@ export class ImportsController {
       );
     }
 
-    if (body?.dryRun === false) {
-      throw new BadRequestException(
-        'STEP151_S_TRANSACTION_COMMIT_DISABLED_DRY_RUN_ONLY: Step151-S-A keeps transaction commit disabled.',
-      );
+    if (body?.dryRun === true) {
+      return buildAmazonSpApiOrdersTransactionCommitDisabledResult({
+        prisma: this.prismaService,
+        companyId,
+        importJobId: String(body?.importJobId || '').trim(),
+        explicitOperatorConfirmation: body?.explicitOperatorConfirmation === true,
+        finalReviewAccepted: body?.finalReviewAccepted === true,
+      });
     }
 
-    const result = await buildAmazonSpApiOrdersTransactionCommitDisabledResult({
+    const result = await commitAmazonSpApiOrdersIncomeTransactions({
       prisma: this.prismaService,
       companyId,
       importJobId: String(body?.importJobId || '').trim(),
@@ -1193,13 +1208,16 @@ export class ImportsController {
 
     return {
       ...result,
-      step151SATransactionCommitDisabledRouteActive: true as const,
-      controllerWritesDatabase: false as const,
-      controllerWritesTransaction: false as const,
+      step151SBTransactionCommitRouteActive: true as const,
+      controllerWritesDatabase: true as const,
+      controllerWritesTransaction: true as const,
       controllerWritesInventoryMovement: false as const,
-      controllerCreatesTransactionNow: false as const,
+      controllerCreatesTransactionNow: true as const,
       controllerCreatesInventoryMovementNow: false as const,
       controllerCreatesExpenseTransactionNow: false as const,
+      controllerTouchesInventoryNow: false as const,
+      controllerSettlementOrFeeImportNow: false as const,
+      controllerBankReconciliationNow: false as const,
     };
   }
 
