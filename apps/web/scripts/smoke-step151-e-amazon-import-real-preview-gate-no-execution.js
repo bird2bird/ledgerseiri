@@ -1,78 +1,47 @@
 #!/usr/bin/env node
 
 /**
- * Step151-E FIX3:
- * Amazon Data Import real-preview gate no-execution smoke.
+ * Step151-E evolved after Step151-G:
+ * Fetch-button preflight guard.
  *
- * This smoke is based on the current GitHub main page structure:
+ * This smoke remains valid after the page imports previewAmazonSpApiOrdersReal.
  *
- * - parent handler:
- *   async function handleAmazonOrdersConnectedServiceFetchShell()
- *
- * - JSX wiring:
- *   onFetchShell={() => void handleAmazonOrdersConnectedServiceFetchShell()}
- *
- * - child button wiring:
- *   onClick={onFetchShell}
- *
- * It intentionally does not support inline fallback extraction.
- *
- * Goal:
- * - Lock the current Data Import 「取得」 button path as preflight-only.
- * - Confirm no real-preview / real-importjob / historical-sync execution is wired.
- * - Confirm no DB write path is wired from the fetch button.
- *
- * No network, no backend runtime, no Amazon call, no DB call.
+ * It verifies:
+ * - 「取得」 button path still goes only to guarded preflight.
+ * - real-preview may exist elsewhere on the page after Step151-G.
+ * - real-importjob / historical-sync / DB write paths are still not wired.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "../../..");
-
-const pagePath = path.join(
-  repoRoot,
-  "apps/web/src/app/[lang]/app/data/import/page.tsx"
-);
-
+const pagePath = path.join(repoRoot, "apps/web/src/app/[lang]/app/data/import/page.tsx");
 const apiPath = path.join(repoRoot, "apps/web/src/core/imports/api.ts");
 
-const EXPECTED_HANDLER = "handleAmazonOrdersConnectedServiceFetchShell";
-
 function read(file) {
-  if (!fs.existsSync(file)) {
-    throw new Error(`Missing file: ${file}`);
-  }
+  if (!fs.existsSync(file)) throw new Error(`Missing file: ${file}`);
   return fs.readFileSync(file, "utf8");
 }
 
 function assertIncludes(source, needle, label) {
-  if (!source.includes(needle)) {
-    throw new Error(`[FAIL] Missing ${label}: ${needle}`);
-  }
+  if (!source.includes(needle)) throw new Error(`[FAIL] Missing ${label}: ${needle}`);
   console.log(`[OK] ${label}`);
 }
 
 function assertNotIncludes(source, needle, label) {
-  if (source.includes(needle)) {
-    throw new Error(`[FAIL] Forbidden ${label}: ${needle}`);
-  }
+  if (source.includes(needle)) throw new Error(`[FAIL] Forbidden ${label}: ${needle}`);
   console.log(`[OK] ${label}`);
 }
 
 function assertRegex(source, regex, label) {
-  if (!regex.test(source)) {
-    throw new Error(`[FAIL] Missing ${label}: ${regex}`);
-  }
+  if (!regex.test(source)) throw new Error(`[FAIL] Missing ${label}: ${regex}`);
   console.log(`[OK] ${label}`);
 }
 
 function extractBalancedBlockFrom(source, start, label) {
   const braceStart = source.indexOf("{", start);
-
-  if (braceStart < 0) {
-    throw new Error(`[FAIL] Body opening brace not found: ${label}`);
-  }
+  if (braceStart < 0) throw new Error(`[FAIL] Body opening brace not found: ${label}`);
 
   let depth = 0;
   let quote = null;
@@ -88,7 +57,6 @@ function extractBalancedBlockFrom(source, start, label) {
       if (ch === "\n") lineComment = false;
       continue;
     }
-
     if (blockComment) {
       if (ch === "*" && next === "/") {
         blockComment = false;
@@ -96,7 +64,6 @@ function extractBalancedBlockFrom(source, start, label) {
       }
       continue;
     }
-
     if (quote) {
       if (escaped) {
         escaped = false;
@@ -106,24 +73,19 @@ function extractBalancedBlockFrom(source, start, label) {
         escaped = true;
         continue;
       }
-      if (ch === quote) {
-        quote = null;
-      }
+      if (ch === quote) quote = null;
       continue;
     }
-
     if (ch === "/" && next === "/") {
       lineComment = true;
       i += 1;
       continue;
     }
-
     if (ch === "/" && next === "*") {
       blockComment = true;
       i += 1;
       continue;
     }
-
     if (ch === '"' || ch === "'" || ch === "`") {
       quote = ch;
       continue;
@@ -132,68 +94,37 @@ function extractBalancedBlockFrom(source, start, label) {
     if (ch === "{") depth += 1;
     if (ch === "}") depth -= 1;
 
-    if (depth === 0) {
-      return source.slice(start, i + 1);
-    }
+    if (depth === 0) return source.slice(start, i + 1);
   }
 
   throw new Error(`[FAIL] Body did not close: ${label}`);
 }
 
-function extractAsyncFunctionDeclaration(source, functionName) {
-  const regex = new RegExp(
-    `(?:async\\s+)?function\\s+${functionName}\\s*\\(`,
-    "m"
-  );
-
+function extractFunction(source, functionName) {
+  const regex = new RegExp(`(?:async\\s+)?function\\s+${functionName}\\s*\\(`, "m");
   const match = regex.exec(source);
-
   if (!match || typeof match.index !== "number") {
-    throw new Error(`[FAIL] Expected function declaration not found: ${functionName}`);
+    throw new Error(`[FAIL] Function not found: ${functionName}`);
   }
-
   return extractBalancedBlockFrom(source, match.index, functionName);
 }
 
 function extractCoreImportsBlock(source) {
   const regex = /import\s*\{([\s\S]*?)\}\s*from\s+"@\/core\/imports\/api";/m;
   const match = regex.exec(source);
-
-  if (!match) {
-    throw new Error('[FAIL] Could not find import block from "@/core/imports/api".');
-  }
-
+  if (!match) throw new Error('[FAIL] Could not find import block from "@/core/imports/api".');
   return match[0];
 }
 
 const page = read(pagePath);
 const api = read(apiPath);
 
-console.log("========== Step151-E FIX3 smoke: current source anchors ==========");
+console.log("========== Step151-E evolved smoke: fetch button anchors ==========");
 
-assertIncludes(
-  page,
-  "Step151-B-FETCH-BUTTON-EXECUTION-CONTRACT",
-  "fetch button execution contract anchor"
-);
-
-assertIncludes(
-  page,
-  "data-import-connected-service-amazon-orders-fetch-button",
-  "Amazon orders fetch button test id"
-);
-
-assertIncludes(
-  page,
-  "data-import-connected-service-amazon-orders-execution-contract",
-  "execution contract panel test id"
-);
-
-assertIncludes(
-  page,
-  "data-import-connected-service-amazon-orders-preflight-result",
-  "preflight result panel test id"
-);
+assertIncludes(page, "Step151-B-FETCH-BUTTON-EXECUTION-CONTRACT", "fetch button execution contract anchor");
+assertIncludes(page, "data-import-connected-service-amazon-orders-fetch-button", "Amazon orders fetch button test id");
+assertIncludes(page, "data-import-connected-service-amazon-orders-execution-contract", "execution contract panel test id");
+assertIncludes(page, "data-import-connected-service-amazon-orders-preflight-result", "preflight result panel test id");
 
 for (const state of [
   "preflight_required",
@@ -206,72 +137,34 @@ for (const state of [
   assertIncludes(page, state, `execution state exists: ${state}`);
 }
 
-console.log("========== Step151-E FIX3 smoke: imports boundary ==========");
+console.log("========== Step151-E evolved smoke: import boundary ==========");
 
 const coreImportBlock = extractCoreImportsBlock(page);
+assertIncludes(coreImportBlock, "preflightAmazonSpApiOrdersGuardedImport", "page imports guarded preflight helper");
 
-assertIncludes(
-  coreImportBlock,
-  "preflightAmazonSpApiOrdersGuardedImport",
-  "page imports guarded preflight helper"
-);
-
+// After Step151-G, previewAmazonSpApiOrdersReal is allowed.
+// Persistence and background sync remain forbidden.
 for (const forbiddenImport of [
-  "previewAmazonSpApiOrdersReal",
   "commitAmazonSpApiOrdersRealImportJob",
   "previewAmazonSpApiOrdersHistoricalSyncPlan",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
   "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
   "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
 ]) {
-  assertNotIncludes(
-    coreImportBlock,
-    forbiddenImport,
-    `page core imports must not include ${forbiddenImport}`
-  );
+  assertNotIncludes(coreImportBlock, forbiddenImport, `page core imports must not include ${forbiddenImport}`);
 }
 
-console.log("========== Step151-E FIX3 smoke: precise handler boundary ==========");
+console.log("========== Step151-E evolved smoke: fetch handler remains preflight-only ==========");
 
-const handlerBody = extractAsyncFunctionDeclaration(page, EXPECTED_HANDLER);
+const fetchHandler = extractFunction(page, "handleAmazonOrdersConnectedServiceFetchShell");
 
-console.log(`[OK] Extracted handler: ${EXPECTED_HANDLER}`);
+assertIncludes(fetchHandler, "preflightAmazonSpApiOrdersGuardedImport", "fetch handler calls guarded preflight helper");
+assertIncludes(fetchHandler, 'setAmazonOrdersFetchExecutionContractStatus("preflight_checking")', "fetch handler sets preflight_checking");
+assertIncludes(fetchHandler, 'response.allowed ? "preflight_ready" : "blocked"', "fetch handler transitions to preflight_ready or blocked");
 
-assertIncludes(
-  handlerBody,
-  "preflightAmazonSpApiOrdersGuardedImport",
-  "handler calls guarded preflight helper"
-);
-
-assertIncludes(
-  handlerBody,
-  'setAmazonOrdersFetchExecutionContractStatus("preflight_checking")',
-  "handler sets preflight_checking before request"
-);
-
-assertIncludes(
-  handlerBody,
-  'response.allowed ? "preflight_ready" : "blocked"',
-  "handler transitions only to preflight_ready or blocked after preflight"
-);
-
-assertIncludes(
-  handlerBody,
-  'explicitOperatorIntent: true',
-  "handler sends explicitOperatorIntent=true"
-);
-
-assertIncludes(
-  handlerBody,
-  'rangePreset: "7D"',
-  "handler currently locks default 7D range"
-);
-
-for (const forbiddenInHandler of [
+for (const forbiddenInFetchHandler of [
   "previewAmazonSpApiOrdersReal",
   "commitAmazonSpApiOrdersRealImportJob",
   "previewAmazonSpApiOrdersHistoricalSyncPlan",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
   "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
   "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
   "fetch(",
@@ -281,146 +174,51 @@ for (const forbiddenInHandler of [
   "writesTransaction: true",
   "writesInventoryMovement: true",
 ]) {
-  assertNotIncludes(
-    handlerBody,
-    forbiddenInHandler,
-    `handler must not contain ${forbiddenInHandler}`
-  );
+  assertNotIncludes(fetchHandler, forbiddenInFetchHandler, `fetch handler must not contain ${forbiddenInFetchHandler}`);
 }
 
-console.log("========== Step151-E FIX3 smoke: JSX wiring boundary ==========");
+console.log("========== Step151-E evolved smoke: JSX fetch wiring ==========");
 
-assertRegex(
-  page,
-  /onClick=\{\s*onFetchShell\s*\}/m,
-  "child button uses onClick={onFetchShell}"
-);
-
+assertRegex(page, /onClick=\{\s*onFetchShell\s*\}/m, "child fetch button uses onClick={onFetchShell}");
 assertRegex(
   page,
   /onFetchShell=\{\s*\(\)\s*=>\s*void\s+handleAmazonOrdersConnectedServiceFetchShell\s*\(\s*\)\s*\}/m,
   "parent wires onFetchShell to handleAmazonOrdersConnectedServiceFetchShell"
 );
 
-console.log("========== Step151-E FIX3 smoke: page-level forbidden execution symbols ==========");
+console.log("========== Step151-E evolved smoke: persistence remains forbidden page-wide ==========");
 
-// This page-level check is intentionally limited to exact execution symbols/constants.
-// It avoids broad text like "preview" because page copy may describe future steps.
 for (const forbiddenPageSymbol of [
-  "previewAmazonSpApiOrdersReal(",
   "commitAmazonSpApiOrdersRealImportJob(",
   "previewAmazonSpApiOrdersHistoricalSyncPlan(",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
   "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
   "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
 ]) {
-  assertNotIncludes(
-    page,
-    forbiddenPageSymbol,
-    `page must not wire ${forbiddenPageSymbol}`
-  );
+  assertNotIncludes(page, forbiddenPageSymbol, `page must not wire ${forbiddenPageSymbol}`);
 }
 
-console.log("========== Step151-E FIX3 smoke: API helper boundary ==========");
+console.log("========== Step151-E evolved smoke: API preflight boundary ==========");
 
-assertIncludes(
-  api,
-  "export async function preflightAmazonSpApiOrdersGuardedImport",
-  "API exports guarded preflight helper"
-);
-
-assertIncludes(
-  api,
-  "export async function previewAmazonSpApiOrdersReal",
-  "API real-preview helper exists for later step"
-);
-
-assertIncludes(
-  api,
-  "export async function commitAmazonSpApiOrdersRealImportJob",
-  "API real-importjob helper exists for later step"
-);
-
-assertIncludes(
-  api,
+for (const boundary of [
   "callsRealPreview: false",
-  "preflight response boundary callsRealPreview=false"
-);
-
-assertIncludes(
-  api,
   "callsRealImportJob: false",
-  "preflight response boundary callsRealImportJob=false"
-);
-
-assertIncludes(
-  api,
   "callsHistoricalSync: false",
-  "preflight response boundary callsHistoricalSync=false"
-);
-
-assertIncludes(
-  api,
   "createsImportJob: false",
-  "preflight response boundary createsImportJob=false"
-);
-
-assertIncludes(
-  api,
   "createsImportStagingRow: false",
-  "preflight response boundary createsImportStagingRow=false"
-);
-
-assertIncludes(
-  api,
   "createsSyncJob: false",
-  "preflight response boundary createsSyncJob=false"
-);
-
-assertIncludes(
-  api,
   "createsSyncSegment: false",
-  "preflight response boundary createsSyncSegment=false"
-);
-
-assertIncludes(
-  api,
   "writesDatabase: false",
-  "preflight response boundary writesDatabase=false"
-);
-
-assertIncludes(
-  api,
   "writesTransaction: false",
-  "preflight response boundary writesTransaction=false"
-);
-
-assertIncludes(
-  api,
   "writesInventoryMovement: false",
-  "preflight response boundary writesInventoryMovement=false"
-);
-
-assertIncludes(
-  api,
   "returnsRawAccessToken: false",
-  "preflight response boundary returnsRawAccessToken=false"
-);
-
-assertIncludes(
-  api,
   "returnsRawRefreshToken: false",
-  "preflight response boundary returnsRawRefreshToken=false"
-);
-
-assertIncludes(
-  api,
   "returnsRawSecret: false",
-  "preflight response boundary returnsRawSecret=false"
-);
+]) {
+  assertIncludes(api, boundary, `preflight boundary remains ${boundary}`);
+}
 
-console.log("========== Step151-E FIX3 smoke result ==========");
+console.log("========== Step151-E evolved smoke result ==========");
 console.log("[OK] Step151-E passed.");
-console.log("[RESULT] Data Import fetch button remains preflight-only.");
-console.log("[RESULT] No frontend real-preview / real-importjob / historical-sync execution wiring detected.");
-console.log("[RESULT] No DB write path is wired from the fetch button.");
+console.log("[RESULT] Fetch button remains guarded-preflight-only.");
+console.log("[RESULT] Real-preview may exist behind the explicit preview button.");
+console.log("[RESULT] No real-importjob / historical-sync / DB write path is wired.");

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Step151-F:
- * Frontend preview shell after preflight_ready.
+ * Step151-F evolved after Step151-G:
+ * Preview shell regression smoke.
  *
- * This smoke is source-level and no-network.
- * It verifies the UI shell exists but no real-preview/importjob/historical-sync execution is wired.
+ * After Step151-G, the preview shell still exists, but the preview button is enabled
+ * and wired to real-preview. Therefore this smoke no longer requires disabled button
+ * or forbids previewAmazonSpApiOrdersReal.
+ *
+ * It still forbids persistence/background-sync wiring.
  */
 
 const fs = require("fs");
@@ -21,99 +24,18 @@ function read(file) {
 }
 
 function assertIncludes(source, needle, label) {
-  if (!source.includes(needle)) {
-    throw new Error(`[FAIL] Missing ${label}: ${needle}`);
-  }
+  if (!source.includes(needle)) throw new Error(`[FAIL] Missing ${label}: ${needle}`);
   console.log(`[OK] ${label}`);
 }
 
 function assertNotIncludes(source, needle, label) {
-  if (source.includes(needle)) {
-    throw new Error(`[FAIL] Forbidden ${label}: ${needle}`);
-  }
+  if (source.includes(needle)) throw new Error(`[FAIL] Forbidden ${label}: ${needle}`);
   console.log(`[OK] ${label}`);
 }
 
 function assertRegex(source, regex, label) {
-  if (!regex.test(source)) {
-    throw new Error(`[FAIL] Missing ${label}: ${regex}`);
-  }
+  if (!regex.test(source)) throw new Error(`[FAIL] Missing ${label}: ${regex}`);
   console.log(`[OK] ${label}`);
-}
-
-function extractBalancedBlockFrom(source, start, label) {
-  const braceStart = source.indexOf("{", start);
-  if (braceStart < 0) throw new Error(`[FAIL] Body opening brace not found: ${label}`);
-
-  let depth = 0;
-  let quote = null;
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-
-  for (let i = braceStart; i < source.length; i += 1) {
-    const ch = source[i];
-    const next = source[i + 1];
-
-    if (lineComment) {
-      if (ch === "\n") lineComment = false;
-      continue;
-    }
-
-    if (blockComment) {
-      if (ch === "*" && next === "/") {
-        blockComment = false;
-        i += 1;
-      }
-      continue;
-    }
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (ch === quote) quote = null;
-      continue;
-    }
-
-    if (ch === "/" && next === "/") {
-      lineComment = true;
-      i += 1;
-      continue;
-    }
-
-    if (ch === "/" && next === "*") {
-      blockComment = true;
-      i += 1;
-      continue;
-    }
-
-    if (ch === '"' || ch === "'" || ch === "`") {
-      quote = ch;
-      continue;
-    }
-
-    if (ch === "{") depth += 1;
-    if (ch === "}") depth -= 1;
-
-    if (depth === 0) return source.slice(start, i + 1);
-  }
-
-  throw new Error(`[FAIL] Body did not close: ${label}`);
-}
-
-function extractFunction(source, functionName) {
-  const regex = new RegExp(`(?:async\\s+)?function\\s+${functionName}\\s*\\(`, "m");
-  const match = regex.exec(source);
-  if (!match || typeof match.index !== "number") {
-    throw new Error(`[FAIL] Function not found: ${functionName}`);
-  }
-  return extractBalancedBlockFrom(source, match.index, functionName);
 }
 
 function extractCoreImportsBlock(source) {
@@ -126,7 +48,7 @@ function extractCoreImportsBlock(source) {
 const page = read(pagePath);
 const api = read(apiPath);
 
-console.log("========== Step151-F smoke: preview shell anchors ==========");
+console.log("========== Step151-F evolved smoke: preview shell anchors ==========");
 
 assertIncludes(page, "Step151-F-PREVIEW-SHELL-NO-EXECUTION", "Step151-F preview shell anchor");
 assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell", "preview shell test id");
@@ -141,9 +63,9 @@ assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-
 assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-next-action", "preview shell nextAction test id");
 assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-guard-status", "preview shell guard status test id");
 assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-boundary", "preview shell boundary test id");
-assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-no-execution-boundaries", "preview shell no-execution boundary test id");
+assertIncludes(page, "data-import-connected-service-amazon-orders-preview-shell-no-execution-boundaries", "preview shell boundary badges test id");
 
-console.log("========== Step151-F smoke: visibility and disabled button ==========");
+console.log("========== Step151-F evolved smoke: visibility and progressive button behavior ==========");
 
 assertIncludes(
   page,
@@ -151,13 +73,23 @@ assertIncludes(
   "preview shell visible only after preflight_ready"
 );
 
-assertRegex(
-  page,
-  /data-testid="data-import-connected-service-amazon-orders-preview-confirm-button"[\s\S]*?disabled[\s\S]*?>[\s\S]*?プレビュー確認（次ステップ）/m,
-  "preview confirm button is disabled and marked as next step"
-);
+// Step151-G is allowed to enable the Step151-F shell button.
+if (page.includes("Step151-G-REAL-PREVIEW-NO-DB")) {
+  assertRegex(
+    page,
+    /data-testid="data-import-connected-service-amazon-orders-preview-confirm-button"[\s\S]*?onClick=\{onPreviewShell\}[\s\S]*?disabled=\{realPreviewLoading\}/m,
+    "preview confirm button is enabled and wired after Step151-G"
+  );
+  assertIncludes(page, "プレビュー確認", "preview button text remains clear");
+} else {
+  assertRegex(
+    page,
+    /data-testid="data-import-connected-service-amazon-orders-preview-confirm-button"[\s\S]*?disabled[\s\S]*?>[\s\S]*?プレビュー確認（次ステップ）/m,
+    "preview confirm button is disabled before Step151-G"
+  );
+}
 
-console.log("========== Step151-F smoke: displayed preflight fields ==========");
+console.log("========== Step151-F evolved smoke: displayed preflight fields ==========");
 
 for (const field of [
   "preflightResult.dateRange.rangePreset",
@@ -176,61 +108,38 @@ for (const field of [
   assertIncludes(page, field, `preview shell displays ${field}`);
 }
 
-console.log("========== Step151-F smoke: imports and handler remain preflight-only ==========");
+console.log("========== Step151-F evolved smoke: imports boundary ==========");
 
 const coreImportBlock = extractCoreImportsBlock(page);
-assertIncludes(coreImportBlock, "preflightAmazonSpApiOrdersGuardedImport", "page still imports preflight helper");
+assertIncludes(coreImportBlock, "preflightAmazonSpApiOrdersGuardedImport", "page imports preflight helper");
 
 for (const forbiddenImport of [
-  "previewAmazonSpApiOrdersReal",
   "commitAmazonSpApiOrdersRealImportJob",
   "previewAmazonSpApiOrdersHistoricalSyncPlan",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
   "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
   "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
 ]) {
   assertNotIncludes(coreImportBlock, forbiddenImport, `page core imports must not include ${forbiddenImport}`);
 }
 
-const handlerBody = extractFunction(page, "handleAmazonOrdersConnectedServiceFetchShell");
+console.log("========== Step151-F evolved smoke: persistence remains forbidden page-wide ==========");
 
-assertIncludes(handlerBody, "preflightAmazonSpApiOrdersGuardedImport", "handler still calls guarded preflight");
-assertIncludes(handlerBody, 'response.allowed ? "preflight_ready" : "blocked"', "handler still only transitions to preflight_ready or blocked");
-
-for (const forbiddenInHandler of [
-  "previewAmazonSpApiOrdersReal",
-  "commitAmazonSpApiOrdersRealImportJob",
-  "previewAmazonSpApiOrdersHistoricalSyncPlan",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
+for (const forbiddenPageSymbol of [
+  "commitAmazonSpApiOrdersRealImportJob(",
+  "previewAmazonSpApiOrdersHistoricalSyncPlan(",
   "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
   "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
-  "fetch(",
-  "postJson(",
   "writesDatabase: true",
   "createsImportJob: true",
   "writesTransaction: true",
   "writesInventoryMovement: true",
 ]) {
-  assertNotIncludes(handlerBody, forbiddenInHandler, `handler must not contain ${forbiddenInHandler}`);
-}
-
-console.log("========== Step151-F smoke: page-level forbidden execution symbols ==========");
-
-for (const forbiddenPageSymbol of [
-  "previewAmazonSpApiOrdersReal(",
-  "commitAmazonSpApiOrdersRealImportJob(",
-  "previewAmazonSpApiOrdersHistoricalSyncPlan(",
-  "AMAZON_SP_API_ORDERS_REAL_PREVIEW_ENDPOINT",
-  "AMAZON_SP_API_ORDERS_REAL_IMPORTJOB_ENDPOINT",
-  "AMAZON_SP_API_ORDERS_HISTORICAL_SYNC_PLAN_PREVIEW_ENDPOINT",
-]) {
   assertNotIncludes(page, forbiddenPageSymbol, `page must not wire ${forbiddenPageSymbol}`);
 }
 
-console.log("========== Step151-F smoke: API boundary still supports no-execution preview shell ==========");
+console.log("========== Step151-F evolved smoke: API boundary still present ==========");
 
 for (const boundary of [
-  "callsRealPreview: false",
   "callsRealImportJob: false",
   "callsHistoricalSync: false",
   "createsImportJob: false",
@@ -247,9 +156,8 @@ for (const boundary of [
   assertIncludes(api, boundary, `preflight boundary remains ${boundary}`);
 }
 
-console.log("========== Step151-F smoke result ==========");
+console.log("========== Step151-F evolved smoke result ==========");
 console.log("[OK] Step151-F passed.");
-console.log("[RESULT] Preview shell appears only after preflight_ready.");
-console.log("[RESULT] Preview confirm button is visible but disabled.");
-console.log("[RESULT] No real-preview / importjob / historical-sync execution is wired.");
-console.log("[RESULT] No DB write path is wired.");
+console.log("[RESULT] Preview shell remains visible after preflight_ready.");
+console.log("[RESULT] Preview button behavior is valid for the current phase.");
+console.log("[RESULT] No real-importjob / historical-sync / DB write path is wired.");

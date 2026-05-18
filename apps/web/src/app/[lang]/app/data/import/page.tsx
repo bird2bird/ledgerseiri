@@ -8,7 +8,9 @@ import { useParams, useSearchParams } from "next/navigation";
 import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
   preflightAmazonSpApiOrdersGuardedImport,
+  previewAmazonSpApiOrdersReal,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
+  type AmazonSpApiOrdersRealPreviewResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -72,16 +74,24 @@ const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
 
 function AmazonOrdersConnectedServicesShell({
   onFetchShell,
+  onPreviewShell,
   fetchShellMessage,
   executionContractStatus,
   preflightResult,
   preflightError,
+  realPreviewResult,
+  realPreviewLoading,
+  realPreviewError,
 }: {
   onFetchShell: () => void;
+  onPreviewShell: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
   preflightError: string;
+  realPreviewResult: AmazonSpApiOrdersRealPreviewResponse | null;
+  realPreviewLoading: boolean;
+  realPreviewError: string;
 }) {
   return (
     <section
@@ -323,11 +333,12 @@ function AmazonOrdersConnectedServicesShell({
               <button
                 data-testid="data-import-connected-service-amazon-orders-preview-confirm-button"
                 type="button"
-                disabled
-                title="Step151-F は preview shell のみです。real-preview は Step151-G 以降で明示的に接続します。"
-                className="inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-800 opacity-70 shadow-sm"
+                onClick={onPreviewShell}
+                disabled={realPreviewLoading}
+                title="Step151-G は real-preview のみを呼び出します。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。"
+                className="inline-flex rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-black text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                プレビュー確認（次ステップ）
+                {realPreviewLoading ? "プレビュー取得中..." : "プレビュー確認"}
               </button>
             </div>
 
@@ -404,7 +415,7 @@ function AmazonOrdersConnectedServicesShell({
               className="mt-3 grid gap-2 md:grid-cols-5"
             >
               <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
-                callsRealPreview=false
+                callsRealPreview=enabledByButton
               </div>
               <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
                 createsImportJob=false
@@ -418,6 +429,117 @@ function AmazonOrdersConnectedServicesShell({
               <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
                 writesInventoryMovement=false
               </div>
+            </div>
+
+            {/* Step151-G-REAL-PREVIEW-NO-DB:
+                The explicit preview button calls real-preview only.
+                This result panel must not trigger real-importjob, ImportJob persistence,
+                Transaction creation, or InventoryMovement writes. */}
+            <div
+              data-testid="data-import-connected-service-amazon-orders-real-preview-result"
+              className="mt-3 rounded-3xl border border-sky-200 bg-sky-50 px-4 py-4 text-xs font-bold leading-5 text-sky-950"
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-sky-700">
+                    Step151-G Real Preview Result
+                  </div>
+                  <h3 className="mt-1 text-sm font-black text-slate-950">
+                    Amazon注文プレビュー結果
+                  </h3>
+                  <p
+                    data-testid="data-import-connected-service-amazon-orders-real-preview-copy"
+                    className="mt-1 max-w-3xl text-xs font-bold leading-5 text-sky-900"
+                  >
+                    この結果は real-preview API の表示専用結果です。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。
+                  </p>
+                </div>
+                <span
+                  data-testid="data-import-connected-service-amazon-orders-real-preview-status"
+                  className="inline-flex rounded-full border border-sky-300 bg-white px-3 py-1 text-xs font-black text-sky-700"
+                >
+                  {realPreviewLoading ? "loading" : realPreviewResult ? "preview_loaded" : "not_loaded"}
+                </span>
+              </div>
+
+              {realPreviewError ? (
+                <div
+                  data-testid="data-import-connected-service-amazon-orders-real-preview-error"
+                  className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                >
+                  {realPreviewError}
+                </div>
+              ) : null}
+
+              {realPreviewResult ? (
+                <div
+                  data-testid="data-import-connected-service-amazon-orders-real-preview-summary"
+                  className="mt-4 grid gap-2 md:grid-cols-4"
+                >
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Orders</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-total-orders">
+                      {String(realPreviewResult.validationSummary?.totalOrders ?? realPreviewResult.normalizedOrders?.length ?? 0)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Items</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-total-items">
+                      {String(realPreviewResult.validationSummary?.totalOrderItems ?? realPreviewResult.normalizedOrderItems?.length ?? 0)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Unresolved SKU</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-unresolved-sku">
+                      {String(realPreviewResult.skuResolutionSummary?.unresolvedSkuCount ?? 0)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Preview amount</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-amount">
+                      {String(realPreviewResult.transactionImpactPreview?.totalPreviewAmount ?? realPreviewResult.productionVerification?.incomePreviewAmount ?? "-")}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Source</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-source">
+                      {realPreviewResult.source || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Preview mode</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-mode">
+                      {realPreviewResult.previewMode || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">Writes DB</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-writes-db">
+                      {String(realPreviewResult.writesDatabase ?? realPreviewResult.controllerWritesDatabase ?? false)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-sky-200 bg-white px-3 py-2">
+                    <div className="text-[11px] font-black text-sky-700">ImportJob write</div>
+                    <div data-testid="data-import-connected-service-amazon-orders-real-preview-importjob-write">
+                      {String(realPreviewResult.importJobWriteNow ?? realPreviewResult.productionVerification?.boundaries?.writesImportJob ?? false)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  data-testid="data-import-connected-service-amazon-orders-real-preview-empty"
+                  className="mt-3 rounded-2xl border border-sky-200 bg-white px-3 py-2 text-sky-800"
+                >
+                  まだ real-preview は実行されていません。「プレビュー確認」を押すと、DB に保存せず取得内容だけを確認します。
+                </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -454,6 +576,10 @@ export default function DataImportPage() {
   const [amazonOrdersPreflightResult, setAmazonOrdersPreflightResult] =
     useState<AmazonSpApiOrdersGuardedImportPreflightResponse | null>(null);
   const [amazonOrdersPreflightError, setAmazonOrdersPreflightError] = useState("");
+  const [amazonOrdersRealPreviewResult, setAmazonOrdersRealPreviewResult] =
+    useState<AmazonSpApiOrdersRealPreviewResponse | null>(null);
+  const [amazonOrdersRealPreviewLoading, setAmazonOrdersRealPreviewLoading] = useState(false);
+  const [amazonOrdersRealPreviewError, setAmazonOrdersRealPreviewError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -480,6 +606,9 @@ export default function DataImportPage() {
     setAmazonOrdersFetchExecutionContractStatus("preflight_checking");
     setAmazonOrdersPreflightResult(null);
     setAmazonOrdersPreflightError("");
+    setAmazonOrdersRealPreviewResult(null);
+    setAmazonOrdersRealPreviewError("");
+    setAmazonOrdersRealPreviewLoading(false);
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。Step151-D は preflight endpoint だけを呼び出して、接続状態・取得範囲・明示確認の必要性を確認します。プレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。"
     );
@@ -520,6 +649,65 @@ export default function DataImportPage() {
     }
   }
 
+  async function handleAmazonOrdersRealPreviewShell() {
+    if (!amazonOrdersPreflightResult?.allowed) {
+      setAmazonOrdersRealPreviewError("preflight_ready の状態でのみプレビュー確認できます。");
+      return;
+    }
+
+    const createdAfter = amazonOrdersPreflightResult.dateRange.createdAfter;
+    const createdBefore = amazonOrdersPreflightResult.dateRange.createdBefore;
+
+    if (!createdAfter || !createdBefore) {
+      setAmazonOrdersRealPreviewError("createdAfter / createdBefore が不足しています。");
+      return;
+    }
+
+    setAmazonOrdersRealPreviewLoading(true);
+    setAmazonOrdersRealPreviewError("");
+    setAmazonOrdersRealPreviewResult(null);
+    setAmazonOrdersFetchExecutionContractStatus("preview_required");
+    setAmazonOrdersFetchShellMessage(
+      "Step151-G: real-preview を実行しています。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。"
+    );
+
+    try {
+      const response = await previewAmazonSpApiOrdersReal({
+        storeId: amazonOrdersPreflightResult.scope.storeId,
+        marketplaceId: amazonOrdersPreflightResult.scope.marketplaceId,
+        region: amazonOrdersPreflightResult.scope.region,
+        createdAfter,
+        createdBefore,
+        realPreview: true,
+      });
+
+      if (response.writesDatabase !== false) {
+        throw new Error("real-preview response must keep writesDatabase=false.");
+      }
+      if (response.importJobWriteNow !== false) {
+        throw new Error("real-preview response must keep importJobWriteNow=false.");
+      }
+      if (response.transactionWriteNow !== false) {
+        throw new Error("real-preview response must keep transactionWriteNow=false.");
+      }
+      if (response.inventoryWriteNow !== false) {
+        throw new Error("real-preview response must keep inventoryWriteNow=false.");
+      }
+
+      setAmazonOrdersRealPreviewResult(response);
+      setAmazonOrdersFetchShellMessage(
+        "real-preview が完了しました。Step151-G では結果表示のみで、ImportJob 作成・DB 書き込みは行いません。"
+      );
+    } catch (err) {
+      setAmazonOrdersRealPreviewError(err instanceof Error ? err.message : "real-preview failed");
+      setAmazonOrdersFetchShellMessage(
+        "real-preview に失敗しました。ImportJob 作成・DB 書き込みには進みません。"
+      );
+    } finally {
+      setAmazonOrdersRealPreviewLoading(false);
+    }
+  }
+
   const latestUpdatedAt = useMemo(() => {
     const values = jobs
       .map((x) => {
@@ -554,10 +742,14 @@ export default function DataImportPage() {
       
       <AmazonOrdersConnectedServicesShell
         onFetchShell={() => void handleAmazonOrdersConnectedServiceFetchShell()}
+        onPreviewShell={() => void handleAmazonOrdersRealPreviewShell()}
         fetchShellMessage={amazonOrdersFetchShellMessage}
         executionContractStatus={amazonOrdersFetchExecutionContractStatus}
         preflightResult={amazonOrdersPreflightResult}
         preflightError={amazonOrdersPreflightError}
+        realPreviewResult={amazonOrdersRealPreviewResult}
+        realPreviewLoading={amazonOrdersRealPreviewLoading}
+        realPreviewError={amazonOrdersRealPreviewError}
       />
 
       <AmazonSpApiConnectionStatusPanel />

@@ -43,7 +43,8 @@
     "smoke:step151-d-amazon-import-preflight-helper-ui-no-execution": "node scripts/smoke-step151-d-amazon-import-preflight-helper-ui-no-execution.js",
     "smoke:step151-d-amazon-import-preflight-runtime-no-execution": "node scripts/smoke-step151-d-amazon-import-preflight-runtime-no-execution.js",
     "smoke:step151-e:amazon-import-real-preview-gate-no-execution": "node scripts/smoke-step151-e-amazon-import-real-preview-gate-no-execution.js",
-    "smoke:step151-f:amazon-import-preview-shell-no-execution": "node scripts/smoke-step151-f-amazon-import-preview-shell-no-execution.js"
+    "smoke:step151-f:amazon-import-preview-shell-no-execution": "node scripts/smoke-step151-f-amazon-import-preview-shell-no-execution.js",
+    "smoke:step151-g:amazon-import-real-preview-no-db": "node scripts/smoke-step151-g-amazon-import-real-preview-no-db.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
