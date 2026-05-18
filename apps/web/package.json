@@ -53,7 +53,8 @@
     "smoke:step151-o:amazon-orders-transaction-dry-run-projection-ui": "node scripts/smoke-step151-o-amazon-orders-transaction-dry-run-projection-ui.js",
     "smoke:step151-pq:amazon-orders-inventory-combined-projection-ui": "node scripts/smoke-step151-pq-amazon-orders-inventory-combined-projection-ui.js",
     "smoke:step151-r:amazon-orders-final-commit-review-helper": "node scripts/smoke-step151-r-amazon-orders-final-commit-review-helper.js",
-    "smoke:step151-r-b:amazon-orders-final-commit-review-ui": "node scripts/smoke-step151-r-b-amazon-orders-final-commit-review-ui.js"
+    "smoke:step151-r-b:amazon-orders-final-commit-review-ui": "node scripts/smoke-step151-r-b-amazon-orders-final-commit-review-ui.js",
+    "smoke:step151-w-a:data-import-amazon-orders-table-ui": "node scripts/smoke-step151-w-a-data-import-amazon-orders-table-ui.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

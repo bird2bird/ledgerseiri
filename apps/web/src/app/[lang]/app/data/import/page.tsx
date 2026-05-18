@@ -54,6 +54,8 @@ type AmazonOrdersFetchExecutionContractStatus =
   | "confirmation_required"
   | "blocked";
 
+type AmazonOrdersPullRangePreset = "7D" | "30D" | "90D" | "365D" | "CUSTOM";
+
 const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
   {
     key: "preflight_required",
@@ -92,6 +94,19 @@ function AmazonOrdersConnectedServicesShell({
   onFetchShell,
   onPreviewShell,
   onImportCommitShell,
+  amazonOrdersPullRangePreset,
+  amazonOrdersCustomStartDate,
+  amazonOrdersCustomEndDate,
+  amazonOrdersImportedReadModelPageSize,
+  amazonOrdersImportedReadModelPageIndex,
+  onAmazonOrdersPullRangePresetChange,
+  onAmazonOrdersCustomStartDateChange,
+  onAmazonOrdersCustomEndDateChange,
+  onAmazonOrdersImportedReadModelPageSizeChange,
+  onAmazonOrdersImportedReadModelFirstPage,
+  onAmazonOrdersImportedReadModelPrevPage,
+  onAmazonOrdersImportedReadModelNextPage,
+  onAmazonOrdersImportedReadModelLastPage,
   fetchShellMessage,
   executionContractStatus,
   preflightResult,
@@ -130,6 +145,19 @@ function AmazonOrdersConnectedServicesShell({
   onFetchShell: () => void;
   onPreviewShell: () => void;
   onImportCommitShell: () => void;
+  amazonOrdersPullRangePreset: AmazonOrdersPullRangePreset;
+  amazonOrdersCustomStartDate: string;
+  amazonOrdersCustomEndDate: string;
+  amazonOrdersImportedReadModelPageSize: 20 | 50 | 100;
+  amazonOrdersImportedReadModelPageIndex: number;
+  onAmazonOrdersPullRangePresetChange: (value: AmazonOrdersPullRangePreset) => void;
+  onAmazonOrdersCustomStartDateChange: (value: string) => void;
+  onAmazonOrdersCustomEndDateChange: (value: string) => void;
+  onAmazonOrdersImportedReadModelPageSizeChange: (value: 20 | 50 | 100) => void;
+  onAmazonOrdersImportedReadModelFirstPage: () => void;
+  onAmazonOrdersImportedReadModelPrevPage: () => void;
+  onAmazonOrdersImportedReadModelNextPage: () => void;
+  onAmazonOrdersImportedReadModelLastPage: () => void;
   onImportedReadModelRefresh: () => void;
   onImportedReadModelOpenDetail: (orderId: string) => void;
   onStagingCommitReadinessRefresh: () => void;
@@ -167,6 +195,16 @@ function AmazonOrdersConnectedServicesShell({
 }) {
   const importedReadModelOrders = importedReadModelList?.orders ?? [];
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
+  const amazonOrdersImportedReadModelTotalOrders =
+    importedReadModelList?.summary?.totalOrders ?? importedReadModelOrders.length;
+  const amazonOrdersImportedReadModelTotalPages = Math.max(
+    1,
+    Math.ceil(amazonOrdersImportedReadModelTotalOrders / amazonOrdersImportedReadModelPageSize),
+  );
+  const amazonOrdersImportedReadModelHasNext =
+    importedReadModelList?.pagination?.hasMore === true &&
+    Boolean(importedReadModelList?.pagination?.nextCursor);
+  const amazonOrdersImportedReadModelHasPrev = amazonOrdersImportedReadModelPageIndex > 1;
   const importedReadModelDetailOrder =
     importedReadModelDetail?.order ?? importedReadModelDetail?.detail?.order ?? null;
   const importedReadModelDetailItems =
@@ -239,7 +277,7 @@ function AmazonOrdersConnectedServicesShell({
           data-testid="data-import-connected-services-default-range"
           className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black text-emerald-800"
         >
-          既定の取得期間：最近7日
+          選択中：{amazonOrdersPullRangePreset === "CUSTOM" ? `${amazonOrdersCustomStartDate || "-"} 〜 ${amazonOrdersCustomEndDate || "-"}` : amazonOrdersPullRangePreset}
         </div>
       </div>
 
@@ -314,6 +352,313 @@ function AmazonOrdersConnectedServicesShell({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Step151-W-A-DATA-IMPORT-AMAZON-ORDERS-TABLE:
+          MoneyForward-like Amazon order list on the Data Import page.
+          Scope: ImportJob / ImportStagingRow / order read model display only.
+          Must not create Transaction, Expense, InventoryMovement, settlement, or bank reconciliation records. */}
+      <div
+        data-testid="data-import-amazon-orders-mf-style-table-panel"
+        className="mt-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Amazon Orders
+            </div>
+            <h3 className="mt-1 text-base font-black text-slate-950">
+              Amazon注文 明細一覧
+            </h3>
+            <p
+              data-testid="data-import-amazon-orders-mf-style-table-copy"
+              className="mt-1 text-xs font-bold leading-5 text-slate-500"
+            >
+              API取得後に ImportJob / ImportStagingRow に保存された注文を表示します。ここでは注文表示のみ行い、收入・支出・在庫・銀行対帳への書き込みは行いません。
+            </p>
+          </div>
+          <div
+            data-testid="data-import-amazon-orders-mf-style-table-boundary"
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800"
+          >
+            displayOnly=true / writesDatabase=false
+          </div>
+        </div>
+
+        <div
+          data-testid="data-import-amazon-orders-mf-style-filter-bar"
+          className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3"
+        >
+          <div className="grid gap-3 text-xs font-bold text-slate-700 md:grid-cols-[180px_140px_140px_120px_120px_1fr_110px]">
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">連携サービス</span>
+              <select
+                data-testid="data-import-amazon-orders-mf-style-service-select"
+                value="amazon"
+                disabled
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700"
+              >
+                <option value="amazon">Amazon.co.jp</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">期間</span>
+              <select
+                data-testid="data-import-amazon-orders-mf-style-range-preset"
+                value={amazonOrdersPullRangePreset}
+                onChange={(event) =>
+                  onAmazonOrdersPullRangePresetChange(event.target.value as AmazonOrdersPullRangePreset)
+                }
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700"
+              >
+                <option value="7D">過去7日</option>
+                <option value="30D">過去30日</option>
+                <option value="90D">過去90日</option>
+                <option value="365D">過去365日</option>
+                <option value="CUSTOM">カスタム</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">開始日</span>
+              <input
+                data-testid="data-import-amazon-orders-mf-style-start-date"
+                type="date"
+                value={amazonOrdersCustomStartDate}
+                onChange={(event) => onAmazonOrdersCustomStartDateChange(event.target.value)}
+                disabled={amazonOrdersPullRangePreset !== "CUSTOM"}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700 disabled:bg-slate-100"
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">終了日</span>
+              <input
+                data-testid="data-import-amazon-orders-mf-style-end-date"
+                type="date"
+                value={amazonOrdersCustomEndDate}
+                onChange={(event) => onAmazonOrdersCustomEndDateChange(event.target.value)}
+                disabled={amazonOrdersPullRangePreset !== "CUSTOM"}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700 disabled:bg-slate-100"
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">表示件数</span>
+              <select
+                data-testid="data-import-amazon-orders-mf-style-page-size"
+                value={amazonOrdersImportedReadModelPageSize}
+                onChange={(event) =>
+                  onAmazonOrdersImportedReadModelPageSizeChange(Number(event.target.value) as 20 | 50 | 100)
+                }
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700"
+              >
+                <option value={20}>20件</option>
+                <option value={50}>50件</option>
+                <option value={100}>100件</option>
+              </select>
+            </label>
+
+            <label className="grid gap-1">
+              <span className="font-black text-slate-500">内容</span>
+              <input
+                data-testid="data-import-amazon-orders-mf-style-content-search"
+                type="text"
+                disabled
+                placeholder="Step151-W-Bで有効化"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-400"
+              />
+            </label>
+
+            <div className="flex items-end">
+              <button
+                data-testid="data-import-amazon-orders-mf-style-search-button"
+                type="button"
+                onClick={onImportedReadModelRefresh}
+                disabled={importedReadModelLoading}
+                className="w-full rounded-xl bg-slate-800 px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {importedReadModelLoading ? "検索中" : "検索"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          data-testid="data-import-amazon-orders-mf-style-summary"
+          className="mt-3 grid gap-2 text-xs font-bold md:grid-cols-5"
+        >
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            totalOrders={String(importedReadModelList?.summary?.totalOrders ?? 0)}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            totalItems={String(importedReadModelList?.summary?.totalItems ?? 0)}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            amountTotal={String(importedReadModelList?.summary?.amountTotal ?? "-")}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            page={amazonOrdersImportedReadModelPageIndex}/{amazonOrdersImportedReadModelTotalPages}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            readOnly={String(importedReadModelList?.readOnly ?? true)}
+          </div>
+        </div>
+
+        {importedReadModelError ? (
+          <div
+            data-testid="data-import-amazon-orders-mf-style-error"
+            className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800"
+          >
+            {importedReadModelError}
+          </div>
+        ) : null}
+
+        <div
+          data-testid="data-import-amazon-orders-mf-style-table-wrapper"
+          className="mt-3 overflow-x-auto rounded-2xl border border-slate-200"
+        >
+          <table
+            data-testid="data-import-amazon-orders-mf-style-table"
+            className="min-w-[1080px] w-full border-collapse bg-white text-xs"
+          >
+            <thead className="bg-slate-100 text-left font-black text-slate-600">
+              <tr>
+                <th className="border-b border-r border-slate-200 px-3 py-2">日付</th>
+                <th className="border-b border-r border-slate-200 px-3 py-2">内容</th>
+                <th className="border-b border-r border-slate-200 px-3 py-2 text-right">金額</th>
+                <th className="border-b border-r border-slate-200 px-3 py-2">連携サービス</th>
+                <th className="border-b border-r border-slate-200 px-3 py-2">ステータス</th>
+                <th className="border-b border-r border-slate-200 px-3 py-2">注文番号</th>
+                <th className="border-b border-slate-200 px-3 py-2 text-center">詳細</th>
+              </tr>
+            </thead>
+            <tbody>
+              {importedReadModelOrders.length ? (
+                importedReadModelOrders.map((order) => (
+                  <tr
+                    key={`${order.orderId}-${order.importJobId || "no-job"}`}
+                    data-testid="data-import-amazon-orders-mf-style-table-row"
+                    className="hover:bg-sky-50"
+                  >
+                    <td className="border-b border-r border-slate-100 px-3 py-2 font-bold text-slate-700">
+                      {order.purchaseDate || "-"}
+                    </td>
+                    <td className="border-b border-r border-slate-100 px-3 py-2 font-bold text-slate-700">
+                      <div className="line-clamp-2">{order.content || "-"}</div>
+                      <div className="mt-1 text-[11px] text-slate-400">
+                        ImportJob={order.importJobId || "-"} / items={String(order.itemCount ?? 0)}
+                      </div>
+                    </td>
+                    <td className="border-b border-r border-slate-100 px-3 py-2 text-right font-black text-slate-900">
+                      {order.amount ?? "-"} {order.currency || ""}
+                    </td>
+                    <td className="border-b border-r border-slate-100 px-3 py-2 font-bold text-slate-700">
+                      {order.service || "Amazon.co.jp"}
+                    </td>
+                    <td className="border-b border-r border-slate-100 px-3 py-2 font-bold text-slate-700">
+                      <div>{order.status || "-"}</div>
+                      <div className="mt-1 text-[11px] text-slate-400">
+                        sku={order.skuStatus} / import={order.importStatus}
+                      </div>
+                    </td>
+                    <td className="border-b border-r border-slate-100 px-3 py-2 font-bold text-slate-700">
+                      {order.orderId}
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2 text-center">
+                      <button
+                        data-testid="data-import-amazon-orders-mf-style-detail-button"
+                        type="button"
+                        onClick={() => onImportedReadModelOpenDetail(order.orderId)}
+                        disabled={importedReadModelLoading}
+                        className="rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-black text-sky-700 hover:bg-sky-50 disabled:opacity-60"
+                      >
+                        詳細
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    data-testid="data-import-amazon-orders-mf-style-empty"
+                    colSpan={7}
+                    className="px-3 py-8 text-center text-xs font-bold text-slate-500"
+                  >
+                    まだ注文明細がありません。Amazon注文を取得して ImportJob / ImportStagingRow を作成後、「検索」で表示します。
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          data-testid="data-import-amazon-orders-mf-style-pagination"
+          className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 md:flex-row md:items-center md:justify-between"
+        >
+          <div>
+            {amazonOrdersImportedReadModelPageIndex} / {amazonOrdersImportedReadModelTotalPages} ページ・
+            表示 {String(importedReadModelOrders.length)} 件・
+            hasMore={String(importedReadModelList?.pagination?.hasMore ?? false)}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              data-testid="data-import-amazon-orders-mf-style-first-page"
+              type="button"
+              onClick={onAmazonOrdersImportedReadModelFirstPage}
+              disabled={importedReadModelLoading || !amazonOrdersImportedReadModelHasPrev}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-black text-slate-700 disabled:opacity-50"
+            >
+              首页
+            </button>
+            <button
+              data-testid="data-import-amazon-orders-mf-style-prev-page"
+              type="button"
+              onClick={onAmazonOrdersImportedReadModelPrevPage}
+              disabled={importedReadModelLoading || !amazonOrdersImportedReadModelHasPrev}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-black text-slate-700 disabled:opacity-50"
+            >
+              前一页
+            </button>
+            <button
+              data-testid="data-import-amazon-orders-mf-style-next-page"
+              type="button"
+              onClick={onAmazonOrdersImportedReadModelNextPage}
+              disabled={importedReadModelLoading || !amazonOrdersImportedReadModelHasNext}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-black text-slate-700 disabled:opacity-50"
+            >
+              后一页
+            </button>
+            <button
+              data-testid="data-import-amazon-orders-mf-style-last-page"
+              type="button"
+              onClick={onAmazonOrdersImportedReadModelLastPage}
+              disabled={importedReadModelLoading || !amazonOrdersImportedReadModelHasNext}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-black text-slate-700 disabled:opacity-50"
+            >
+              末页
+            </button>
+          </div>
+        </div>
+
+        {importedReadModelDetail ? (
+          <div
+            data-testid="data-import-amazon-orders-mf-style-detail-panel"
+            className="mt-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs font-bold text-cyan-950"
+          >
+            <div className="font-black text-cyan-700">注文詳細</div>
+            <div className="mt-1">
+              order={importedReadModelDetailOrder?.orderId || importedReadModelSelectedOrderId || "-"} /
+              items={String(importedReadModelDetailItems.length)}
+            </div>
+            <div className="mt-1">
+              readOnly={String(importedReadModelDetail.readOnly)} /
+              writesDatabase={String(importedReadModelDetail.boundaries?.writesDatabase)}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -1736,6 +2081,15 @@ export default function DataImportPage() {
   const [amazonOrdersImportedReadModelLoading, setAmazonOrdersImportedReadModelLoading] = useState(false);
   const [amazonOrdersImportedReadModelError, setAmazonOrdersImportedReadModelError] = useState("");
   const [amazonOrdersImportedReadModelSelectedOrderId, setAmazonOrdersImportedReadModelSelectedOrderId] = useState("");
+  const [amazonOrdersPullRangePreset, setAmazonOrdersPullRangePreset] =
+    useState<AmazonOrdersPullRangePreset>("7D");
+  const [amazonOrdersCustomStartDate, setAmazonOrdersCustomStartDate] = useState("");
+  const [amazonOrdersCustomEndDate, setAmazonOrdersCustomEndDate] = useState("");
+  const [amazonOrdersImportedReadModelPageSize, setAmazonOrdersImportedReadModelPageSize] =
+    useState<20 | 50 | 100>(20);
+  const [amazonOrdersImportedReadModelPageIndex, setAmazonOrdersImportedReadModelPageIndex] = useState(1);
+  const [amazonOrdersImportedReadModelCursorStack, setAmazonOrdersImportedReadModelCursorStack] =
+    useState<Array<string | null>>([null]);
   const [amazonOrdersStagingCommitReadiness, setAmazonOrdersStagingCommitReadiness] =
     useState<AmazonSpApiOrdersStagingCommitReadinessResponse | null>(null);
   const [amazonOrdersStagingCommitReadinessLoading, setAmazonOrdersStagingCommitReadinessLoading] = useState(false);
@@ -1775,6 +2129,43 @@ export default function DataImportPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  function deriveAmazonOrdersPullDateRange() {
+    const now = new Date();
+    const end = new Date(now);
+    let start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    if (amazonOrdersPullRangePreset === "30D") {
+      start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (amazonOrdersPullRangePreset === "90D") {
+      start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    } else if (amazonOrdersPullRangePreset === "365D") {
+      start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    } else if (amazonOrdersPullRangePreset === "CUSTOM") {
+      const customStart = amazonOrdersCustomStartDate ? new Date(`${amazonOrdersCustomStartDate}T00:00:00.000+09:00`) : null;
+      const customEnd = amazonOrdersCustomEndDate ? new Date(`${amazonOrdersCustomEndDate}T23:59:59.999+09:00`) : null;
+
+      if (customStart && !Number.isNaN(customStart.getTime())) {
+        start = customStart;
+      }
+
+      if (customEnd && !Number.isNaN(customEnd.getTime())) {
+        end.setTime(customEnd.getTime());
+      }
+    }
+
+    if (start.getTime() > end.getTime()) {
+      throw new Error("開始日は終了日以前にしてください。");
+    }
+
+    return {
+      createdAfter: start.toISOString(),
+      createdBefore: end.toISOString(),
+      rangePreset: amazonOrdersPullRangePreset,
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }
 
   async function handleAmazonOrdersConnectedServiceFetchShell() {
     setAmazonOrdersFetchExecutionContractStatus("preflight_checking");
@@ -1829,17 +2220,15 @@ export default function DataImportPage() {
     }
 
     try {
-      const now = new Date();
-      const createdBefore = now.toISOString();
-      const createdAfter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const dateRange = deriveAmazonOrdersPullDateRange();
 
       const response = await preflightAmazonSpApiOrdersGuardedImport({
         storeId: "step151-d-ui-contract-store",
         marketplaceId: "A1VC38T7YXB528",
         region: "JP",
-        createdAfter,
-        createdBefore,
-        rangePreset: "7D",
+        createdAfter: dateRange.createdAfter,
+        createdBefore: dateRange.createdBefore,
+        rangePreset: dateRange.rangePreset,
         explicitOperatorIntent: true,
       });
 
@@ -1927,14 +2316,23 @@ export default function DataImportPage() {
     return typeof orderId === "string" ? orderId : "";
   }
 
-  async function refreshAmazonOrdersImportedReadModel(orderIdHint?: string) {
+  async function refreshAmazonOrdersImportedReadModel(
+    orderIdHint?: string,
+    cursorOverride?: string | null,
+    pageIndexOverride?: number,
+  ) {
     setAmazonOrdersImportedReadModelLoading(true);
     setAmazonOrdersImportedReadModelError("");
 
     try {
+      const dateRange = deriveAmazonOrdersPullDateRange();
       const list = await listAmazonImportedOrders({
+        rangePreset: dateRange.rangePreset,
+        startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
+        endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
         orderId: orderIdHint || undefined,
-        limit: 10,
+        cursor: cursorOverride || undefined,
+        limit: amazonOrdersImportedReadModelPageSize,
       });
 
       if (list.boundaries?.writesDatabase !== false) {
@@ -1948,6 +2346,9 @@ export default function DataImportPage() {
       }
 
       setAmazonOrdersImportedReadModelList(list);
+      if (pageIndexOverride) {
+        setAmazonOrdersImportedReadModelPageIndex(pageIndexOverride);
+      }
 
       const selectedOrder =
         list.orders.find((order) => orderIdHint && order.orderId === orderIdHint) ??
@@ -1966,6 +2367,92 @@ export default function DataImportPage() {
       setAmazonOrdersImportedReadModelList(null);
       setAmazonOrdersImportedReadModelDetail(null);
       setAmazonOrdersImportedReadModelSelectedOrderId("");
+    } finally {
+      setAmazonOrdersImportedReadModelLoading(false);
+    }
+  }
+
+  function handleAmazonOrdersPullRangePresetChange(value: AmazonOrdersPullRangePreset) {
+    setAmazonOrdersPullRangePreset(value);
+    setAmazonOrdersImportedReadModelPageIndex(1);
+    setAmazonOrdersImportedReadModelCursorStack([null]);
+  }
+
+  function handleAmazonOrdersImportedReadModelPageSizeChange(value: 20 | 50 | 100) {
+    setAmazonOrdersImportedReadModelPageSize(value);
+    setAmazonOrdersImportedReadModelPageIndex(1);
+    setAmazonOrdersImportedReadModelCursorStack([null]);
+  }
+
+  async function handleAmazonOrdersImportedReadModelFirstPage() {
+    setAmazonOrdersImportedReadModelCursorStack([null]);
+    await refreshAmazonOrdersImportedReadModel(undefined, null, 1);
+  }
+
+  async function handleAmazonOrdersImportedReadModelPrevPage() {
+    const prevPageIndex = Math.max(1, amazonOrdersImportedReadModelPageIndex - 1);
+    const prevCursor = amazonOrdersImportedReadModelCursorStack[prevPageIndex - 1] || null;
+    await refreshAmazonOrdersImportedReadModel(undefined, prevCursor, prevPageIndex);
+  }
+
+  async function handleAmazonOrdersImportedReadModelNextPage() {
+    const nextCursor = amazonOrdersImportedReadModelList?.pagination?.nextCursor || null;
+    if (!nextCursor) return;
+
+    const nextPageIndex = amazonOrdersImportedReadModelPageIndex + 1;
+    const nextStack = [...amazonOrdersImportedReadModelCursorStack];
+    nextStack[nextPageIndex - 1] = nextCursor;
+    setAmazonOrdersImportedReadModelCursorStack(nextStack);
+
+    await refreshAmazonOrdersImportedReadModel(undefined, nextCursor, nextPageIndex);
+  }
+
+  async function handleAmazonOrdersImportedReadModelLastPage() {
+    setAmazonOrdersImportedReadModelLoading(true);
+    setAmazonOrdersImportedReadModelError("");
+
+    try {
+      const dateRange = deriveAmazonOrdersPullDateRange();
+      let cursor: string | null = null;
+      let pageIndex = 1;
+      const cursorStack: Array<string | null> = [null];
+      let latest = await listAmazonImportedOrders({
+        rangePreset: dateRange.rangePreset,
+        startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
+        endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
+        limit: amazonOrdersImportedReadModelPageSize,
+      });
+
+      while (latest.pagination?.hasMore && latest.pagination?.nextCursor && pageIndex < 200) {
+        cursor = latest.pagination.nextCursor;
+        pageIndex += 1;
+        cursorStack[pageIndex - 1] = cursor;
+        latest = await listAmazonImportedOrders({
+          rangePreset: dateRange.rangePreset,
+          startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
+          endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
+          cursor,
+          limit: amazonOrdersImportedReadModelPageSize,
+        });
+      }
+
+      if (latest.boundaries?.writesDatabase !== false) {
+        throw new Error("imported orders read-model must keep writesDatabase=false.");
+      }
+      if (latest.boundaries?.writesTransaction !== false) {
+        throw new Error("imported orders read-model must keep writesTransaction=false.");
+      }
+      if (latest.boundaries?.writesInventoryMovement !== false) {
+        throw new Error("imported orders read-model must keep writesInventoryMovement=false.");
+      }
+
+      setAmazonOrdersImportedReadModelCursorStack(cursorStack);
+      setAmazonOrdersImportedReadModelPageIndex(pageIndex);
+      setAmazonOrdersImportedReadModelList(latest);
+      setAmazonOrdersImportedReadModelDetail(null);
+      setAmazonOrdersImportedReadModelSelectedOrderId("");
+    } catch (err) {
+      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders last page failed");
     } finally {
       setAmazonOrdersImportedReadModelLoading(false);
     }
@@ -2258,6 +2745,19 @@ export default function DataImportPage() {
         onFetchShell={() => void handleAmazonOrdersConnectedServiceFetchShell()}
         onPreviewShell={() => void handleAmazonOrdersRealPreviewShell()}
         onImportCommitShell={() => void handleAmazonOrdersRealImportJobCommitShell()}
+        amazonOrdersPullRangePreset={amazonOrdersPullRangePreset}
+        amazonOrdersCustomStartDate={amazonOrdersCustomStartDate}
+        amazonOrdersCustomEndDate={amazonOrdersCustomEndDate}
+        amazonOrdersImportedReadModelPageSize={amazonOrdersImportedReadModelPageSize}
+        amazonOrdersImportedReadModelPageIndex={amazonOrdersImportedReadModelPageIndex}
+        onAmazonOrdersPullRangePresetChange={handleAmazonOrdersPullRangePresetChange}
+        onAmazonOrdersCustomStartDateChange={setAmazonOrdersCustomStartDate}
+        onAmazonOrdersCustomEndDateChange={setAmazonOrdersCustomEndDate}
+        onAmazonOrdersImportedReadModelPageSizeChange={handleAmazonOrdersImportedReadModelPageSizeChange}
+        onAmazonOrdersImportedReadModelFirstPage={() => void handleAmazonOrdersImportedReadModelFirstPage()}
+        onAmazonOrdersImportedReadModelPrevPage={() => void handleAmazonOrdersImportedReadModelPrevPage()}
+        onAmazonOrdersImportedReadModelNextPage={() => void handleAmazonOrdersImportedReadModelNextPage()}
+        onAmazonOrdersImportedReadModelLastPage={() => void handleAmazonOrdersImportedReadModelLastPage()}
         fetchShellMessage={amazonOrdersFetchShellMessage}
         executionContractStatus={amazonOrdersFetchExecutionContractStatus}
         preflightResult={amazonOrdersPreflightResult}
