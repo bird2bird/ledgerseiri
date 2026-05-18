@@ -13,12 +13,14 @@ import {
   listAmazonImportedOrders,
   getAmazonImportedOrderDetail,
   readAmazonSpApiOrdersStagingCommitReadiness,
+  readAmazonSpApiOrdersTransactionDryRunProjection,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
   type AmazonImportedOrdersReadModelListResponse,
   type AmazonImportedOrderDetailReadModelResponse,
   type AmazonSpApiOrdersStagingCommitReadinessResponse,
+  type AmazonSpApiOrdersTransactionDryRunProjectionResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -102,9 +104,13 @@ function AmazonOrdersConnectedServicesShell({
   stagingCommitReadiness,
   stagingCommitReadinessLoading,
   stagingCommitReadinessError,
+  transactionDryRunProjection,
+  transactionDryRunProjectionLoading,
+  transactionDryRunProjectionError,
   onImportedReadModelRefresh,
   onImportedReadModelOpenDetail,
   onStagingCommitReadinessRefresh,
+  onTransactionDryRunProjectionRefresh,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
@@ -112,6 +118,7 @@ function AmazonOrdersConnectedServicesShell({
   onImportedReadModelRefresh: () => void;
   onImportedReadModelOpenDetail: (orderId: string) => void;
   onStagingCommitReadinessRefresh: () => void;
+  onTransactionDryRunProjectionRefresh: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -130,6 +137,9 @@ function AmazonOrdersConnectedServicesShell({
   stagingCommitReadiness: AmazonSpApiOrdersStagingCommitReadinessResponse | null;
   stagingCommitReadinessLoading: boolean;
   stagingCommitReadinessError: string;
+  transactionDryRunProjection: AmazonSpApiOrdersTransactionDryRunProjectionResponse | null;
+  transactionDryRunProjectionLoading: boolean;
+  transactionDryRunProjectionError: string;
 }) {
   const importedReadModelOrders = importedReadModelList?.orders ?? [];
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
@@ -168,6 +178,10 @@ function AmazonOrdersConnectedServicesShell({
     ]),
   );
   const stagingCommitReadinessPreviewRows = stagingCommitReadinessRows.slice(0, 5);
+  const transactionProjectionDrafts = transactionDryRunProjection?.drafts ?? [];
+  const transactionProjectionExcluded = transactionDryRunProjection?.excluded ?? [];
+  const transactionProjectionPreviewDrafts = transactionProjectionDrafts.slice(0, 5);
+  const transactionProjectionPreviewExcluded = transactionProjectionExcluded.slice(0, 5);
 
   return (
     <section
@@ -1004,6 +1018,149 @@ function AmazonOrdersConnectedServicesShell({
                       )}
                     </div>
 
+                    {/* Step151-O-TRANSACTION-DRY-RUN-PROJECTION-UI:
+                        Project future Transaction drafts from readiness READY rows only.
+                        This is dry-run only and must not create Transaction or InventoryMovement. */}
+                    <div
+                      data-testid="data-import-connected-service-amazon-orders-transaction-projection-panel"
+                      className="mt-4 rounded-3xl border border-lime-200 bg-lime-50 px-4 py-4 text-xs font-bold leading-5 text-lime-950"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-lime-700">
+                            Step151-O Transaction Dry-run Projection
+                          </div>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">
+                            Transaction draft preview
+                          </h3>
+                          <p
+                            data-testid="data-import-connected-service-amazon-orders-transaction-projection-copy"
+                            className="mt-1 max-w-3xl text-xs font-bold leading-5 text-lime-900"
+                          >
+                            readiness=READY の ImportStagingRow だけを使い、将来作成する収入 Transaction draft を計算します。この段階では Transaction 作成・InventoryMovement 書き込みは行いません。
+                          </p>
+                        </div>
+                        <button
+                          data-testid="data-import-connected-service-amazon-orders-transaction-projection-refresh-button"
+                          type="button"
+                          onClick={onTransactionDryRunProjectionRefresh}
+                          disabled={!realImportJobCommitResult?.importJobId || transactionDryRunProjectionLoading}
+                          className="inline-flex rounded-xl border border-lime-300 bg-white px-4 py-2 text-xs font-black text-lime-800 shadow-sm transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {transactionDryRunProjectionLoading ? "計算中..." : "Transaction draft を確認"}
+                        </button>
+                      </div>
+
+                      {transactionDryRunProjectionError ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-transaction-projection-error"
+                          className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                        >
+                          {transactionDryRunProjectionError}
+                        </div>
+                      ) : null}
+
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-transaction-projection-boundaries"
+                        className="mt-3 grid gap-2 md:grid-cols-4"
+                      >
+                        <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2 font-black">
+                          writesDatabase=false
+                        </div>
+                        <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2 font-black">
+                          transactionWriteNow=false
+                        </div>
+                        <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2 font-black">
+                          inventoryWriteNow=false
+                        </div>
+                        <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2 font-black">
+                          historicalSyncNow=false
+                        </div>
+                      </div>
+
+                      {transactionDryRunProjection ? (
+                        <>
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-transaction-projection-summary"
+                            className="mt-4 grid gap-2 md:grid-cols-4"
+                          >
+                            <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-lime-700">Projected rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-transaction-projection-rows">
+                                {String(transactionDryRunProjection.projectedTransactionRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-lime-700">Excluded rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-transaction-projection-excluded">
+                                {String(transactionDryRunProjection.excludedRows)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-lime-700">Amount total</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-transaction-projection-amount-total">
+                                {String(transactionDryRunProjection.amountTotal)} {transactionDryRunProjection.currency}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-lime-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-lime-700">Source</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-transaction-projection-source">
+                                amazon-sp-api-orders
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-transaction-projection-drafts"
+                            className="mt-3 grid gap-2"
+                          >
+                            {transactionProjectionPreviewDrafts.map((draft) => (
+                              <div
+                                key={draft.stagingRowId}
+                                data-testid="data-import-connected-service-amazon-orders-transaction-projection-draft-row"
+                                className="rounded-2xl border border-lime-200 bg-white px-3 py-2"
+                              >
+                                <div className="font-black text-slate-950">
+                                  {draft.transactionDate} / {draft.amount} {draft.currency}
+                                </div>
+                                <div className="mt-1 text-lime-900">
+                                  counterparty={draft.counterparty} / source={draft.source} / rowNo={draft.evidenceSourceRowNo}
+                                </div>
+                                <div className="mt-1 text-lime-900">
+                                  order={draft.sourceOrderId || "-"} / item={draft.sourceOrderItemId || "-"} / dedupeHash={draft.dedupeHash}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-transaction-projection-excluded-rows"
+                            className="mt-3 rounded-2xl border border-lime-200 bg-white px-3 py-3"
+                          >
+                            <div className="text-[11px] font-black text-lime-700">Excluded blocked rows</div>
+                            {transactionProjectionPreviewExcluded.length ? (
+                              <div className="mt-2 grid gap-2">
+                                {transactionProjectionPreviewExcluded.map((row) => (
+                                  <div key={row.stagingRowId} className="rounded-xl border border-lime-100 bg-lime-50 px-3 py-2">
+                                    rowNo={row.rowNo} / order={row.amazonOrderId || "-"} / reasons={(row.excludedReasons || []).join(",") || "none"}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-lime-900">none</div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-transaction-projection-empty"
+                          className="mt-3 rounded-2xl border border-lime-200 bg-white px-3 py-2 text-lime-800"
+                        >
+                          まだ Transaction draft は計算されていません。ImportJob 作成後に自動計算されます。
+                        </div>
+                      )}
+                    </div>
+
                     {/* Step151-L-IMPORTED-ORDERS-READ-MODEL-REFRESH-UI:
                         After real-importjob commit succeeds, refresh the imported orders read-model.
                         This reads existing ImportJob / ImportStagingRow only and must not create
@@ -1219,6 +1376,10 @@ export default function DataImportPage() {
     useState<AmazonSpApiOrdersStagingCommitReadinessResponse | null>(null);
   const [amazonOrdersStagingCommitReadinessLoading, setAmazonOrdersStagingCommitReadinessLoading] = useState(false);
   const [amazonOrdersStagingCommitReadinessError, setAmazonOrdersStagingCommitReadinessError] = useState("");
+  const [amazonOrdersTransactionDryRunProjection, setAmazonOrdersTransactionDryRunProjection] =
+    useState<AmazonSpApiOrdersTransactionDryRunProjectionResponse | null>(null);
+  const [amazonOrdersTransactionDryRunProjectionLoading, setAmazonOrdersTransactionDryRunProjectionLoading] = useState(false);
+  const [amazonOrdersTransactionDryRunProjectionError, setAmazonOrdersTransactionDryRunProjectionError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -1259,6 +1420,9 @@ export default function DataImportPage() {
     setAmazonOrdersStagingCommitReadiness(null);
     setAmazonOrdersStagingCommitReadinessError("");
     setAmazonOrdersStagingCommitReadinessLoading(false);
+    setAmazonOrdersTransactionDryRunProjection(null);
+    setAmazonOrdersTransactionDryRunProjectionError("");
+    setAmazonOrdersTransactionDryRunProjectionLoading(false);
     setAmazonOrdersImportedReadModelList(null);
     setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
@@ -1267,6 +1431,9 @@ export default function DataImportPage() {
     setAmazonOrdersStagingCommitReadiness(null);
     setAmazonOrdersStagingCommitReadinessError("");
     setAmazonOrdersStagingCommitReadinessLoading(false);
+    setAmazonOrdersTransactionDryRunProjection(null);
+    setAmazonOrdersTransactionDryRunProjectionError("");
+    setAmazonOrdersTransactionDryRunProjectionLoading(false);
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。まず preflight で接続状態・取得範囲・明示確認の必要性を確認します。"
     );
@@ -1481,6 +1648,42 @@ export default function DataImportPage() {
     }
   }
 
+  async function refreshAmazonOrdersTransactionDryRunProjection(importJobId?: string | null) {
+    const normalizedImportJobId = String(importJobId || "").trim();
+
+    if (!normalizedImportJobId) {
+      setAmazonOrdersTransactionDryRunProjectionError("ImportJob ID がないため Transaction draft を確認できません。");
+      return;
+    }
+
+    setAmazonOrdersTransactionDryRunProjectionLoading(true);
+    setAmazonOrdersTransactionDryRunProjectionError("");
+
+    try {
+      const projection = await readAmazonSpApiOrdersTransactionDryRunProjection(normalizedImportJobId);
+
+      if (projection.writesDatabase !== false) {
+        throw new Error("transaction dry-run projection must keep writesDatabase=false.");
+      }
+      if (projection.transactionWriteNow !== false || projection.createsTransactionNow !== false) {
+        throw new Error("transaction dry-run projection must not create Transaction.");
+      }
+      if (projection.inventoryWriteNow !== false || projection.createsInventoryMovementNow !== false) {
+        throw new Error("transaction dry-run projection must not write InventoryMovement.");
+      }
+      if (projection.historicalSyncNow !== false) {
+        throw new Error("transaction dry-run projection must not run historical sync.");
+      }
+
+      setAmazonOrdersTransactionDryRunProjection(projection);
+    } catch (err) {
+      setAmazonOrdersTransactionDryRunProjectionError(err instanceof Error ? err.message : "transaction dry-run projection failed");
+      setAmazonOrdersTransactionDryRunProjection(null);
+    } finally {
+      setAmazonOrdersTransactionDryRunProjectionLoading(false);
+    }
+  }
+
   async function handleAmazonOrdersRealImportJobCommitShell() {
     if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
       setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
@@ -1534,6 +1737,7 @@ export default function DataImportPage() {
       await load();
       await refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult));
       await refreshAmazonOrdersStagingCommitReadiness(response.importJobId);
+      await refreshAmazonOrdersTransactionDryRunProjection(response.importJobId);
     } catch (err) {
       setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
       setAmazonOrdersFetchShellMessage(
@@ -1598,9 +1802,13 @@ export default function DataImportPage() {
         stagingCommitReadiness={amazonOrdersStagingCommitReadiness}
         stagingCommitReadinessLoading={amazonOrdersStagingCommitReadinessLoading}
         stagingCommitReadinessError={amazonOrdersStagingCommitReadinessError}
+        transactionDryRunProjection={amazonOrdersTransactionDryRunProjection}
+        transactionDryRunProjectionLoading={amazonOrdersTransactionDryRunProjectionLoading}
+        transactionDryRunProjectionError={amazonOrdersTransactionDryRunProjectionError}
         onImportedReadModelRefresh={() => void refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult))}
         onImportedReadModelOpenDetail={(orderId) => void openAmazonOrdersImportedReadModelDetail(orderId)}
         onStagingCommitReadinessRefresh={() => void refreshAmazonOrdersStagingCommitReadiness(amazonOrdersRealImportJobCommitResult?.importJobId)}
+        onTransactionDryRunProjectionRefresh={() => void refreshAmazonOrdersTransactionDryRunProjection(amazonOrdersRealImportJobCommitResult?.importJobId)}
       />
 
       <AmazonSpApiConnectionStatusPanel />

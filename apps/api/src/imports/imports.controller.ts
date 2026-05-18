@@ -22,6 +22,7 @@ import { verifyAmazonSpApiOrdersRealPreviewProductionReadiness } from './amazon-
 import { persistAmazonSpApiOrdersRealPreviewToImportJobAndStagingRows } from './amazon-sp-api-orders-real-importjob-persistence.service';
 import { resolveAmazonSpApiOrdersDateRangeForRequest } from './amazon-sp-api-orders-date-range.contract';
 import { evaluateAmazonSpApiOrdersStagingCommitReadiness } from './amazon-sp-api-orders-staging-commit-readiness.service';
+import { projectAmazonSpApiOrdersReadyRowsToTransactionDryRun } from './amazon-sp-api-orders-transaction-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
   assertAmazonSpApiOrdersHistoricalSyncDisabledPlanPreviewControllerContract,
@@ -140,6 +141,11 @@ type AmazonSpApiOrdersRealImportJobCommitRouteResponse = Awaited<
 };
 
 type AmazonSpApiOrdersStagingCommitReadinessRouteBody = {
+  importJobId?: string;
+  dryRun?: boolean;
+};
+
+type AmazonSpApiOrdersTransactionDryRunProjectionRouteBody = {
   importJobId?: string;
   dryRun?: boolean;
 };
@@ -1055,6 +1061,42 @@ export class ImportsController {
   // Step141-G1: Amazon SP-API Orders staging commit readiness / dry-run contract.
   // Read-only readiness endpoint for future explicit commit into Transaction / InventoryMovement.
   // This endpoint must not create Transaction, InventoryMovement, InventoryBalance, or mutate ImportStagingRow.
+  @UseGuards(JwtAuthGuard)
+  @Post('amazon-sp-api/orders/transaction-dry-run-projection')
+  async amazonSpApiOrdersTransactionDryRunProjectionControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Body() body: AmazonSpApiOrdersTransactionDryRunProjectionRouteBody,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_O_TRANSACTION_PROJECTION_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    if (body?.dryRun !== true) {
+      throw new BadRequestException(
+        'STEP151_O_TRANSACTION_PROJECTION_DRY_RUN_REQUIRED: dryRun must be true.',
+      );
+    }
+
+    const result = await projectAmazonSpApiOrdersReadyRowsToTransactionDryRun({
+      prisma: this.prismaService,
+      companyId,
+      importJobId: String(body?.importJobId || '').trim(),
+    });
+
+    return {
+      ...result,
+      step151OTransactionProjectionRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+    };
+  }
+
+
   @UseGuards(JwtAuthGuard)
   @Post('amazon-sp-api/orders/staging-commit-readiness')
   async amazonSpApiOrdersStagingCommitReadinessControllerRoute(

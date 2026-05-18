@@ -49,7 +49,8 @@
     "smoke:step151-j:amazon-import-real-importjob-commit-ui": "node scripts/smoke-step151-j-amazon-import-real-importjob-commit-ui.js",
     "smoke:step151-l:amazon-import-read-model-refresh-ui": "node scripts/smoke-step151-l-amazon-import-read-model-refresh-ui.js",
     "smoke:step151-m:amazon-import-center-closeout-ux": "node scripts/smoke-step151-m-amazon-import-center-closeout-ux.js",
-    "smoke:step151-n:amazon-orders-staging-commit-readiness-ui": "node scripts/smoke-step151-n-amazon-orders-staging-commit-readiness-ui.js"
+    "smoke:step151-n:amazon-orders-staging-commit-readiness-ui": "node scripts/smoke-step151-n-amazon-orders-staging-commit-readiness-ui.js",
+    "smoke:step151-o:amazon-orders-transaction-dry-run-projection-ui": "node scripts/smoke-step151-o-amazon-orders-transaction-dry-run-projection-ui.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
