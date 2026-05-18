@@ -9,8 +9,10 @@ import { normalizeLang, type Lang } from "@/lib/i18n/lang";
 import {
   preflightAmazonSpApiOrdersGuardedImport,
   previewAmazonSpApiOrdersReal,
+  commitAmazonSpApiOrdersRealImportJob,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
+  type AmazonSpApiOrdersRealImportJobCommitResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -75,6 +77,7 @@ const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
 function AmazonOrdersConnectedServicesShell({
   onFetchShell,
   onPreviewShell,
+  onImportCommitShell,
   fetchShellMessage,
   executionContractStatus,
   preflightResult,
@@ -82,9 +85,13 @@ function AmazonOrdersConnectedServicesShell({
   realPreviewResult,
   realPreviewLoading,
   realPreviewError,
+  realImportJobCommitResult,
+  realImportJobCommitLoading,
+  realImportJobCommitError,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
+  onImportCommitShell: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -92,6 +99,9 @@ function AmazonOrdersConnectedServicesShell({
   realPreviewResult: AmazonSpApiOrdersRealPreviewResponse | null;
   realPreviewLoading: boolean;
   realPreviewError: string;
+  realImportJobCommitResult: AmazonSpApiOrdersRealImportJobCommitResponse | null;
+  realImportJobCommitLoading: boolean;
+  realImportJobCommitError: string;
 }) {
   return (
     <section
@@ -561,11 +571,12 @@ function AmazonOrdersConnectedServicesShell({
                     <button
                       data-testid="data-import-connected-service-amazon-orders-import-confirm-button"
                       type="button"
-                      disabled
-                      title="Step151-I は確認 shell のみです。real-importjob は Step151-J 以降で明示的に接続します。"
-                      className="inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-800 opacity-70 shadow-sm"
+                      onClick={onImportCommitShell}
+                      disabled={realImportJobCommitLoading}
+                      title="Step151-J は ImportJob / ImportStagingRow のみを作成します。Transaction / InventoryMovement は作成しません。"
+                      className="inline-flex rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      取込作成（次ステップ）
+                      {realImportJobCommitLoading ? "取込作成中..." : "取込作成"}
                     </button>
                   </div>
 
@@ -624,7 +635,111 @@ function AmazonOrdersConnectedServicesShell({
                     data-testid="data-import-connected-service-amazon-orders-import-confirmation-no-execution"
                     className="mt-3 rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black text-amber-900"
                   >
-                    Step151-I no-execution: commitAmazonSpApiOrdersRealImportJob is not called in this step.
+                    Step151-J explicit execution: commitAmazonSpApiOrdersRealImportJob is called only from this confirmation button.
+                  </div>
+
+                  {/* Step151-J-REAL-IMPORTJOB-COMMIT-UI:
+                      Explicit confirmation calls real-importjob.
+                      This writes ImportJob + ImportStagingRow only.
+                      It must not create Transaction or InventoryMovement. */}
+                  <div
+                    data-testid="data-import-connected-service-amazon-orders-real-importjob-result"
+                    className="mt-3 rounded-3xl border border-violet-200 bg-violet-50 px-4 py-4 text-xs font-bold leading-5 text-violet-950"
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-700">
+                          Step151-J ImportJob Commit Result
+                        </div>
+                        <h3 className="mt-1 text-sm font-black text-slate-950">
+                          ImportJob / ImportStagingRow 作成結果
+                        </h3>
+                        <p
+                          data-testid="data-import-connected-service-amazon-orders-real-importjob-copy"
+                          className="mt-1 max-w-3xl text-xs font-bold leading-5 text-violet-900"
+                        >
+                          Step151-J は ImportJob と ImportStagingRow の作成のみを行います。Transaction 作成・InventoryMovement 書き込み・historical sync は行いません。
+                        </p>
+                      </div>
+                      <span
+                        data-testid="data-import-connected-service-amazon-orders-real-importjob-status"
+                        className="inline-flex rounded-full border border-violet-300 bg-white px-3 py-1 text-xs font-black text-violet-700"
+                      >
+                        {realImportJobCommitLoading ? "loading" : realImportJobCommitResult ? "importjob_created" : "not_created"}
+                      </span>
+                    </div>
+
+                    {realImportJobCommitError ? (
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-real-importjob-error"
+                        className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                      >
+                        {realImportJobCommitError}
+                      </div>
+                    ) : null}
+
+                    {realImportJobCommitResult ? (
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-real-importjob-summary"
+                        className="mt-4 grid gap-2 md:grid-cols-4"
+                      >
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">ImportJob ID</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-id">
+                            {realImportJobCommitResult.importJobId || "-"}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Total rows</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-total-rows">
+                            {String(realImportJobCommitResult.totalRows ?? "-")}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Success rows</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-success-rows">
+                            {String(realImportJobCommitResult.successRows ?? "-")}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Failed rows</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-failed-rows">
+                            {String(realImportJobCommitResult.failedRows ?? "-")}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Writes ImportJob</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-writes-importjob">
+                            {String(realImportJobCommitResult.boundaries?.writesImportJob ?? realImportJobCommitResult.controllerWritesImportJob ?? false)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Writes Staging</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-writes-staging">
+                            {String(realImportJobCommitResult.boundaries?.writesImportStagingRow ?? realImportJobCommitResult.controllerWritesImportStagingRows ?? false)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Writes Transaction</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-writes-transaction">
+                            {String(realImportJobCommitResult.boundaries?.writesTransaction ?? realImportJobCommitResult.controllerWritesTransaction ?? false)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200 bg-white px-3 py-2">
+                          <div className="text-[11px] font-black text-violet-700">Writes Inventory</div>
+                          <div data-testid="data-import-connected-service-amazon-orders-real-importjob-writes-inventory">
+                            {String(realImportJobCommitResult.boundaries?.writesInventoryMovement ?? realImportJobCommitResult.controllerWritesInventory ?? false)}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-real-importjob-empty"
+                        className="mt-3 rounded-2xl border border-violet-200 bg-white px-3 py-2 text-violet-800"
+                      >
+                        まだ ImportJob は作成されていません。「取込作成」を押すと ImportJob / ImportStagingRow のみを作成します。
+                      </div>
+                    )}
                   </div>
                 </div>
                 </>
@@ -676,6 +791,10 @@ export default function DataImportPage() {
     useState<AmazonSpApiOrdersRealPreviewResponse | null>(null);
   const [amazonOrdersRealPreviewLoading, setAmazonOrdersRealPreviewLoading] = useState(false);
   const [amazonOrdersRealPreviewError, setAmazonOrdersRealPreviewError] = useState("");
+  const [amazonOrdersRealImportJobCommitResult, setAmazonOrdersRealImportJobCommitResult] =
+    useState<AmazonSpApiOrdersRealImportJobCommitResponse | null>(null);
+  const [amazonOrdersRealImportJobCommitLoading, setAmazonOrdersRealImportJobCommitLoading] = useState(false);
+  const [amazonOrdersRealImportJobCommitError, setAmazonOrdersRealImportJobCommitError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -705,6 +824,9 @@ export default function DataImportPage() {
     setAmazonOrdersRealPreviewResult(null);
     setAmazonOrdersRealPreviewError("");
     setAmazonOrdersRealPreviewLoading(false);
+    setAmazonOrdersRealImportJobCommitResult(null);
+    setAmazonOrdersRealImportJobCommitError("");
+    setAmazonOrdersRealImportJobCommitLoading(false);
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。Step151-D は preflight endpoint だけを呼び出して、接続状態・取得範囲・明示確認の必要性を確認します。プレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。"
     );
@@ -762,6 +884,9 @@ export default function DataImportPage() {
     setAmazonOrdersRealPreviewLoading(true);
     setAmazonOrdersRealPreviewError("");
     setAmazonOrdersRealPreviewResult(null);
+    setAmazonOrdersRealImportJobCommitResult(null);
+    setAmazonOrdersRealImportJobCommitError("");
+    setAmazonOrdersRealImportJobCommitLoading(false);
     setAmazonOrdersFetchExecutionContractStatus("preview_required");
     setAmazonOrdersFetchShellMessage(
       "Step151-G: real-preview を実行しています。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。"
@@ -804,6 +929,65 @@ export default function DataImportPage() {
     }
   }
 
+  async function handleAmazonOrdersRealImportJobCommitShell() {
+    if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
+      setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
+      return;
+    }
+
+    const createdAfter = amazonOrdersPreflightResult.dateRange.createdAfter;
+    const createdBefore = amazonOrdersPreflightResult.dateRange.createdBefore;
+
+    if (!createdAfter || !createdBefore) {
+      setAmazonOrdersRealImportJobCommitError("createdAfter / createdBefore が不足しています。");
+      return;
+    }
+
+    setAmazonOrdersRealImportJobCommitLoading(true);
+    setAmazonOrdersRealImportJobCommitError("");
+    setAmazonOrdersRealImportJobCommitResult(null);
+    setAmazonOrdersFetchExecutionContractStatus("confirmation_required");
+    setAmazonOrdersFetchShellMessage(
+      "Step151-J: ImportJob / ImportStagingRow を作成しています。Transaction 作成・InventoryMovement 書き込みは行いません。"
+    );
+
+    try {
+      const response = await commitAmazonSpApiOrdersRealImportJob({
+        storeId: amazonOrdersPreflightResult.scope.storeId,
+        marketplaceId: amazonOrdersPreflightResult.scope.marketplaceId,
+        region: amazonOrdersPreflightResult.scope.region,
+        createdAfter,
+        createdBefore,
+        realPreview: true,
+      });
+
+      if (response.controllerWritesTransaction !== false) {
+        throw new Error("real-importjob response must keep controllerWritesTransaction=false.");
+      }
+      if (response.controllerWritesInventory !== false) {
+        throw new Error("real-importjob response must keep controllerWritesInventory=false.");
+      }
+      if (response.boundaries?.writesTransaction !== false) {
+        throw new Error("real-importjob response must keep boundaries.writesTransaction=false.");
+      }
+      if (response.boundaries?.writesInventoryMovement !== false && response.boundaries?.writesInventory !== false) {
+        throw new Error("real-importjob response must keep inventory write boundaries=false.");
+      }
+
+      setAmazonOrdersRealImportJobCommitResult(response);
+      setAmazonOrdersFetchShellMessage(
+        `ImportJob を作成しました。importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")}`
+      );
+    } catch (err) {
+      setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
+      setAmazonOrdersFetchShellMessage(
+        "ImportJob 作成に失敗しました。Transaction / InventoryMovement 作成には進みません。"
+      );
+    } finally {
+      setAmazonOrdersRealImportJobCommitLoading(false);
+    }
+  }
+
   const latestUpdatedAt = useMemo(() => {
     const values = jobs
       .map((x) => {
@@ -839,6 +1023,7 @@ export default function DataImportPage() {
       <AmazonOrdersConnectedServicesShell
         onFetchShell={() => void handleAmazonOrdersConnectedServiceFetchShell()}
         onPreviewShell={() => void handleAmazonOrdersRealPreviewShell()}
+        onImportCommitShell={() => void handleAmazonOrdersRealImportJobCommitShell()}
         fetchShellMessage={amazonOrdersFetchShellMessage}
         executionContractStatus={amazonOrdersFetchExecutionContractStatus}
         preflightResult={amazonOrdersPreflightResult}
@@ -846,6 +1031,9 @@ export default function DataImportPage() {
         realPreviewResult={amazonOrdersRealPreviewResult}
         realPreviewLoading={amazonOrdersRealPreviewLoading}
         realPreviewError={amazonOrdersRealPreviewError}
+        realImportJobCommitResult={amazonOrdersRealImportJobCommitResult}
+        realImportJobCommitLoading={amazonOrdersRealImportJobCommitLoading}
+        realImportJobCommitError={amazonOrdersRealImportJobCommitError}
       />
 
       <AmazonSpApiConnectionStatusPanel />
