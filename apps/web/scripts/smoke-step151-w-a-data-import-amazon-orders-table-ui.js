@@ -49,6 +49,12 @@ mustContain('handleAmazonOrdersImportedReadModelContentSearchChange');
 mustContain('void refreshAmazonOrdersImportedReadModel(undefined, null, 1);');
 mustContain('content: content || undefined');
 mustContain('注文番号・SKU・商品名');
+mustContain('data-import-amazon-orders-mf-style-selected-range');
+mustContain('startDate: dateRange.startDate');
+mustContain('endDate: dateRange.endDate');
+mustContain('期間=${dateRange.startDate}〜${dateRange.endDate}');
+mustContain('await refreshAmazonOrdersImportedReadModel(undefined, null, 1);');
+mustContain('openAmazonOrdersImportedReadModelDetail(firstOrderId)');
 
 const panelStart = text.indexOf('data-import-amazon-orders-mf-style-table-panel');
 const panelEnd = text.indexOf('data-import-connected-service-amazon-orders-execution-contract', panelStart);
@@ -100,6 +106,21 @@ for (const propName of [
   if (occurrences !== 1) {
     throw new Error(`AmazonOrdersConnectedServicesShell parameter ${propName} must appear exactly once, got ${occurrences}`);
   }
+}
+
+
+// Step151-W-C single order refresh guard:
+// after real ImportJob creation, Data Import table must refresh as a full table,
+// not only filter by the first preview order id.
+const importJobCommitStart = text.indexOf('async function handleAmazonOrdersRealImportJobCommitShell');
+const importJobCommitEnd = text.indexOf('async function refreshAmazonOrdersStagingCommitReadiness', importJobCommitStart);
+const importJobCommitBlock =
+  importJobCommitStart >= 0 && importJobCommitEnd > importJobCommitStart
+    ? text.slice(importJobCommitStart, importJobCommitEnd)
+    : '';
+
+if (importJobCommitBlock.includes('refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId')) {
+  throw new Error('Step151-W-C drift: importjob success must refresh full order table, not first-order-only filter.');
 }
 
 console.log('[OK] Step151-W-A Data Import Amazon orders table UI smoke passed.');

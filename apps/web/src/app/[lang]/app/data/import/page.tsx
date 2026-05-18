@@ -491,6 +491,16 @@ function AmazonOrdersConnectedServicesShell({
         </div>
 
         <div
+          data-testid="data-import-amazon-orders-mf-style-selected-range"
+          className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-black text-sky-800"
+        >
+          表示対象期間：
+          {amazonOrdersPullRangePreset === "CUSTOM"
+            ? `${amazonOrdersCustomStartDate || "-"} 〜 ${amazonOrdersCustomEndDate || "-"}`
+            : amazonOrdersPullRangePreset}
+        </div>
+
+        <div
           data-testid="data-import-amazon-orders-mf-style-summary"
           className="mt-3 grid gap-2 text-xs font-bold md:grid-cols-5"
         >
@@ -2281,12 +2291,16 @@ export default function DataImportPage() {
     );
 
     try {
+      const dateRange = deriveAmazonOrdersPullDateRange();
+
       const response = await previewAmazonSpApiOrdersReal({
         storeId: amazonOrdersPreflightResult.scope.storeId,
         marketplaceId: amazonOrdersPreflightResult.scope.marketplaceId,
         region: amazonOrdersPreflightResult.scope.region,
         createdAfter,
         createdBefore,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
         realPreview: true,
       });
 
@@ -2684,12 +2698,16 @@ export default function DataImportPage() {
     );
 
     try {
+      const dateRange = deriveAmazonOrdersPullDateRange();
+
       const response = await commitAmazonSpApiOrdersRealImportJob({
         storeId: amazonOrdersPreflightResult.scope.storeId,
         marketplaceId: amazonOrdersPreflightResult.scope.marketplaceId,
         region: amazonOrdersPreflightResult.scope.region,
         createdAfter,
         createdBefore,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
         realPreview: true,
       });
 
@@ -2708,11 +2726,19 @@ export default function DataImportPage() {
 
       setAmazonOrdersRealImportJobCommitResult(response);
       setAmazonOrdersFetchShellMessage(
-        `取込完了。importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")} / Transaction・Inventory はまだ未反映です。`
+        `取込完了。期間=${dateRange.startDate}〜${dateRange.endDate} / importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")} / Transaction・Inventory はまだ未反映です。`
       );
 
       await load();
-      await refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult));
+      setAmazonOrdersImportedReadModelCursorStack([null]);
+      setAmazonOrdersImportedReadModelPageIndex(1);
+      await refreshAmazonOrdersImportedReadModel(undefined, null, 1);
+
+      const firstOrderId = deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult);
+      if (firstOrderId) {
+        await openAmazonOrdersImportedReadModelDetail(firstOrderId);
+      }
+
       await refreshAmazonOrdersStagingCommitReadiness(response.importJobId);
       await refreshAmazonOrdersTransactionDryRunProjection(response.importJobId);
       await refreshAmazonOrdersCombinedDryRunProjection(response.importJobId);
