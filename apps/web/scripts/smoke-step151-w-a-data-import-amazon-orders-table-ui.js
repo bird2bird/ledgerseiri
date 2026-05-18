@@ -44,6 +44,11 @@ mustContain('"7D" | "30D" | "90D" | "365D" | "CUSTOM"');
 mustContain('deriveAmazonOrdersPullDateRange');
 mustContain('amazonOrdersImportedReadModelPageSize');
 mustContain('handleAmazonOrdersImportedReadModelLastPage');
+mustContain('amazonOrdersImportedReadModelContentSearch');
+mustContain('handleAmazonOrdersImportedReadModelContentSearchChange');
+mustContain('void refreshAmazonOrdersImportedReadModel(undefined, null, 1);');
+mustContain('content: content || undefined');
+mustContain('注文番号・SKU・商品名');
 
 const panelStart = text.indexOf('data-import-amazon-orders-mf-style-table-panel');
 const panelEnd = text.indexOf('data-import-connected-service-amazon-orders-execution-contract', panelStart);
@@ -59,6 +64,9 @@ for (const forbidden of [
   'bankReconciliationNow: true',
   'createsInventoryMovementNow: true',
   'createsExpenseTransactionNow: true',
+  'bank reconciliation',
+  'expense page linkage',
+  'income page linkage',
 ]) {
   if (panelBlock.includes(forbidden)) {
     throw new Error(`Step151-W-A table panel drifted into forbidden scope: ${forbidden}`);
@@ -68,6 +76,30 @@ for (const forbidden of [
 const packageJson = JSON.parse(fs.readFileSync(pkg, 'utf8'));
 if (!packageJson.scripts['smoke:step151-w-a:data-import-amazon-orders-table-ui']) {
   throw new Error('package script missing for Step151-W-A UI smoke');
+}
+
+
+function countOccurrences(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+const functionStart = text.indexOf('function AmazonOrdersConnectedServicesShell({');
+const typeStart = text.indexOf('}: {', functionStart);
+const functionParamBlock =
+  functionStart >= 0 && typeStart > functionStart ? text.slice(functionStart, typeStart) : '';
+
+for (const propName of [
+  'onAmazonOrdersImportedReadModelPageSizeChange',
+  'onAmazonOrdersImportedReadModelFirstPage',
+  'onAmazonOrdersImportedReadModelPrevPage',
+  'onAmazonOrdersImportedReadModelNextPage',
+  'onAmazonOrdersImportedReadModelLastPage',
+  'onAmazonOrdersImportedReadModelContentSearchChange',
+]) {
+  const occurrences = countOccurrences(functionParamBlock, propName);
+  if (occurrences !== 1) {
+    throw new Error(`AmazonOrdersConnectedServicesShell parameter ${propName} must appear exactly once, got ${occurrences}`);
+  }
 }
 
 console.log('[OK] Step151-W-A Data Import Amazon orders table UI smoke passed.');

@@ -99,11 +99,13 @@ function AmazonOrdersConnectedServicesShell({
   amazonOrdersCustomEndDate,
   amazonOrdersImportedReadModelPageSize,
   amazonOrdersImportedReadModelPageIndex,
+  amazonOrdersImportedReadModelContentSearch,
   onAmazonOrdersPullRangePresetChange,
   onAmazonOrdersCustomStartDateChange,
   onAmazonOrdersCustomEndDateChange,
   onAmazonOrdersImportedReadModelPageSizeChange,
   onAmazonOrdersImportedReadModelFirstPage,
+  onAmazonOrdersImportedReadModelContentSearchChange,
   onAmazonOrdersImportedReadModelPrevPage,
   onAmazonOrdersImportedReadModelNextPage,
   onAmazonOrdersImportedReadModelLastPage,
@@ -150,11 +152,13 @@ function AmazonOrdersConnectedServicesShell({
   amazonOrdersCustomEndDate: string;
   amazonOrdersImportedReadModelPageSize: 20 | 50 | 100;
   amazonOrdersImportedReadModelPageIndex: number;
+  amazonOrdersImportedReadModelContentSearch: string;
   onAmazonOrdersPullRangePresetChange: (value: AmazonOrdersPullRangePreset) => void;
   onAmazonOrdersCustomStartDateChange: (value: string) => void;
   onAmazonOrdersCustomEndDateChange: (value: string) => void;
   onAmazonOrdersImportedReadModelPageSizeChange: (value: 20 | 50 | 100) => void;
   onAmazonOrdersImportedReadModelFirstPage: () => void;
+  onAmazonOrdersImportedReadModelContentSearchChange: (value: string) => void;
   onAmazonOrdersImportedReadModelPrevPage: () => void;
   onAmazonOrdersImportedReadModelNextPage: () => void;
   onAmazonOrdersImportedReadModelLastPage: () => void;
@@ -465,9 +469,10 @@ function AmazonOrdersConnectedServicesShell({
               <input
                 data-testid="data-import-amazon-orders-mf-style-content-search"
                 type="text"
-                disabled
-                placeholder="Step151-W-Bで有効化"
-                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-400"
+                value={amazonOrdersImportedReadModelContentSearch}
+                onChange={(event) => onAmazonOrdersImportedReadModelContentSearchChange(event.target.value)}
+                placeholder="注文番号・SKU・商品名"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700"
               />
             </label>
 
@@ -2090,6 +2095,7 @@ export default function DataImportPage() {
   const [amazonOrdersImportedReadModelPageIndex, setAmazonOrdersImportedReadModelPageIndex] = useState(1);
   const [amazonOrdersImportedReadModelCursorStack, setAmazonOrdersImportedReadModelCursorStack] =
     useState<Array<string | null>>([null]);
+  const [amazonOrdersImportedReadModelContentSearch, setAmazonOrdersImportedReadModelContentSearch] = useState("");
   const [amazonOrdersStagingCommitReadiness, setAmazonOrdersStagingCommitReadiness] =
     useState<AmazonSpApiOrdersStagingCommitReadinessResponse | null>(null);
   const [amazonOrdersStagingCommitReadinessLoading, setAmazonOrdersStagingCommitReadinessLoading] = useState(false);
@@ -2128,6 +2134,7 @@ export default function DataImportPage() {
 
   useEffect(() => {
     void load();
+    void refreshAmazonOrdersImportedReadModel(undefined, null, 1);
   }, []);
 
   function deriveAmazonOrdersPullDateRange() {
@@ -2326,11 +2333,13 @@ export default function DataImportPage() {
 
     try {
       const dateRange = deriveAmazonOrdersPullDateRange();
+      const content = amazonOrdersImportedReadModelContentSearch.trim();
       const list = await listAmazonImportedOrders({
         rangePreset: dateRange.rangePreset,
         startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
         endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
         orderId: orderIdHint || undefined,
+        content: content || undefined,
         cursor: cursorOverride || undefined,
         limit: amazonOrdersImportedReadModelPageSize,
       });
@@ -2384,6 +2393,12 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelCursorStack([null]);
   }
 
+  function handleAmazonOrdersImportedReadModelContentSearchChange(value: string) {
+    setAmazonOrdersImportedReadModelContentSearch(value);
+    setAmazonOrdersImportedReadModelPageIndex(1);
+    setAmazonOrdersImportedReadModelCursorStack([null]);
+  }
+
   async function handleAmazonOrdersImportedReadModelFirstPage() {
     setAmazonOrdersImportedReadModelCursorStack([null]);
     await refreshAmazonOrdersImportedReadModel(undefined, null, 1);
@@ -2416,10 +2431,12 @@ export default function DataImportPage() {
       let cursor: string | null = null;
       let pageIndex = 1;
       const cursorStack: Array<string | null> = [null];
+      const content = amazonOrdersImportedReadModelContentSearch.trim();
       let latest = await listAmazonImportedOrders({
         rangePreset: dateRange.rangePreset,
         startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
         endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
+        content: content || undefined,
         limit: amazonOrdersImportedReadModelPageSize,
       });
 
@@ -2431,6 +2448,7 @@ export default function DataImportPage() {
           rangePreset: dateRange.rangePreset,
           startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
           endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
+          content: content || undefined,
           cursor,
           limit: amazonOrdersImportedReadModelPageSize,
         });
@@ -2750,11 +2768,13 @@ export default function DataImportPage() {
         amazonOrdersCustomEndDate={amazonOrdersCustomEndDate}
         amazonOrdersImportedReadModelPageSize={amazonOrdersImportedReadModelPageSize}
         amazonOrdersImportedReadModelPageIndex={amazonOrdersImportedReadModelPageIndex}
+        amazonOrdersImportedReadModelContentSearch={amazonOrdersImportedReadModelContentSearch}
         onAmazonOrdersPullRangePresetChange={handleAmazonOrdersPullRangePresetChange}
         onAmazonOrdersCustomStartDateChange={setAmazonOrdersCustomStartDate}
         onAmazonOrdersCustomEndDateChange={setAmazonOrdersCustomEndDate}
         onAmazonOrdersImportedReadModelPageSizeChange={handleAmazonOrdersImportedReadModelPageSizeChange}
         onAmazonOrdersImportedReadModelFirstPage={() => void handleAmazonOrdersImportedReadModelFirstPage()}
+        onAmazonOrdersImportedReadModelContentSearchChange={handleAmazonOrdersImportedReadModelContentSearchChange}
         onAmazonOrdersImportedReadModelPrevPage={() => void handleAmazonOrdersImportedReadModelPrevPage()}
         onAmazonOrdersImportedReadModelNextPage={() => void handleAmazonOrdersImportedReadModelNextPage()}
         onAmazonOrdersImportedReadModelLastPage={() => void handleAmazonOrdersImportedReadModelLastPage()}
