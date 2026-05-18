@@ -12,11 +12,13 @@ import {
   commitAmazonSpApiOrdersRealImportJob,
   listAmazonImportedOrders,
   getAmazonImportedOrderDetail,
+  readAmazonSpApiOrdersStagingCommitReadiness,
   type AmazonSpApiOrdersGuardedImportPreflightResponse,
   type AmazonSpApiOrdersRealPreviewResponse,
   type AmazonSpApiOrdersRealImportJobCommitResponse,
   type AmazonImportedOrdersReadModelListResponse,
   type AmazonImportedOrderDetailReadModelResponse,
+  type AmazonSpApiOrdersStagingCommitReadinessResponse,
 } from "@/core/imports/api";
 import {
   loadImportJobsPageSnapshot,
@@ -97,14 +99,19 @@ function AmazonOrdersConnectedServicesShell({
   importedReadModelLoading,
   importedReadModelError,
   importedReadModelSelectedOrderId,
+  stagingCommitReadiness,
+  stagingCommitReadinessLoading,
+  stagingCommitReadinessError,
   onImportedReadModelRefresh,
   onImportedReadModelOpenDetail,
+  onStagingCommitReadinessRefresh,
 }: {
   onFetchShell: () => void;
   onPreviewShell: () => void;
   onImportCommitShell: () => void;
   onImportedReadModelRefresh: () => void;
   onImportedReadModelOpenDetail: (orderId: string) => void;
+  onStagingCommitReadinessRefresh: () => void;
   fetchShellMessage: string;
   executionContractStatus: AmazonOrdersFetchExecutionContractStatus;
   preflightResult: AmazonSpApiOrdersGuardedImportPreflightResponse | null;
@@ -120,6 +127,9 @@ function AmazonOrdersConnectedServicesShell({
   importedReadModelLoading: boolean;
   importedReadModelError: string;
   importedReadModelSelectedOrderId: string;
+  stagingCommitReadiness: AmazonSpApiOrdersStagingCommitReadinessResponse | null;
+  stagingCommitReadinessLoading: boolean;
+  stagingCommitReadinessError: string;
 }) {
   const importedReadModelOrders = importedReadModelList?.orders ?? [];
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
@@ -149,6 +159,15 @@ function AmazonOrdersConnectedServicesShell({
           : preflightResult?.allowed
             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : "border-amber-200 bg-amber-50 text-amber-700";
+  const stagingCommitReadinessRows = stagingCommitReadiness?.rows ?? [];
+  const stagingCommitReadinessBlockedReasons = Array.from(
+    new Set([
+      ...(stagingCommitReadiness?.commitBlockedReasons ?? []),
+      ...stagingCommitReadinessRows.flatMap((row) => row.blockers ?? []),
+      ...stagingCommitReadinessRows.flatMap((row) => row.warnings ?? []),
+    ]),
+  );
+  const stagingCommitReadinessPreviewRows = stagingCommitReadinessRows.slice(0, 5);
 
   return (
     <section
@@ -817,6 +836,174 @@ function AmazonOrdersConnectedServicesShell({
                       </div>
                     )}
 
+                    {/* Step151-N-STAGING-COMMIT-READINESS-UI:
+                        Read existing ImportStagingRow rows and evaluate future commit readiness.
+                        This is readiness-only and must not create Transaction or InventoryMovement. */}
+                    <div
+                      data-testid="data-import-connected-service-amazon-orders-staging-readiness-panel"
+                      className="mt-4 rounded-3xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-4 text-xs font-bold leading-5 text-fuchsia-950"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-fuchsia-700">
+                            Step151-N Staging Commit Readiness
+                          </div>
+                          <h3 className="mt-1 text-sm font-black text-slate-950">
+                            Transaction / Inventory 反映準備チェック
+                          </h3>
+                          <p
+                            data-testid="data-import-connected-service-amazon-orders-staging-readiness-copy"
+                            className="mt-1 max-w-3xl text-xs font-bold leading-5 text-fuchsia-900"
+                          >
+                            ImportStagingRow を読み取り、将来の Transaction / InventoryMovement 反映可否を判定します。この段階ではまだ作成・書き込みは行いません。
+                          </p>
+                        </div>
+                        <button
+                          data-testid="data-import-connected-service-amazon-orders-staging-readiness-refresh-button"
+                          type="button"
+                          onClick={onStagingCommitReadinessRefresh}
+                          disabled={!realImportJobCommitResult?.importJobId || stagingCommitReadinessLoading}
+                          className="inline-flex rounded-xl border border-fuchsia-300 bg-white px-4 py-2 text-xs font-black text-fuchsia-800 shadow-sm transition hover:bg-fuchsia-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {stagingCommitReadinessLoading ? "確認中..." : "反映準備を確認"}
+                        </button>
+                      </div>
+
+                      {stagingCommitReadinessError ? (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-staging-readiness-error"
+                          className="mt-3 rounded-2xl border border-rose-200 bg-white px-3 py-2 text-rose-800"
+                        >
+                          {stagingCommitReadinessError}
+                        </div>
+                      ) : null}
+
+                      <div
+                        data-testid="data-import-connected-service-amazon-orders-staging-readiness-boundaries"
+                        className="mt-3 grid gap-2 md:grid-cols-4"
+                      >
+                        <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2 font-black">
+                          readsImportStagingRow=true
+                        </div>
+                        <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2 font-black">
+                          writesDatabase=false
+                        </div>
+                        <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2 font-black">
+                          transactionWriteNow=false
+                        </div>
+                        <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2 font-black">
+                          inventoryWriteNow=false
+                        </div>
+                      </div>
+
+                      {stagingCommitReadiness ? (
+                        <>
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-staging-readiness-summary"
+                            className="mt-4 grid gap-2 md:grid-cols-4"
+                          >
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Can commit later</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-can-commit">
+                                {String(stagingCommitReadiness.canCommit ?? false)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Ready rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-ready-rows">
+                                {String(stagingCommitReadiness.readyRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Blocked rows</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-blocked-rows">
+                                {String(stagingCommitReadiness.blockedRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Unresolved SKU</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-unresolved-sku">
+                                {String(stagingCommitReadiness.unresolvedSkuRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Missing amount</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-missing-amount">
+                                {String(stagingCommitReadiness.missingAmountRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Duplicate</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-duplicate">
+                                {String(stagingCommitReadiness.duplicateRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Existing Transaction</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-existing-transaction">
+                                {String(stagingCommitReadiness.existingTransactionRows ?? 0)}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2">
+                              <div className="text-[11px] font-black text-fuchsia-700">Existing Inventory</div>
+                              <div data-testid="data-import-connected-service-amazon-orders-staging-readiness-existing-inventory">
+                                {String(stagingCommitReadiness.existingInventoryMovementRows ?? 0)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-staging-readiness-blocked-reasons"
+                            className="mt-3 rounded-2xl border border-fuchsia-200 bg-white px-3 py-3"
+                          >
+                            <div className="text-[11px] font-black text-fuchsia-700">Blocked reasons / warnings</div>
+                            <div className="mt-1 text-fuchsia-900">
+                              {stagingCommitReadinessBlockedReasons.length
+                                ? stagingCommitReadinessBlockedReasons.join(", ")
+                                : "none"}
+                            </div>
+                            <div className="mt-2 grid gap-1 text-[11px] font-black text-fuchsia-800 md:grid-cols-5">
+                              <span>unresolved SKU</span>
+                              <span>missing amount</span>
+                              <span>duplicate order</span>
+                              <span>missing target mapping</span>
+                              <span>invalid order status</span>
+                            </div>
+                          </div>
+
+                          <div
+                            data-testid="data-import-connected-service-amazon-orders-staging-readiness-rows"
+                            className="mt-3 grid gap-2"
+                          >
+                            {stagingCommitReadinessPreviewRows.map((row) => (
+                              <div
+                                key={row.stagingRowId}
+                                data-testid="data-import-connected-service-amazon-orders-staging-readiness-row"
+                                className="rounded-2xl border border-fuchsia-200 bg-white px-3 py-2"
+                              >
+                                <div className="font-black text-slate-950">
+                                  rowNo={row.rowNo} / readiness={row.readiness}
+                                </div>
+                                <div className="mt-1 text-fuchsia-900">
+                                  order={row.amazonOrderId || "-"} / item={row.orderItemId || "-"} / sku={row.sellerSku || "-"}
+                                </div>
+                                <div className="mt-1 text-fuchsia-900">
+                                  blockers={(row.blockers || []).join(",") || "none"} / warnings={(row.warnings || []).join(",") || "none"}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          data-testid="data-import-connected-service-amazon-orders-staging-readiness-empty"
+                          className="mt-3 rounded-2xl border border-fuchsia-200 bg-white px-3 py-2 text-fuchsia-800"
+                        >
+                          まだ readiness は確認されていません。ImportJob 作成後に自動確認されます。
+                        </div>
+                      )}
+                    </div>
+
                     {/* Step151-L-IMPORTED-ORDERS-READ-MODEL-REFRESH-UI:
                         After real-importjob commit succeeds, refresh the imported orders read-model.
                         This reads existing ImportJob / ImportStagingRow only and must not create
@@ -1028,6 +1215,10 @@ export default function DataImportPage() {
   const [amazonOrdersImportedReadModelLoading, setAmazonOrdersImportedReadModelLoading] = useState(false);
   const [amazonOrdersImportedReadModelError, setAmazonOrdersImportedReadModelError] = useState("");
   const [amazonOrdersImportedReadModelSelectedOrderId, setAmazonOrdersImportedReadModelSelectedOrderId] = useState("");
+  const [amazonOrdersStagingCommitReadiness, setAmazonOrdersStagingCommitReadiness] =
+    useState<AmazonSpApiOrdersStagingCommitReadinessResponse | null>(null);
+  const [amazonOrdersStagingCommitReadinessLoading, setAmazonOrdersStagingCommitReadinessLoading] = useState(false);
+  const [amazonOrdersStagingCommitReadinessError, setAmazonOrdersStagingCommitReadinessError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -1065,11 +1256,17 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelError("");
     setAmazonOrdersImportedReadModelLoading(false);
     setAmazonOrdersImportedReadModelSelectedOrderId("");
+    setAmazonOrdersStagingCommitReadiness(null);
+    setAmazonOrdersStagingCommitReadinessError("");
+    setAmazonOrdersStagingCommitReadinessLoading(false);
     setAmazonOrdersImportedReadModelList(null);
     setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
     setAmazonOrdersImportedReadModelLoading(false);
     setAmazonOrdersImportedReadModelSelectedOrderId("");
+    setAmazonOrdersStagingCommitReadiness(null);
+    setAmazonOrdersStagingCommitReadinessError("");
+    setAmazonOrdersStagingCommitReadinessLoading(false);
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。まず preflight で接続状態・取得範囲・明示確認の必要性を確認します。"
     );
@@ -1251,6 +1448,39 @@ export default function DataImportPage() {
     }
   }
 
+  async function refreshAmazonOrdersStagingCommitReadiness(importJobId?: string | null) {
+    const normalizedImportJobId = String(importJobId || "").trim();
+
+    if (!normalizedImportJobId) {
+      setAmazonOrdersStagingCommitReadinessError("ImportJob ID がないため readiness を確認できません。");
+      return;
+    }
+
+    setAmazonOrdersStagingCommitReadinessLoading(true);
+    setAmazonOrdersStagingCommitReadinessError("");
+
+    try {
+      const readiness = await readAmazonSpApiOrdersStagingCommitReadiness(normalizedImportJobId);
+
+      if (readiness.writesDatabase !== false) {
+        throw new Error("staging commit readiness must keep writesDatabase=false.");
+      }
+      if (readiness.transactionWriteNow !== false) {
+        throw new Error("staging commit readiness must keep transactionWriteNow=false.");
+      }
+      if (readiness.inventoryWriteNow !== false) {
+        throw new Error("staging commit readiness must keep inventoryWriteNow=false.");
+      }
+
+      setAmazonOrdersStagingCommitReadiness(readiness);
+    } catch (err) {
+      setAmazonOrdersStagingCommitReadinessError(err instanceof Error ? err.message : "staging commit readiness failed");
+      setAmazonOrdersStagingCommitReadiness(null);
+    } finally {
+      setAmazonOrdersStagingCommitReadinessLoading(false);
+    }
+  }
+
   async function handleAmazonOrdersRealImportJobCommitShell() {
     if (!amazonOrdersPreflightResult?.allowed || !amazonOrdersRealPreviewResult) {
       setAmazonOrdersRealImportJobCommitError("real-preview 完了後にのみ取込作成できます。");
@@ -1303,6 +1533,7 @@ export default function DataImportPage() {
 
       await load();
       await refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult));
+      await refreshAmazonOrdersStagingCommitReadiness(response.importJobId);
     } catch (err) {
       setAmazonOrdersRealImportJobCommitError(err instanceof Error ? err.message : "real-importjob commit failed");
       setAmazonOrdersFetchShellMessage(
@@ -1364,8 +1595,12 @@ export default function DataImportPage() {
         importedReadModelLoading={amazonOrdersImportedReadModelLoading}
         importedReadModelError={amazonOrdersImportedReadModelError}
         importedReadModelSelectedOrderId={amazonOrdersImportedReadModelSelectedOrderId}
+        stagingCommitReadiness={amazonOrdersStagingCommitReadiness}
+        stagingCommitReadinessLoading={amazonOrdersStagingCommitReadinessLoading}
+        stagingCommitReadinessError={amazonOrdersStagingCommitReadinessError}
         onImportedReadModelRefresh={() => void refreshAmazonOrdersImportedReadModel(deriveAmazonOrdersFirstPreviewOrderId(amazonOrdersRealPreviewResult))}
         onImportedReadModelOpenDetail={(orderId) => void openAmazonOrdersImportedReadModelDetail(orderId)}
+        onStagingCommitReadinessRefresh={() => void refreshAmazonOrdersStagingCommitReadiness(amazonOrdersRealImportJobCommitResult?.importJobId)}
       />
 
       <AmazonSpApiConnectionStatusPanel />

@@ -235,9 +235,28 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     const asin = readString(payload, 'asin');
     const itemPriceAmount = readNumber(payload, 'itemPriceAmount');
     const quantityOrdered = readNumber(payload, 'quantityOrdered');
+    const orderStatus = readString(payload, 'orderStatus');
 
     const blockers: string[] = [];
     const warnings: string[] = [];
+
+    // Step151-N-STAGING-COMMIT-READINESS-BLOCKED-REASONS:
+    // This remains read-only readiness evaluation. It must not create Transaction
+    // or InventoryMovement. It only projects whether a future commit would be blocked.
+    const normalizedOrderStatus = String(orderStatus || '').trim().toUpperCase();
+    const invalidOrderStatuses = new Set([
+      'CANCELED',
+      'CANCELLED',
+      'REFUNDED',
+      'RETURNED',
+      'PENDING_AVAILABILITY',
+    ]);
+
+    if (!normalizedOrderStatus) {
+      warnings.push('MISSING_ORDER_STATUS');
+    } else if (invalidOrderStatuses.has(normalizedOrderStatus)) {
+      blockers.push('INVALID_ORDER_STATUS');
+    }
 
     if (!amazonOrderId || !orderItemId) {
       blockers.push('MISSING_ORDER_IDENTITY');
@@ -269,6 +288,8 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     const projectedTargetEntityId = row.targetEntityId || matchedAlias?.skuId || null;
 
     if (!projectedTargetEntityId) {
+      blockers.push('MISSING_TARGET_MAPPING');
+      blockers.push('UNRESOLVED_SKU');
       warnings.push('SKU_NOT_LINKED_TO_TARGET_ENTITY_YET');
     }
 
@@ -324,6 +345,7 @@ export async function evaluateAmazonSpApiOrdersStagingCommitReadiness(args: {
     row.blockers.includes('INVENTORY_MOVEMENT_ALREADY_EXISTS_FOR_ROW'),
   ).length;
   const unresolvedSkuRows = readinessRows.filter((row) =>
+    row.blockers.includes('UNRESOLVED_SKU') ||
     row.warnings.includes('SKU_NOT_LINKED_TO_TARGET_ENTITY_YET'),
   ).length;
   const missingAmountRows = readinessRows.filter((row) =>

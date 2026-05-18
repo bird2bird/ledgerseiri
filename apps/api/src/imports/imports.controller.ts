@@ -1075,11 +1075,19 @@ export class ImportsController {
       );
     }
 
-    return evaluateAmazonSpApiOrdersStagingCommitReadiness({
+    const result = await evaluateAmazonSpApiOrdersStagingCommitReadiness({
       prisma: this.prismaService,
       companyId,
       importJobId: String(body?.importJobId || '').trim(),
     });
+
+    return {
+      ...result,
+      step151NReadinessRouteActive: true as const,
+      controllerWritesDatabase: false as const,
+      controllerWritesTransaction: false as const,
+      controllerWritesInventoryMovement: false as const,
+    };
   }
 
 
