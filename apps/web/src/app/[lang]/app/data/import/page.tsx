@@ -48,27 +48,27 @@ const AMAZON_ORDERS_FETCH_EXECUTION_CONTRACT_STEPS = [
   {
     key: "preflight_required",
     label: "1. 事前確認",
-    description: "会社・店舗・marketplace・取得期間・接続状態を確認する段階です。Step151-Bでは実行しません。",
+    description: "会社・店舗・marketplace・取得期間・接続状態を確認します。",
   },
   {
     key: "preflight_checking",
     label: "1.5 事前確認中",
-    description: "Step151-Dで preflight endpoint だけを呼び出し、接続状態と取得条件を確認します。",
+    description: "preflight endpoint で接続状態と取得条件を確認中です。",
   },
   {
     key: "preflight_ready",
     label: "1.6 事前確認OK",
-    description: "preflight が READY_FOR_PREVIEW を返した状態です。Step151-Dでは preview は呼び出しません。",
+    description: "preflight が READY_FOR_PREVIEW を返しました。プレビュー確認へ進めます。",
   },
   {
     key: "preview_required",
     label: "2. プレビュー",
-    description: "プレビューAPIで取得内容を確認する将来段階です。Step151-Dでは呼び出しません。",
+    description: "real-preview API で取得予定の注文・明細を確認します。",
   },
   {
     key: "confirmation_required",
     label: "3. 明示確認",
-    description: "ユーザー確認後にのみ ImportJob 作成へ進む将来段階です。Step151-Bでは作成しません。",
+    description: "ユーザー確認後に ImportJob / ImportStagingRow を作成します。",
   },
   {
     key: "blocked",
@@ -127,6 +127,28 @@ function AmazonOrdersConnectedServicesShell({
     importedReadModelDetail?.order ?? importedReadModelDetail?.detail?.order ?? null;
   const importedReadModelDetailItems =
     importedReadModelDetail?.items ?? importedReadModelDetail?.detail?.items ?? [];
+  const amazonOrdersFlowStatusLabel = importedReadModelDetail
+    ? "明細確認済み"
+    : importedReadModelList
+      ? "取込完了"
+      : realImportJobCommitResult
+        ? "取込済み"
+        : realPreviewResult
+          ? "プレビュー済み"
+          : preflightResult?.allowed
+            ? "事前確認OK"
+            : "取得準備";
+  const amazonOrdersFlowStatusTone = importedReadModelDetail
+    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+    : importedReadModelList
+      ? "border-cyan-300 bg-cyan-50 text-cyan-700"
+      : realImportJobCommitResult
+        ? "border-violet-300 bg-violet-50 text-violet-700"
+        : realPreviewResult
+          ? "border-sky-300 bg-sky-50 text-sky-700"
+          : preflightResult?.allowed
+            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+            : "border-amber-200 bg-amber-50 text-amber-700";
 
   return (
     <section
@@ -143,8 +165,8 @@ function AmazonOrdersConnectedServicesShell({
           </h2>
           <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-500">
             MoneyForward と同じ操作感で、連携済みサービスごとに取得状態・最終取得日時・明細一覧を確認します。
-            Step151-B は「取得」入口を guarded execution contract に更新しますが、Amazon取得・ImportJob作成・SyncJob作成・DB書き込みは行いません。
-            Step150-D は UI shell のみです。
+            Amazon注文は 事前確認 → プレビュー → 取込作成 → 取込済み明細確認 の順に進みます。
+            Transaction / Inventory はまだ未反映です。
           </p>
         </div>
 
@@ -193,15 +215,15 @@ function AmazonOrdersConnectedServicesShell({
             data-testid="data-import-connected-service-amazon-orders-last-fetched"
             className="border-r border-slate-200 px-4 py-4 text-xs font-bold leading-5 text-slate-600"
           >
-            未取得
+            {importedReadModelList ? "取込済み明細を表示中" : realImportJobCommitResult ? "取込作成済み" : realPreviewResult ? "プレビュー済み" : preflightResult?.allowed ? "事前確認OK" : "未取得"}
           </div>
 
           <div className="border-r border-slate-200 px-4 py-4">
             <span
               data-testid="data-import-connected-service-amazon-orders-status"
-              className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700"
+              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${amazonOrdersFlowStatusTone}`}
             >
-              取得準備
+              {amazonOrdersFlowStatusLabel}
             </span>
           </div>
 
@@ -220,7 +242,7 @@ function AmazonOrdersConnectedServicesShell({
               data-testid="data-import-connected-service-amazon-orders-fetch-button"
               type="button"
               onClick={onFetchShell}
-              title="Step151-B は実行契約のみです。プレビューAPI・インポート作成API・履歴同期API・DB書き込みは行いません。"
+              title="Amazon注文の取得フローを開始します。事前確認後にプレビュー、明示確認後に ImportJob / ImportStagingRow を作成します。"
               className="inline-flex rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-emerald-800"
             >
               取得
@@ -236,16 +258,16 @@ function AmazonOrdersConnectedServicesShell({
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-700">
-              Step151-B Guarded Execution Contract
+              Step151-M Closeout Flow
             </div>
             <h3 className="mt-1 text-sm font-black text-slate-950">
-              取得は preview → 明示確認 → ImportJob 作成の順に進めます
+              事前確認 → プレビュー → 取込作成 → 明細確認
             </h3>
             <p
               data-testid="data-import-connected-service-amazon-orders-execution-contract-copy"
               className="mt-1 max-w-3xl text-xs font-bold leading-5 text-indigo-900"
             >
-              このステップでは実行契約だけを表示します。プレビューAPI、インポート作成API、履歴同期API、Amazon API、DB書き込みは呼び出しません。
+              Amazon注文の単次取得フローを収口しました。ImportJob / ImportStagingRow までは作成済み明細として確認できます。Transaction / Inventory はまだ未反映です。
             </p>
           </div>
           <span
@@ -300,6 +322,38 @@ function AmazonOrdersConnectedServicesShell({
           </div>
         </div>
 
+        {/* Step151-M-IMPORT-CENTER-CLOSEOUT-UX:
+            Close out the single-pull Amazon Orders flow UX.
+            This stabilizes user-facing status copy only and does not change write boundaries. */}
+        <div
+          data-testid="data-import-connected-service-amazon-orders-closeout-status"
+          className="mt-3 rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-xs font-bold leading-5 text-emerald-950"
+        >
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+            取込フロー状態
+          </div>
+          <div
+            data-testid="data-import-connected-service-amazon-orders-closeout-status-label"
+            className="mt-1 text-sm font-black text-slate-950"
+          >
+            {amazonOrdersFlowStatusLabel}
+          </div>
+          <div
+            data-testid="data-import-connected-service-amazon-orders-closeout-status-copy"
+            className="mt-2 grid gap-2 md:grid-cols-3"
+          >
+            <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+              取込完了={String(Boolean(importedReadModelList))}
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+              明細確認済み={String(Boolean(importedReadModelDetail))}
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-white px-3 py-2 font-black">
+              Transaction/Inventory はまだ未反映
+            </div>
+          </div>
+        </div>
+
         <div
           data-testid="data-import-connected-service-amazon-orders-preflight-result"
           className="mt-3 rounded-2xl border border-indigo-200 bg-white px-3 py-3 text-xs font-bold leading-5 text-indigo-900"
@@ -342,9 +396,8 @@ function AmazonOrdersConnectedServicesShell({
         </div>
 
         {/* Step151-F-PREVIEW-SHELL-NO-EXECUTION:
-            Show a review-only preview shell after guarded preflight is ready.
-            This shell does not call real-preview, does not create ImportJob,
-            and does not write DB / Transaction / InventoryMovement. */}
+            Preview shell after guarded preflight is ready.
+            The button calls real-preview only; ImportJob creation remains behind explicit confirmation. */}
         {preflightResult?.allowed && executionContractStatus === "preflight_ready" ? (
           <div
             data-testid="data-import-connected-service-amazon-orders-preview-shell"
@@ -362,7 +415,7 @@ function AmazonOrdersConnectedServicesShell({
                   data-testid="data-import-connected-service-amazon-orders-preview-shell-copy"
                   className="mt-1 max-w-3xl text-xs font-bold leading-5 text-emerald-900"
                 >
-                  この領域は preflight_ready 後の確認用 shell です。Step151-F では real-preview API、ImportJob 作成、DB 書き込みは実行しません。
+                  preflight_ready 後に取得予定期間・store・marketplace を確認します。「プレビュー確認」で real-preview を実行します。
                 </p>
               </div>
               <button
@@ -468,8 +521,7 @@ function AmazonOrdersConnectedServicesShell({
 
             {/* Step151-G-REAL-PREVIEW-NO-DB:
                 The explicit preview button calls real-preview only.
-                This result panel must not trigger real-importjob, ImportJob persistence,
-                Transaction creation, or InventoryMovement writes. */}
+                ImportJob creation remains behind the separate confirmation button. */}
             <div
               data-testid="data-import-connected-service-amazon-orders-real-preview-result"
               className="mt-3 rounded-3xl border border-sky-200 bg-sky-50 px-4 py-4 text-xs font-bold leading-5 text-sky-950"
@@ -486,7 +538,7 @@ function AmazonOrdersConnectedServicesShell({
                     data-testid="data-import-connected-service-amazon-orders-real-preview-copy"
                     className="mt-1 max-w-3xl text-xs font-bold leading-5 text-sky-900"
                   >
-                    この結果は real-preview API の表示専用結果です。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。
+                    real-preview API の結果です。内容確認後、「取込作成」で ImportJob / ImportStagingRow を作成できます。
                   </p>
                 </div>
                 <span
@@ -570,9 +622,8 @@ function AmazonOrdersConnectedServicesShell({
                 </div>
 
                 {/* Step151-I-IMPORT-CONFIRMATION-SHELL-NO-EXECUTION:
-                    Show an explicit import confirmation shell after real-preview succeeds.
-                    This shell does not call real-importjob and does not create ImportJob,
-                    ImportStagingRow, Transaction, or InventoryMovement. */}
+                    Explicit import confirmation shell after real-preview succeeds.
+                    In the stabilized flow, the confirmation button calls real-importjob. */}
                 <div
                   data-testid="data-import-connected-service-amazon-orders-import-confirmation-shell"
                   className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-4 text-xs font-bold leading-5 text-amber-950"
@@ -589,7 +640,7 @@ function AmazonOrdersConnectedServicesShell({
                         data-testid="data-import-connected-service-amazon-orders-import-confirmation-copy"
                         className="mt-1 max-w-3xl text-xs font-bold leading-5 text-amber-900"
                       >
-                        real-preview の結果を確認しました。次の Step151-J では明示確認後に ImportJob / ImportStagingRow を作成します。Step151-I ではまだ DB 書き込みを実行しません。
+                        real-preview の結果を確認しました。「取込作成」を押すと ImportJob / ImportStagingRow を作成します。Transaction / Inventory はまだ未反映です。
                       </p>
                     </div>
 
@@ -660,7 +711,7 @@ function AmazonOrdersConnectedServicesShell({
                     data-testid="data-import-connected-service-amazon-orders-import-confirmation-no-execution"
                     className="mt-3 rounded-2xl border border-amber-200 bg-white px-3 py-2 font-black text-amber-900"
                   >
-                    Step151-J explicit execution: commitAmazonSpApiOrdersRealImportJob is called only from this confirmation button.
+                    明示確認後のみ ImportJob / ImportStagingRow を作成します。Transaction / Inventory はまだ未反映です。
                   </div>
 
                   {/* Step151-J-REAL-IMPORTJOB-COMMIT-UI:
@@ -683,7 +734,7 @@ function AmazonOrdersConnectedServicesShell({
                           data-testid="data-import-connected-service-amazon-orders-real-importjob-copy"
                           className="mt-1 max-w-3xl text-xs font-bold leading-5 text-violet-900"
                         >
-                          Step151-J は ImportJob と ImportStagingRow の作成のみを行います。Transaction 作成・InventoryMovement 書き込み・historical sync は行いません。
+                          ImportJob と ImportStagingRow を作成しました。Transaction 作成・InventoryMovement 書き込み・historical sync は行いません。
                         </p>
                       </div>
                       <span
@@ -1020,7 +1071,7 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelLoading(false);
     setAmazonOrdersImportedReadModelSelectedOrderId("");
     setAmazonOrdersFetchShellMessage(
-      "取得入口を選択しました。Step151-D は preflight endpoint だけを呼び出して、接続状態・取得範囲・明示確認の必要性を確認します。プレビューAPI・インポート作成API・履歴同期API・Amazon API・DB書き込みは行いません。"
+      "取得入口を選択しました。まず preflight で接続状態・取得範囲・明示確認の必要性を確認します。"
     );
 
     if (typeof document !== "undefined") {
@@ -1047,7 +1098,7 @@ export default function DataImportPage() {
       setAmazonOrdersFetchExecutionContractStatus(response.allowed ? "preflight_ready" : "blocked");
       setAmazonOrdersFetchShellMessage(
         response.allowed
-          ? "preflight が完了しました。次の段階は preview ですが、Step151-D では preview は呼び出しません。"
+          ? "preflight が完了しました。プレビュー確認へ進めます。"
           : `preflight は blocked です。nextAction=${response.nextAction} / reasons=${response.reasons.join(",") || "none"}`
       );
     } catch (err) {
@@ -1081,7 +1132,7 @@ export default function DataImportPage() {
     setAmazonOrdersRealImportJobCommitLoading(false);
     setAmazonOrdersFetchExecutionContractStatus("preview_required");
     setAmazonOrdersFetchShellMessage(
-      "Step151-G: real-preview を実行しています。ImportJob 作成・DB 書き込み・Transaction/InventoryMovement 作成は行いません。"
+      "real-preview を実行しています。取得内容を確認中です。"
     );
 
     try {
@@ -1109,7 +1160,7 @@ export default function DataImportPage() {
 
       setAmazonOrdersRealPreviewResult(response);
       setAmazonOrdersFetchShellMessage(
-        "real-preview が完了しました。Step151-G では結果表示のみで、ImportJob 作成・DB 書き込みは行いません。"
+        "real-preview が完了しました。内容確認後、「取込作成」で ImportJob / ImportStagingRow を作成できます。"
       );
     } catch (err) {
       setAmazonOrdersRealPreviewError(err instanceof Error ? err.message : "real-preview failed");
@@ -1219,7 +1270,7 @@ export default function DataImportPage() {
     setAmazonOrdersRealImportJobCommitResult(null);
     setAmazonOrdersFetchExecutionContractStatus("confirmation_required");
     setAmazonOrdersFetchShellMessage(
-      "Step151-J: ImportJob / ImportStagingRow を作成しています。Transaction 作成・InventoryMovement 書き込みは行いません。"
+      "ImportJob / ImportStagingRow を作成しています。Transaction / Inventory はまだ未反映です。"
     );
 
     try {
@@ -1247,7 +1298,7 @@ export default function DataImportPage() {
 
       setAmazonOrdersRealImportJobCommitResult(response);
       setAmazonOrdersFetchShellMessage(
-        `ImportJob を作成しました。importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")}`
+        `取込完了。importJobId=${response.importJobId || "-"} / totalRows=${String(response.totalRows ?? "-")} / Transaction・Inventory はまだ未反映です。`
       );
 
       await load();
