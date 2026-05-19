@@ -200,7 +200,23 @@ function extractOrderIdentity(payload: Record<string, unknown>): {
   const asin = readString(payload, ['asin', 'ASIN']);
   const title = readString(payload, ['title', 'Title', 'itemTitle', 'productName']);
   const purchaseDate = normalizeDateOnly(
-    readString(payload, ['purchaseDate', 'PurchaseDate', 'orderDate', 'createdAt', 'businessDate']),
+    readString(payload, [
+      'purchaseDate',
+      'PurchaseDate',
+      'amazonPurchaseDate',
+      'AmazonPurchaseDate',
+      'purchase_date',
+      'orderDate',
+      'OrderDate',
+      'order_date',
+      'postedDate',
+      'posted_date',
+      'createdAt',
+      'CreatedAt',
+      'businessDate',
+      'importedAt',
+      'ImportedAt',
+    ]),
   );
   const status = readString(payload, ['orderStatus', 'OrderStatus', 'status']) || 'imported';
   const currency = readString(payload, ['currency', 'currencyCode', 'itemCurrencyCode']) || 'JPY';
@@ -423,6 +439,12 @@ export async function listAmazonImportedOrdersReadModel(
     };
   }
 
+  // Step151-W-K:
+  // Single source of truth:
+  // - allOrders = all grouped orders matching the current filter
+  // - totalOrders = allOrders.length, independent from limit/pageSize
+  // - orders = the visible page only
+  // - hasMore/nextCursor derive only from totalOrders and cursorOffset
   const totalOrders = allOrders.length;
   const pageOrders = allOrders.slice(cursorOffset, cursorOffset + limit);
   const orders = pageOrders.map(toOrderRow);
