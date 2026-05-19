@@ -53,6 +53,19 @@ export type AmazonImportedOrdersReadModelListResult = {
     nextCursor: string | null;
     hasMore: boolean;
     limit: number;
+    cursorOffset?: number;
+    totalPages?: number;
+    currentPage?: number;
+  };
+  runtimeDebug?: {
+    step: 'Step151-W-L';
+    rowsRead: number;
+    groupedOrders: number;
+    visibleOrders: number;
+    requestedLimit: number;
+    cursorOffset: number;
+    missingDateOrders: number;
+    totalOrdersStableByDesign: true;
   };
   boundaries: {
     readsExistingImportJob: true;
@@ -351,6 +364,14 @@ export async function listAmazonImportedOrdersReadModel(
         'CreatedAt',
         'importedAt',
         'ImportedAt',
+        'latestShipDate',
+        'LatestShipDate',
+        'earliestShipDate',
+        'EarliestShipDate',
+        'shipmentDate',
+        'ShipmentDate',
+        'lastUpdateDate',
+        'LastUpdateDate',
       ])) ||
       normalizeDateOnly(String(row.businessMonth || '')) ||
       importedAtDate;
@@ -410,7 +431,10 @@ export async function listAmazonImportedOrdersReadModel(
     orderMap.set(key, existing);
   }
 
-  const allOrders = Array.from(orderMap.values()).sort((a, b) => {
+  const allOrders = Array.from(orderMap.values()).map((order) => ({
+    ...order,
+    purchaseDate: order.purchaseDate || order.importedAt,
+  })).sort((a, b) => {
     const ad = a.purchaseDate || a.importedAt || '';
     const bd = b.purchaseDate || b.importedAt || '';
     if (ad !== bd) return bd.localeCompare(ad);
@@ -452,6 +476,9 @@ export async function listAmazonImportedOrdersReadModel(
 
   const hasMore = cursorOffset + limit < totalOrders;
   const nextCursor = hasMore ? String(cursorOffset + limit) : null;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / limit));
+  const currentPage = Math.max(1, Math.floor(cursorOffset / limit) + 1);
+  const missingDateOrders = summaryOrders.filter((order) => !order.purchaseDate).length;
   const amountTotal = summaryOrders.reduce((sum, order) => sum + Number(order.amount || 0), 0);
 
   return {
@@ -473,6 +500,19 @@ export async function listAmazonImportedOrdersReadModel(
       nextCursor,
       hasMore,
       limit,
+      cursorOffset,
+      totalPages,
+      currentPage,
+    },
+    runtimeDebug: {
+      step: 'Step151-W-L',
+      rowsRead: rows.length,
+      groupedOrders: totalOrders,
+      visibleOrders: orders.length,
+      requestedLimit: limit,
+      cursorOffset,
+      missingDateOrders,
+      totalOrdersStableByDesign: true,
     },
     boundaries: makeBoundaries(),
   };

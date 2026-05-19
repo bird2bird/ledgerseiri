@@ -201,10 +201,12 @@ function AmazonOrdersConnectedServicesShell({
   const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
   const amazonOrdersImportedReadModelTotalOrders =
     importedReadModelList?.summary?.totalOrders ?? importedReadModelOrders.length;
-  const amazonOrdersImportedReadModelTotalPages = Math.max(
-    1,
-    Math.ceil(amazonOrdersImportedReadModelTotalOrders / amazonOrdersImportedReadModelPageSize),
-  );
+  const amazonOrdersImportedReadModelTotalPages =
+    importedReadModelList?.pagination?.totalPages ??
+    Math.max(
+      1,
+      Math.ceil(amazonOrdersImportedReadModelTotalOrders / amazonOrdersImportedReadModelPageSize),
+    );
   const amazonOrdersImportedReadModelHasNext =
     importedReadModelList?.pagination?.hasMore === true &&
     Boolean(importedReadModelList?.pagination?.nextCursor);
@@ -532,6 +534,20 @@ function AmazonOrdersConnectedServicesShell({
             readOnly={String(importedReadModelList?.readOnly ?? true)}
           </div>
         </div>
+
+        {importedReadModelList?.runtimeDebug ? (
+          <div
+            data-testid="data-import-amazon-orders-mf-style-runtime-debug"
+            className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-black text-amber-900"
+          >
+            runtimeDebug={importedReadModelList.runtimeDebug.step || "-"} /
+            rowsRead={String(importedReadModelList.runtimeDebug.rowsRead ?? "-")} /
+            groupedOrders={String(importedReadModelList.runtimeDebug.groupedOrders ?? "-")} /
+            visibleOrders={String(importedReadModelList.runtimeDebug.visibleOrders ?? "-")} /
+            requestedLimit={String(importedReadModelList.runtimeDebug.requestedLimit ?? "-")} /
+            missingDateOrders={String(importedReadModelList.runtimeDebug.missingDateOrders ?? "-")}
+          </div>
+        ) : null}
 
         {importedReadModelError ? (
           <div
@@ -2339,6 +2355,49 @@ export default function DataImportPage() {
     return typeof orderId === "string" ? orderId : "";
   }
 
+  async function refreshAmazonOrdersImportedReadModelWithPageSize(
+    pageSize: 20 | 50 | 100,
+    cursorOverride?: string | null,
+    pageIndexOverride?: number,
+  ) {
+    setAmazonOrdersImportedReadModelLoading(true);
+    setAmazonOrdersImportedReadModelError("");
+
+    try {
+      const dateRange = deriveAmazonOrdersPullDateRange();
+      const content = amazonOrdersImportedReadModelContentSearch.trim();
+      const list = await listAmazonImportedOrders({
+        rangePreset: dateRange.rangePreset,
+        startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
+        endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
+        content: content || undefined,
+        cursor: cursorOverride || undefined,
+        limit: pageSize,
+      });
+
+      if (list.boundaries?.writesDatabase !== false) {
+        throw new Error("imported orders read-model must keep writesDatabase=false.");
+      }
+      if (list.boundaries?.writesTransaction !== false) {
+        throw new Error("imported orders read-model must keep writesTransaction=false.");
+      }
+      if (list.boundaries?.writesInventoryMovement !== false) {
+        throw new Error("imported orders read-model must keep writesInventoryMovement=false.");
+      }
+
+      setAmazonOrdersImportedReadModelList(list);
+      setAmazonOrdersImportedReadModelPageIndex(pageIndexOverride || 1);
+      setAmazonOrdersImportedReadModelDetail(null);
+      setAmazonOrdersImportedReadModelSelectedOrderId("");
+    } catch (err) {
+      // Step151-W-L-FIX1:
+      // Preserve currently displayed orders even if explicit page-size refresh fails.
+      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders read-model refresh failed");
+    } finally {
+      setAmazonOrdersImportedReadModelLoading(false);
+    }
+  }
+
   async function refreshAmazonOrdersImportedReadModel(
     orderIdHint?: string,
     cursorOverride?: string | null,
@@ -2408,6 +2467,9 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelPageSize(value);
     setAmazonOrdersImportedReadModelPageIndex(1);
     setAmazonOrdersImportedReadModelCursorStack([null]);
+    // Step151-W-L:
+    // Refresh immediately with the selected page size so the UI cannot show stale summary/order rows.
+    void refreshAmazonOrdersImportedReadModelWithPageSize(value, null, 1);
   }
 
   function handleAmazonOrdersImportedReadModelContentSearchChange(value: string) {

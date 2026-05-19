@@ -1075,6 +1075,9 @@ export type AmazonImportedOrdersReadModelPagination = {
   nextCursor: string | null;
   hasMore: boolean;
   limit: number;
+  cursorOffset?: number;
+  totalPages?: number;
+  currentPage?: number;
 };
 
 export type AmazonImportedOrdersReadModelListResponse = {
@@ -1085,6 +1088,16 @@ export type AmazonImportedOrdersReadModelListResponse = {
   orders: AmazonImportedOrdersReadModelOrderRow[];
   summary: AmazonImportedOrdersReadModelSummary;
   pagination: AmazonImportedOrdersReadModelPagination;
+  runtimeDebug?: {
+    step?: string;
+    rowsRead?: number;
+    groupedOrders?: number;
+    visibleOrders?: number;
+    requestedLimit?: number;
+    cursorOffset?: number;
+    missingDateOrders?: number;
+    totalOrdersStableByDesign?: boolean;
+  };
   boundaries: {
     readsExistingImportJob: true;
     readsExistingImportStagingRow: true;
