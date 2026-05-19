@@ -2363,6 +2363,57 @@ export default function DataImportPage() {
     return typeof orderId === "string" ? orderId : "";
   }
 
+  async function refreshAmazonOrdersImportedReadModelWithFilterOverride(args: {
+    rangePreset?: AmazonOrdersPullRangePreset;
+    startDate?: string;
+    endDate?: string;
+    content?: string;
+    pageSize?: 20 | 50 | 100;
+    pageIndex?: number;
+  }) {
+    // Step151-W-N:
+    // When the period changes, refetch the full matched display list immediately.
+    // Do not keep using the previous period's importedReadModelList.orders.
+    setAmazonOrdersImportedReadModelLoading(true);
+    setAmazonOrdersImportedReadModelError("");
+
+    try {
+      const fallbackDateRange = deriveAmazonOrdersPullDateRange();
+      const rangePreset = args.rangePreset ?? fallbackDateRange.rangePreset;
+      const startDate = args.startDate ?? fallbackDateRange.startDate;
+      const endDate = args.endDate ?? fallbackDateRange.endDate;
+      const content = (args.content ?? amazonOrdersImportedReadModelContentSearch).trim();
+
+      const list = await listAmazonImportedOrders({
+        rangePreset,
+        startDate: rangePreset === "CUSTOM" ? startDate : undefined,
+        endDate: rangePreset === "CUSTOM" ? endDate : undefined,
+        content: content || undefined,
+        limit: 5000,
+      });
+
+      if (list.boundaries?.writesDatabase !== false) {
+        throw new Error("imported orders read-model must keep writesDatabase=false.");
+      }
+      if (list.boundaries?.writesTransaction !== false) {
+        throw new Error("imported orders read-model must keep writesTransaction=false.");
+      }
+      if (list.boundaries?.writesInventoryMovement !== false) {
+        throw new Error("imported orders read-model must keep writesInventoryMovement=false.");
+      }
+
+      setAmazonOrdersImportedReadModelList(list);
+      setAmazonOrdersImportedReadModelPageIndex(args.pageIndex || 1);
+      setAmazonOrdersImportedReadModelCursorStack([null]);
+      setAmazonOrdersImportedReadModelDetail(null);
+      setAmazonOrdersImportedReadModelSelectedOrderId("");
+    } catch (err) {
+      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders read-model refresh failed");
+    } finally {
+      setAmazonOrdersImportedReadModelLoading(false);
+    }
+  }
+
   async function refreshAmazonOrdersImportedReadModelWithPageSize(
     pageSize: 20 | 50 | 100,
     cursorOverride?: string | null,
@@ -2468,6 +2519,17 @@ export default function DataImportPage() {
     setAmazonOrdersPullRangePreset(value);
     setAmazonOrdersImportedReadModelPageIndex(1);
     setAmazonOrdersImportedReadModelCursorStack([null]);
+
+    // Step151-W-N:
+    // Range changes must reload the full matched order list.
+    // Otherwise 7D / 30D / 90D / 365D will keep showing the previous period's totalOrders.
+    if (value !== "CUSTOM") {
+      void refreshAmazonOrdersImportedReadModelWithFilterOverride({
+        rangePreset: value,
+        pageSize: amazonOrdersImportedReadModelPageSize,
+        pageIndex: 1,
+      });
+    }
   }
 
   function handleAmazonOrdersImportedReadModelPageSizeChange(value: 20 | 50 | 100) {
