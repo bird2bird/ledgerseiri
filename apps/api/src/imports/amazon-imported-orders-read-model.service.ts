@@ -282,7 +282,7 @@ export async function listAmazonImportedOrdersReadModel(
   // Step151-W-J:
   // Total count and current page must be computed separately.
   // `limit` controls visible rows only. It must never change summary.totalOrders.
-  const limit = Math.min(Math.max(Number(args.limit || 20), 1), 100);
+  const limit = Math.min(Math.max(Number(args.limit || 20), 1), 5000);
   const cursorOffsetRaw = args.cursor ? Number(args.cursor) : 0;
   const cursorOffset = Number.isFinite(cursorOffsetRaw) && cursorOffsetRaw > 0 ? cursorOffsetRaw : 0;
   const dateRange = deriveDateRange(args);
@@ -448,7 +448,7 @@ export async function listAmazonImportedOrdersReadModel(
 
     return {
       orderId: order.orderId,
-      purchaseDate: order.purchaseDate || order.importedAt,
+      purchaseDate: normalizeDateOnly(order.purchaseDate || order.importedAt),
       content: order.contentParts.slice(0, 3).join(' / '),
       amount: order.amountTotal ? String(order.amountTotal) : null,
       currency: order.currency,

@@ -58,7 +58,8 @@
     "smoke:step151-w-g:orders-page-display-closeout": "node scripts/smoke-step151-w-g-orders-page-display-closeout.js",
     "smoke:step151-w-i:orders-table-stability": "node scripts/smoke-step151-w-i-orders-table-stability.js",
     "smoke:step151-w-j:total-pagination-dates": "node scripts/smoke-step151-w-j-total-pagination-dates.js",
-    "smoke:step151-w-l:http-response-display-fix": "node scripts/smoke-step151-w-l-http-response-display-fix.js"
+    "smoke:step151-w-l:http-response-display-fix": "node scripts/smoke-step151-w-l-http-response-display-fix.js",
+    "smoke:step151-w-m:client-side-pagination-fix": "node scripts/smoke-step151-w-m-client-side-pagination-fix.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",

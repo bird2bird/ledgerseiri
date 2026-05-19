@@ -197,10 +197,19 @@ function AmazonOrdersConnectedServicesShell({
   finalCommitReviewLoading: boolean;
   finalCommitReviewError: string;
 }) {
-  const importedReadModelOrders = importedReadModelList?.orders ?? [];
-  const importedReadModelFirstOrder = importedReadModelOrders[0] ?? null;
+  // Step151-W-M:
+  // Full matched order list is stored in importedReadModelList.orders.
+  // 20 / 50 / 100 changes only the local visible slice.
+  const importedReadModelAllOrders = importedReadModelList?.orders ?? [];
+  const importedReadModelOrders = importedReadModelAllOrders.slice(
+    (amazonOrdersImportedReadModelPageIndex - 1) * amazonOrdersImportedReadModelPageSize,
+    amazonOrdersImportedReadModelPageIndex * amazonOrdersImportedReadModelPageSize,
+  );
+  const importedReadModelFirstOrder = importedReadModelOrders[0] ?? importedReadModelAllOrders[0] ?? null;
   const amazonOrdersImportedReadModelTotalOrders =
-    importedReadModelList?.summary?.totalOrders ?? importedReadModelOrders.length;
+    importedReadModelList?.runtimeDebug?.groupedOrders ??
+    importedReadModelList?.summary?.totalOrders ??
+    importedReadModelAllOrders.length;
   const amazonOrdersImportedReadModelTotalPages =
     importedReadModelList?.pagination?.totalPages ??
     Math.max(
@@ -208,8 +217,7 @@ function AmazonOrdersConnectedServicesShell({
       Math.ceil(amazonOrdersImportedReadModelTotalOrders / amazonOrdersImportedReadModelPageSize),
     );
   const amazonOrdersImportedReadModelHasNext =
-    importedReadModelList?.pagination?.hasMore === true &&
-    Boolean(importedReadModelList?.pagination?.nextCursor);
+    amazonOrdersImportedReadModelPageIndex < amazonOrdersImportedReadModelTotalPages;
   const amazonOrdersImportedReadModelHasPrev = amazonOrdersImportedReadModelPageIndex > 1;
   const importedReadModelDetailOrder =
     importedReadModelDetail?.order ?? importedReadModelDetail?.detail?.order ?? null;
@@ -2372,7 +2380,7 @@ export default function DataImportPage() {
         endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
         content: content || undefined,
         cursor: cursorOverride || undefined,
-        limit: pageSize,
+        limit: 5000,
       });
 
       if (list.boundaries?.writesDatabase !== false) {
@@ -2416,7 +2424,7 @@ export default function DataImportPage() {
         orderId: orderIdHint || undefined,
         content: content || undefined,
         cursor: cursorOverride || undefined,
-        limit: amazonOrdersImportedReadModelPageSize,
+        limit: 5000,
       });
 
       if (list.boundaries?.writesDatabase !== false) {
@@ -2436,13 +2444,12 @@ export default function DataImportPage() {
 
       const selectedOrder =
         list.orders.find((order) => orderIdHint && order.orderId === orderIdHint) ??
-        list.orders[0] ??
         null;
 
       if (selectedOrder?.orderId) {
         setAmazonOrdersImportedReadModelSelectedOrderId(selectedOrder.orderId);
         await openAmazonOrdersImportedReadModelDetail(selectedOrder.orderId);
-      } else {
+      } else if (!orderIdHint) {
         setAmazonOrdersImportedReadModelSelectedOrderId("");
         setAmazonOrdersImportedReadModelDetail(null);
       }
@@ -2467,9 +2474,13 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelPageSize(value);
     setAmazonOrdersImportedReadModelPageIndex(1);
     setAmazonOrdersImportedReadModelCursorStack([null]);
-    // Step151-W-L:
-    // Refresh immediately with the selected page size so the UI cannot show stale summary/order rows.
-    void refreshAmazonOrdersImportedReadModelWithPageSize(value, null, 1);
+
+    // Step151-W-M-FIX1:
+    // 表示件数 changes only the local visible slice.
+    // totalOrders must stay independent from page size.
+    if (!amazonOrdersImportedReadModelList) {
+      void refreshAmazonOrdersImportedReadModelWithPageSize(value, null, 1);
+    }
   }
 
   function handleAmazonOrdersImportedReadModelContentSearchChange(value: string) {
@@ -2478,81 +2489,37 @@ export default function DataImportPage() {
     setAmazonOrdersImportedReadModelCursorStack([null]);
   }
 
-  async function handleAmazonOrdersImportedReadModelFirstPage() {
+    function handleAmazonOrdersImportedReadModelFirstPage() {
+    // Step151-W-M-FIX1: local pagination over the full matched order list.
+    setAmazonOrdersImportedReadModelPageIndex(1);
     setAmazonOrdersImportedReadModelCursorStack([null]);
-    await refreshAmazonOrdersImportedReadModel(undefined, null, 1);
   }
 
-  async function handleAmazonOrdersImportedReadModelPrevPage() {
-    const prevPageIndex = Math.max(1, amazonOrdersImportedReadModelPageIndex - 1);
-    const prevCursor = amazonOrdersImportedReadModelCursorStack[prevPageIndex - 1] || null;
-    await refreshAmazonOrdersImportedReadModel(undefined, prevCursor, prevPageIndex);
+    function handleAmazonOrdersImportedReadModelPrevPage() {
+    // Step151-W-M-FIX1: local pagination over the full matched order list.
+    setAmazonOrdersImportedReadModelPageIndex((current) => Math.max(1, current - 1));
   }
 
-  async function handleAmazonOrdersImportedReadModelNextPage() {
-    const nextCursor = amazonOrdersImportedReadModelList?.pagination?.nextCursor || null;
-    if (!nextCursor) return;
-
-    const nextPageIndex = amazonOrdersImportedReadModelPageIndex + 1;
-    const nextStack = [...amazonOrdersImportedReadModelCursorStack];
-    nextStack[nextPageIndex - 1] = nextCursor;
-    setAmazonOrdersImportedReadModelCursorStack(nextStack);
-
-    await refreshAmazonOrdersImportedReadModel(undefined, nextCursor, nextPageIndex);
+    function handleAmazonOrdersImportedReadModelNextPage() {
+    // Step151-W-M-FIX1: local pagination over the full matched order list.
+    const totalOrders =
+      amazonOrdersImportedReadModelList?.runtimeDebug?.groupedOrders ??
+      amazonOrdersImportedReadModelList?.summary?.totalOrders ??
+      amazonOrdersImportedReadModelList?.orders?.length ??
+      0;
+    const totalPages = Math.max(1, Math.ceil(totalOrders / amazonOrdersImportedReadModelPageSize));
+    setAmazonOrdersImportedReadModelPageIndex((current) => Math.min(totalPages, current + 1));
   }
 
-  async function handleAmazonOrdersImportedReadModelLastPage() {
-    setAmazonOrdersImportedReadModelLoading(true);
-    setAmazonOrdersImportedReadModelError("");
-
-    try {
-      const dateRange = deriveAmazonOrdersPullDateRange();
-      let cursor: string | null = null;
-      let pageIndex = 1;
-      const cursorStack: Array<string | null> = [null];
-      const content = amazonOrdersImportedReadModelContentSearch.trim();
-      let latest = await listAmazonImportedOrders({
-        rangePreset: dateRange.rangePreset,
-        startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
-        endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
-        content: content || undefined,
-        limit: amazonOrdersImportedReadModelPageSize,
-      });
-
-      while (latest.pagination?.hasMore && latest.pagination?.nextCursor && pageIndex < 200) {
-        cursor = latest.pagination.nextCursor;
-        pageIndex += 1;
-        cursorStack[pageIndex - 1] = cursor;
-        latest = await listAmazonImportedOrders({
-          rangePreset: dateRange.rangePreset,
-          startDate: dateRange.rangePreset === "CUSTOM" ? dateRange.startDate : undefined,
-          endDate: dateRange.rangePreset === "CUSTOM" ? dateRange.endDate : undefined,
-          content: content || undefined,
-          cursor,
-          limit: amazonOrdersImportedReadModelPageSize,
-        });
-      }
-
-      if (latest.boundaries?.writesDatabase !== false) {
-        throw new Error("imported orders read-model must keep writesDatabase=false.");
-      }
-      if (latest.boundaries?.writesTransaction !== false) {
-        throw new Error("imported orders read-model must keep writesTransaction=false.");
-      }
-      if (latest.boundaries?.writesInventoryMovement !== false) {
-        throw new Error("imported orders read-model must keep writesInventoryMovement=false.");
-      }
-
-      setAmazonOrdersImportedReadModelCursorStack(cursorStack);
-      setAmazonOrdersImportedReadModelPageIndex(pageIndex);
-      setAmazonOrdersImportedReadModelList(latest);
-      setAmazonOrdersImportedReadModelDetail(null);
-      setAmazonOrdersImportedReadModelSelectedOrderId("");
-    } catch (err) {
-      setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders last page failed");
-    } finally {
-      setAmazonOrdersImportedReadModelLoading(false);
-    }
+    function handleAmazonOrdersImportedReadModelLastPage() {
+    // Step151-W-M-FIX1: local pagination over the full matched order list.
+    const totalOrders =
+      amazonOrdersImportedReadModelList?.runtimeDebug?.groupedOrders ??
+      amazonOrdersImportedReadModelList?.summary?.totalOrders ??
+      amazonOrdersImportedReadModelList?.orders?.length ??
+      0;
+    const totalPages = Math.max(1, Math.ceil(totalOrders / amazonOrdersImportedReadModelPageSize));
+    setAmazonOrdersImportedReadModelPageIndex(totalPages);
   }
 
   async function openAmazonOrdersImportedReadModelDetail(orderId: string) {
