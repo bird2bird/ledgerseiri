@@ -393,7 +393,7 @@ function AmazonOrdersConnectedServicesShell({
           data-testid="data-import-amazon-orders-mf-style-filter-bar"
           className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3"
         >
-          <div className="grid gap-3 text-xs font-bold text-slate-700 md:grid-cols-[180px_140px_140px_120px_120px_1fr_110px]">
+          <div className="grid gap-3 text-xs font-bold text-slate-700 md:grid-cols-[180px_140px_140px_120px_90px_120px_1fr_110px]">
             <label className="grid gap-1">
               <span className="font-black text-slate-500">連携サービス</span>
               <select
@@ -447,6 +447,18 @@ function AmazonOrdersConnectedServicesShell({
                 className="rounded-lg border border-slate-200 bg-white px-2 py-2 font-bold text-slate-700 disabled:bg-slate-100"
               />
             </label>
+
+            <div className="flex items-end">
+              <button
+                data-testid="data-import-amazon-orders-mf-style-apply-range-button"
+                type="button"
+                onClick={onImportedReadModelRefresh}
+                disabled={importedReadModelLoading}
+                className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-black text-sky-700 shadow-sm hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                表示
+              </button>
+            </div>
 
             <label className="grid gap-1">
               <span className="font-black text-slate-500">表示件数</span>

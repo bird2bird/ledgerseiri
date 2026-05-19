@@ -31,6 +31,8 @@ mustContain('data-import-amazon-orders-mf-style-range-preset');
 mustContain('data-import-amazon-orders-mf-style-start-date');
 mustContain('data-import-amazon-orders-mf-style-end-date');
 mustContain('data-import-amazon-orders-mf-style-page-size');
+mustContain('data-import-amazon-orders-mf-style-apply-range-button');
+mustContain('md:grid-cols-[180px_140px_140px_120px_90px_120px_1fr_110px]');
 mustContain('data-import-amazon-orders-mf-style-search-button');
 mustContain('data-import-amazon-orders-mf-style-table');
 mustContain('data-import-amazon-orders-mf-style-table-row');
