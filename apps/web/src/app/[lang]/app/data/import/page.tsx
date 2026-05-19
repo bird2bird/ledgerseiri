@@ -2206,11 +2206,7 @@ export default function DataImportPage() {
     setAmazonOrdersRealImportJobCommitResult(null);
     setAmazonOrdersRealImportJobCommitError("");
     setAmazonOrdersRealImportJobCommitLoading(false);
-    setAmazonOrdersImportedReadModelList(null);
-    setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
-    setAmazonOrdersImportedReadModelLoading(false);
-    setAmazonOrdersImportedReadModelSelectedOrderId("");
     setAmazonOrdersStagingCommitReadiness(null);
     setAmazonOrdersStagingCommitReadinessError("");
     setAmazonOrdersStagingCommitReadinessLoading(false);
@@ -2224,11 +2220,7 @@ export default function DataImportPage() {
     setAmazonOrdersFinalCommitReview(null);
     setAmazonOrdersFinalCommitReviewError("");
     setAmazonOrdersFinalCommitReviewLoading(false);
-    setAmazonOrdersImportedReadModelList(null);
-    setAmazonOrdersImportedReadModelDetail(null);
     setAmazonOrdersImportedReadModelError("");
-    setAmazonOrdersImportedReadModelLoading(false);
-    setAmazonOrdersImportedReadModelSelectedOrderId("");
     setAmazonOrdersStagingCommitReadiness(null);
     setAmazonOrdersStagingCommitReadinessError("");
     setAmazonOrdersStagingCommitReadinessLoading(false);
@@ -2239,14 +2231,12 @@ export default function DataImportPage() {
     setAmazonOrdersCombinedDryRunProjection(null);
     setAmazonOrdersCombinedDryRunProjectionError("");
     setAmazonOrdersCombinedDryRunProjectionLoading(false);
+    // Step151-W-I-PRESERVE-ORDERS-TABLE-ON-FETCH:
+    // Clicking 取得 must not clear the already displayed ImportJob / ImportStagingRow order table.
+    // 401/auth/preflight errors belong to the fetch flow and must not erase the read-only table.
     setAmazonOrdersFetchShellMessage(
       "取得入口を選択しました。まず preflight で接続状態・取得範囲・明示確認の必要性を確認します。"
     );
-
-    if (typeof document !== "undefined") {
-      const target = document.querySelector('[data-testid="data-import-connected-service-amazon-orders-execution-contract"]');
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
 
     try {
       const dateRange = deriveAmazonOrdersPullDateRange();
@@ -2398,7 +2388,7 @@ export default function DataImportPage() {
         setAmazonOrdersImportedReadModelDetail(null);
       }
     } catch (err) {
-      // Step151-W-H:
+      // Step151-W-H / Step151-W-I:
       // Keep the currently displayed ImportJob / ImportStagingRow order table visible
       // when a refresh fails, including auth/401 errors from adjacent Amazon pull flows.
       // This table is display-only and must not be cleared by a read-model refresh failure.
