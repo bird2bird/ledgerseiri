@@ -87,6 +87,8 @@ mustContain('page', page, 'onImportedReadModelRefresh');
 mustContain('page', page, 'onAmazonOrdersImportedReadModelContentSearchChange');
 mustContain('page', page, 'deriveAmazonOrdersPullDateRange');
 mustContain('page', page, 'await refreshAmazonOrdersImportedReadModel(undefined, null, 1);');
+mustContain('page', page, 'Step151-W-H');
+mustContain('page', page, 'Keep the currently displayed ImportJob / ImportStagingRow order table visible');
 
 // ---------- Read model route anchors ----------
 mustContain('apiController', apiController, "@Get('amazon-sp-api/orders/imported/read-model')");
@@ -144,6 +146,35 @@ for (const [name, block] of Object.entries({ apiReadModel })) {
 
 if (!webPackage.scripts['smoke:step151-w-g:orders-page-display-closeout']) {
   throw new Error('package script missing for Step151-W-G closeout smoke');
+}
+
+
+// Step151-W-H refresh catch must not clear table.
+// The read-model refresh catch block must preserve existing list/detail/selection.
+const refreshStart = page.indexOf('async function refreshAmazonOrdersImportedReadModel');
+const refreshEnd = page.indexOf('function handleAmazonOrdersPullRangePresetChange', refreshStart);
+const refreshBlock =
+  refreshStart >= 0 && refreshEnd > refreshStart ? page.slice(refreshStart, refreshEnd) : '';
+
+if (!refreshBlock.includes('Step151-W-H')) {
+  throw new Error('Step151-W-H preservation marker missing in refreshAmazonOrdersImportedReadModel');
+}
+
+const refreshCatchStart = refreshBlock.indexOf('} catch (err) {');
+const refreshCatchEnd = refreshBlock.indexOf('} finally {', refreshCatchStart);
+const refreshCatchBlock =
+  refreshCatchStart >= 0 && refreshCatchEnd > refreshCatchStart
+    ? refreshBlock.slice(refreshCatchStart, refreshCatchEnd)
+    : '';
+
+for (const forbiddenClear of [
+  'setAmazonOrdersImportedReadModelList(null)',
+  'setAmazonOrdersImportedReadModelDetail(null)',
+  'setAmazonOrdersImportedReadModelSelectedOrderId("")',
+]) {
+  if (refreshCatchBlock.includes(forbiddenClear)) {
+    throw new Error(`Step151-W-H drift: refresh catch must not clear table via ${forbiddenClear}`);
+  }
 }
 
 console.log('[OK] Step151-W-G orders page display closeout smoke passed.');

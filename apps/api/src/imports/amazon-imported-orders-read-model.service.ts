@@ -251,7 +251,7 @@ export async function listAmazonImportedOrdersReadModel(
   }
 
   const limit = Math.min(Math.max(Number(args.limit || 20), 1), 100);
-  const cursorRowNo = args.cursor ? Number(args.cursor) : null;
+  const cursorOffset = args.cursor ? Number(args.cursor) : 0;
   const dateRange = deriveDateRange(args);
   const content = String(args.content || '').trim().toLowerCase();
   const orderIdFilter = String(args.orderId || '').trim();
@@ -264,10 +264,9 @@ export async function listAmazonImportedOrdersReadModel(
       importJob: {
         sourceType: 'amazon-sp-api-orders',
       },
-      ...(cursorRowNo && Number.isFinite(cursorRowNo) ? { rowNo: { gt: cursorRowNo } } : {}),
     },
     orderBy: [{ rowNo: 'asc' }, { id: 'asc' }],
-    take: Math.min(limit + 1, 101),
+    take: 5000,
     select: {
       id: true,
       importJobId: true,
@@ -375,9 +374,13 @@ export async function listAmazonImportedOrdersReadModel(
     return String(b.rowNo || 0).localeCompare(String(a.rowNo || 0));
   });
 
-  const pageOrders = allOrders.slice(0, limit);
-  const hasMore = allOrders.length > limit || rows.length > limit;
-  const nextCursor = hasMore ? String(rows[Math.min(rows.length, limit) - 1]?.rowNo || '') || null : null;
+  // Step151-W-I:
+  // `totalOrders` must mean all orders matching the selected display range,
+  // not merely the current page size. Cursor is an offset over grouped orders.
+  const safeCursorOffset = Number.isFinite(cursorOffset) && cursorOffset > 0 ? cursorOffset : 0;
+  const pageOrders = allOrders.slice(safeCursorOffset, safeCursorOffset + limit);
+  const hasMore = allOrders.length > safeCursorOffset + limit;
+  const nextCursor = hasMore ? String(safeCursorOffset + limit) : null;
 
   const orders: AmazonImportedOrdersReadModelOrderRow[] = pageOrders.map((order) => {
     const unresolved = order.skuStatuses.includes('unresolved');
@@ -401,7 +404,29 @@ export async function listAmazonImportedOrdersReadModel(
     };
   });
 
-  const amountTotal = orders.reduce((sum, order) => sum + Number(order.amount || 0), 0);
+  const summaryOrders: AmazonImportedOrdersReadModelOrderRow[] = allOrders.map((order) => {
+    const unresolved = order.skuStatuses.includes('unresolved');
+    const aliasLinked = order.skuStatuses.includes('alias-linked');
+    const linked = order.skuStatuses.includes('linked');
+
+    return {
+      orderId: order.orderId,
+      purchaseDate: order.purchaseDate,
+      content: order.contentParts.slice(0, 3).join(' / '),
+      amount: order.amountTotal ? String(order.amountTotal) : null,
+      currency: order.currency,
+      service: 'Amazon.co.jp',
+      status: order.status,
+      itemCount: order.itemCount,
+      marketplace: order.marketplace,
+      skuStatus: unresolved ? 'unresolved' : aliasLinked ? 'alias-linked' : linked ? 'linked' : 'read-model-pending',
+      importStatus: 'imported',
+      importJobId: order.importJobId,
+      stagingRowIds: order.stagingRowIds,
+    };
+  });
+
+  const amountTotal = summaryOrders.reduce((sum, order) => sum + Number(order.amount || 0), 0);
 
   return {
     source: 'amazon-imported-orders-read-model',
@@ -410,12 +435,12 @@ export async function listAmazonImportedOrdersReadModel(
     companyScoped: true,
     orders,
     summary: {
-      totalOrders: orders.length,
-      totalItems: orders.reduce((sum, order) => sum + order.itemCount, 0),
-      unresolvedSkuCount: orders.filter((order) => order.skuStatus === 'unresolved').length,
-      linkedSkuCount: orders.filter((order) => order.skuStatus === 'linked').length,
-      aliasLinkedSkuCount: orders.filter((order) => order.skuStatus === 'alias-linked').length,
-      currency: orders[0]?.currency || 'JPY',
+      totalOrders: summaryOrders.length,
+      totalItems: summaryOrders.reduce((sum, order) => sum + order.itemCount, 0),
+      unresolvedSkuCount: summaryOrders.filter((order) => order.skuStatus === 'unresolved').length,
+      linkedSkuCount: summaryOrders.filter((order) => order.skuStatus === 'linked').length,
+      aliasLinkedSkuCount: summaryOrders.filter((order) => order.skuStatus === 'alias-linked').length,
+      currency: summaryOrders[0]?.currency || 'JPY',
       amountTotal: amountTotal ? String(amountTotal) : null,
     },
     pagination: {
