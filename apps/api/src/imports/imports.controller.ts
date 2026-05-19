@@ -27,6 +27,7 @@ import { projectAmazonSpApiOrdersCombinedDryRun } from './amazon-sp-api-orders-c
 import { reviewAmazonSpApiOrdersFinalCommit } from './amazon-sp-api-orders-final-commit-review.service';
 import { buildAmazonSpApiOrdersTransactionCommitDisabledResult } from './amazon-sp-api-orders-transaction-commit.disabled.service';
 import { commitAmazonSpApiOrdersIncomeTransactions } from './amazon-sp-api-orders-transaction-commit.service';
+import { getAmazonImportedOrderDetailReadModel, listAmazonImportedOrdersReadModel } from './amazon-imported-orders-read-model.service';
 import { projectAmazonSpApiOrdersReadyRowsToInventoryDryRun } from './amazon-sp-api-orders-inventory-dry-run-projection.service';
 import { buildAmazonSpApiOrdersHistoricalSyncDisabledControllerResponse, type AmazonSpApiOrdersHistoricalSyncDisabledControllerResponse } from './dto/amazon-sp-api-orders-historical-sync-disabled-controller-contract.dto';
 import {
@@ -1164,6 +1165,72 @@ export class ImportsController {
       controllerWritesTransaction: false as const,
       controllerWritesInventoryMovement: false as const,
     };
+  }
+
+
+  // Step151-W-E: Data Import Amazon imported orders table read model.
+  // Read-only GET route for displaying ImportJob / ImportStagingRow Amazon order rows.
+  // Must not call Amazon and must not write Transaction / Expense / Inventory / Bank records.
+  @UseGuards(JwtAuthGuard)
+  @Get('amazon-sp-api/orders/imported/read-model')
+  async amazonImportedOrdersReadModelControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Query('rangePreset') rangePreset?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('orderId') orderId?: string,
+    @Query('status') status?: string,
+    @Query('content') content?: string,
+    @Query('minAmount') minAmount?: string,
+    @Query('maxAmount') maxAmount?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_W_E_IMPORTED_ORDERS_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    return listAmazonImportedOrdersReadModel({
+      prisma: this.prismaService,
+      companyId,
+      rangePreset,
+      startDate,
+      endDate,
+      orderId,
+      status,
+      content,
+      minAmount: minAmount === undefined ? undefined : Number(minAmount),
+      maxAmount: maxAmount === undefined ? undefined : Number(maxAmount),
+      cursor,
+      limit: limit === undefined ? undefined : Number(limit),
+    });
+  }
+
+  // Step151-W-E: Data Import Amazon imported order detail read model.
+  // Read-only GET route for the order detail panel.
+  @UseGuards(JwtAuthGuard)
+  @Get('amazon-sp-api/orders/imported/read-model/detail')
+  async amazonImportedOrderDetailReadModelControllerRoute(
+    @Req() req: Step122SAuthenticatedRequest,
+    @Query('orderId') orderId?: string,
+  ) {
+    const companyId = String(req.user?.companyId || '').trim();
+
+    if (!companyId) {
+      throw new ForbiddenException(
+        'STEP151_W_E_IMPORTED_ORDER_DETAIL_READ_MODEL_COMPANY_REQUIRED: authenticated user must belong to a company.',
+      );
+    }
+
+    return getAmazonImportedOrderDetailReadModel({
+      prisma: this.prismaService,
+      companyId,
+      orderId: String(orderId || '').trim(),
+    });
   }
 
 
