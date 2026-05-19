@@ -2398,10 +2398,11 @@ export default function DataImportPage() {
         setAmazonOrdersImportedReadModelDetail(null);
       }
     } catch (err) {
+      // Step151-W-H:
+      // Keep the currently displayed ImportJob / ImportStagingRow order table visible
+      // when a refresh fails, including auth/401 errors from adjacent Amazon pull flows.
+      // This table is display-only and must not be cleared by a read-model refresh failure.
       setAmazonOrdersImportedReadModelError(err instanceof Error ? err.message : "imported orders read-model refresh failed");
-      setAmazonOrdersImportedReadModelList(null);
-      setAmazonOrdersImportedReadModelDetail(null);
-      setAmazonOrdersImportedReadModelSelectedOrderId("");
     } finally {
       setAmazonOrdersImportedReadModelLoading(false);
     }
