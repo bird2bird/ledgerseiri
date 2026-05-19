@@ -194,6 +194,40 @@ function deriveDateRange(args: {
   };
 }
 
+function extractAmazonOrderFilterDate(payload: Record<string, unknown>): string | null {
+  // Step151-W-O:
+  // Date range filtering must use the Amazon/order business date only.
+  // ImportJob.importedAt is only an import timestamp and must not decide 7D/30D/90D/365D membership.
+  return normalizeDateOnly(
+    readString(payload, [
+      'purchaseDate',
+      'PurchaseDate',
+      'amazonPurchaseDate',
+      'AmazonPurchaseDate',
+      'purchase_date',
+      'orderDate',
+      'OrderDate',
+      'order_date',
+      'orderPlacedDate',
+      'OrderPlacedDate',
+      'orderCreatedDate',
+      'OrderCreatedDate',
+      'postedDate',
+      'posted_date',
+      'shipmentDate',
+      'ShipmentDate',
+      'latestShipDate',
+      'LatestShipDate',
+      'earliestShipDate',
+      'EarliestShipDate',
+      'lastUpdateDate',
+      'LastUpdateDate',
+      'businessDate',
+      'BusinessDate',
+    ]),
+  );
+}
+
 function extractOrderIdentity(payload: Record<string, unknown>): {
   orderId: string | null;
   orderItemId: string | null;
@@ -334,6 +368,7 @@ export async function listAmazonImportedOrdersReadModel(
     stagingRowIds: string[];
     rowNo: number | null;
     importedAt: string | null;
+    filterDate: string | null;
   }>();
 
   for (const row of rows) {
@@ -350,34 +385,21 @@ export async function listAmazonImportedOrdersReadModel(
     if (!identity.orderId) continue;
 
     const importedAtDate = row.importJob?.importedAt ? row.importJob.importedAt.toISOString().slice(0, 10) : null;
-    const fallbackDate =
+    const amazonOrderFilterDate =
       identity.purchaseDate ||
-      normalizeDateOnly(readString(payload, [
-        'amazonPurchaseDate',
-        'AmazonPurchaseDate',
-        'purchase_date',
-        'order_date',
-        'OrderDate',
-        'postedDate',
-        'posted_date',
-        'createdAt',
-        'CreatedAt',
-        'importedAt',
-        'ImportedAt',
-        'latestShipDate',
-        'LatestShipDate',
-        'earliestShipDate',
-        'EarliestShipDate',
-        'shipmentDate',
-        'ShipmentDate',
-        'lastUpdateDate',
-        'LastUpdateDate',
-      ])) ||
-      normalizeDateOnly(String(row.businessMonth || '')) ||
-      importedAtDate;
+      extractAmazonOrderFilterDate(payload) ||
+      normalizeDateOnly(String(row.businessMonth || ''));
+
+    // Step151-W-O:
+    // Use import timestamp only for table display fallback, not for period filtering.
+    const displayDate = amazonOrderFilterDate || importedAtDate;
 
     if (orderIdFilter && identity.orderId !== orderIdFilter) continue;
-    if (fallbackDate && (fallbackDate < dateRange.startDate || fallbackDate > dateRange.endDate)) continue;
+
+    // If an order has no Amazon/order business date, exclude it from preset date ranges
+    // instead of incorrectly including it because it was imported recently.
+    if (!amazonOrderFilterDate) continue;
+    if (amazonOrderFilterDate < dateRange.startDate || amazonOrderFilterDate > dateRange.endDate) continue;
     if (statusFilter && !String(identity.status || '').toLowerCase().includes(statusFilter)) continue;
 
     const contentText = [
@@ -399,7 +421,7 @@ export async function listAmazonImportedOrdersReadModel(
       orderMap.get(key) ??
       {
         orderId: key,
-        purchaseDate: fallbackDate,
+        purchaseDate: displayDate,
         contentParts: [],
         amountTotal: 0,
         currency: identity.currency,
@@ -412,12 +434,14 @@ export async function listAmazonImportedOrdersReadModel(
         stagingRowIds: [],
         rowNo: row.rowNo,
         importedAt: importedAtDate,
+        filterDate: amazonOrderFilterDate,
       };
 
     existing.itemCount += 1;
     existing.amountTotal += identity.amount || 0;
     existing.currency = existing.currency || identity.currency;
-    existing.purchaseDate = existing.purchaseDate || fallbackDate;
+    existing.purchaseDate = existing.purchaseDate || displayDate;
+    existing.filterDate = existing.filterDate || amazonOrderFilterDate;
     existing.importJobId = existing.importJobId || row.importJobId;
     existing.rowNo = existing.rowNo ?? row.rowNo;
     existing.importedAt = existing.importedAt || importedAtDate;

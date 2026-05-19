@@ -301,7 +301,8 @@
     "smoke:step151-s-b:amazon-orders-transaction-real-write-contract": "node scripts/smoke-step151-s-b-amazon-orders-transaction-real-write-contract.js",
     "smoke:step151-s-c:amazon-orders-transaction-real-write-runtime": "npm run build && node scripts/smoke-step151-s-c-amazon-orders-transaction-real-write-runtime.js",
     "smoke:step151-w-e:amazon-imported-orders-read-model-route": "node scripts/smoke-step151-w-e-amazon-imported-orders-read-model-route.js",
-    "smoke:step151-w-k:runtime-total-pagination-dates": "node scripts/smoke-step151-w-k-runtime-total-pagination-dates.js"
+    "smoke:step151-w-k:runtime-total-pagination-dates": "node scripts/smoke-step151-w-k-runtime-total-pagination-dates.js",
+    "smoke:step151-w-o:order-date-filter-semantics": "node scripts/smoke-step151-w-o-order-date-filter-semantics.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
