@@ -250,8 +250,12 @@ export async function listAmazonImportedOrdersReadModel(
     throw new ForbiddenException('AMAZON_IMPORTED_ORDERS_READ_MODEL_COMPANY_REQUIRED');
   }
 
+  // Step151-W-J:
+  // Total count and current page must be computed separately.
+  // `limit` controls visible rows only. It must never change summary.totalOrders.
   const limit = Math.min(Math.max(Number(args.limit || 20), 1), 100);
-  const cursorOffset = args.cursor ? Number(args.cursor) : 0;
+  const cursorOffsetRaw = args.cursor ? Number(args.cursor) : 0;
+  const cursorOffset = Number.isFinite(cursorOffsetRaw) && cursorOffsetRaw > 0 ? cursorOffsetRaw : 0;
   const dateRange = deriveDateRange(args);
   const content = String(args.content || '').trim().toLowerCase();
   const orderIdFilter = String(args.orderId || '').trim();
@@ -266,7 +270,7 @@ export async function listAmazonImportedOrdersReadModel(
       },
     },
     orderBy: [{ rowNo: 'asc' }, { id: 'asc' }],
-    take: 5000,
+    take: 20000,
     select: {
       id: true,
       importJobId: true,
@@ -300,12 +304,14 @@ export async function listAmazonImportedOrdersReadModel(
     importJobId: string | null;
     stagingRowIds: string[];
     rowNo: number | null;
+    importedAt: string | null;
   }>();
 
   for (const row of rows) {
     const normalized = asRecord(row.normalizedPayloadJson);
     const raw = asRecord(row.rawPayloadJson);
     const payload = { ...raw, ...normalized };
+
     const identity = extractOrderIdentity({
       ...payload,
       targetEntityType: row.targetEntityType,
@@ -314,8 +320,27 @@ export async function listAmazonImportedOrdersReadModel(
 
     if (!identity.orderId) continue;
 
+    const importedAtDate = row.importJob?.importedAt ? row.importJob.importedAt.toISOString().slice(0, 10) : null;
+    const fallbackDate =
+      identity.purchaseDate ||
+      normalizeDateOnly(readString(payload, [
+        'amazonPurchaseDate',
+        'AmazonPurchaseDate',
+        'purchase_date',
+        'order_date',
+        'OrderDate',
+        'postedDate',
+        'posted_date',
+        'createdAt',
+        'CreatedAt',
+        'importedAt',
+        'ImportedAt',
+      ])) ||
+      normalizeDateOnly(String(row.businessMonth || '')) ||
+      importedAtDate;
+
     if (orderIdFilter && identity.orderId !== orderIdFilter) continue;
-    if (identity.purchaseDate && (identity.purchaseDate < dateRange.startDate || identity.purchaseDate > dateRange.endDate)) continue;
+    if (fallbackDate && (fallbackDate < dateRange.startDate || fallbackDate > dateRange.endDate)) continue;
     if (statusFilter && !String(identity.status || '').toLowerCase().includes(statusFilter)) continue;
 
     const contentText = [
@@ -337,7 +362,7 @@ export async function listAmazonImportedOrdersReadModel(
       orderMap.get(key) ??
       {
         orderId: key,
-        purchaseDate: identity.purchaseDate,
+        purchaseDate: fallbackDate,
         contentParts: [],
         amountTotal: 0,
         currency: identity.currency,
@@ -349,14 +374,16 @@ export async function listAmazonImportedOrdersReadModel(
         importJobId: row.importJobId,
         stagingRowIds: [],
         rowNo: row.rowNo,
+        importedAt: importedAtDate,
       };
 
     existing.itemCount += 1;
     existing.amountTotal += identity.amount || 0;
     existing.currency = existing.currency || identity.currency;
-    existing.purchaseDate = existing.purchaseDate || identity.purchaseDate;
+    existing.purchaseDate = existing.purchaseDate || fallbackDate;
     existing.importJobId = existing.importJobId || row.importJobId;
     existing.rowNo = existing.rowNo ?? row.rowNo;
+    existing.importedAt = existing.importedAt || importedAtDate;
     existing.stagingRowIds.push(row.id);
     existing.skuStatuses.push(identity.skuReadiness);
     existing.importStatuses.push(String(row.matchStatus || 'imported'));
@@ -368,28 +395,20 @@ export async function listAmazonImportedOrdersReadModel(
   }
 
   const allOrders = Array.from(orderMap.values()).sort((a, b) => {
-    const ad = a.purchaseDate || '';
-    const bd = b.purchaseDate || '';
+    const ad = a.purchaseDate || a.importedAt || '';
+    const bd = b.purchaseDate || b.importedAt || '';
     if (ad !== bd) return bd.localeCompare(ad);
-    return String(b.rowNo || 0).localeCompare(String(a.rowNo || 0));
+    return Number(b.rowNo || 0) - Number(a.rowNo || 0);
   });
 
-  // Step151-W-I:
-  // `totalOrders` must mean all orders matching the selected display range,
-  // not merely the current page size. Cursor is an offset over grouped orders.
-  const safeCursorOffset = Number.isFinite(cursorOffset) && cursorOffset > 0 ? cursorOffset : 0;
-  const pageOrders = allOrders.slice(safeCursorOffset, safeCursorOffset + limit);
-  const hasMore = allOrders.length > safeCursorOffset + limit;
-  const nextCursor = hasMore ? String(safeCursorOffset + limit) : null;
-
-  const orders: AmazonImportedOrdersReadModelOrderRow[] = pageOrders.map((order) => {
+  function toOrderRow(order: typeof allOrders[number]): AmazonImportedOrdersReadModelOrderRow {
     const unresolved = order.skuStatuses.includes('unresolved');
     const aliasLinked = order.skuStatuses.includes('alias-linked');
     const linked = order.skuStatuses.includes('linked');
 
     return {
       orderId: order.orderId,
-      purchaseDate: order.purchaseDate,
+      purchaseDate: order.purchaseDate || order.importedAt,
       content: order.contentParts.slice(0, 3).join(' / '),
       amount: order.amountTotal ? String(order.amountTotal) : null,
       currency: order.currency,
@@ -402,30 +421,15 @@ export async function listAmazonImportedOrdersReadModel(
       importJobId: order.importJobId,
       stagingRowIds: order.stagingRowIds,
     };
-  });
+  }
 
-  const summaryOrders: AmazonImportedOrdersReadModelOrderRow[] = allOrders.map((order) => {
-    const unresolved = order.skuStatuses.includes('unresolved');
-    const aliasLinked = order.skuStatuses.includes('alias-linked');
-    const linked = order.skuStatuses.includes('linked');
+  const totalOrders = allOrders.length;
+  const pageOrders = allOrders.slice(cursorOffset, cursorOffset + limit);
+  const orders = pageOrders.map(toOrderRow);
+  const summaryOrders = allOrders.map(toOrderRow);
 
-    return {
-      orderId: order.orderId,
-      purchaseDate: order.purchaseDate,
-      content: order.contentParts.slice(0, 3).join(' / '),
-      amount: order.amountTotal ? String(order.amountTotal) : null,
-      currency: order.currency,
-      service: 'Amazon.co.jp',
-      status: order.status,
-      itemCount: order.itemCount,
-      marketplace: order.marketplace,
-      skuStatus: unresolved ? 'unresolved' : aliasLinked ? 'alias-linked' : linked ? 'linked' : 'read-model-pending',
-      importStatus: 'imported',
-      importJobId: order.importJobId,
-      stagingRowIds: order.stagingRowIds,
-    };
-  });
-
+  const hasMore = cursorOffset + limit < totalOrders;
+  const nextCursor = hasMore ? String(cursorOffset + limit) : null;
   const amountTotal = summaryOrders.reduce((sum, order) => sum + Number(order.amount || 0), 0);
 
   return {
@@ -435,7 +439,7 @@ export async function listAmazonImportedOrdersReadModel(
     companyScoped: true,
     orders,
     summary: {
-      totalOrders: summaryOrders.length,
+      totalOrders,
       totalItems: summaryOrders.reduce((sum, order) => sum + order.itemCount, 0),
       unresolvedSkuCount: summaryOrders.filter((order) => order.skuStatus === 'unresolved').length,
       linkedSkuCount: summaryOrders.filter((order) => order.skuStatus === 'linked').length,
